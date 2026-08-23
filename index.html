@@ -9633,6 +9633,71 @@ function aarishBuildCsvFromDatasetCoreV1(dataset) {
     rows.forEach(item => csv += row([item.source_id, item.record_id, item.source_module, item.record_type, item.date_iso, item.date_display, item.counterparty, item.account, item.description, item.owner_action, item.financial_direction, item.amount, item.signed_amount, item.quantity, item.unit, item.rate, item.status, item.ai_interpretation, item.source_key]));
     return csv;
 }
+/* AARISH_AI_MASTER_LEDGER_TEXT_CORE_V1_START */
+function aarishBuildAiMasterLedgerCoreV1(type, dataset) {
+    const scope = String(type || (dataset && dataset.type) || 'all');
+    const rows = aarishBuildUnifiedLedgerCoreV2(scope);
+    const safe = value => String(value == null ? '' : value).replace(/[\r\n]+/g, ' / ').replace(/\s+/g, ' ').trim();
+    const impact = signed => signed > 0 ? '[+ IN]' : signed < 0 ? '[- OUT]' : '[0 NEUTRAL]';
+    const positive = rows.reduce((sum, item) => sum + Math.max(0, aarishExportSmartNumberCoreV2(item.signed_amount)), 0);
+    const negative = rows.reduce((sum, item) => sum + Math.abs(Math.min(0, aarishExportSmartNumberCoreV2(item.signed_amount))), 0);
+    const neutral = rows.filter(item => aarishExportSmartNumberCoreV2(item.signed_amount) === 0).length;
+    const meta = (dataset && dataset.meta) || aarishExportMetaCoreV1(scope);
+    let text = '';
+    text += '### AARISH DAIRY PRO : AI MASTER FINANCIAL LEDGER ###\n';
+    text += 'AI INSTRUCTIONS (CRITICAL):\n';
+    text += '- [+ IN] means money to receive / inflow (lena hai).\n';
+    text += '- [- OUT] means money to pay / outflow (dena hai or kharcha).\n';
+    text += '- [0 NEUTRAL] means diary, transfer, pending, or unspecified non-cash information; do not count it.\n';
+    text += '- Each ENTRY block is exactly one source record; never merge two blocks.\n';
+    text += '- Use SIGNED AMOUNT as the calculation source of truth; do not infer direction from free-text descriptions.\n';
+    text += '============================================================\n\n';
+    rows.forEach((item, index) => {
+        const signed = aarishExportSmartNumberCoreV2(item.signed_amount);
+        text += `>>> [ ENTRY #${index + 1} START ] <<<\n`;
+        text += ` | SOURCE   :: ${safe(item.source_module)} / ${safe(item.source_id)}\n`;
+        text += ` | RECORD   :: ${safe(item.record_id)} / ${safe(item.record_type)}\n`;
+        text += ` | DATE     :: ${safe(item.date_iso)} / ${safe(item.date_display)}\n`;
+        text += ` | PARTY    :: ${safe(item.counterparty)}\n`;
+        text += ` | ACCOUNT  :: ${safe(item.account)}\n`;
+        text += ` | ACTION   :: ${safe(item.owner_action)}\n`;
+        text += ` | IMPACT   :: ${impact(signed)}\n`;
+        text += ` | AMOUNT   :: ₹${aarishExportSmartNumberCoreV2(item.amount)}\n`;
+        text += ` | SIGNED   :: ₹${signed}\n`;
+        text += ` | STATUS   :: ${safe(item.status)} / ${safe(item.financial_direction)}\n`;
+        text += ` | DETAILS  :: ${safe(item.description)}\n`;
+        text += ` | AI NOTE  :: ${safe(item.ai_interpretation)}\n`;
+        text += ` | SOURCE KEY :: ${safe(item.source_key)}\n`;
+        text += `>>> [ ENTRY #${index + 1} END ] <<<\n`;
+        text += '------------------------------------------------------------\n\n';
+    });
+    text += '################ FINAL SUMMARY ################\n';
+    text += `> REPORT SCOPE                         : ${safe(meta && meta.title || scope)}\n`;
+    text += `> TOTAL ENTRIES                        : ${rows.length}\n`;
+    text += `> TOTAL TO RECEIVE / INFLOW            : ₹${positive}\n`;
+    text += `> TOTAL TO PAY / OUTFLOW               : ₹${negative}\n`;
+    text += `> NET SIGNED TOTAL                     : ₹${positive - negative}\n`;
+    text += `> NEUTRAL / NON-FINANCIAL ENTRIES      : ${neutral}\n`;
+    text += '############################################################\n';
+    return text;
+}
+async function aarishExportAiMasterLedgerCoreV1(type, dataset) {
+    showLoader('AI Master Ledger बन रहा है...');
+    try {
+        const text = aarishBuildAiMasterLedgerCoreV1(type, dataset);
+        const safeType = aarishExportSafeFileNameCoreV1(type || 'all');
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8;' });
+        const file = new File([blob], `Aarish_${safeType.toUpperCase()}_AI_Master_Ledger.txt`, { type: 'text/plain;charset=utf-8;' });
+        hideLoader();
+        await aarishShareOrDownloadFileCoreV1(file, 'AI Master Ledger Report');
+        showToast('AI Master Ledger Ready');
+    } catch (err) {
+        hideLoader();
+        console.error('Aarish AI Master Ledger export error:', err);
+        showToast('AI ledger export failed.');
+    }
+}
+/* AARISH_AI_MASTER_LEDGER_TEXT_CORE_V1_END */
 async function aarishShareOrDownloadFileCoreV1(file, toastText) {
     if (!file) throw new Error('export_file_missing');
 
@@ -9861,7 +9926,7 @@ function aarishCloseExportCenterCoreV1() {
     if (app) app.classList.remove('app-scale-down');
 }
 function aarishSetExportFormatCoreV1(format) {
-    window.__aarishExportFormatCoreV1 = (format === 'csv') ? 'csv' : 'pdf';
+    window.__aarishExportFormatCoreV1 = (format === 'ai-text' || format === 'csv') ? format : 'pdf';
     const modal = document.getElementById('dynamic-download-modal');
     if (!modal) return;
     modal.setAttribute('data-export-format', window.__aarishExportFormatCoreV1);
@@ -9872,7 +9937,9 @@ function aarishSetExportFormatCoreV1(format) {
     if (help) {
         help.textContent = window.__aarishExportFormatCoreV1 === 'pdf'
             ? 'Premium PDF app ke current colors, borders, cards aur dark/light mode se banegi.'
-            : 'CSV Backup raw data ke liye permanent safe file hai. Excel/Sheets me open ho jayegi.';
+            : window.__aarishExportFormatCoreV1 === 'csv'
+                ? 'CSV Backup raw data ke liye permanent safe file hai. Excel/Sheets me open ho jayegi.'
+                : 'AI Master Ledger .txt me har entry ke hard boundaries, [+ IN], [- OUT] aur [0 NEUTRAL] tags honge.';
     }
 }
 function aarishExportButtonHtmlCoreV1(type) {
@@ -9902,6 +9969,7 @@ function downloadExcel() {
             <div class="aarish-export-format-grid">
                 <button type="button" class="aarish-export-format-btn" data-format="pdf" onclick="haptic(); aarishSetExportFormatCoreV1('pdf')"><i class="fa-solid fa-file-pdf"></i> Premium PDF</button>
                 <button type="button" class="aarish-export-format-btn" data-format="csv" onclick="haptic(); aarishSetExportFormatCoreV1('csv')"><i class="fa-solid fa-table"></i> CSV Backup</button>
+                <button type="button" class="aarish-export-format-btn" data-format="ai-text" onclick="haptic(); aarishSetExportFormatCoreV1('ai-text')"><i class="fa-solid fa-robot"></i> AI Ledger</button>
             </div>
             <div class="aarish-export-format-help" data-aarish-export-help></div>
 
@@ -9934,13 +10002,15 @@ async function executeDownload(type) {
         const dataset = aarishBuildExportDatasetCoreV1(safeType);
         if (format === 'csv') {
             await aarishExportCsvBackupCoreV1(safeType, dataset);
+        } else if (format === 'ai-text') {
+            await aarishExportAiMasterLedgerCoreV1(safeType, dataset);
         } else {
             await aarishExportPremiumPdfCoreV1(safeType, dataset);
         }
     } catch (err) {
         console.error('Aarish export pipeline error:', err);
         try { hideLoader(); } catch(e) {}
-        try { showToast(format === 'csv' ? 'CSV export failed.' : 'PDF export failed.'); } catch(e) {}
+        try { showToast(format === 'csv' ? 'CSV export failed.' : format === 'ai-text' ? 'AI ledger export failed.' : 'PDF export failed.'); } catch(e) {}
     }
 }
 /* AARISH_EXPORT_CENTER_PREMIUM_PDF_CORE_V1_END */
