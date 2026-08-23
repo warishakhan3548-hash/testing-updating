@@ -204,12 +204,19 @@
         }
         .dark .app-container { box-shadow: 0 0 50px rgba(255, 255, 255, 0.02); }
         
-        /* 1. THE iOS MODAL PUSH-BACK EFFECT */
+        /* 1. THE iOS MODAL PUSH-BACK EFFECT (OMNI-ARCHITECT UPGRADED) */
         .app-scale-down {
-            transform: scale(0.93) translateY(10px);
+            transform: scale(0.93) translateY(10px) translateZ(0);
             border-radius: 28px;
             opacity: 0.6;
             pointer-events: none;
+        }
+        /* Hide bottom navigation while the transformed app is behind a modal. */
+        .app-scale-down .bottom-nav {
+            opacity: 0 !important;
+            transform: translateX(-50%) translateY(20px) !important;
+            pointer-events: none;
+            transition: opacity 0.25s ease, transform 0.3s ease !important;
         }
 
         /* Smooth Screen Transitions */
@@ -625,7 +632,7 @@
         .offline-desc { font-size: 15px; color: #8E8E93; font-weight: 500; max-width: 300px; line-height: 1.5; margin-bottom: 36px; font-family: 'Inter', sans-serif; }
 
                 /* GEMINI AI LOCAL CSS */
-        #gemini-floating-widget { z-index: 999999; }
+        #gemini-floating-widget { z-index: 999997; } /* OMNI-FIX: below the offline overlay */
         #gemini-draggable-logo { position: fixed; bottom: 85px; right: 20px; width: 54px; height: 54px; border-radius: 50%; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.15); display: flex; justify-content: center; align-items: center; border: 1px solid rgba(0,0,0,0.05); z-index: 999999; touch-action: none; }
         .dark #gemini-draggable-logo { background: #1C1C1E; border-color: rgba(255,255,255,0.1); }
         .gemini-spinning { animation: geminiSpin 1.5s linear infinite; }
@@ -4265,8 +4272,16 @@ window.__AARISH_BACKEND_TITANIUM_CORE_V11 = true;
 
     function filterByMonth(records) {
         if (!Array.isArray(records)) return [];
+        // [OMNI-ARCHITECT UPGRADE]: Match the canonical YYYY-MM prefix directly.
+        // This avoids allocating/parsing date parts for every record during filters.
+        const targetPrefix = String(selectedYear) + '-' + String(selectedMonth + 1).padStart(2, '0');
         return records.filter(r => {
-            const p = window.aarishV98DateParts ? window.aarishV98DateParts(r && r.date) : null;
+            const value = r && r.date;
+            if (typeof value === 'string' && value.length >= 7 && value[4] === '-') {
+                return value.startsWith(targetPrefix);
+            }
+            // Keep older non-ISO records readable without slowing the normal path.
+            const p = window.aarishV98DateParts ? window.aarishV98DateParts(value) : null;
             return !!p && p.month === selectedMonth && p.year === selectedYear;
         });
     }
@@ -7376,10 +7391,7 @@ function renderDiaryList() {
 
     
     
-    function filterDiaryList() {
-    clearTimeout(window.__diaryFilterTimerCoreV1);
-    window.__diaryFilterTimerCoreV1 = setTimeout(renderDiaryList, 180);
-}
+    function filterDiaryList() { __omniFilterDiaryList(); }
 
     function openDiaryDetail(id) {
     const d = diaryFindEntryCoreV1(id);
@@ -7807,10 +7819,7 @@ async function deleteSalaryPersonProfile(name) {
     updateSalaryCoreUi();
 }
 
-    function filterSalaryList() {
-    clearTimeout(window.__salaryFilterTimerCoreV1);
-    window.__salaryFilterTimerCoreV1 = setTimeout(renderSalaryList, 120);
-}
+    function filterSalaryList() { __omniFilterSalaryList(); }
 
     function openSalaryDetail(name) {
     activeSalaryPerson = salaryCleanNameCoreV1(name || '');
@@ -8455,7 +8464,30 @@ function renderMilkList() {
     aarishMilkApplyChromeCore();
 }
 
-    function filterMilkList() { renderMilkList(); }
+    // [OMNI-ARCHITECT UPGRADE]: Shared debounce keeps input rendering off the hot keypress path.
+    function __omniDebounce(fn, delay = 150) {
+        let timer = null;
+        return function(...args) {
+            const context = this;
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                const run = () => fn.apply(context, args);
+                if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+                    window.requestAnimationFrame(run);
+                } else {
+                    run();
+                }
+            }, delay);
+        };
+    }
+
+    const __omniFilterMilkList = __omniDebounce(renderMilkList);
+    const __omniFilterSalaryList = __omniDebounce(renderSalaryList);
+    const __omniFilterUdharList = __omniDebounce(renderUdharList);
+    const __omniFilterDiaryList = __omniDebounce(renderDiaryList);
+    const __omniFilterProjectList = __omniDebounce(renderProjectsList);
+
+    function filterMilkList() { __omniFilterMilkList(); }
 
     function openMilkDetail(name) {
         activeMilkCustomer = name;
@@ -10457,7 +10489,7 @@ function openUdharModal(name = null) {
     updateCreditBookCoreUi();
 }
 
-        function filterUdharList() { renderUdharList(); }
+        function filterUdharList() { __omniFilterUdharList(); }
 
 
 async function deleteUdharPersonProfile(name) {
@@ -11335,10 +11367,7 @@ async function saveNewProject() {
     updateBusinessCoreUi();
 }
 
-    function filterProjectList() {
-    clearTimeout(window.__projectFilterTimerCoreV1);
-    window.__projectFilterTimerCoreV1 = setTimeout(renderProjectsList, 180);
-}
+    function filterProjectList() { __omniFilterProjectList(); }
 
 
 async function deleteProject(name) {
