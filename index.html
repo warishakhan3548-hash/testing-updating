@@ -9624,6 +9624,11 @@ function aarishBuildCsvFromDatasetCoreV1(dataset) {
     csv += row(['Total To Pay / Outflow (₹)', negative]);
     csv += row(['Sign Convention', 'signed_amount > 0 = owner will receive / lena hai; signed_amount < 0 = owner will pay or money went out / dena hai/kharcha; 0 = neutral or non-financial.']);
     csv += row(['AI Parsing Rule', 'One ledger row equals one source record. Prefer record_type, owner_action, financial_direction and signed_amount over guessing from descriptions. DIARY_NOTE, BUSINESS_TRANSFER and BUSINESS_PENDING are not settled cash.']);
+    csv += row(['AI System Instruction - Context', 'This is a financial and diary record for Aarish Dairy Pro.']);
+    csv += row(['AI System Instruction - Lene Wala', 'Lene Wala / positive signed amount / TO_RECEIVE means the owner will receive money from this person.']);
+    csv += row(['AI System Instruction - Dene Wala', 'Dene Wala / negative signed amount / TO_PAY or OUTFLOW means the owner has to pay money or money has gone out.']);
+    csv += row(['AI System Instruction - Diary', 'Diary content is informational only. Newlines are normalized by the CSV escaper so each record stays on one CSV row; do not count DIARY_NOTE as a financial transaction.']);
+    csv += row(['AI System Instruction - Amounts', 'Use signed_amount as the source of truth: positive = receivable/inflow, negative = payable/outflow, zero = neutral or non-financial.']);
     csv += '\n' + row(['AI-READY UNIFIED TRANSACTION LEDGER']) + row(['Rows', rows.length]) + row(headers);
     rows.forEach(item => csv += row([item.source_id, item.record_id, item.source_module, item.record_type, item.date_iso, item.date_display, item.counterparty, item.account, item.description, item.owner_action, item.financial_direction, item.amount, item.signed_amount, item.quantity, item.unit, item.rate, item.status, item.ai_interpretation, item.source_key]));
     return csv;
