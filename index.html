@@ -7031,6 +7031,10 @@ function updatePartyLedgerCoreUi() {
 
 function openAllBalances() {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+
+    // OMNI-FIX: Reset Bottom Navigation state strictly
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
     const screen = document.getElementById('balances-screen');
     if (screen) screen.classList.add('active');
     updatePartyLedgerCoreUi();
@@ -8656,6 +8660,9 @@ function renderMilkList() {
 
         if (document.getElementById('filter-month-milk')) document.getElementById('filter-month-milk').value = selectedMonth;
         if (document.getElementById('filter-year-milk')) document.getElementById('filter-year-milk').value = selectedYear;
+
+        // OMNI-FIX: Keep all module month/year dropdowns synchronized after a milk save.
+        updateMonthFilter();
 
         renderMilkRecords();
         renderMilkList();
