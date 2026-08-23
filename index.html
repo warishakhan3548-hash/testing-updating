@@ -4740,7 +4740,6 @@ function aarishCostPurgeLocalSessionCoreV9(uidArg) {
     try { if (!uid && typeof aarishCostUidV1 === 'function') uid = String(aarishCostUidV1() || ''); } catch(e) {}
 
     try { if (typeof aarishCostClearRuntimeTimersCoreV7 === 'function') aarishCostClearRuntimeTimersCoreV7(); } catch(e) {}
-    try { if (typeof appDataRef !== 'undefined' && appDataRef) appDataRef.off(); } catch(e) {}
     try { if (__aarishCostDbCoreV1 && __aarishCostDbCoreV1.close) __aarishCostDbCoreV1.close(); } catch(e) {}
 
     __aarishCostDbCoreV1 = null;
@@ -6447,7 +6446,6 @@ async function fullFirebaseSyncCostV81(reason) {
     try { aarishCostManageSocketCoreV8(true, "full-sync-" + String(reason || "")); } catch(e) {}
     try { if (typeof showLoader === 'function') showLoader('ONE-TIME CLOUD SYNC...'); } catch(e) {}
 
-    try { if (appDataRef && typeof appDataRef.off === 'function') appDataRef.off(); } catch(e) {} /* AARISH_APPDATA_REF_OFF_CORE_V11 */
     appDataRef = database.ref('users/' + uid + '/appData');
 
     try {
@@ -6648,7 +6646,6 @@ async function loadUserData() {
     window.__aarishLoadUserDataTokenCoreV3 = token;
 
     showLoader("SYNCING DATA...");
-    try { if (appDataRef && typeof appDataRef.off === 'function') appDataRef.off(); } catch(e) {} /* AARISH_APPDATA_REF_OFF_CORE_V11 */
     appDataRef = database.ref("users/" + uid + "/appData");
 
     try {
