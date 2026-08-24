@@ -13524,11 +13524,12 @@ function generateAIAgentPairingCode() {
     const uid = typeof aarishCostUidV1 === 'function' ? aarishCostUidV1() : currentUserUID;
     if (!uid) return showToast("⚠️ Error: Please login first!");
 
-    // 1. UI Adjustments
     document.getElementById('btn-generate-ai-code').style.display = 'none';
     const container = document.getElementById('ai-pairing-container');
-    container.classList.remove('hidden');
-    container.classList.add('flex');
+    if(container){
+        container.classList.remove('hidden');
+        container.classList.add('flex');
+    }
 
     // 2. Cryptographic Code Generation
     const randomPart = () => Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -13553,9 +13554,11 @@ function generateAIAgentPairingCode() {
             const data = snapshot.val();
             if (data && data.status === 'connected') {
                 const statusText = document.getElementById('ai-pairing-status');
-                statusText.innerHTML = '<i class="fa-solid fa-circle-check text-green-500"></i> Agent Successfully Connected!';
-                statusText.classList.remove('text-[#007AFF]', 'animate-pulse');
-                statusText.classList.add('text-green-500');
+                if(statusText){
+                    statusText.innerHTML = '<i class="fa-solid fa-circle-check text-green-500"></i> Agent Successfully Connected!';
+                    statusText.classList.remove('text-[#007AFF]', 'animate-pulse');
+                    statusText.classList.add('text-green-500');
+                }
 
                 try{ haptic(); haptic(); }catch(e){}
                 showToast("✅ AI Agent Linked!");
@@ -13565,16 +13568,21 @@ function generateAIAgentPairingCode() {
                     closeModal('gemini-key-modal');
                     const btn = document.getElementById('btn-generate-ai-code');
                     if(btn) btn.style.display = 'flex';
-                    container.classList.add('hidden');
-                    container.classList.remove('flex');
+                    if(container){
+                        container.classList.add('hidden');
+                        container.classList.remove('flex');
+                    }
                 }, 2000);
             }
         });
     }).catch(err => {
         showToast("Error: " + err.message);
-        document.getElementById('btn-generate-ai-code').style.display = 'flex';
-        container.classList.add('hidden');
-        container.classList.remove('flex');
+        const btn = document.getElementById('btn-generate-ai-code');
+        if(btn) btn.style.display = 'flex';
+        if(container){
+            container.classList.add('hidden');
+            container.classList.remove('flex');
+        }
     });
 }
 
