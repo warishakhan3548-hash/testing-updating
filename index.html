@@ -4514,15 +4514,13 @@ function aarishCostManageSocketCoreV8(forceOnline, reason) {
             return;
         }
         clearTimeout(__aarishCostSocketIdleTimerCoreV8);
-        // [OMNI-ARCHITECT UPGRADE]: Increased idle timeout from 5s to 45s.
-        // Prevents heavy SSL/TLS handshake bandwidth overhead during normal usage gaps.
         __aarishCostSocketIdleTimerCoreV8 = setTimeout(function() {
             __aarishCostSocketIdleTimerCoreV8 = null;
             try {
                 if (__aarishCostFlushBusyV1 || window.__aarishCostPullBusyCoreV3) return;
                 firebase.database().goOffline();
             } catch(e) {}
-        }, 45000);
+        }, 12000); // 🔥 GEMINI SMART LOGIC: 12 seconds is the perfect sweet spot for PWA
     } catch(e) {}
 }
 /* AARISH_BACKEND_CANONICAL_ID_SOCKET_CORE_V8_END */
@@ -6441,6 +6439,8 @@ async function flushFirebaseWriteOutboxV87(reason, opts) {
 
         if (!aarishCostSameUidCoreV3(uid)) return { ok:false, reason:"uid_changed_after_update" };
 
+        // 🔥 GEMINI SMART LOGIC: Register Local Seal Time to prevent self-pulls
+        window.__aarishLastLocalSealAtCoreV9 = Date.now();
         window.__aarishFirebaseCostRevV81 = Number.isFinite(rev) && rev > 0 ? rev : Date.now();
         aarishCostUpdateLocalTableRevsV1(mega, window.__aarishFirebaseCostRevV81);
 
@@ -6598,6 +6598,13 @@ async function aarishAutoPullCloudIfNewerV87(reason, opts) {
     opts = opts || {};
     if (window.__aarishCostPullBusyCoreV3) return { ok: true, skipped: "pull-busy" };
 
+    // 🔥 GEMINI SMART LOGIC: Local Writer Skip (Prevent self-pulls)
+    var lastLocalSeal = Number(window.__aarishLastLocalSealAtCoreV9 || 0);
+    var localRevNow = Number(window.__aarishFirebaseCostRevV81 || 0);
+    if (!opts.force && lastLocalSeal && (Date.now() - lastLocalSeal) < 120000 && localRevNow > 0) {
+        return { ok: true, skipped: "local-writer-recent" };
+    }
+
     window.__aarishCostPullBusyCoreV3 = true;
     var openedSocket = false;
     try {
@@ -6605,34 +6612,21 @@ async function aarishAutoPullCloudIfNewerV87(reason, opts) {
         var ref = aarishCostAppRefV1();
         if (!uid || !ref || !aarishCostOnlineV1()) return { ok: false, reason: "not-ready" };
 
-        // [OMNI-ARCHITECT UPGRADE]: Polling gap extended from 1 min to 5 mins.
-        // Blocks expensive phantom reads triggered by rapid app focus/visibility changes.
         var minGap = opts.force ? 0 : 300000;
         if (Date.now() - Number(window.__aarishLastMetaCheckV1 || 0) < minGap) {
             return { ok: true, skipped: "throttled" };
         }
         window.__aarishLastMetaCheckV1 = Date.now();
 
-        var flushResult = await flushFirebaseWriteOutboxV87(
-            "before-meta-check",
-            { force: !!opts.force }
-        );
+        var flushResult = await flushFirebaseWriteOutboxV87("before-meta-check", { force: !!opts.force });
         var pendingAfterFlush = await aarishCostGetOutboxV1();
+
         if (!aarishCostSafeLocalPullAllowedCoreV7("auto-pull")) {
-            return {
-                ok: false,
-                skipped: "outbox-read-timeout",
-                flushOk: !!(flushResult && flushResult.ok)
-            };
+            return { ok: false, skipped: "outbox-read-timeout", flushOk: !!(flushResult && flushResult.ok) };
         }
         if (pendingAfterFlush.length) {
             aarishCostScheduleFlushV1(4000, "pending-before-pull");
-            return {
-                ok: true,
-                skipped: "local-pending-writes",
-                pending: pendingAfterFlush.length,
-                flushOk: !!(flushResult && flushResult.ok)
-            };
+            return { ok: true, skipped: "local-pending-writes", pending: pendingAfterFlush.length, flushOk: !!(flushResult && flushResult.ok) };
         }
         if (!aarishCostSameUidCoreV3(uid)) return { ok:false, reason:"uid_changed_before_meta" };
 
@@ -6641,47 +6635,34 @@ async function aarishAutoPullCloudIfNewerV87(reason, opts) {
             openedSocket = true;
         } catch(e) {}
 
-        // Read the complete metadata map once; it contains each table's revision.
-        var snap = await aarishCostWithTimeoutCoreV5(
-            ref.child("_syncMeta").once("value"),
-            "meta-timeout",
-            6500
-        );
+        var snap = await aarishCostWithTimeoutCoreV5(ref.child("_syncMeta").once("value"), "meta-timeout", 6500);
         if (!aarishCostSameUidCoreV3(uid)) return { ok:false, reason:"uid_changed_after_meta" };
 
         var cloudMeta = snap && snap.val && snap.val() || {};
         var cloudRev = Number(cloudMeta.rev || 0);
-        var localRev = Number(window.__aarishFirebaseCostRevV81 || 0);
         var cacheHadNoServerRev = !!window.__aarishCacheLoadedWithoutServerRevV81;
 
-        if (opts.forcePull || cacheHadNoServerRev || (cloudRev && (!localRev || cloudRev > localRev))) {
+        if (opts.forcePull || cacheHadNoServerRev || (cloudRev && (!localRevNow || cloudRev > localRevNow))) {
             var cloudTables = cloudMeta.tables && typeof cloudMeta.tables === "object" ? cloudMeta.tables : {};
-            var localTables = window.__aarishLocalTableRevs && typeof window.__aarishLocalTableRevs === "object"
-                ? window.__aarishLocalTableRevs
-                : {};
-            var allowedTables = {
-                milkDB: true,
-                salaryDB: true,
-                projectDB: true,
-                udharDB: true,
-                expenseDB: true,
-                diaryDB: true
-            };
+            var localTables = window.__aarishLocalTableRevs && typeof window.__aarishLocalTableRevs === "object" ? window.__aarishLocalTableRevs : {};
+            var allowedTables = { milkDB: true, salaryDB: true, projectDB: true, udharDB: true, expenseDB: true, diaryDB: true };
             var tablesToFetch = [];
 
-            if (localRev === 0 || cacheHadNoServerRev) {
-                tablesToFetch = null;
+            if (localRevNow === 0 || cacheHadNoServerRev) {
+                tablesToFetch = null; // First boot only
             } else {
                 Object.keys(cloudTables).forEach(function(table) {
                     if (!allowedTables[table]) return;
-                    if (Number(cloudTables[table] || 0) > Number(localTables[table] || 0)) {
-                        tablesToFetch.push(table);
-                    }
+                    if (Number(cloudTables[table] || 0) > Number(localTables[table] || 0)) tablesToFetch.push(table);
                 });
+
+                // 🔥 GEMINI SMART LOGIC: The Phantom Read Killer
+                if (tablesToFetch !== null && tablesToFetch.length === 0) {
+                    window.__aarishFirebaseCostRevV81 = cloudRev;
+                    return { ok: true, upToDate: true, skipped: "rev-only-no-table-delta" };
+                }
             }
 
-            // Legacy writes may advance the global revision without table metadata.
-            if (tablesToFetch !== null && tablesToFetch.length === 0) tablesToFetch = null;
             await fullFirebaseSyncCostV81("auto-pull-newer-cloud", tablesToFetch);
             window.__aarishCacheLoadedWithoutServerRevV81 = false;
             return { ok: true, pulled: true, deltaTables: tablesToFetch };
@@ -6692,9 +6673,7 @@ async function aarishAutoPullCloudIfNewerV87(reason, opts) {
         return { ok: false };
     } finally {
         window.__aarishCostPullBusyCoreV3 = false;
-        if (openedSocket) {
-            try { aarishCostManageSocketCoreV8(false, "pull-finally"); } catch(e) {}
-        }
+        if (openedSocket) try { aarishCostManageSocketCoreV8(false, "pull-finally"); } catch(e) {}
     }
 }
 
@@ -6709,7 +6688,7 @@ function installFirebaseCostCoreV1() {
         window.addEventListener("online", function() {
             aarishCostSetTimerCoreV7("__aarishCostOnlineTimerCoreV7", function() {
                 flushFirebaseWriteOutboxV87("online", { force: true });
-                aarishAutoPullCloudIfNewerV87("online", { force: true });
+                aarishAutoPullCloudIfNewerV87("online", { force: false });
             }, 700);
         }, { passive: true });
     } catch(e) {}
@@ -6780,7 +6759,7 @@ async function loadUserData() {
             clearTimeout(__aarishCostMetaCheckTimerV1);
             __aarishCostMetaCheckTimerV1 = setTimeout(function() {
                 if (window.__aarishLoadUserDataTokenCoreV3 === token && aarishCostSameUidCoreV3(uid)) {
-                    aarishAutoPullCloudIfNewerV87("cache-boot-meta", { force: true });
+                    aarishAutoPullCloudIfNewerV87("cache-boot-meta", { force: false });
                 }
             }, 1700);
 
