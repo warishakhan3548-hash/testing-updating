@@ -3966,19 +3966,43 @@ html.aarish-tab-switching-v31 .screen.active .glass-card:active {
 </div>
 
 
+<!-- [OMNI-UPGRADE]: AI Agent Pairing Hub -->
 <div id="gemini-key-modal" class="modal-overlay" onclick="if(event.target.id==='gemini-key-modal')closeModal('gemini-key-modal')">
     <div class="modal-content" onclick="event.stopImmediatePropagation()">
-        <div class="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-8"></div>
-        <h2 class="text-2xl font-extrabold mb-2 text-center">Activate AI Hub</h2>
-                <p class="text-xs text-center text-gray-500 mb-2 font-bold uppercase tracking-wider">Type Model Name & Paste Key</p>
-        <p class="text-[10px] text-red-500 bg-red-500/10 p-2 rounded-lg text-center mb-6 font-bold border border-red-500/20">⚠️ Key is saved locally in your browser. We never see it.</p>
+        <div class="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-6"></div>
+        <h2 class="text-2xl font-extrabold mb-2 text-center text-[#007AFF] drop-shadow-sm">Activate AI Hub</h2>
+        <p class="text-[11px] text-center text-gray-500 mb-6 font-bold uppercase tracking-wider">Connect Custom Agent or Local Key</p>
 
+        <!-- Option 1: The Smart Cloud Agent (New Architecture) -->
+        <div class="glass-card !p-4 mb-6 border-l-4 border-l-[#9b72cb] !bg-[#9b72cb]/5">
+            <h3 class="text-[15px] font-bold mb-1 flex items-center gap-2"><i class="fa-solid fa-robot text-[#9b72cb]"></i> Cloud AI Agent (Recommended)</h3>
+            <p class="text-xs text-gray-500 font-semibold mb-4 leading-relaxed">Generate a secure pairing code to allow your custom AI assistant to manage your khata.</p>
 
-        
-        <input type="text" id="user-ai-model" class="input-box mb-4 w-full" placeholder="Model Name (e.g. gemini-2.5-flash ya gpt-4o)">
-        <input type="text" id="user-gemini-key" class="input-box mb-6 w-full" placeholder="Paste your API key here">
-        
-        <button onclick="haptic(); saveGeminiUserKey()" class="btn-primary w-full" style="background: linear-gradient(90deg, #4285F4, #9b72cb, #d96570); border:none;">Activate AI</button>
+            <div id="ai-pairing-container" class="hidden flex-col items-center justify-center py-4 bg-white dark:bg-black/40 rounded-2xl mb-4 border border-gray-200 dark:border-white/10 shadow-inner">
+                <span class="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest mb-1">Your Pairing Code</span>
+                <h1 id="ai-generated-code-display" class="text-3xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-[#4285F4] via-[#9b72cb] to-[#d96570] select-all mb-2">----</h1>
+                <p id="ai-pairing-status" class="text-[11px] font-bold text-[#007AFF] animate-pulse"><i class="fa-solid fa-spinner fa-spin"></i> Waiting for AI connection...</p>
+                <button onclick="copyAIAgentCode()" class="mt-3 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 px-4 py-1.5 rounded-full text-xs font-bold transition-transform active:scale-95"><i class="fa-solid fa-copy"></i> Copy Code</button>
+            </div>
+
+            <button id="btn-generate-ai-code" onclick="haptic(); generateAIAgentPairingCode()" class="btn-primary w-full !bg-[#9b72cb] !shadow-[0_4px_14px_rgba(155,114,203,0.3)] !text-white text-sm !min-h-[46px]">
+                <i class="fa-solid fa-bolt"></i> Generate Connect Code
+            </button>
+        </div>
+
+        <div class="flex items-center justify-center gap-3 mb-6 opacity-50">
+            <div class="h-px bg-gray-400 flex-1"></div><span class="text-[10px] font-extrabold uppercase">OR</span><div class="h-px bg-gray-400 flex-1"></div>
+        </div>
+
+        <!-- Option 2: Local Browser Key (Old Architecture) -->
+        <div class="px-2">
+            <h3 class="text-[13px] font-bold mb-3 flex items-center gap-2 text-gray-600 dark:text-gray-300"><i class="fa-solid fa-key"></i> Manual Local Key</h3>
+            <input type="text" id="user-ai-model" class="input-box mb-3 w-full !min-h-[44px] !text-sm" placeholder="Model Name (e.g. gemini-2.5-flash)">
+            <input type="password" id="user-gemini-key" class="input-box mb-4 w-full !min-h-[44px] !text-sm" placeholder="Paste your API key here">
+            <button onclick="haptic(); saveGeminiUserKey()" class="btn-primary w-full !min-h-[46px] text-sm" style="background: linear-gradient(90deg, #4285F4, #9b72cb, #d96570); border:none;">
+                Save Local Key
+            </button>
+        </div>
     </div>
 </div>
 
@@ -13491,6 +13515,95 @@ function aarishCsvRowCoreV4(values) {
   ].forEach(wrapFirebaseCore);
 })();
 /* AARISH_FORENSIC_FIX_V5_RUNTIME_END */
+
+/* ========================== AARISH_AI_PAIRING_ENGINE_V1 ========================== */
+let activeAIPairingCode = null;
+let aiPairingListenerRef = null;
+
+function generateAIAgentPairingCode() {
+    const uid = typeof aarishCostUidV1 === 'function' ? aarishCostUidV1() : currentUserUID;
+    if (!uid) return showToast("⚠️ Error: Please login first!");
+
+    // 1. UI Adjustments
+    document.getElementById('btn-generate-ai-code').style.display = 'none';
+    const container = document.getElementById('ai-pairing-container');
+    container.classList.remove('hidden');
+    container.classList.add('flex');
+
+    // 2. Cryptographic Code Generation
+    const randomPart = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+    const pairingCode = `AAR-${randomPart()}-${randomPart()}`;
+    document.getElementById('ai-generated-code-display').innerText = pairingCode;
+    activeAIPairingCode = pairingCode;
+
+    // 3. Write to Firebase
+    const ref = database.ref('ai_agent_links/' + pairingCode);
+    ref.set({
+        uid: uid,
+        status: 'pending',
+        createdAt: firebase.database.ServerValue.TIMESTAMP
+    }).then(() => {
+        showToast("Code generated! Give this to your AI.");
+
+        // 4. Attach Live Listener
+        if (aiPairingListenerRef) aiPairingListenerRef.off();
+        aiPairingListenerRef = ref;
+
+        aiPairingListenerRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.status === 'connected') {
+                const statusText = document.getElementById('ai-pairing-status');
+                statusText.innerHTML = '<i class="fa-solid fa-circle-check text-green-500"></i> Agent Successfully Connected!';
+                statusText.classList.remove('text-[#007AFF]', 'animate-pulse');
+                statusText.classList.add('text-green-500');
+
+                try{ haptic(); haptic(); }catch(e){}
+                showToast("✅ AI Agent Linked!");
+
+                aiPairingListenerRef.off();
+                setTimeout(() => {
+                    closeModal('gemini-key-modal');
+                    const btn = document.getElementById('btn-generate-ai-code');
+                    if(btn) btn.style.display = 'flex';
+                    container.classList.add('hidden');
+                    container.classList.remove('flex');
+                }, 2000);
+            }
+        });
+    }).catch(err => {
+        showToast("Error: " + err.message);
+        document.getElementById('btn-generate-ai-code').style.display = 'flex';
+        container.classList.add('hidden');
+        container.classList.remove('flex');
+    });
+}
+
+function copyAIAgentCode() {
+    if (!activeAIPairingCode) return;
+    navigator.clipboard.writeText(activeAIPairingCode).then(() => {
+        try{ haptic(); }catch(e){}
+        showToast("Code Copied!");
+    });
+}
+
+const originalCloseModal = window.closeModal;
+window.closeModal = function(id) {
+    if(id === 'gemini-key-modal') {
+        if(aiPairingListenerRef) {
+            aiPairingListenerRef.off();
+            aiPairingListenerRef = null;
+        }
+        const btn = document.getElementById('btn-generate-ai-code');
+        if(btn) btn.style.display = 'flex';
+        const container = document.getElementById('ai-pairing-container');
+        if(container) {
+            container.classList.add('hidden');
+            container.classList.remove('flex');
+        }
+    }
+    if(typeof originalCloseModal === 'function') return originalCloseModal(id);
+};
+/* ================================================================================= */
 </script>
 
 
