@@ -2,28 +2,46 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // 1. HOME PAGE (Checking if Worker is alive)
+    // ---------------------------------------------------------
+    // 1. UNIVERSAL CORS Preflight Handler (Crucial for Handshake & Actions)
+    // ---------------------------------------------------------
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Max-Age": "86400"
+        }
+      });
+    }
+
+    // 2. HOME PAGE (Checking if Worker is alive)
     if (url.pathname === "/") {
       return new Response("🤖 Aarish AI Agent is Live & Running!", { status: 200 });
     }
 
-    // 2. THE HANDSHAKE ENDPOINT (/connect?code=AAR-XXXX-YYYY)
+    // 3. THE HANDSHAKE ENDPOINT (/connect?code=AAR-XXXX-YYYY)
     if (url.pathname === "/connect") {
+      const corsHeaders = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PATCH"
+      };
       const code = url.searchParams.get("code");
-      if (!code) return new Response("❌ Error: Pairing code missing.", { status: 400 });
 
-      // Firebase RTDB URL (Tumhara apna Database)
+      if (!code) return new Response("❌ Error: Pairing code missing.", { status: 400, headers: corsHeaders });
+
+      // Firebase RTDB URL
       const FIREBASE_URL = "https://diary-book-21a91-default-rtdb.firebaseio.com";
-      
-      // Environment variable se Secret nikalenge
-      const FIREBASE_SECRET = env.FIREBASE_SECRET; 
+      const FIREBASE_SECRET = env.FIREBASE_SECRET;
 
       if (!FIREBASE_SECRET) {
-          return new Response("❌ Error: FIREBASE_SECRET is not set in Cloudflare.", { status: 500 });
+        return new Response("❌ Error: FIREBASE_SECRET is not set in Cloudflare.", { status: 500, headers: corsHeaders });
       }
 
-      // Firebase ka direct API link
-      const dbUrl = `${FIREBASE_URL}/ai_agent_links/${code}.json?auth=${FIREBASE_SECRET}`;
+      // FIX: Encode both the Firebase path key and secret query parameter.
+      const dbUrl = `${FIREBASE_URL}/ai_agent_links/${encodeURIComponent(code)}.json?auth=${encodeURIComponent(FIREBASE_SECRET)}`;
 
       try {
         // Step A: Check if code exists in Firebase
@@ -31,31 +49,32 @@ export default {
         const data = await getRes.json();
 
         if (!data) {
-          return new Response("❌ Error: Invalid or expired pairing code.", { status: 404 });
+          return new Response("❌ Error: Invalid or expired pairing code.", { status: 404, headers: corsHeaders });
         }
 
         if (data.status === "connected") {
-          return new Response("✅ Already connected to user!", { status: 200 });
+          return new Response("✅ Already connected to user!", { status: 200, headers: corsHeaders });
         }
 
         // Step B: Handshake - Update status to 'connected'
         const updateRes = await fetch(dbUrl, {
           method: "PATCH",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "connected" })
         });
 
         if (updateRes.ok) {
-          return new Response(`🎉 Success! Handshake complete. UID: ${data.uid} is now connected.`, { status: 200 });
-        } else {
-          return new Response("❌ Error: Failed to update Firebase.", { status: 500 });
+          return new Response(`🎉 Success! Handshake complete. UID: ${data.uid} is now connected.`, { status: 200, headers: corsHeaders });
         }
+
+        return new Response("❌ Error: Failed to update Firebase.", { status: 500, headers: corsHeaders });
       } catch (error) {
-        return new Response(`❌ Error: ${error.message}`, { status: 500 });
+        return new Response(`❌ Error: ${error.message}`, { status: 500, headers: corsHeaders });
       }
     }
 
     // ---------------------------------------------------------
-    // 3. OMNI-SECURE AI ACTION ROUTER (/action)
+    // 4. OMNI-SECURE AI ACTION ROUTER (/action)
     // ---------------------------------------------------------
     const actionCorsHeaders = {
       "Access-Control-Allow-Origin": "*",
@@ -206,20 +225,10 @@ export default {
       }
     }
 
-    // ---------------------------------------------------------
-    // 4. CORS Preflight Handler (Crucial for AI Browser Plugins)
-    // ---------------------------------------------------------
-    if (url.pathname === "/action" && request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: {
-          ...actionCorsHeaders,
-          "Access-Control-Max-Age": "86400"
-        }
-      });
-    }
-
-    return new Response("Not Found", { status: 404 });
+    return new Response("Not Found", {
+      status: 404,
+      headers: { "Access-Control-Allow-Origin": "*" }
+    });
   },
 };
 
