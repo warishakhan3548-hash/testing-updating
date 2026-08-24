@@ -13653,5 +13653,530 @@ window.closeModal = function(id) {
 </script>
 
 
+<script>
+
+// ============================================================================
+// 🔥 AARISH OMNI-AI: FULL CRUD / WRITE / DELETE TOOL-CALLING ENGINE 🔥
+// ============================================================================
+
+window.geminiToolDeclarations = [
+    {
+        name: "create_milk_customer",
+        description: "Creates a new milk customer / seller or buyer profile in the dairy system.",
+        parameters: {
+            type: "OBJECT",
+            properties: {
+                name: { type: "STRING", description: "Customer name" },
+                rate: { type: "NUMBER", description: "Rate per KG (e.g. 55 or 60)" },
+                type: { type: "STRING", enum: ["lene_wala", "dene_wala"], description: "lene_wala = Seller (doodh dene wala), dene_wala = Buyer (doodh lene wala)" }
+            },
+            required: ["name"]
+        }
+    },
+    {
+        name: "add_milk_entry",
+        description: "Adds or updates a daily morning/evening milk entry for a specific customer.",
+        parameters: {
+            type: "OBJECT",
+            properties: {
+                customer_name: { type: "STRING", description: "Exact or matched customer name" },
+                date: { type: "STRING", description: "Date in YYYY-MM-DD format" },
+                morning: { type: "NUMBER", description: "Morning milk in KG (0 if none)" },
+                evening: { type: "NUMBER", description: "Evening milk in KG (0 if none)" },
+                flow: { type: "STRING", enum: ["given", "taken"], description: "given = doodh diya, taken = doodh liya" }
+            },
+            required: ["customer_name", "date"]
+        }
+    },
+    {
+        name: "delete_milk_entry",
+        description: "Deletes a specific milk entry on a particular date or shift for a customer.",
+        parameters: {
+            type: "OBJECT",
+            properties: {
+                customer_name: { type: "STRING", description: "Name of the customer" },
+                date: { type: "STRING", description: "Date of the entry in YYYY-MM-DD format" },
+                shift: { type: "STRING", enum: ["morning", "evening", "all"], description: "Which shift entry to delete or clear" }
+            },
+            required: ["customer_name", "date"]
+        }
+    },
+    {
+        name: "delete_milk_customer",
+        description: "Permanently deletes an entire milk customer and all their historical records.",
+        parameters: {
+            type: "OBJECT",
+            properties: {
+                customer_name: { type: "STRING", description: "Name of the customer to delete" }
+            },
+            required: ["customer_name"]
+        }
+    },
+    {
+        name: "add_udhar_entry",
+        description: "Adds a credit/debit (udhar / khata) entry for a person.",
+        parameters: {
+            type: "OBJECT",
+            properties: {
+                name: { type: "STRING", description: "Person name" },
+                amount: { type: "NUMBER", description: "Amount in Rupees" },
+                date: { type: "STRING", description: "Date in YYYY-MM-DD format" },
+                type: { type: "STRING", enum: ["credit", "debit"], description: "credit = Given (+), debit = Taken (-)" }
+            },
+            required: ["name", "amount", "type"]
+        }
+    },
+    {
+        name: "delete_udhar_entry",
+        description: "Deletes a specific udhar/credit transaction by person name, date, or amount.",
+        parameters: {
+            type: "OBJECT",
+            properties: {
+                name: { type: "STRING", description: "Person name" },
+                date: { type: "STRING", description: "Date in YYYY-MM-DD format (optional)" },
+                amount: { type: "NUMBER", description: "Amount in Rupees (optional)" }
+            },
+            required: ["name"]
+        }
+    },
+    {
+        name: "add_expense",
+        description: "Logs a daily business or household expense.",
+        parameters: {
+            type: "OBJECT",
+            properties: {
+                category: { type: "STRING", description: "Expense category or item name (e.g. Petrol, Chai, Sugar, Ration)" },
+                amount: { type: "NUMBER", description: "Amount in Rupees" },
+                date: { type: "STRING", description: "Date in YYYY-MM-DD format" }
+            },
+            required: ["category", "amount"]
+        }
+    },
+    {
+        name: "delete_expense_entry",
+        description: "Deletes an expense entry by category, date, or amount.",
+        parameters: {
+            type: "OBJECT",
+            properties: {
+                category: { type: "STRING", description: "Item/Category name" },
+                date: { type: "STRING", description: "Date in YYYY-MM-DD format (optional)" },
+                amount: { type: "NUMBER", description: "Amount in Rupees (optional)" }
+            },
+            required: ["category"]
+        }
+    },
+    {
+        name: "add_salary_entry",
+        description: "Logs daily salary or payment for an employee.",
+        parameters: {
+            type: "OBJECT",
+            properties: {
+                name: { type: "STRING", description: "Employee name" },
+                amount: { type: "NUMBER", description: "Amount in Rupees" },
+                date: { type: "STRING", description: "Date in YYYY-MM-DD format" }
+            },
+            required: ["name", "amount"]
+        }
+    },
+    {
+        name: "delete_salary_entry",
+        description: "Deletes a salary entry for an employee on a specific date.",
+        parameters: {
+            type: "OBJECT",
+            properties: {
+                name: { type: "STRING", description: "Employee name" },
+                date: { type: "STRING", description: "Date in YYYY-MM-DD format" }
+            },
+            required: ["name", "date"]
+        }
+    }
+];
+
+// OMNI-ARCHITECT TOOL ROUTER
+async function executeAIToolCall(name, args) {
+    try {
+        console.log("[OMNI-AI] Executing Tool:", name, args);
+
+        // --- MILK OPERATIONS ---
+        if (name === "create_milk_customer") {
+            const customerName = aarishMilkNormalizeNameCore(args.name);
+            if (!customerName) return { success: false, error: "Invalid customer name" };
+            const rate = parseFloat(args.rate) || 55;
+            const type = args.type || "lene_wala";
+
+            milkDB[customerName] = { rate: rate, type: type, records: [], canonicalNameV18: aarishMilkNameKeyCore(customerName), createdAtV18: new Date().toISOString() };
+            if (typeof aarishMilkFirebaseWriteCore === 'function') await aarishMilkFirebaseWriteCore(`milkDB/${customerName}`, 'set', milkDB[customerName], 'ai-tool-add-customer');
+
+            if (typeof renderMilkList === 'function') renderMilkList();
+            if (typeof updateDashboard === 'function') updateDashboard();
+            return { success: true, message: `Customer '${customerName}' created with rate ₹${rate}/KG.` };
+        }
+
+        if (name === "add_milk_entry") {
+            const matchedKey = aarishMilkFindExistingKeyCore(args.customer_name) || args.customer_name;
+            if (!milkDB[matchedKey]) milkDB[matchedKey] = { rate: 55, type: "lene_wala", records: [] };
+
+            const c = milkDB[matchedKey];
+            c.records = aarishMilkRecordsCore(c.records);
+
+            const date = args.date || getTodayISO();
+            const morning = parseFloat(args.morning) || 0;
+            const evening = parseFloat(args.evening) || 0;
+            const flow = args.flow || (c.type === "dene_wala" ? "taken" : "given");
+
+            let existing = c.records.find(r => r.date === date);
+            if (existing) {
+                if (morning > 0) existing.morning = morning;
+                if (evening > 0) existing.evening = evening;
+                existing.flow = flow;
+            } else {
+                const uniqueId = window.aarishV98Id ? window.aarishV98Id('mlk') : ('mlk_' + Date.now());
+                c.records.push({ id: uniqueId, date, morning, evening, flow });
+            }
+
+            if (typeof aarishMilkFirebaseWriteCore === 'function') await aarishMilkFirebaseWriteCore(`milkDB/${matchedKey}`, 'set', c, 'ai-tool-add-entry');
+            if (typeof renderMilkList === 'function') renderMilkList();
+            if (activeMilkCustomer === matchedKey && typeof renderMilkRecords === 'function') renderMilkRecords();
+            if (typeof updateDashboard === 'function') updateDashboard();
+            return { success: true, message: `Milk entry recorded for ${matchedKey} on ${date}.` };
+        }
+
+        if (name === "delete_milk_entry") {
+            const matchedKey = aarishMilkFindExistingKeyCore(args.customer_name) || args.customer_name;
+            if (!milkDB[matchedKey]) return { success: false, error: `Customer '${args.customer_name}' not found.` };
+
+            const c = milkDB[matchedKey];
+            const targetDate = args.date;
+            const shift = args.shift || "all";
+            let modified = false;
+
+            if (shift === "morning") {
+                c.records.forEach(r => { if (r.date === targetDate) { r.morning = 0; modified = true; }});
+            } else if (shift === "evening") {
+                c.records.forEach(r => { if (r.date === targetDate) { r.evening = 0; modified = true; }});
+            } else {
+                const startLen = (c.records || []).length;
+                c.records = (c.records || []).filter(r => r.date !== targetDate);
+                if (startLen !== c.records.length) modified = true;
+            }
+
+            if (modified) {
+                if (typeof aarishMilkFirebaseWriteCore === 'function') await aarishMilkFirebaseWriteCore(`milkDB/${matchedKey}`, 'set', c, 'ai-tool-delete-entry');
+                if (typeof renderMilkList === 'function') renderMilkList();
+                if (activeMilkCustomer === matchedKey && typeof renderMilkRecords === 'function') renderMilkRecords();
+                if (typeof updateDashboard === 'function') updateDashboard();
+                return { success: true, message: `Entry on ${targetDate} for ${matchedKey} successfully deleted.` };
+            }
+            return { success: false, error: "Record not found on that date." };
+        }
+
+        if (name === "delete_milk_customer") {
+            const matchedKey = aarishMilkFindExistingKeyCore(args.customer_name) || args.customer_name;
+            if (!milkDB[matchedKey]) return { success: false, error: "Customer not found." };
+
+            delete milkDB[matchedKey];
+            if (typeof aarishMilkFirebaseWriteCore === 'function') await aarishMilkFirebaseWriteCore(`milkDB/${matchedKey}`, 'remove', null, 'ai-tool-delete-customer');
+            if (activeMilkCustomer === matchedKey) activeMilkCustomer = null;
+            if (typeof renderMilkList === 'function') renderMilkList();
+            if (typeof updateDashboard === 'function') updateDashboard();
+            return { success: true, message: `Customer '${matchedKey}' deleted.` };
+        }
+
+        // --- UDHAR (CREDIT) OPERATIONS ---
+        if (name === "add_udhar_entry") {
+            const personName = String(args.name).trim();
+            const amount = parseFloat(args.amount) || 0;
+            const date = args.date || getTodayISO();
+            const type = args.type === "debit" ? "debit" : "credit";
+
+            if (!personName || amount <= 0) return { success: false, error: "Invalid parameters" };
+
+            const uniqueId = window.aarishV98Id ? window.aarishV98Id('udh') : ('udh_' + Date.now());
+            const entry = { id: uniqueId, name: personName, amount, date, type };
+
+            udharDB = Array.isArray(udharDB) ? udharDB : [];
+            udharDB.unshift(entry);
+
+            if (window.aarishFirebaseLaterV48) await window.aarishFirebaseLaterV48(`udharDB/${uniqueId}`, 'set', entry, { fast: true });
+
+            if (typeof renderUdharList === 'function') renderUdharList();
+            if (activeUdharPerson === personName && typeof renderUdharRecords === 'function') renderUdharRecords();
+            if (typeof updateDashboard === 'function') updateDashboard();
+            return { success: true, message: `Udhar entry added for ${personName}.` };
+        }
+
+        if (name === "delete_udhar_entry") {
+            const personName = String(args.name).trim().toLowerCase();
+            let toDeleteId = null;
+
+            udharDB = udharDB.filter(u => {
+                const matchName = String(u.name || '').trim().toLowerCase() === personName;
+                const matchDate = args.date ? (u.date === args.date) : true;
+                const matchAmt = args.amount ? (parseFloat(u.amount) === parseFloat(args.amount)) : true;
+                if (matchName && matchDate && matchAmt && !toDeleteId) {
+                    toDeleteId = u.id;
+                    return false;
+                }
+                return true;
+            });
+
+            if (toDeleteId) {
+                if (window.aarishFirebaseLaterV48) await window.aarishFirebaseLaterV48(`udharDB/${toDeleteId}`, 'remove', null, { fast: true });
+                if (typeof renderUdharList === 'function') renderUdharList();
+                if (activeUdharPerson && typeof renderUdharRecords === 'function') renderUdharRecords();
+                if (typeof updateDashboard === 'function') updateDashboard();
+                return { success: true, message: `Credit entry deleted for ${args.name}.` };
+            }
+            return { success: false, error: "Entry not found." };
+        }
+
+        // --- EXPENSE OPERATIONS ---
+        if (name === "add_expense") {
+            const cat = String(args.category).trim() || "General";
+            const amt = parseFloat(args.amount) || 0;
+            const date = args.date || getTodayISO();
+
+            if (amt <= 0) return { success: false, error: "Invalid amount" };
+
+            const uniqueId = window.aarishV98Id ? window.aarishV98Id('exp') : ('exp_' + Date.now());
+            const entry = { id: uniqueId, category: cat, amount: amt, date };
+
+            expenseDB = Array.isArray(expenseDB) ? expenseDB : [];
+            expenseDB.unshift(entry);
+
+            if (window.aarishFirebaseLaterV48) await window.aarishFirebaseLaterV48(`expenseDB/${uniqueId}`, 'set', entry, { fast: true });
+            if (typeof renderExpenseList === 'function') renderExpenseList();
+            if (typeof updateDashboard === 'function') updateDashboard();
+            return { success: true, message: `Expense of ₹${amt} under '${cat}' saved.` };
+        }
+
+        if (name === "delete_expense_entry") {
+            const cat = String(args.category).trim().toLowerCase();
+            let toDeleteId = null;
+
+            expenseDB = expenseDB.filter(e => {
+                const matchCat = String(e.category || '').trim().toLowerCase() === cat;
+                const matchDate = args.date ? (e.date === args.date) : true;
+                if (matchCat && matchDate && !toDeleteId) {
+                    toDeleteId = e.id;
+                    return false;
+                }
+                return true;
+            });
+
+            if (toDeleteId) {
+                if (window.aarishFirebaseLaterV48) await window.aarishFirebaseLaterV48(`expenseDB/${toDeleteId}`, 'remove', null, { fast: true });
+                if (typeof renderExpenseList === 'function') renderExpenseList();
+                if (typeof updateDashboard === 'function') updateDashboard();
+                return { success: true, message: `Expense entry for '${args.category}' deleted.` };
+            }
+            return { success: false, error: "Expense entry not found." };
+        }
+
+        // --- SALARY OPERATIONS ---
+        if (name === "add_salary_entry") {
+            const nameTarget = String(args.name).trim();
+            const amt = parseFloat(args.amount) || 0;
+            const date = args.date || getTodayISO();
+
+            if (!salaryDB[nameTarget]) salaryDB[nameTarget] = { company: "Work", type: "lene_wala", records: [] };
+
+            const uniqueId = window.aarishV98Id ? window.aarishV98Id('sal') : ('sal_' + Date.now());
+            const entry = { id: uniqueId, date, amount: amt };
+
+            salaryDB[nameTarget].records.push(entry);
+            if (window.aarishFirebaseLaterV48) await window.aarishFirebaseLaterV48(`salaryDB/${nameTarget}/records/${uniqueId}`, 'set', entry, { fast: true });
+
+            if (typeof renderSalaryList === 'function') renderSalaryList();
+            if (typeof updateDashboard === 'function') updateDashboard();
+            return { success: true, message: `Salary entry of ₹${amt} added for ${nameTarget}.` };
+        }
+
+        if (name === "delete_salary_entry") {
+            const nameTarget = String(args.name).trim();
+            if (!salaryDB[nameTarget]) return { success: false, error: `Employee ${nameTarget} not found.` };
+
+            let toDeleteId = null;
+            salaryDB[nameTarget].records = (salaryDB[nameTarget].records || []).filter(r => {
+                if (r.date === args.date && !toDeleteId) {
+                    toDeleteId = r.id;
+                    return false;
+                }
+                return true;
+            });
+
+            if (toDeleteId) {
+                if (window.aarishFirebaseLaterV48) await window.aarishFirebaseLaterV48(`salaryDB/${nameTarget}/records/${toDeleteId}`, 'remove', null, { fast: true });
+                if (typeof renderSalaryList === 'function') renderSalaryList();
+                if (typeof updateDashboard === 'function') updateDashboard();
+                return { success: true, message: `Salary entry on ${args.date} deleted for ${nameTarget}.` };
+            }
+            return { success: false, error: "Salary entry not found on that date." };
+        }
+
+        return { success: false, error: "Tool explicitly disabled or not implemented." };
+    } catch(err) {
+        console.error("[OMNI-AI] Execution Error:", err);
+        return { success: false, error: err.message };
+    }
+}
+
+// OMNI-ARCHITECT CHAT CONTROLLER
+window.aiChatMemory = window.aiChatMemory || [];
+
+function toggleGeminiChat() {
+    const w = document.getElementById('gemini-chat-window');
+    if (w) {
+        w.classList.toggle('hidden-chat');
+        if (!w.classList.contains('hidden-chat')) {
+            const inp = document.getElementById('gemini-input');
+            if (inp) inp.focus();
+        }
+    }
+}
+
+function handleGeminiIconClick() {
+    const key = localStorage.getItem('gemini_user_api_key') || sessionStorage.getItem('gemini_user_api_key_session');
+    if (!key) {
+        if(typeof openModal === 'function') openModal('gemini-key-modal');
+    } else {
+        const widget = document.getElementById('gemini-floating-widget');
+        if (widget) widget.style.display = 'block';
+        toggleGeminiChat();
+    }
+}
+
+function saveGeminiUserKey() {
+    const key = (document.getElementById('user-gemini-key') || {}).value.trim();
+    const model = (document.getElementById('user-ai-model') || {}).value.trim() || 'gemini-2.5-flash';
+    if (!key) {
+        if(typeof showToast === 'function') return showToast('Please enter API Key!');
+        return;
+    }
+    localStorage.setItem('gemini_user_api_key', key);
+    localStorage.setItem('user_ai_model', model);
+    if(typeof closeModal === 'function') closeModal('gemini-key-modal');
+
+    const widget = document.getElementById('gemini-floating-widget');
+    if (widget) widget.style.display = 'block';
+    toggleGeminiChat();
+    if(typeof showToast === 'function') showToast('Omni-AI Activated with Full Access!');
+}
+
+function changeGeminiKey() {
+    if(typeof openModal === 'function') openModal('gemini-key-modal');
+}
+
+async function sendToGemini() {
+    const input = document.getElementById('gemini-input');
+    const msg = (input && input.value || '').trim();
+    if (!msg) return;
+
+    input.value = '';
+    const chatBody = document.getElementById('gemini-chat-body');
+
+    const userDiv = document.createElement('div');
+    userDiv.className = 'chat-msg chat-user';
+    userDiv.textContent = msg;
+    chatBody.appendChild(userDiv);
+    chatBody.scrollTop = chatBody.scrollHeight;
+
+    const apiKey = localStorage.getItem('gemini_user_api_key') || sessionStorage.getItem('gemini_user_api_key_session');
+    const model = localStorage.getItem('user_ai_model') || 'gemini-2.5-flash';
+    if (!apiKey) {
+        if(typeof openModal === 'function') openModal('gemini-key-modal');
+        return;
+    }
+
+    const aiDiv = document.createElement('div');
+    aiDiv.className = 'chat-msg chat-ai';
+    aiDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+    chatBody.appendChild(aiDiv);
+    chatBody.scrollTop = chatBody.scrollHeight;
+
+    const getTodayISO = () => {
+        const d = new Date();
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().split('T')[0];
+    };
+
+    const systemPrompt = `You are 'Aarish Omni-AI' — an intelligent stock, milk record, ledger, udhar and khata manager assistant inside Aarish Dairy Pro app. You have FULL READ, WRITE, AND DELETE permissions.
+    Current App Data Snapshot:
+    - Milk Customers: ${JSON.stringify(milkDB)}
+    - Credit Book (Udhar): ${JSON.stringify(udharDB)}
+    - Daily Expenses: ${JSON.stringify(expenseDB)}
+    - Salary Register: ${JSON.stringify(salaryDB)}
+    - Today's Date: ${getTodayISO()}
+    Instructions:
+    1. If the user asks to add, update, or delete any record, CALL THE EXACT FUNCTION / TOOL.
+    2. Confirm the action in polite, natural Hindi / Hinglish / English as preferred by user.
+    3. State clearly what was deleted or added based on the tool execution response.`;
+
+    window.aiChatMemory.push({ role: "user", parts: [{ text: msg }] });
+
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+        let response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: window.aiChatMemory,
+                tools: [{ function_declarations: window.geminiToolDeclarations }]
+            })
+        });
+
+        let data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+
+        let candidate = data.candidates && data.candidates[0];
+        let contentPart = candidate && candidate.content && candidate.content.parts && candidate.content.parts[0];
+
+        if (contentPart && contentPart.functionCall) {
+            const funcName = contentPart.functionCall.name;
+            const funcArgs = contentPart.functionCall.args || {};
+            aiDiv.innerHTML = `<i class="fa-solid fa-gear fa-spin"></i> Updating Database (${funcName})...`;
+
+            const toolResult = await executeAIToolCall(funcName, funcArgs);
+
+            window.aiChatMemory.push({ role: "model", parts: [{ functionCall: contentPart.functionCall }] });
+            window.aiChatMemory.push({ role: "function", parts: [{ functionResponse: { name: funcName, response: toolResult } }] });
+
+            let secondResponse = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    system_instruction: { parts: [{ text: systemPrompt }] },
+                    contents: window.aiChatMemory
+                })
+            });
+
+            let secondData = await secondResponse.json();
+            let finalReply = (secondData.candidates && secondData.candidates[0].content.parts[0].text) || toolResult.message || "Action executed successfully!";
+            aiDiv.textContent = finalReply;
+            window.aiChatMemory.push({ role: "model", parts: [{ text: finalReply }] });
+        } else {
+            let replyText = (contentPart && contentPart.text) || "Done!";
+            aiDiv.textContent = replyText;
+            window.aiChatMemory.push({ role: "model", parts: [{ text: replyText }] });
+        }
+    } catch (err) {
+        aiDiv.textContent = "Error: " + err.message;
+    }
+    chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+// Bind Enter Key
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('gemini-input');
+    if (input) {
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendToGemini();
+        });
+    }
+});
+
+</script>
 </body>
 </html>
