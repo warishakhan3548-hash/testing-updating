@@ -4514,13 +4514,17 @@ function aarishCostManageSocketCoreV8(forceOnline, reason) {
             return;
         }
         clearTimeout(__aarishCostSocketIdleTimerCoreV8);
+
+        // 🔥 GEMINI SMART LOGIC: Instant socket kill if tab is hidden (Saves Battery, RAM & Firebase Connections)
+        var idleDelay = (typeof document !== "undefined" && document.hidden) ? 800 : 12000;
+
         __aarishCostSocketIdleTimerCoreV8 = setTimeout(function() {
             __aarishCostSocketIdleTimerCoreV8 = null;
             try {
                 if (__aarishCostFlushBusyV1 || window.__aarishCostPullBusyCoreV3) return;
                 firebase.database().goOffline();
             } catch(e) {}
-        }, 12000); // 🔥 GEMINI SMART LOGIC: 12 seconds is the perfect sweet spot for PWA
+        }, idleDelay);
     } catch(e) {}
 }
 /* AARISH_BACKEND_CANONICAL_ID_SOCKET_CORE_V8_END */
@@ -6656,9 +6660,10 @@ async function aarishAutoPullCloudIfNewerV87(reason, opts) {
                     if (Number(cloudTables[table] || 0) > Number(localTables[table] || 0)) tablesToFetch.push(table);
                 });
 
-                // 🔥 GEMINI SMART LOGIC: The Phantom Read Killer
+                // 🔥 GEMINI SMART LOGIC: The Phantom Read Killer (WITH CACHE PERSISTENCE)
                 if (tablesToFetch !== null && tablesToFetch.length === 0) {
                     window.__aarishFirebaseCostRevV81 = cloudRev;
+                    try { scheduleCacheSaveCostV81("phantom-read-rev-sync"); } catch(e) {} // <-- YEH LINE JARURI HAI
                     return { ok: true, upToDate: true, skipped: "rev-only-no-table-delta" };
                 }
             }
