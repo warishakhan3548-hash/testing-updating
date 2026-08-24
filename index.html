@@ -4468,7 +4468,40 @@ function aarishCostSealMegaCoreV8(mega) {
     aarishCostPutCoalescedV1(mega, "_syncMeta/rev", rev);
     aarishCostPutCoalescedV1(mega, "_syncMeta/mode", "AARISH_FIREBASE_COST_CORE_V1");
     aarishCostPutCoalescedV1(mega, "_syncMeta/updatedAt", aarishCostServerTimeV1());
+
+    // Track exact top-level tables in the outgoing payload. The local copy is
+    // updated only after Firebase acknowledges the write (see callers below).
+    Object.keys(mega).forEach(function(path) {
+        var table = String(path || "").split("/")[0];
+        if (table && table !== "_syncMeta") {
+            aarishCostPutCoalescedV1(mega, "_syncMeta/tables/" + table, rev);
+        }
+    });
     return rev;
+}
+
+function aarishCostUpdateLocalTableRevsV1(mega, fallbackRev) {
+    var current = window.__aarishLocalTableRevs && typeof window.__aarishLocalTableRevs === "object"
+        ? window.__aarishLocalTableRevs
+        : {};
+    var next = Object.assign({}, current);
+    var defaultRev = Number(fallbackRev || 0);
+
+    Object.keys(mega || {}).forEach(function(path) {
+        var cleanPath = aarishCostCleanPathV1(path);
+        var table = cleanPath ? cleanPath.split("/")[0] : "";
+        if (!table || table === "_syncMeta") return;
+
+        var tableRev = defaultRev;
+        var tableMetaPath = "_syncMeta/tables/" + table;
+        if (Object.prototype.hasOwnProperty.call(mega, tableMetaPath)) {
+            tableRev = Number(mega[tableMetaPath] || tableRev);
+        }
+        if (Number.isFinite(tableRev) && tableRev > 0) next[table] = tableRev;
+    });
+
+    window.__aarishLocalTableRevs = next;
+    return next;
 }
 
 function aarishCostManageSocketCoreV8(forceOnline, reason) {
@@ -5000,9 +5033,12 @@ function aarishCostFinishOnceCoreV6(resolve, timerRef, onFinish) {
     };
 }
 
-function aarishCostStableCacheJsonCoreV6(uid, serverRev, state) {
+function aarishCostStableCacheJsonCoreV6(uid, serverRev, state, tableRevs) {
     try {
-        return JSON.stringify(Object.assign({ uid: uid, serverRev: Number(serverRev || 0) }, state || {}));
+        return JSON.stringify(Object.assign(
+            { uid: uid, serverRev: Number(serverRev || 0), tableRevs: tableRevs || {} },
+            state || {}
+        ));
     } catch(e) {
         return "";
     }
@@ -5255,7 +5291,10 @@ async function saveCacheNowCostV81(reason) {
 
         var state = aarishCostGetStateV1();
         var serverRev = Number(window.__aarishFirebaseCostRevV81 || 0);
-        var stableJson = aarishCostStableCacheJsonCoreV6(uid, serverRev, state);
+        var tableRevs = window.__aarishLocalTableRevs && typeof window.__aarishLocalTableRevs === "object"
+            ? window.__aarishLocalTableRevs
+            : {};
+        var stableJson = aarishCostStableCacheJsonCoreV6(uid, serverRev, state, tableRevs);
 
         if (stableJson && stableJson === __aarishCostCacheLastStableJsonCoreV6 && String(reason || "").indexOf("force") === -1) {
             return true;
@@ -5265,6 +5304,7 @@ async function saveCacheNowCostV81(reason) {
             uid: uid,
             savedAt: Date.now(),
             serverRev: serverRev,
+            tableRevs: tableRevs,
             reason: reason || "auto"
         });
 
@@ -5510,6 +5550,9 @@ async function loadCacheCostV81() {
         var serverRev = Number(cached.serverRev || 0);
         window.__aarishFirebaseCostRevV81 = Number.isFinite(serverRev) && serverRev > 0 ? serverRev : 0;
         window.__aarishCacheLoadedWithoutServerRevV81 = !(serverRev > 0);
+
+        var cachedTableRevs = cached.tableRevs && typeof cached.tableRevs === "object" ? cached.tableRevs : {};
+        window.__aarishLocalTableRevs = Object.assign({}, cachedTableRevs);
 
         /*
           Fatal stale-cache fix:
@@ -6146,6 +6189,7 @@ async function aarishFirebaseLaterV48(path, action, payload, opts) {
                     try { aarishCostManageSocketCoreV8(false, "direct-" + cleanPath); } catch(e) {}
                 }
                 window.__aarishFirebaseCostRevV81 = Number(directMega["_syncMeta/rev"] || Date.now());
+                aarishCostUpdateLocalTableRevsV1(directMega, window.__aarishFirebaseCostRevV81);
                 await saveCacheNowCostV81("direct-" + cleanPath);
                 return { queued: false, direct: true, writes: keys.length };
             }
@@ -6233,6 +6277,7 @@ async function aarishFirebaseBatchLaterV87(flatPayload, reason) {
                 }
 
                 window.__aarishFirebaseCostRevV81 = Number(directMega["_syncMeta/rev"] || Date.now());
+                aarishCostUpdateLocalTableRevsV1(directMega, window.__aarishFirebaseCostRevV81);
                 await saveCacheNowCostV81("direct-raw-batch-" + String(reason || ""));
                 return { queued: false, direct: true, items: keys.length };
             }
@@ -6393,6 +6438,7 @@ async function flushFirebaseWriteOutboxV87(reason, opts) {
         if (!aarishCostSameUidCoreV3(uid)) return { ok:false, reason:"uid_changed_after_update" };
 
         window.__aarishFirebaseCostRevV81 = Number.isFinite(rev) && rev > 0 ? rev : Date.now();
+        aarishCostUpdateLocalTableRevsV1(mega, window.__aarishFirebaseCostRevV81);
 
         window.__aarishCostCloudAckPendingCoreV4[uid] = {
             ids: ids,
@@ -6451,28 +6497,54 @@ async function aarishOutboxStatusV83() {
 
 window.aarishOutboxStatusV83 = aarishOutboxStatusV83;
 window.aarishSyncGuardStatusV87 = aarishOutboxStatusV83;
-async function fullFirebaseSyncCostV81(reason) {
+async function fullFirebaseSyncCostV81(reason, tablesToFetch) {
     var uid = aarishCostUidV1();
     if (!uid) return false;
 
     try { aarishCostManageSocketCoreV8(true, "full-sync-" + String(reason || "")); } catch(e) {}
-    try { if (typeof showLoader === 'function') showLoader('ONE-TIME CLOUD SYNC...'); } catch(e) {}
-
+    try {
+        if (typeof showLoader === 'function') {
+            showLoader(tablesToFetch && Array.isArray(tablesToFetch) && tablesToFetch.length
+                ? 'SMART SYNCING...'
+                : 'ONE-TIME CLOUD SYNC...');
+        }
+    } catch(e) {}
+    try { if (appDataRef && typeof appDataRef.off === 'function') appDataRef.off(); } catch(e) {}
     appDataRef = database.ref('users/' + uid + '/appData');
 
     try {
-        var snap = await aarishCostWithTimeoutCoreV5(
-            appDataRef.once('value'),
-            'appdata-read',
-            9000
-        );
+        var raw = {};
+        var currentState = aarishCostGetStateV1() || {};
+
+        // Fetch only changed tables when their revisions are known; otherwise
+        // fall back to a complete read for first boot and legacy metadata.
+        if (tablesToFetch && Array.isArray(tablesToFetch) && tablesToFetch.length > 0) {
+            await Promise.all(tablesToFetch.map(async function(table) {
+                var snap = await aarishCostWithTimeoutCoreV5(
+                    appDataRef.child(table).once('value'),
+                    'delta-read',
+                    9000
+                );
+                raw[table] = snap && snap.val ? (snap.val() || null) : null;
+            }));
+            raw = Object.assign({}, currentState, raw);
+            var metaSnap = await aarishCostWithTimeoutCoreV5(
+                appDataRef.child('_syncMeta').once('value'),
+                'meta-read',
+                6500
+            );
+            raw._syncMeta = metaSnap && metaSnap.val ? (metaSnap.val() || {}) : {};
+        } else {
+            var snap = await aarishCostWithTimeoutCoreV5(
+                appDataRef.once('value'),
+                'appdata-read',
+                15000
+            );
+            raw = (snap && snap.val && snap.val()) || {};
+        }
 
         if (!aarishCostSameUidCoreV3(uid)) return false;
-
         var pendingBeforeApply = await aarishCostGetOutboxV1();
-
-        if (!aarishCostSameUidCoreV3(uid)) return false;
-
         if (window.__aarishCostLastOutboxReadTimedOutV4) {
             try { if (typeof hideLoader === 'function') hideLoader(); } catch(_) {}
             try { aarishCostScheduleFlushV1(4500, 'full-sync-outbox-timeout'); } catch(_) {}
@@ -6481,18 +6553,21 @@ async function fullFirebaseSyncCostV81(reason) {
             return false;
         }
 
-        var raw = (snap && snap.val && snap.val()) || {};
         var state = aarishCostNormalizeStateV1(raw);
         aarishCostApplyStateV1(state);
 
         if (pendingBeforeApply && pendingBeforeApply.length) {
-            aarishCostApplyMegaToStateCoreV3(aarishCostBuildMegaV1(pendingBeforeApply), 'full-sync-pending-replay');
+            aarishCostApplyMegaToStateCoreV3(
+                aarishCostBuildMegaV1(pendingBeforeApply),
+                'full-sync-pending-replay'
+            );
         }
 
         var meta = raw && raw._syncMeta && typeof raw._syncMeta === 'object' ? raw._syncMeta : {};
         var rev = Number(meta.rev || 0);
         window.__aarishFirebaseCostRevV81 = Number.isFinite(rev) && rev > 0 ? rev : Date.now();
         window.__aarishCacheLoadedWithoutServerRevV81 = false;
+        window.__aarishLocalTableRevs = Object.assign({}, meta.tables || {});
 
         await saveCacheNowCostV81(reason || 'full-sync-atomic');
         aarishCostShowAppV1();
@@ -6517,14 +6592,10 @@ window.aarishForceFullFirebaseSyncV81 = function() {
 };
 async function aarishAutoPullCloudIfNewerV87(reason, opts) {
     opts = opts || {};
-
-    if (window.__aarishCostPullBusyCoreV3) {
-        return { ok: true, skipped: "pull-busy" };
-    }
+    if (window.__aarishCostPullBusyCoreV3) return { ok: true, skipped: "pull-busy" };
 
     window.__aarishCostPullBusyCoreV3 = true;
     var openedSocket = false;
-
     try {
         var uid = aarishCostUidV1();
         var ref = aarishCostAppRefV1();
@@ -6534,16 +6605,20 @@ async function aarishAutoPullCloudIfNewerV87(reason, opts) {
         if (Date.now() - Number(window.__aarishLastMetaCheckV1 || 0) < minGap) {
             return { ok: true, skipped: "throttled" };
         }
-
         window.__aarishLastMetaCheckV1 = Date.now();
 
-        var flushResult = await flushFirebaseWriteOutboxV87("before-meta-check", { force: !!opts.force });
+        var flushResult = await flushFirebaseWriteOutboxV87(
+            "before-meta-check",
+            { force: !!opts.force }
+        );
         var pendingAfterFlush = await aarishCostGetOutboxV1();
-
         if (!aarishCostSafeLocalPullAllowedCoreV7("auto-pull")) {
-            return { ok:false, skipped:"outbox-read-timeout", flushOk: !!(flushResult && flushResult.ok) };
+            return {
+                ok: false,
+                skipped: "outbox-read-timeout",
+                flushOk: !!(flushResult && flushResult.ok)
+            };
         }
-
         if (pendingAfterFlush.length) {
             aarishCostScheduleFlushV1(4000, "pending-before-pull");
             return {
@@ -6553,41 +6628,66 @@ async function aarishAutoPullCloudIfNewerV87(reason, opts) {
                 flushOk: !!(flushResult && flushResult.ok)
             };
         }
-
         if (!aarishCostSameUidCoreV3(uid)) return { ok:false, reason:"uid_changed_before_meta" };
 
-        /*
-          AARISH_FIREBASE_META_PULL_LAZY_SOCKET_CORE_V2
-          Root-cause edit: RTDB socket opens only for the real _syncMeta/rev read,
-          not for throttled/not-ready/local-pending early exits.
-        */
-        try { aarishCostManageSocketCoreV8(true, "pull-" + String(reason || "")); openedSocket = true; } catch(e) {}
+        try {
+            aarishCostManageSocketCoreV8(true, "pull-" + String(reason || ""));
+            openedSocket = true;
+        } catch(e) {}
 
+        // Read the complete metadata map once; it contains each table's revision.
         var snap = await aarishCostWithTimeoutCoreV5(
-            ref.child("_syncMeta/rev").once("value"),
+            ref.child("_syncMeta").once("value"),
             "meta-timeout",
             6500
         );
-
         if (!aarishCostSameUidCoreV3(uid)) return { ok:false, reason:"uid_changed_after_meta" };
 
-        var cloudRev = Number(snap.val() || 0);
+        var cloudMeta = snap && snap.val && snap.val() || {};
+        var cloudRev = Number(cloudMeta.rev || 0);
         var localRev = Number(window.__aarishFirebaseCostRevV81 || 0);
         var cacheHadNoServerRev = !!window.__aarishCacheLoadedWithoutServerRevV81;
 
         if (opts.forcePull || cacheHadNoServerRev || (cloudRev && (!localRev || cloudRev > localRev))) {
-            await fullFirebaseSyncCostV81(cacheHadNoServerRev ? "auto-pull-cache-had-no-server-rev" : "auto-pull-newer-cloud");
+            var cloudTables = cloudMeta.tables && typeof cloudMeta.tables === "object" ? cloudMeta.tables : {};
+            var localTables = window.__aarishLocalTableRevs && typeof window.__aarishLocalTableRevs === "object"
+                ? window.__aarishLocalTableRevs
+                : {};
+            var allowedTables = {
+                milkDB: true,
+                salaryDB: true,
+                projectDB: true,
+                udharDB: true,
+                expenseDB: true,
+                diaryDB: true
+            };
+            var tablesToFetch = [];
+
+            if (localRev === 0 || cacheHadNoServerRev) {
+                tablesToFetch = null;
+            } else {
+                Object.keys(cloudTables).forEach(function(table) {
+                    if (!allowedTables[table]) return;
+                    if (Number(cloudTables[table] || 0) > Number(localTables[table] || 0)) {
+                        tablesToFetch.push(table);
+                    }
+                });
+            }
+
+            // Legacy writes may advance the global revision without table metadata.
+            if (tablesToFetch !== null && tablesToFetch.length === 0) tablesToFetch = null;
+            await fullFirebaseSyncCostV81("auto-pull-newer-cloud", tablesToFetch);
             window.__aarishCacheLoadedWithoutServerRevV81 = false;
-            return { ok: true, pulled: true, cloudRev: cloudRev, localRev: localRev, cacheHadNoServerRev: cacheHadNoServerRev };
+            return { ok: true, pulled: true, deltaTables: tablesToFetch };
         }
 
-        return { ok: true, upToDate: true, cloudRev: cloudRev, localRev: localRev };
+        return { ok: true, upToDate: true };
     } catch(e) {
-        return { ok: false, error: String(e && e.message ? e.message : e) };
+        return { ok: false };
     } finally {
         window.__aarishCostPullBusyCoreV3 = false;
         if (openedSocket) {
-            try { aarishCostManageSocketCoreV8(false, "pull-finally-" + String(reason || "")); } catch(e) {}
+            try { aarishCostManageSocketCoreV8(false, "pull-finally"); } catch(e) {}
         }
     }
 }
