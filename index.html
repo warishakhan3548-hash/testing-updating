@@ -4464,19 +4464,36 @@ function aarishCostNextRevCoreV8() {
 
 function aarishCostSealMegaCoreV8(mega) {
     mega = mega && typeof mega === "object" ? mega : {};
+
+    // Delta Sync: identify the exact revision this mutation follows.
+    var prevRev = Number(window.__aarishFirebaseCostRevV81 || 0);
     var rev = aarishCostNextRevCoreV8();
     aarishCostPutCoalescedV1(mega, "_syncMeta/rev", rev);
-    aarishCostPutCoalescedV1(mega, "_syncMeta/mode", "AARISH_FIREBASE_COST_CORE_V1");
+    aarishCostPutCoalescedV1(mega, "_syncMeta/prevRev", prevRev);
+    aarishCostPutCoalescedV1(mega, "_syncMeta/mode", "AARISH_FIREBASE_COST_CORE_V2_DELTA");
     aarishCostPutCoalescedV1(mega, "_syncMeta/updatedAt", aarishCostServerTimeV1());
 
-    // Track exact top-level tables in the outgoing payload. The local copy is
-    // updated only after Firebase acknowledges the write (see callers below).
+    var deltaPayload = {};
+    // Track exact top-level tables and retain only the actual mutation paths.
     Object.keys(mega).forEach(function(path) {
         var table = String(path || "").split("/")[0];
         if (table && table !== "_syncMeta") {
             aarishCostPutCoalescedV1(mega, "_syncMeta/tables/" + table, rev);
+            deltaPayload[path] = mega[path];
         }
     });
+
+    // Keep metadata small. Large imports intentionally fall back to table sync.
+    try {
+        var deltaJson = JSON.stringify(deltaPayload);
+        if (deltaJson.length < 60000 && Object.keys(deltaPayload).length > 0) {
+            aarishCostPutCoalescedV1(mega, "_syncMeta/deltaWrites", deltaJson);
+        } else {
+            aarishCostPutCoalescedV1(mega, "_syncMeta/deltaWrites", null);
+        }
+    } catch(e) {
+        aarishCostPutCoalescedV1(mega, "_syncMeta/deltaWrites", null);
+    }
     return rev;
 }
 
@@ -6499,7 +6516,7 @@ async function aarishOutboxStatusV83() {
         oldestAgeSec: items.length ? Math.round((Date.now() - Number(items[0].createdAt || Date.now())) / 1000) : 0,
         flushing: !!__aarishCostFlushBusyV1,
         online: aarishCostOnlineV1(),
-        mode: "AARISH_FIREBASE_COST_CORE_V1"
+        mode: "AARISH_FIREBASE_COST_CORE_V2_DELTA"
     };
 }
 
@@ -6651,6 +6668,34 @@ async function aarishAutoPullCloudIfNewerV87(reason, opts) {
             var localTables = window.__aarishLocalTableRevs && typeof window.__aarishLocalTableRevs === "object" ? window.__aarishLocalTableRevs : {};
             var allowedTables = { milkDB: true, salaryDB: true, projectDB: true, udharDB: true, expenseDB: true, diaryDB: true };
             var tablesToFetch = [];
+
+            // Delta Sync: if exactly one acknowledged batch was missed, apply only
+            // its path-level writes and avoid downloading any complete table.
+            var cloudPrevRev = Number(cloudMeta.prevRev || 0);
+            var cloudDeltaWrites = cloudMeta.deltaWrites;
+            var forceFullPull = !!(opts.force || opts.forcePull);
+            if (localRevNow > 0 && localRevNow === cloudPrevRev && cloudDeltaWrites && !forceFullPull && !cacheHadNoServerRev) {
+                try {
+                    var parsedWrites = JSON.parse(cloudDeltaWrites);
+                    var state = aarishCostGetStateV1();
+                    var deltaApplied = false;
+                    Object.keys(parsedWrites || {}).forEach(function(path) {
+                        if (aarishCostApplyLocalWriteCoreV3(state, path, parsedWrites[path])) deltaApplied = true;
+                    });
+
+                    if (deltaApplied) {
+                        aarishCostApplyStateV1(aarishCostNormalizeStateV1(state));
+                        window.__aarishFirebaseCostRevV81 = cloudRev;
+                        window.__aarishCacheLoadedWithoutServerRevV81 = false;
+                        window.__aarishLocalTableRevs = Object.assign({}, cloudTables);
+                        try { scheduleCacheSaveCostV81("delta-sync-success"); } catch(e) {}
+                        try { aarishCostRenderAfterStateCoreV3("delta-pull"); } catch(e) {}
+                        return { ok: true, pulled: true, deltaSync: true };
+                    }
+                } catch(e) {
+                    // Invalid or stale delta: use the existing table-fetch fallback.
+                }
+            }
 
             if (localRevNow === 0 || cacheHadNoServerRev) {
                 tablesToFetch = null; // First boot only

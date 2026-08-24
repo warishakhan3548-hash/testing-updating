@@ -58,9 +58,23 @@ const mega = {
 };
 const rev = context.aarishCostSealMegaCoreV8(mega);
 assert(Number.isFinite(rev) && rev > 0);
+assert.strictEqual(mega['_syncMeta/prevRev'], 0);
 assert.strictEqual(mega['_syncMeta/tables/milkDB'], rev);
 assert.strictEqual(mega['_syncMeta/tables/expenseDB'], rev);
 assert.strictEqual(mega['_syncMeta/tables/udharDB'], undefined);
+const packedDelta = JSON.parse(mega['_syncMeta/deltaWrites']);
+assert.deepStrictEqual(Object.keys(packedDelta).sort(), [
+  'expenseDB/e1',
+  'milkDB/January/records/r1',
+]);
+assert.strictEqual(packedDelta['expenseDB/e1'].id, 'e1');
+
+context.window.__aarishFirebaseCostRevV81 = rev;
+const nextMega = { 'udharDB/u1': { id: 'u1', amount: 25 } };
+const nextRev = context.aarishCostSealMegaCoreV8(nextMega);
+assert.strictEqual(nextMega['_syncMeta/prevRev'], rev);
+assert.strictEqual(JSON.parse(nextMega['_syncMeta/deltaWrites'])['udharDB/u1'].amount, 25);
+assert(nextRev > rev);
 
 context.aarishCostUpdateLocalTableRevsV1(mega, rev);
 assert.strictEqual(Number(context.window.__aarishLocalTableRevs.milkDB), rev);
