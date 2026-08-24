@@ -4486,7 +4486,8 @@ function aarishCostSealMegaCoreV8(mega) {
     // Keep metadata small. Large imports intentionally fall back to table sync.
     try {
         var deltaJson = JSON.stringify(deltaPayload);
-        if (deltaJson.length < 60000 && Object.keys(deltaPayload).length > 0) {
+        // [OMNI-ARCHITECT: DELTA COMPRESSION]
+        if (deltaJson.length < 2500 && Object.keys(deltaPayload).length > 0) {
             aarishCostPutCoalescedV1(mega, "_syncMeta/deltaWrites", deltaJson);
         } else {
             aarishCostPutCoalescedV1(mega, "_syncMeta/deltaWrites", null);
@@ -4533,7 +4534,8 @@ function aarishCostManageSocketCoreV8(forceOnline, reason) {
         clearTimeout(__aarishCostSocketIdleTimerCoreV8);
 
         // 🔥 GEMINI SMART LOGIC: Instant socket kill if tab is hidden (Saves Battery, RAM & Firebase Connections)
-        var idleDelay = (typeof document !== "undefined" && document.hidden) ? 800 : 12000;
+        // [OMNI-ARCHITECT: SOCKET STARVATION PROTOCOL]
+        var idleDelay = (typeof document !== "undefined" && document.hidden) ? 0 : 2500;
 
         __aarishCostSocketIdleTimerCoreV8 = setTimeout(function() {
             __aarishCostSocketIdleTimerCoreV8 = null;
@@ -5701,8 +5703,9 @@ function aarishCostPickBatchV3(items) {
     var mega = {};
     // [OMNI-ARCHITECT UPGRADE]: Micro-batching for strict mobile network delivery.
     // Reduces connection drops and prevents double-bandwidth charging on failed large uploads.
-    var maxItems = 80;
-    var maxBytes = 150000;
+    // [OMNI-ARCHITECT: MICRO-BATCH COMPRESSION]
+        var maxItems = 60;
+        var maxBytes = 65000;
 
     for (var i = 0; i < source.length && out.length < maxItems; i++) {
         var candidate = aarishCostCloneMegaCoreV5(mega);
@@ -6225,7 +6228,8 @@ async function aarishFirebaseLaterV48(path, action, payload, opts) {
 
         var actionLower = String(action || "").toLowerCase();
         var destructive = actionLower === "remove" || actionLower === "delete" || aarishCostQueueHasDeleteCoreV7(writes);
-        var delay = destructive ? 220 : (opts.fast ? 1100 : 35000);
+        // [OMNI-ARCHITECT: DEEP COALESCING LATENCY]
+        var delay = destructive ? 220 : (opts.fast ? 2500 : 55000);
         aarishCostScheduleFlushV1(delay, destructive ? "urgent-delete-core-v7" : (opts.fast ? "fast-batch-core-v7" : "idle-batch"));
 
         if (destructive && typeof aarishBackendFastCloudCommitCoreV4 === "function") {
@@ -6651,15 +6655,28 @@ async function aarishAutoPullCloudIfNewerV87(reason, opts) {
         }
         if (!aarishCostSameUidCoreV3(uid)) return { ok:false, reason:"uid_changed_before_meta" };
 
+        // [OMNI-ARCHITECT: REST API HYBRID POLLER]
+        var cloudMeta = null;
         try {
-            aarishCostManageSocketCoreV8(true, "pull-" + String(reason || ""));
-            openedSocket = true;
-        } catch(e) {}
+            var user = firebase.auth && firebase.auth().currentUser;
+            if (user && typeof firebaseConfig !== "undefined" && firebaseConfig.databaseURL) {
+                var token = await user.getIdToken();
+                var restUrl = firebaseConfig.databaseURL + "/users/" + uid + "/appData/_syncMeta.json?auth=" + encodeURIComponent(token) + "&shallow=true";
+                var res = await fetch(restUrl, { method: "GET", cache: "no-store" });
+                if (res.ok) cloudMeta = await res.json();
+            }
+        } catch (restErr) {}
 
-        var snap = await aarishCostWithTimeoutCoreV5(ref.child("_syncMeta").once("value"), "meta-timeout", 6500);
+        if (!cloudMeta) {
+            try {
+                aarishCostManageSocketCoreV8(true, "pull-" + String(reason || ""));
+                openedSocket = true;
+            } catch(e) {}
+            var snap = await aarishCostWithTimeoutCoreV5(ref.child("_syncMeta").once("value"), "meta-timeout", 6500);
+            cloudMeta = snap && snap.val && snap.val() || {};
+        }
         if (!aarishCostSameUidCoreV3(uid)) return { ok:false, reason:"uid_changed_after_meta" };
-
-        var cloudMeta = snap && snap.val && snap.val() || {};
+        cloudMeta = cloudMeta || {};
         var cloudRev = Number(cloudMeta.rev || 0);
         var cacheHadNoServerRev = !!window.__aarishCacheLoadedWithoutServerRevV81;
 
