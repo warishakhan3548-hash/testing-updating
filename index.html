@@ -4514,13 +4514,15 @@ function aarishCostManageSocketCoreV8(forceOnline, reason) {
             return;
         }
         clearTimeout(__aarishCostSocketIdleTimerCoreV8);
+        // [OMNI-ARCHITECT UPGRADE]: Increased idle timeout from 5s to 45s.
+        // Prevents heavy SSL/TLS handshake bandwidth overhead during normal usage gaps.
         __aarishCostSocketIdleTimerCoreV8 = setTimeout(function() {
             __aarishCostSocketIdleTimerCoreV8 = null;
             try {
                 if (__aarishCostFlushBusyV1 || window.__aarishCostPullBusyCoreV3) return;
                 firebase.database().goOffline();
             } catch(e) {}
-        }, 5000);
+        }, 45000);
     } catch(e) {}
 }
 /* AARISH_BACKEND_CANONICAL_ID_SOCKET_CORE_V8_END */
@@ -5678,8 +5680,10 @@ function aarishCostPickBatchV3(items) {
         .sort(function(a,b) { return Number(a.createdAt || 0) - Number(b.createdAt || 0); });
     var out = [];
     var mega = {};
-    var maxItems = 180;
-    var maxBytes = 760000;
+    // [OMNI-ARCHITECT UPGRADE]: Micro-batching for strict mobile network delivery.
+    // Reduces connection drops and prevents double-bandwidth charging on failed large uploads.
+    var maxItems = 80;
+    var maxBytes = 150000;
 
     for (var i = 0; i < source.length && out.length < maxItems; i++) {
         var candidate = aarishCostCloneMegaCoreV5(mega);
@@ -6601,7 +6605,9 @@ async function aarishAutoPullCloudIfNewerV87(reason, opts) {
         var ref = aarishCostAppRefV1();
         if (!uid || !ref || !aarishCostOnlineV1()) return { ok: false, reason: "not-ready" };
 
-        var minGap = opts.force ? 0 : 60000;
+        // [OMNI-ARCHITECT UPGRADE]: Polling gap extended from 1 min to 5 mins.
+        // Blocks expensive phantom reads triggered by rapid app focus/visibility changes.
+        var minGap = opts.force ? 0 : 300000;
         if (Date.now() - Number(window.__aarishLastMetaCheckV1 || 0) < minGap) {
             return { ok: true, skipped: "throttled" };
         }
