@@ -13587,20 +13587,48 @@ function generateAIAgentPairingCode() {
 }
 
 function copyAIAgentCode() {
-    if (!activeAIPairingCode) return;
+    if (!activeAIPairingCode) {
+        showToast("Please generate a code first!");
+        return;
+    }
 
-    // Verified Cloudflare Worker hostname for the AI pairing handshake.
     const workerURL = "https://aaris-ai-agent.hhakmuddin8.workers.dev";
     const connectURL = `${workerURL}/connect?code=${encodeURIComponent(activeAIPairingCode)}`;
+    const actionURL = `${workerURL}/action`;
 
-    // Copy a ready-to-paste prompt instead of only the pairing code.
-    const magicPrompt = `Hello AI, please connect to my Aarish Dairy Pro app. Visit this secure link to complete the handshake: ${connectURL}\n\nAfter visiting, just reply: "✅ आपका खाता सफलतापूर्वक कनेक्ट हो गया है! मैं आपकी क्या मदद कर सकता हूँ?"`;
+    const smartPrompt = `You are my Aarish Dairy Pro financial assistant. I have connected you to my database. My access code is: ${activeAIPairingCode}
 
-    navigator.clipboard.writeText(magicPrompt).then(() => {
-        try{ haptic(); }catch(e){}
-        showToast("✨ Magic Link Copied! Paste it in Gemini App.");
-    }).catch(() => {
-        showToast("⚠️ Copy failed. Please try again.");
+1. First, visit this secure link to complete the handshake: ${connectURL}
+2. After connecting, reply with: "✅ आपका खाता सफलतापूर्वक कनेक्ट हो गया है! मैं आपकी क्या मदद कर सकता हूँ?"
+
+Whenever I ask you to add an entry, you MUST send an HTTP POST request to: ${actionURL}
+Headers: Content-Type: application/json
+
+You MUST use one of these EXACT JSON structures in the body depending on my request. NEVER invent database paths.
+
+For Udhar/Credit:
+{ "code": "${activeAIPairingCode}", "action_type": "ADD_UDHAR", "payload": { "name": "PersonName", "amount": 500, "flow": "credit|debit", "date": "YYYY-MM-DD" } }
+
+For Milk:
+{ "code": "${activeAIPairingCode}", "action_type": "ADD_MILK", "payload": { "name": "CustomerName", "morning": 2, "evening": 0, "flow": "given|taken", "date": "YYYY-MM-DD" } }
+
+For Expense:
+{ "code": "${activeAIPairingCode}", "action_type": "ADD_EXPENSE", "payload": { "category": "Sugar", "amount": 100, "date": "YYYY-MM-DD" } }
+
+For Salary:
+{ "code": "${activeAIPairingCode}", "action_type": "ADD_SALARY", "payload": { "name": "EmployeeName", "amount": 500, "date": "YYYY-MM-DD" } }
+
+For Diary:
+{ "code": "${activeAIPairingCode}", "action_type": "ADD_DIARY", "payload": { "title": "...", "content": "...", "date": "YYYY-MM-DD" } }
+
+Make the API call silently and reply "Entry saved!" if successful. Do you understand?`;
+
+    navigator.clipboard.writeText(smartPrompt).then(() => {
+        try { haptic(); } catch(e) {}
+        showToast("✨ Secure AI Prompt Copied!");
+    }).catch(err => {
+        console.error('Copy failed', err);
+        showToast("⚠️ Copy failed.");
     });
 }
 
