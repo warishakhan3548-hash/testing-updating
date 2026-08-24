@@ -13588,9 +13588,19 @@ function generateAIAgentPairingCode() {
 
 function copyAIAgentCode() {
     if (!activeAIPairingCode) return;
-    navigator.clipboard.writeText(activeAIPairingCode).then(() => {
+
+    // Verified Cloudflare Worker hostname for the AI pairing handshake.
+    const workerURL = "https://aaris-ai-agent.hhakmuddin8.workers.dev";
+    const connectURL = `${workerURL}/connect?code=${encodeURIComponent(activeAIPairingCode)}`;
+
+    // Copy a ready-to-paste prompt instead of only the pairing code.
+    const magicPrompt = `Hello AI, please connect to my Aarish Dairy Pro app. Visit this secure link to complete the handshake: ${connectURL}\n\nAfter visiting, just reply: "✅ आपका खाता सफलतापूर्वक कनेक्ट हो गया है! मैं आपकी क्या मदद कर सकता हूँ?"`;
+
+    navigator.clipboard.writeText(magicPrompt).then(() => {
         try{ haptic(); }catch(e){}
-        showToast("Code Copied!");
+        showToast("✨ Magic Link Copied! Paste it in Gemini App.");
+    }).catch(() => {
+        showToast("⚠️ Copy failed. Please try again.");
     });
 }
 
