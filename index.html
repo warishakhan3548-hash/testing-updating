@@ -6704,7 +6704,7 @@ async function aarishAutoPullCloudIfNewerV87(reason, opts) {
                         aarishCostApplyStateV1(aarishCostNormalizeStateV1(state));
                         window.__aarishFirebaseCostRevV81 = cloudRev;
                         window.__aarishCacheLoadedWithoutServerRevV81 = false;
-                        window.__aarishLocalTableRevs = Object.assign({}, cloudTables);
+                        aarishCostUpdateLocalTableRevsV1(parsedWrites, cloudRev);
                         try { scheduleCacheSaveCostV81("delta-sync-success"); } catch(e) {}
                         try { aarishCostRenderAfterStateCoreV3("delta-pull"); } catch(e) {}
                         return { ok: true, pulled: true, deltaSync: true };
