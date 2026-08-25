@@ -14394,43 +14394,248 @@ ${jsonStr}
     });
 };
 
-window.handleAIPaste = function() {
-    const pasteBox = document.getElementById('ai-json-paste');
-    if (!pasteBox) return;
+// ========================== OMNI-AI JSON EXECUTOR CORE ==========================
+// Accepts command arrays/objects from AarishAI and persists them through the
+// existing Firebase outbox + local cache layers. Legacy full-state JSON remains
+// supported so the prompt generator above continues to work unchanged.
+window.handleAIPaste = async function() {
+    const inputEl = document.getElementById('ai-json-paste');
+    if (!inputEl || window.__aarishAIPasteBusy) return;
 
-    let val = pasteBox.value.trim();
-    if (!val) return;
+    const raw = String(inputEl.value || '').trim();
+    if (!raw) return;
 
-    // [OMNI-ARCHITECT: AUTO-SANITIZER ENGINE]
-    // Remove optional Markdown JSON fences before parsing.
-    val = val.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    let data;
+    try {
+        // First try the exact input, then tolerate markdown fences or prose.
+        try {
+            data = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim());
+        } catch (directError) {
+            const jsonMatch = raw.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+            if (!jsonMatch) return;
+            data = JSON.parse(jsonMatch[0]);
+        }
+    } catch (e) {
+        // oninput fires while the user/AI is still producing JSON. Wait silently.
+        return;
+    }
+
+    if (!data || typeof data !== 'object') return;
+    window.__aarishAIPasteBusy = true;
+
+    const asText = value => String(value == null ? '' : value).trim();
+    const asNumber = value => {
+        const number = Number(value);
+        return Number.isFinite(number) ? number : 0;
+    };
+    const today = typeof getTodayISO === 'function'
+        ? getTodayISO()
+        : new Date().toISOString().split('T')[0];
+    const makeId = (prefix) => window.aarishV98Id
+        ? window.aarishV98Id(prefix)
+        : `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const hasKey = key => Object.prototype.hasOwnProperty.call(data, key);
 
     try {
-        const parsedState = JSON.parse(val);
+        if (typeof showLoader === 'function') showLoader('AI Syncing Data...');
 
-        // Deep verification before injecting.
-        if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
-            throw new Error('AI response is not a JSON state object');
+        // Preserve the existing prompt workflow when AI returns the complete DB state.
+        const isFullState = !Array.isArray(data) && [
+            'expenseDB', 'udharDB', 'milkDB', 'salaryDB', 'diaryDB', 'projectDB'
+        ].some(hasKey);
+        if (isFullState) {
+            if (typeof aarishCostApplyStateV1 !== 'function') throw new Error('State engine unavailable');
+            aarishCostApplyStateV1(data);
+            if (typeof fullFirebaseSyncCostV81 === 'function') {
+                await fullFirebaseSyncCostV81('ai-manual-paste-update');
+            }
+            if (typeof saveCacheNowCostV81 === 'function') {
+                await saveCacheNowCostV81('ai-manual-paste-update');
+            }
+            inputEl.value = '';
+            try { if (typeof closeModal === 'function') closeModal('gemini-key-modal'); } catch (e) {}
+            try { if (typeof updateDashboard === 'function') updateDashboard(); } catch (e) {}
+            try { if (typeof updateActiveScreen === 'function') updateActiveScreen(); } catch (e) {}
+            try { if (typeof showToast === 'function') showToast('AI Data Deep-Injected Successfully!'); } catch (e) {}
+            return;
         }
 
-        aarishCostApplyStateV1(parsedState);
-
-        // Force cloud sync and UI update safely.
-        if (typeof fullFirebaseSyncCostV81 === 'function') {
-            fullFirebaseSyncCostV81('ai-manual-paste-update');
+        let commands = [];
+        if (Array.isArray(data)) commands = data;
+        else if (Array.isArray(data.aarish_ai_commands)) commands = data.aarish_ai_commands;
+        else if (Array.isArray(data.commands)) commands = data.commands;
+        else if (data.type || data.module) commands = [data];
+        if (!commands.length) {
+            try { if (typeof showToast === 'function') showToast('Valid JSON, but no matching modules found.'); } catch (e) {}
+            return;
         }
-        if (typeof saveCacheNowCostV81 === 'function') {
-            saveCacheNowCostV81('ai-manual-paste-update');
+
+        const batchPayload = {};
+        const uiUpdates = new Set();
+        let addedCount = 0;
+
+        for (const cmd of commands) {
+            if (!cmd || typeof cmd !== 'object' || Array.isArray(cmd)) continue;
+            const type = asText(cmd.type || cmd.module).toLowerCase();
+            const date = asText(cmd.date) || today;
+            const amount = asNumber(cmd.amount);
+
+            if (type === 'expense' || type === 'kharcha') {
+                const id = makeId('exp');
+                const entry = {
+                    id, date,
+                    category: asText(cmd.category || cmd.detail) || 'AI Entry',
+                    amount
+                };
+                if (typeof expenseDB !== 'undefined') expenseDB.unshift(entry);
+                batchPayload[`expenseDB/${id}`] = entry;
+                uiUpdates.add('expenses');
+                addedCount++;
+            } else if (type === 'udhar' || type === 'credit' || type === 'loan') {
+                const id = makeId('udh');
+                const entry = {
+                    id, date,
+                    name: asText(cmd.name) || 'Unknown',
+                    amount,
+                    type: asText(cmd.flow || cmd.direction || cmd.entryType).toLowerCase() || 'credit'
+                };
+                if (typeof udharDB !== 'undefined') udharDB.unshift(entry);
+                batchPayload[`udharDB/${id}`] = entry;
+                uiUpdates.add('udhar');
+                addedCount++;
+            } else if (type === 'milk' || type === 'doodh') {
+                const name = asText(cmd.name);
+                if (!name || typeof milkDB === 'undefined') continue;
+                let customer = milkDB[name];
+                if (!customer) {
+                    customer = {
+                        rate: asNumber(cmd.rate) || 55,
+                        type: asText(cmd.flow) || 'lene_wala',
+                        records: [],
+                        canonicalNameV18: typeof aarishMilkNameKeyCore === 'function'
+                            ? aarishMilkNameKeyCore(name) : name.toLowerCase(),
+                        createdAtV18: new Date().toISOString()
+                    };
+                    milkDB[name] = customer;
+                    batchPayload[`milkDB/${name}`] = customer;
+                }
+                const id = makeId('mlk');
+                const entry = {
+                    id, date,
+                    morning: asNumber(cmd.morning),
+                    evening: asNumber(cmd.evening)
+                };
+                if (!Array.isArray(customer.records)) customer.records = [];
+                customer.records.unshift(entry);
+                batchPayload[`milkDB/${name}/records/${id}`] = entry;
+                uiUpdates.add('milk');
+                addedCount++;
+            } else if (type === 'salary' || type === 'tankha') {
+                const name = asText(cmd.name);
+                if (!name || typeof salaryDB === 'undefined') continue;
+                let employee = salaryDB[name];
+                if (!employee) {
+                    employee = {
+                        company: asText(cmd.company) || 'AI Entry',
+                        type: asText(cmd.flow) || 'dene_wala',
+                        records: []
+                    };
+                    salaryDB[name] = employee;
+                    batchPayload[`salaryDB/${name}`] = employee;
+                }
+                const id = makeId('sal');
+                const entry = { id, date, amount };
+                if (!Array.isArray(employee.records)) employee.records = [];
+                employee.records.unshift(entry);
+                batchPayload[`salaryDB/${name}/records/${id}`] = entry;
+                uiUpdates.add('salary');
+                addedCount++;
+            } else if (type === 'diary' || type === 'note') {
+                const id = makeId('dia');
+                const entry = {
+                    id, date,
+                    title: asText(cmd.title) || 'AI Note',
+                    content: asText(cmd.content || cmd.detail),
+                    updated: Date.now()
+                };
+                if (typeof diaryDB !== 'undefined') diaryDB.unshift(entry);
+                batchPayload[`diaryDB/${id}`] = entry;
+                uiUpdates.add('diary');
+                addedCount++;
+            } else if (type === 'business' || type === 'project' || type === 'khata') {
+                const name = asText(cmd.name || cmd.khata);
+                if (!name || typeof projectDB === 'undefined') continue;
+                let project = projectDB[name];
+                if (!project) {
+                    project = { createdAt: Date.now(), records: [] };
+                    projectDB[name] = project;
+                    batchPayload[`projectDB/${name}`] = project;
+                }
+                const id = makeId('proj');
+                const entry = {
+                    id, date,
+                    title: asText(cmd.detail || cmd.title) || 'AI Record',
+                    amount,
+                    color: asText(cmd.color) || 'green'
+                };
+                if (!Array.isArray(project.records)) project.records = [];
+                project.records.unshift(entry);
+                batchPayload[`projectDB/${name}/records/${id}`] = entry;
+                uiUpdates.add('project');
+                addedCount++;
+            }
         }
 
-        pasteBox.value = '';
-        if (typeof closeModal === 'function') closeModal('gemini-key-modal');
-        if (typeof updateDashboard === 'function') updateDashboard();
-        if (typeof updateActiveScreen === 'function') updateActiveScreen();
-        showToast('AI Data Deep-Injected Successfully!');
+        if (!addedCount) {
+            try { if (typeof showToast === 'function') showToast('Valid JSON, but no matching modules found.'); } catch (e) {}
+            return;
+        }
+
+        if (window.aarishFirebaseBatchLaterV87) {
+            await window.aarishFirebaseBatchLaterV87(batchPayload, 'ai-json-auto');
+        } else if (window.aarishFirebaseLaterV48) {
+            for (const path of Object.keys(batchPayload)) {
+                await window.aarishFirebaseLaterV48(path, 'set', batchPayload[path], { fast: true });
+            }
+        }
+        if (typeof saveCacheNowCostV81 === 'function') await saveCacheNowCostV81('ai-json-auto');
+
+        inputEl.value = '';
+        try { if (typeof closeModal === 'function') closeModal('gemini-key-modal'); } catch (e) {}
+        try { if (typeof haptic === 'function') haptic(); } catch (e) {}
+        try { if (typeof showToast === 'function') showToast(`AI Magic: ${addedCount} entries saved!`); } catch (e) {}
+
+        try { if (typeof updateDashboard === 'function') updateDashboard(); } catch (e) {}
+        try { if (typeof updateActiveScreen === 'function') updateActiveScreen(); } catch (e) {}
+        if (uiUpdates.has('expenses')) {
+            try { if (typeof renderExpenseList === 'function') renderExpenseList(); } catch (e) {}
+            try { if (typeof renderExpenseRecords === 'function' && document.getElementById('expense-detail-screen')?.classList.contains('active')) renderExpenseRecords(); } catch (e) {}
+        }
+        if (uiUpdates.has('udhar')) {
+            try { if (typeof renderUdharList === 'function') renderUdharList(); } catch (e) {}
+            try { if (typeof renderUdharRecords === 'function' && document.getElementById('udhar-detail-screen')?.classList.contains('active')) renderUdharRecords(); } catch (e) {}
+        }
+        if (uiUpdates.has('milk')) {
+            try { if (typeof renderMilkList === 'function') renderMilkList(); } catch (e) {}
+            try { if (typeof renderMilkRecords === 'function' && document.getElementById('milk-detail-screen')?.classList.contains('active')) renderMilkRecords(); } catch (e) {}
+        }
+        if (uiUpdates.has('salary')) {
+            try { if (typeof renderSalaryList === 'function') renderSalaryList(); } catch (e) {}
+            try { if (typeof renderSalaryRecords === 'function' && document.getElementById('salary-detail-screen')?.classList.contains('active')) renderSalaryRecords(); } catch (e) {}
+        }
+        if (uiUpdates.has('diary')) {
+            try { if (typeof renderDiaryList === 'function') renderDiaryList(); } catch (e) {}
+        }
+        if (uiUpdates.has('project')) {
+            try { if (typeof renderProjectsList === 'function') renderProjectsList(); } catch (e) {}
+            try { if (typeof renderProjectRecords === 'function' && document.getElementById('project-detail-screen')?.classList.contains('active')) renderProjectRecords(); } catch (e) {}
+        }
     } catch (e) {
-        console.warn('AI JSON Parse Engine Blocked Error:', e);
-        showToast('JSON format error! Ensure AI gave pure code.');
+        console.warn('AI JSON Executor Error:', e);
+        try { if (typeof showToast === 'function') showToast('AI sync failed. Please check the JSON and try again.'); } catch (toastError) {}
+    } finally {
+        try { if (typeof hideLoader === 'function') hideLoader(); } catch (e) {}
+        window.__aarishAIPasteBusy = false;
     }
 };
 </script>
