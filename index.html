@@ -14021,6 +14021,48 @@ async function executeAIToolCall(name, args) {
     }
 }
 
+// ============================================================================
+// AARISH AI SURGICAL WRITE FACADE
+// Compatibility layer for the compact native-function API from the attached
+// integration brief. The existing full CRUD router remains the single source
+// of truth, so this facade does not duplicate database or Firebase logic.
+// ============================================================================
+window.AarishAIAgent = class AarishAIAgent {
+    static getTools() {
+        return [{
+            functionDeclarations: [{
+                name: "add_udhar_entry",
+                description: "Add a credit or loan entry for a person (Udhar Khata).",
+                parameters: {
+                    type: "OBJECT",
+                    properties: {
+                        target: { type: "STRING", description: "Name of the person" },
+                        amount: { type: "NUMBER", description: "Amount in INR" },
+                        flow: { type: "STRING", enum: ["given", "taken"], description: "given = lena hai / credit, taken = dena hai / debit" },
+                        date: { type: "STRING", description: "Date in YYYY-MM-DD format" }
+                    },
+                    required: ["target", "amount", "flow"]
+                }
+            }]
+        }];
+    }
+
+    static async executeAction(functionCall) {
+        const call = functionCall && functionCall.functionCall ? functionCall.functionCall : (functionCall || {});
+        const args = call.args || {};
+        if (call.name !== "add_udhar_entry") {
+            return { success: false, error: "Action dispatcher failed: Unknown function." };
+        }
+
+        return executeAIToolCall("add_udhar_entry", {
+            name: args.target || args.name,
+            amount: args.amount,
+            date: args.date,
+            type: args.type || (args.flow === "taken" ? "debit" : "credit")
+        });
+    }
+};
+
 // OMNI-ARCHITECT CHAT CONTROLLER
 window.aiChatMemory = window.aiChatMemory || [];
 
