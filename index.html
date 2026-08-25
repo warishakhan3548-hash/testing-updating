@@ -14338,86 +14338,99 @@ Allowed action schemas:
 // ========================== AI PROMPT & AUTO-EXECUTION LOGIC (OMNI-UPGRADED) ==========================
 window.generateAndCopyAIPrompt = function() {
     const currentState = aarishCostGetStateV1();
+
+    // [OMNI-ARCHITECT UPGRADE] Keep sync metadata out of the AI context.
+    if (currentState && currentState._syncMeta) delete currentState._syncMeta;
+
     const jsonStr = JSON.stringify(currentState);
 
-    const prompt = `[SYSTEM ROLE]
-You are 'AarishAI' - an elite Financial Manager & Database Engine for the app "Aarish Dairy Pro".
-You will receive user inputs in Hindi/Hinglish. Your job is to accurately interpret these inputs and perform CRUD operations directly on the provided JSON state.
+    // [OMNI-ARCHITECT UPGRADE] Supply today's local date for new entries.
+    const todayISO = new Date();
+    todayISO.setMinutes(todayISO.getMinutes() - todayISO.getTimezoneOffset());
+    const today = todayISO.toISOString().split('T')[0];
+
+    const prompt = `[SYSTEM ROLE : APEX FINANCIAL ENGINE]
+You are 'AarishAI' - an elite Financial Manager & Database Engine for "Aarish Dairy Pro".
+Interpret inputs in Hindi/Hinglish and perform CRUD operations strictly on the JSON provided.
+
+[CURRENT DATE FOR ENTRIES]
+${today}
+
+[STRICT SCHEMA & FINANCIAL LOGIC - OBEY ABSOLUTELY]
+1. UDHAR (udharDB: Array):
+   - User gives ("diye") -> { id: 'udhar_xyz', name: '...', amount: X, type: 'credit', date: '${today}' }
+   - User takes ("liye") -> { id: 'udhar_xyz', name: '...', amount: X, type: 'debit', date: '${today}' }
+
+2. MILK (milkDB: Object):
+   - Ensure customer profile exists with type: "lene_wala" (Seller) or "dene_wala" (Buyer).
+   - Append to records array: { id: 'milk_xyz', date: '${today}', morning: X, evening: Y }
+
+3. SALARY (salaryDB: Object):
+   - Ensure employee profile exists with type: "lene_wala" (Receives) or "dene_wala" (Pays).
+   - Append to records array: { id: 'sal_xyz', date: '${today}', amount: X }
+
+4. EXPENSE (expenseDB: Array):
+   - Daily kharcha -> { id: 'exp_xyz', date: '${today}', category: '...', amount: X }
+
+5. BUSINESS (projectDB: Object):
+   - Append to records: { id: 'proj_xyz', date: '${today}', title: '...', amount: X, color: 'green|red|blue|orange' }
+   - green=Income, red=Expense, blue=Bank, orange=Pending.
+
+6. DIARY (diaryDB: Array):
+   - Stories/Notes -> { id: 'dia_xyz', date: '${today}', title: '...', content: '...', updated: ${Date.now()} }
 
 [CURRENT DATABASE STATE]
 ${jsonStr}
 
-[EXECUTION PROTOCOL]
-1. LISTEN & INTERPRET: The user will tell you daily transactions in Hindi/Hinglish (e.g., "aaj 5 liter doodh Rahul ko diya", "100 rs ka kharcha hua").
-2. DATABASE MAPPING: Map the operations perfectly to these structures:
-   - Doodh/Milk -> milkDB (Add records under the correct customer, use YYYY-MM-DD)
-   - Udhar/Credit -> udharDB (Amount, Name, type: 'credit' or 'debit')
-   - Kharcha/Expenses -> expenseDB
-   - Salary/Pagar -> salaryDB
-   - Diary -> diaryDB
-   - Business -> projectDB
-3. ID GENERATION: Always generate unique string IDs (e.g., 'id_xyz123') for any newly added records. Calculate nets dynamically if needed.
-4. HOLD CHANGES: Track all changes in your memory and acknowledge inputs politely in Hinglish. DO NOT output the JSON yet.
-5. THE TRIGGER: When the user says "ab isko diary mein chadha do", "khata mein chadha do", "isko save kar lo", or "update kar do":
-   - You MUST output the ENTIRE, COMPLETE updated JSON object.
-   - CRITICAL RULE: Output ONLY raw JSON. NO MARKDOWN FORMATTING (do not use \`\`\`json). NO intro/outro text. The very first character must be '{' and the last must be '}'.
-   - Instruct the user exactly: "Copy this JSON and paste it into the app."
-
-Start our conversation by saying EXACTLY: "I am ready! Please tell me your hisab-kitab for today."`;
+[EXECUTION PROTOCOL - NO EXCEPTIONS]
+- Track inputs silently. Acknowledge politely in Hinglish. DO NOT output JSON immediately.
+- TRIGGER: ONLY when user explicitly says "khata mein chadha do", "update kar do", or "save kar do", output the ENTIRE updated JSON.
+- STRICT RULE: Output ONLY valid, raw JSON. NO markdown. NO \`\`\`json wrappers. NO intro/outro text. First character MUST be '{' and last MUST be '}'.`;
 
     navigator.clipboard.writeText(prompt).then(() => {
-        showToast('High-Level Prompt Copied! Paste to AI.');
+        showToast('Omni-Prompt Copied! Paste it to AI.');
     }).catch(() => {
-        showToast('Failed to copy. Try again.');
+        showToast('Failed to copy. Please try again.');
     });
 };
 
 window.handleAIPaste = function() {
     const pasteBox = document.getElementById('ai-json-paste');
     if (!pasteBox) return;
-    let rawText = pasteBox.value.trim();
-    if (!rawText) return;
+
+    let val = pasteBox.value.trim();
+    if (!val) return;
+
+    // [OMNI-ARCHITECT: AUTO-SANITIZER ENGINE]
+    // Remove optional Markdown JSON fences before parsing.
+    val = val.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
 
     try {
-        // Omni-Cleaning: strip markdown, backticks, and conversational LLM text.
-        const match = rawText.match(/\{.*\}/s);
-        if (!match) throw new Error('JSON Object not found');
-        rawText = match[0];
+        const parsedState = JSON.parse(val);
 
-        const newData = JSON.parse(rawText);
-        const hasDatabase = newData && typeof newData === 'object' &&
-            ['milkDB', 'udharDB', 'diaryDB', 'expenseDB', 'salaryDB', 'projectDB']
-                .some((key) => Object.prototype.hasOwnProperty.call(newData, key));
+        // Deep verification before injecting.
+        if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+            throw new Error('AI response is not a JSON state object');
+        }
 
-        if (!hasDatabase) throw new Error('Recognized database state not found');
+        aarishCostApplyStateV1(parsedState);
 
-        // RAM state injection and local persistence.
-        aarishCostApplyStateV1(newData);
+        // Force cloud sync and UI update safely.
+        if (typeof fullFirebaseSyncCostV81 === 'function') {
+            fullFirebaseSyncCostV81('ai-manual-paste-update');
+        }
         if (typeof saveCacheNowCostV81 === 'function') {
-            saveCacheNowCostV81('ai-auto-paste');
+            saveCacheNowCostV81('ai-manual-paste-update');
         }
 
-        // Firebase instant sync when the user is authenticated.
-        const uid = typeof aarishCostUidV1 === 'function' ? aarishCostUidV1() : null;
-        if (uid && typeof database !== 'undefined' && database && typeof database.ref === 'function') {
-            database.ref('users/' + uid + '/appData').set(aarishCostGetStateV1()).catch((error) => {
-                console.warn('AI auto-paste cloud sync failed:', error);
-            });
-        }
-
-        // Repaint all relevant screens and close the AI modal.
-        try { if (typeof updateActiveScreen === 'function') updateActiveScreen(); } catch (e) {}
-        try { if (typeof updateDashboard === 'function') updateDashboard(); } catch (e) {}
-        try { if (typeof aarishCostShowAppV1 === 'function') aarishCostShowAppV1(); } catch (e) {}
-        try { if (typeof closeModal === 'function') closeModal('gemini-key-modal'); } catch (e) {}
-
-        showToast('Data Automatically Updated by AI!');
         pasteBox.value = '';
+        if (typeof closeModal === 'function') closeModal('gemini-key-modal');
+        if (typeof updateDashboard === 'function') updateDashboard();
+        if (typeof updateActiveScreen === 'function') updateActiveScreen();
+        showToast('AI Data Deep-Injected Successfully!');
     } catch (e) {
-        // Ignore incomplete/manual text while the user is still typing or pasting.
-        if (rawText.length > 50 && rawText.includes('{')) {
-            console.warn('AarishAI Engine parsing JSON...', e);
-        }
+        console.warn('AI JSON Parse Engine Blocked Error:', e);
+        showToast('JSON format error! Ensure AI gave pure code.');
     }
 };
 </script>
