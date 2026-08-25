@@ -3973,23 +3973,25 @@ html.aarish-tab-switching-v31 .screen.active .glass-card:active {
         <h2 class="text-2xl font-extrabold mb-2 text-center text-[#007AFF] drop-shadow-sm">Activate AI Hub</h2>
         <p class="text-[11px] text-center text-gray-500 mb-6 font-bold uppercase tracking-wider">Connect Custom Agent or Local Key</p>
 
-        <!-- Option 1: The Smart Cloud Agent (New Architecture) -->
-        <div class="glass-card !p-4 mb-6 border-l-4 border-l-[#9b72cb] !bg-[#9b72cb]/5">
-            <h3 class="text-[15px] font-bold mb-1 flex items-center gap-2"><i class="fa-solid fa-robot text-[#9b72cb]"></i> Cloud AI Agent (Recommended)</h3>
-            <p class="text-xs text-gray-500 font-semibold mb-4 leading-relaxed">Generate a secure pairing code to allow your custom AI assistant to manage your khata.</p>
-
-            <div id="ai-pairing-container" class="hidden flex-col items-center justify-center py-4 bg-white dark:bg-black/40 rounded-2xl mb-4 border border-gray-200 dark:border-white/10 shadow-inner">
-                <span class="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest mb-1">Your Pairing Code</span>
-                <h1 id="ai-generated-code-display" class="text-3xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-[#4285F4] via-[#9b72cb] to-[#d96570] select-all mb-2">----</h1>
-                <p id="ai-pairing-status" class="text-[11px] font-bold text-[#007AFF] animate-pulse"><i class="fa-solid fa-spinner fa-spin"></i> Waiting for AI connection...</p>
-                <button onclick="copyAIAgentCode()" class="mt-3 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 px-4 py-1.5 rounded-full text-xs font-bold transition-transform active:scale-95"><i class="fa-solid fa-copy"></i> Copy Code</button>
-            </div>
-
-            <button id="btn-generate-ai-code" onclick="haptic(); generateAIAgentPairingCode()" class="btn-primary w-full !bg-[#9b72cb] !shadow-[0_4px_14px_rgba(155,114,203,0.3)] !text-white text-sm !min-h-[46px]">
-                <i class="fa-solid fa-bolt"></i> Generate Connect Code
+        <!-- Option 1: AI Prompt & Auto-Paste Engine (Upgraded) -->
+        <div class="glass-card !p-4 mb-4 border-l-4 border-l-[#9b72cb] !bg-[#9b72cb]/5">
+            <h3 class="text-[15px] font-bold mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-robot text-[#9b72cb]"></i> 1. Get AI Prompt
+            </h3>
+            <p class="text-xs text-gray-500 font-semibold mb-3 leading-relaxed">
+                Copies your database with instructions. Paste in ChatGPT/Gemini and tell your entries.
+            </p>
+            <button onclick="haptic(); generateAndCopyAIPrompt()" class="btn-primary w-full !bg-[#9b72cb] !shadow-[0_4px_14px_rgba(155,114,203,0.3)] !text-white text-sm !min-h-[46px]">
+                <i class="fa-solid fa-copy"></i> Copy AI Prompt
             </button>
         </div>
 
+        <div class="glass-card !p-4 mb-6 border-l-4 border-l-[#34C759] !bg-[#34C759]/5">
+            <h3 class="text-[15px] font-bold mb-2 flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                <i class="fa-solid fa-paste text-[#34C759]"></i> 2. Auto-Execute JSON
+            </h3>
+            <textarea id="ai-json-paste" oninput="handleAIPaste()" class="input-box w-full !min-h-[80px] !text-sm mb-1 resize-none" placeholder="Paste the JSON response from AI here..."></textarea>
+        </div>
         <div class="flex items-center justify-center gap-3 mb-6 opacity-50">
             <div class="h-px bg-gray-400 flex-1"></div><span class="text-[10px] font-extrabold uppercase">OR</span><div class="h-px bg-gray-400 flex-1"></div>
         </div>
@@ -14330,5 +14332,96 @@ Allowed action schemas:
 })();
 /* AARISH_OMNI_AGENT_V2_END */
 </script>
+
+<!-- AARISH_AI_PROMPT_AUTOPASTE_ENGINE_V1_START -->
+<script>
+// ========================== AI PROMPT & AUTO-EXECUTION LOGIC (OMNI-UPGRADED) ==========================
+window.generateAndCopyAIPrompt = function() {
+    const currentState = aarishCostGetStateV1();
+    const jsonStr = JSON.stringify(currentState);
+
+    const prompt = `[SYSTEM ROLE]
+You are 'AarishAI' - an elite Financial Manager & Database Engine for the app "Aarish Dairy Pro".
+You will receive user inputs in Hindi/Hinglish. Your job is to accurately interpret these inputs and perform CRUD operations directly on the provided JSON state.
+
+[CURRENT DATABASE STATE]
+${jsonStr}
+
+[EXECUTION PROTOCOL]
+1. LISTEN & INTERPRET: The user will tell you daily transactions in Hindi/Hinglish (e.g., "aaj 5 liter doodh Rahul ko diya", "100 rs ka kharcha hua").
+2. DATABASE MAPPING: Map the operations perfectly to these structures:
+   - Doodh/Milk -> milkDB (Add records under the correct customer, use YYYY-MM-DD)
+   - Udhar/Credit -> udharDB (Amount, Name, type: 'credit' or 'debit')
+   - Kharcha/Expenses -> expenseDB
+   - Salary/Pagar -> salaryDB
+   - Diary -> diaryDB
+   - Business -> projectDB
+3. ID GENERATION: Always generate unique string IDs (e.g., 'id_xyz123') for any newly added records. Calculate nets dynamically if needed.
+4. HOLD CHANGES: Track all changes in your memory and acknowledge inputs politely in Hinglish. DO NOT output the JSON yet.
+5. THE TRIGGER: When the user says "ab isko diary mein chadha do", "khata mein chadha do", "isko save kar lo", or "update kar do":
+   - You MUST output the ENTIRE, COMPLETE updated JSON object.
+   - CRITICAL RULE: Output ONLY raw JSON. NO MARKDOWN FORMATTING (do not use \`\`\`json). NO intro/outro text. The very first character must be '{' and the last must be '}'.
+   - Instruct the user exactly: "Copy this JSON and paste it into the app."
+
+Start our conversation by saying EXACTLY: "I am ready! Please tell me your hisab-kitab for today."`;
+
+    navigator.clipboard.writeText(prompt).then(() => {
+        showToast('High-Level Prompt Copied! Paste to AI.');
+    }).catch(() => {
+        showToast('Failed to copy. Try again.');
+    });
+};
+
+window.handleAIPaste = function() {
+    const pasteBox = document.getElementById('ai-json-paste');
+    if (!pasteBox) return;
+    let rawText = pasteBox.value.trim();
+    if (!rawText) return;
+
+    try {
+        // Omni-Cleaning: strip markdown, backticks, and conversational LLM text.
+        const match = rawText.match(/\{.*\}/s);
+        if (!match) throw new Error('JSON Object not found');
+        rawText = match[0];
+
+        const newData = JSON.parse(rawText);
+        const hasDatabase = newData && typeof newData === 'object' &&
+            ['milkDB', 'udharDB', 'diaryDB', 'expenseDB', 'salaryDB', 'projectDB']
+                .some((key) => Object.prototype.hasOwnProperty.call(newData, key));
+
+        if (!hasDatabase) throw new Error('Recognized database state not found');
+
+        // RAM state injection and local persistence.
+        aarishCostApplyStateV1(newData);
+        if (typeof saveCacheNowCostV81 === 'function') {
+            saveCacheNowCostV81('ai-auto-paste');
+        }
+
+        // Firebase instant sync when the user is authenticated.
+        const uid = typeof aarishCostUidV1 === 'function' ? aarishCostUidV1() : null;
+        if (uid && typeof database !== 'undefined' && database && typeof database.ref === 'function') {
+            database.ref('users/' + uid + '/appData').set(aarishCostGetStateV1()).catch((error) => {
+                console.warn('AI auto-paste cloud sync failed:', error);
+            });
+        }
+
+        // Repaint all relevant screens and close the AI modal.
+        try { if (typeof updateActiveScreen === 'function') updateActiveScreen(); } catch (e) {}
+        try { if (typeof updateDashboard === 'function') updateDashboard(); } catch (e) {}
+        try { if (typeof aarishCostShowAppV1 === 'function') aarishCostShowAppV1(); } catch (e) {}
+        try { if (typeof closeModal === 'function') closeModal('gemini-key-modal'); } catch (e) {}
+
+        showToast('Data Automatically Updated by AI!');
+        pasteBox.value = '';
+    } catch (e) {
+        // Ignore incomplete/manual text while the user is still typing or pasting.
+        if (rawText.length > 50 && rawText.includes('{')) {
+            console.warn('AarishAI Engine parsing JSON...', e);
+        }
+    }
+};
+</script>
+<!-- AARISH_AI_PROMPT_AUTOPASTE_ENGINE_V1_END -->
+
 </body>
 </html>
