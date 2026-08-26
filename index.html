@@ -14407,16 +14407,20 @@ window.handleAIPaste = async function() {
 
     let data;
     try {
-        // First try the exact input, then tolerate markdown fences or prose.
+        // Parse exact JSON first, then tolerate one markdown fence or surrounding prose.
+        const withoutFence = raw
+            .replace(/^```(?:json|javascript)?\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
         try {
-            data = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim());
+            data = JSON.parse(withoutFence);
         } catch (directError) {
-            const jsonMatch = raw.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+            const jsonMatch = withoutFence.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
             if (!jsonMatch) return;
             data = JSON.parse(jsonMatch[0]);
         }
     } catch (e) {
-        // oninput fires while the user/AI is still producing JSON. Wait silently.
+        // oninput fires while text is still being entered. Do not mutate state until JSON is valid.
         return;
     }
 
@@ -14431,208 +14435,229 @@ window.handleAIPaste = async function() {
     const today = typeof getTodayISO === 'function'
         ? getTodayISO()
         : new Date().toISOString().split('T')[0];
-    const makeId = (prefix) => window.aarishV98Id
-        ? window.aarishV98Id(prefix)
-        : `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const hasKey = key => Object.prototype.hasOwnProperty.call(data, key);
+    const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+    const clone = value => {
+        try { return JSON.parse(JSON.stringify(value)); } catch (e) { return value; }
+    };
+    const hash = value => {
+        let h = 2166136261;
+        const str = String(value);
+        for (let i = 0; i < str.length; i++) {
+            h ^= str.charCodeAt(i);
+            h = Math.imul(h, 16777619);
+        }
+        return (h >>> 0).toString(36);
+    };
+    const makeId = (prefix, value, index, scope) => {
+        const explicit = value && typeof value === 'object' ? asText(value.id) : '';
+        if (explicit) return explicit;
+        // Deterministic IDs make a repeated AI paste idempotent instead of duplicating legacy records.
+        return `${prefix}_${hash(JSON.stringify(value) + '|' + String(scope || '') + '|' + String(index))}`;
+    };
+    const cleanPath = path => typeof aarishCostCleanPathV1 === 'function'
+        ? aarishCostCleanPathV1(path)
+        : String(path || '').replace(/^\/+|\/+$/g, '');
+    const put = (payload, path, value) => {
+        const safePath = cleanPath(path);
+        if (!safePath || safePath.indexOf('_syncMeta') === 0) return false;
+        if (typeof aarishCostIsLocalOnlyPathCoreV10 === 'function' && aarishCostIsLocalOnlyPathCoreV10(safePath)) return false;
+        payload[safePath] = clone(value);
+        return true;
+    };
+    const listify = value => {
+        if (Array.isArray(value)) return value.filter(item => item && typeof item === 'object');
+        if (value && typeof value === 'object') {
+            return Object.keys(value).map(key => {
+                const item = value[key];
+                if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+                const copy = clone(item);
+                if (!asText(copy.id)) copy.id = key;
+                return copy;
+            }).filter(Boolean);
+        }
+        return [];
+    };
+
+    // Full-state AI output is treated as a snapshot of desired records, never as a destructive database replacement.
+    // Array tables receive only record-level writes; grouped tables receive only profile-field and record-level writes.
+    const appendArrayTableDelta = (payload, root, value, prefix) => {
+        listify(value).forEach((item, index) => {
+            const copy = clone(item) || {};
+            const id = makeId(prefix, copy, index, root);
+            copy.id = id;
+            put(payload, `${root}/${id}`, copy);
+        });
+    };
+    const appendGroupedTableDelta = (payload, root, value, prefix) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+        Object.keys(value).forEach(profileName => {
+            const profile = value[profileName];
+            if (!profile || typeof profile !== 'object' || Array.isArray(profile)) return;
+
+            // Never write the whole profile object: doing so can erase records created by another tab/device.
+            Object.keys(profile).forEach(key => {
+                if (key === 'records') return;
+                put(payload, `${root}/${profileName}/${key}`, profile[key]);
+            });
+
+            listify(profile.records).forEach((record, index) => {
+                const copy = clone(record) || {};
+                const id = makeId(prefix, copy, index, `${root}/${profileName}`);
+                copy.id = id;
+                put(payload, `${root}/${profileName}/records/${id}`, copy);
+            });
+        });
+    };
+    const appendFullStateDelta = state => {
+        const payload = {};
+        appendArrayTableDelta(payload, 'udharDB', state.udharDB, 'udh');
+        appendArrayTableDelta(payload, 'expenseDB', state.expenseDB, 'exp');
+        appendArrayTableDelta(payload, 'diaryDB', state.diaryDB, 'dia');
+        appendGroupedTableDelta(payload, 'milkDB', state.milkDB, 'mlk');
+        appendGroupedTableDelta(payload, 'salaryDB', state.salaryDB, 'sal');
+        appendGroupedTableDelta(payload, 'projectDB', state.projectDB, 'proj');
+        return payload;
+    };
+    const normaliseFlow = value => {
+        const flow = asText(value).toLowerCase();
+        if (['debit', 'debited', 'liye', 'borrow', 'taken', 'payable'].includes(flow)) return 'debit';
+        return 'credit';
+    };
+    const addProfileFields = (payload, root, name, profile) => {
+        if (!name || !profile || typeof profile !== 'object') return;
+        Object.keys(profile).forEach(key => {
+            if (key !== 'records') put(payload, `${root}/${name}/${key}`, profile[key]);
+        });
+    };
+
+    const applyAndQueue = async (payload, reason, count) => {
+        const paths = Object.keys(payload || {});
+        if (!paths.length) return { queued: false, reason: 'empty', count: 0 };
+
+        // Apply before the network operation so the UI cannot briefly show then lose the new records.
+        if (typeof aarishCostApplyMegaToStateCoreV3 === 'function') {
+            aarishCostApplyMegaToStateCoreV3(payload, reason + '-local-before-queue');
+        }
+        try { if (typeof updateDashboard === 'function') updateDashboard(); } catch (e) {}
+        try { if (typeof updateActiveScreen === 'function') updateActiveScreen(); } catch (e) {}
+
+        let result = { queued: false, reason: 'sync-unavailable' };
+        if (window.aarishFirebaseBatchLaterV87) {
+            result = await window.aarishFirebaseBatchLaterV87(payload, reason);
+        } else if (window.aarishFirebaseLaterV48) {
+            result = { queued: true, writes: paths.length };
+            for (const path of paths) await window.aarishFirebaseLaterV48(path, 'set', payload[path], { fast: true, reason });
+        }
+
+        // A concurrent cloud pull may have happened while the outbox was being written.
+        // Replaying the same delta after queueing makes the local result convergence-safe and idempotent.
+        if (typeof aarishCostApplyMegaToStateCoreV3 === 'function') {
+            aarishCostApplyMegaToStateCoreV3(payload, reason + '-local-after-queue');
+        }
+        if (typeof saveCacheNowCostV81 === 'function') await saveCacheNowCostV81(reason + '-local-cache');
+        return Object.assign({}, result, { count: Number(count || 0), writes: paths.length });
+    };
 
     try {
         if (typeof showLoader === 'function') showLoader('AI Syncing Data...');
 
-        // Preserve the existing prompt workflow when AI returns the complete DB state.
-        const isFullState = !Array.isArray(data) && [
-            'expenseDB', 'udharDB', 'milkDB', 'salaryDB', 'diaryDB', 'projectDB'
-        ].some(hasKey);
-        if (isFullState) {
-            if (typeof aarishCostApplyStateV1 !== 'function') throw new Error('State engine unavailable');
-            aarishCostApplyStateV1(data);
-            if (typeof fullFirebaseSyncCostV81 === 'function') {
-                await fullFirebaseSyncCostV81('ai-manual-paste-update');
-            }
-            if (typeof saveCacheNowCostV81 === 'function') {
-                await saveCacheNowCostV81('ai-manual-paste-update');
-            }
-            inputEl.value = '';
-            try { if (typeof closeModal === 'function') closeModal('gemini-key-modal'); } catch (e) {}
-            try { if (typeof updateDashboard === 'function') updateDashboard(); } catch (e) {}
-            try { if (typeof updateActiveScreen === 'function') updateActiveScreen(); } catch (e) {}
-            try { if (typeof showToast === 'function') showToast('AI Data Deep-Injected Successfully!'); } catch (e) {}
-            return;
-        }
-
-        let commands = [];
-        if (Array.isArray(data)) commands = data;
-        else if (Array.isArray(data.aarish_ai_commands)) commands = data.aarish_ai_commands;
-        else if (Array.isArray(data.commands)) commands = data.commands;
-        else if (data.type || data.module) commands = [data];
-        if (!commands.length) {
-            try { if (typeof showToast === 'function') showToast('Valid JSON, but no matching modules found.'); } catch (e) {}
-            return;
-        }
-
-        const batchPayload = {};
-        const uiUpdates = new Set();
+        const fullStateRoots = ['expenseDB', 'udharDB', 'milkDB', 'salaryDB', 'diaryDB', 'projectDB'];
+        const isFullState = !Array.isArray(data) && fullStateRoots.some(key => hasOwn(data, key));
+        let batchPayload = {};
         let addedCount = 0;
+        const uiUpdates = new Set();
 
-        for (const cmd of commands) {
-            if (!cmd || typeof cmd !== 'object' || Array.isArray(cmd)) continue;
-            const type = asText(cmd.type || cmd.module).toLowerCase();
-            const date = asText(cmd.date) || today;
-            const amount = asNumber(cmd.amount);
+        if (isFullState) {
+            batchPayload = appendFullStateDelta(data);
+            addedCount = Object.keys(batchPayload).filter(path =>
+                /^(?:udharDB|expenseDB|diaryDB)\/[^/]+$/.test(path) || /\/records\/[^/]+$/.test(path)
+            ).length;
+            fullStateRoots.forEach(root => { if (hasOwn(data, root)) uiUpdates.add(root); });
+        } else {
+            let commands = [];
+            if (Array.isArray(data)) commands = data;
+            else if (Array.isArray(data.aarish_ai_commands)) commands = data.aarish_ai_commands;
+            else if (Array.isArray(data.commands)) commands = data.commands;
+            else if (data.type || data.module) commands = [data];
 
-            if (type === 'expense' || type === 'kharcha') {
-                const id = makeId('exp');
-                const entry = {
-                    id, date,
-                    category: asText(cmd.category || cmd.detail) || 'AI Entry',
-                    amount
-                };
-                if (typeof expenseDB !== 'undefined') expenseDB.unshift(entry);
-                batchPayload[`expenseDB/${id}`] = entry;
-                uiUpdates.add('expenses');
-                addedCount++;
-            } else if (type === 'udhar' || type === 'credit' || type === 'loan') {
-                const id = makeId('udh');
-                const entry = {
-                    id, date,
-                    name: asText(cmd.name) || 'Unknown',
-                    amount,
-                    type: asText(cmd.flow || cmd.direction || cmd.entryType).toLowerCase() || 'credit'
-                };
-                if (typeof udharDB !== 'undefined') udharDB.unshift(entry);
-                batchPayload[`udharDB/${id}`] = entry;
-                uiUpdates.add('udhar');
-                addedCount++;
-            } else if (type === 'milk' || type === 'doodh') {
-                const name = asText(cmd.name);
-                if (!name || typeof milkDB === 'undefined') continue;
-                let customer = milkDB[name];
-                if (!customer) {
-                    customer = {
-                        rate: asNumber(cmd.rate) || 55,
-                        type: asText(cmd.flow) || 'lene_wala',
-                        records: [],
-                        canonicalNameV18: typeof aarishMilkNameKeyCore === 'function'
-                            ? aarishMilkNameKeyCore(name) : name.toLowerCase(),
-                        createdAtV18: new Date().toISOString()
-                    };
-                    milkDB[name] = customer;
-                    batchPayload[`milkDB/${name}`] = customer;
+            for (let commandIndex = 0; commandIndex < commands.length; commandIndex++) {
+                const cmd = commands[commandIndex];
+                if (!cmd || typeof cmd !== 'object' || Array.isArray(cmd)) continue;
+                const type = asText(cmd.type || cmd.module).toLowerCase();
+                const date = asText(cmd.date) || today;
+                const amount = asNumber(cmd.amount);
+
+                if (type === 'expense' || type === 'kharcha') {
+                    const entry = { id: makeId('exp', cmd, commandIndex, 'command-expense'), date, category: asText(cmd.category || cmd.detail) || 'AI Entry', amount };
+                    put(batchPayload, `expenseDB/${entry.id}`, entry); uiUpdates.add('expenseDB'); addedCount++;
+                } else if (type === 'udhar' || type === 'credit' || type === 'loan') {
+                    const entry = { id: makeId('udh', cmd, commandIndex, 'command-udhar'), date, name: asText(cmd.name) || 'Unknown', amount, type: normaliseFlow(cmd.flow || cmd.direction || cmd.entryType) };
+                    put(batchPayload, `udharDB/${entry.id}`, entry); uiUpdates.add('udharDB'); addedCount++;
+                } else if (type === 'milk' || type === 'doodh') {
+                    const name = asText(cmd.name);
+                    if (!name) continue;
+                    const existingMilk = typeof milkDB !== 'undefined' && milkDB[name];
+                    const profile = {};
+                    if (!existingMilk || hasOwn(cmd, 'rate')) profile.rate = asNumber(cmd.rate) || 55;
+                    if (!existingMilk || hasOwn(cmd, 'flow')) profile.type = asText(cmd.flow) || 'lene_wala';
+                    if (!existingMilk) {
+                        profile.canonicalNameV18 = typeof aarishMilkNameKeyCore === 'function' ? aarishMilkNameKeyCore(name) : name.toLowerCase();
+                        profile.createdAtV18 = new Date().toISOString();
+                    }
+                    addProfileFields(batchPayload, 'milkDB', name, profile);
+                    const entry = { id: makeId('mlk', cmd, commandIndex, `command-milk/${name}`), date, morning: asNumber(cmd.morning), evening: asNumber(cmd.evening) };
+                    put(batchPayload, `milkDB/${name}/records/${entry.id}`, entry); uiUpdates.add('milkDB'); addedCount++;
+                } else if (type === 'salary' || type === 'tankha') {
+                    const name = asText(cmd.name);
+                    if (!name) continue;
+                    const existingSalary = typeof salaryDB !== 'undefined' && salaryDB[name];
+                    const profile = {};
+                    if (!existingSalary || hasOwn(cmd, 'company')) profile.company = asText(cmd.company) || 'AI Entry';
+                    if (!existingSalary || hasOwn(cmd, 'flow')) profile.type = asText(cmd.flow) || 'dene_wala';
+                    if (!existingSalary) profile.createdAtV18 = new Date().toISOString();
+                    addProfileFields(batchPayload, 'salaryDB', name, profile);
+                    const entry = { id: makeId('sal', cmd, commandIndex, `command-salary/${name}`), date, amount };
+                    put(batchPayload, `salaryDB/${name}/records/${entry.id}`, entry); uiUpdates.add('salaryDB'); addedCount++;
+                } else if (type === 'diary' || type === 'note') {
+                    const entry = { id: makeId('dia', cmd, commandIndex, 'command-diary'), date, title: asText(cmd.title) || 'AI Note', content: asText(cmd.content || cmd.detail), updated: Date.now() };
+                    put(batchPayload, `diaryDB/${entry.id}`, entry); uiUpdates.add('diaryDB'); addedCount++;
+                } else if (type === 'business' || type === 'project' || type === 'khata') {
+                    const name = asText(cmd.name || cmd.khata);
+                    if (!name) continue;
+                    const profile = {};
+                    if (typeof projectDB === 'undefined' || !projectDB[name]) profile.createdAt = Date.now();
+                    addProfileFields(batchPayload, 'projectDB', name, profile);
+                    const entry = { id: makeId('proj', cmd, commandIndex, `command-project/${name}`), date, title: asText(cmd.detail || cmd.title) || 'AI Record', amount, color: asText(cmd.color) || 'green' };
+                    put(batchPayload, `projectDB/${name}/records/${entry.id}`, entry); uiUpdates.add('projectDB'); addedCount++;
                 }
-                const id = makeId('mlk');
-                const entry = {
-                    id, date,
-                    morning: asNumber(cmd.morning),
-                    evening: asNumber(cmd.evening)
-                };
-                if (!Array.isArray(customer.records)) customer.records = [];
-                customer.records.unshift(entry);
-                batchPayload[`milkDB/${name}/records/${id}`] = entry;
-                uiUpdates.add('milk');
-                addedCount++;
-            } else if (type === 'salary' || type === 'tankha') {
-                const name = asText(cmd.name);
-                if (!name || typeof salaryDB === 'undefined') continue;
-                let employee = salaryDB[name];
-                if (!employee) {
-                    employee = {
-                        company: asText(cmd.company) || 'AI Entry',
-                        type: asText(cmd.flow) || 'dene_wala',
-                        records: []
-                    };
-                    salaryDB[name] = employee;
-                    batchPayload[`salaryDB/${name}`] = employee;
-                }
-                const id = makeId('sal');
-                const entry = { id, date, amount };
-                if (!Array.isArray(employee.records)) employee.records = [];
-                employee.records.unshift(entry);
-                batchPayload[`salaryDB/${name}/records/${id}`] = entry;
-                uiUpdates.add('salary');
-                addedCount++;
-            } else if (type === 'diary' || type === 'note') {
-                const id = makeId('dia');
-                const entry = {
-                    id, date,
-                    title: asText(cmd.title) || 'AI Note',
-                    content: asText(cmd.content || cmd.detail),
-                    updated: Date.now()
-                };
-                if (typeof diaryDB !== 'undefined') diaryDB.unshift(entry);
-                batchPayload[`diaryDB/${id}`] = entry;
-                uiUpdates.add('diary');
-                addedCount++;
-            } else if (type === 'business' || type === 'project' || type === 'khata') {
-                const name = asText(cmd.name || cmd.khata);
-                if (!name || typeof projectDB === 'undefined') continue;
-                let project = projectDB[name];
-                if (!project) {
-                    project = { createdAt: Date.now(), records: [] };
-                    projectDB[name] = project;
-                    batchPayload[`projectDB/${name}`] = project;
-                }
-                const id = makeId('proj');
-                const entry = {
-                    id, date,
-                    title: asText(cmd.detail || cmd.title) || 'AI Record',
-                    amount,
-                    color: asText(cmd.color) || 'green'
-                };
-                if (!Array.isArray(project.records)) project.records = [];
-                project.records.unshift(entry);
-                batchPayload[`projectDB/${name}/records/${id}`] = entry;
-                uiUpdates.add('project');
-                addedCount++;
             }
         }
 
-        if (!addedCount) {
-            try { if (typeof showToast === 'function') showToast('Valid JSON, but no matching modules found.'); } catch (e) {}
+        if (!Object.keys(batchPayload).length) {
+            try { if (typeof showToast === 'function') showToast('Valid JSON, but no safe data changes found.'); } catch (e) {}
             return;
         }
 
-        if (window.aarishFirebaseBatchLaterV87) {
-            await window.aarishFirebaseBatchLaterV87(batchPayload, 'ai-json-auto');
-        } else if (window.aarishFirebaseLaterV48) {
-            for (const path of Object.keys(batchPayload)) {
-                await window.aarishFirebaseLaterV48(path, 'set', batchPayload[path], { fast: true });
-            }
-        }
-        if (typeof saveCacheNowCostV81 === 'function') await saveCacheNowCostV81('ai-json-auto');
-
+        const result = await applyAndQueue(batchPayload, isFullState ? 'ai-full-state-delta' : 'ai-json-auto', addedCount);
         inputEl.value = '';
         try { if (typeof closeModal === 'function') closeModal('gemini-key-modal'); } catch (e) {}
         try { if (typeof haptic === 'function') haptic(); } catch (e) {}
-        try { if (typeof showToast === 'function') showToast(`AI Magic: ${addedCount} entries saved!`); } catch (e) {}
+        const saved = result && (result.queued || result.direct || result.reason === 'sync-unavailable');
+        try {
+            if (typeof showToast === 'function') showToast(saved ? `AI Magic: ${addedCount || Object.keys(batchPayload).length} entries saved safely!` : 'Saved locally; cloud sync will retry.');
+        } catch (e) {}
 
         try { if (typeof updateDashboard === 'function') updateDashboard(); } catch (e) {}
         try { if (typeof updateActiveScreen === 'function') updateActiveScreen(); } catch (e) {}
-        if (uiUpdates.has('expenses')) {
-            try { if (typeof renderExpenseList === 'function') renderExpenseList(); } catch (e) {}
-            try { if (typeof renderExpenseRecords === 'function' && document.getElementById('expense-detail-screen')?.classList.contains('active')) renderExpenseRecords(); } catch (e) {}
-        }
-        if (uiUpdates.has('udhar')) {
-            try { if (typeof renderUdharList === 'function') renderUdharList(); } catch (e) {}
-            try { if (typeof renderUdharRecords === 'function' && document.getElementById('udhar-detail-screen')?.classList.contains('active')) renderUdharRecords(); } catch (e) {}
-        }
-        if (uiUpdates.has('milk')) {
-            try { if (typeof renderMilkList === 'function') renderMilkList(); } catch (e) {}
-            try { if (typeof renderMilkRecords === 'function' && document.getElementById('milk-detail-screen')?.classList.contains('active')) renderMilkRecords(); } catch (e) {}
-        }
-        if (uiUpdates.has('salary')) {
-            try { if (typeof renderSalaryList === 'function') renderSalaryList(); } catch (e) {}
-            try { if (typeof renderSalaryRecords === 'function' && document.getElementById('salary-detail-screen')?.classList.contains('active')) renderSalaryRecords(); } catch (e) {}
-        }
-        if (uiUpdates.has('diary')) {
-            try { if (typeof renderDiaryList === 'function') renderDiaryList(); } catch (e) {}
-        }
-        if (uiUpdates.has('project')) {
-            try { if (typeof renderProjectsList === 'function') renderProjectsList(); } catch (e) {}
-            try { if (typeof renderProjectRecords === 'function' && document.getElementById('project-detail-screen')?.classList.contains('active')) renderProjectRecords(); } catch (e) {}
-        }
+        if (uiUpdates.has('expenseDB')) { try { if (typeof renderExpenseList === 'function') renderExpenseList(); } catch (e) {} }
+        if (uiUpdates.has('udharDB')) { try { if (typeof renderUdharList === 'function') renderUdharList(); } catch (e) {} }
+        if (uiUpdates.has('milkDB')) { try { if (typeof renderMilkList === 'function') renderMilkList(); } catch (e) {} }
+        if (uiUpdates.has('salaryDB')) { try { if (typeof renderSalaryList === 'function') renderSalaryList(); } catch (e) {} }
+        if (uiUpdates.has('diaryDB')) { try { if (typeof renderDiaryList === 'function') renderDiaryList(); } catch (e) {} }
+        if (uiUpdates.has('projectDB')) { try { if (typeof renderProjectsList === 'function') renderProjectsList(); } catch (e) {} }
     } catch (e) {
         console.warn('AI JSON Executor Error:', e);
-        try { if (typeof showToast === 'function') showToast('AI sync failed. Please check the JSON and try again.'); } catch (toastError) {}
+        try { if (typeof showToast === 'function') showToast('AI sync failed. Local data remains protected.'); } catch (toastError) {}
     } finally {
         try { if (typeof hideLoader === 'function') hideLoader(); } catch (e) {}
         window.__aarishAIPasteBusy = false;
