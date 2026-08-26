@@ -25,8 +25,10 @@ function setPath(path, value) {
     const id = parts.shift();
     const list = state[root];
     const index = list.findIndex(item => String(item.id) === id);
-    if (index >= 0) list[index] = value;
-    else list.unshift(value);
+    if (index >= 0) {
+      if (value === null) list.splice(index, 1);
+      else list[index] = value;
+    } else if (value !== null) list.unshift(value);
     return;
   }
   const profile = parts.shift();
@@ -35,8 +37,10 @@ function setPath(path, value) {
     const id = parts[1];
     const records = state[root][profile].records || (state[root][profile].records = []);
     const index = records.findIndex(item => String(item.id) === id);
-    if (index >= 0) records[index] = value;
-    else records.unshift(value);
+    if (index >= 0) {
+      if (value === null) records.splice(index, 1);
+      else records[index] = value;
+    } else if (value !== null) records.unshift(value);
     return;
   }
   let target = state[root][profile];
@@ -137,8 +141,21 @@ vm.runInContext(handlerSource, context);
   assert.strictEqual(commandExpensePaths.length, 2, 'identical commands collided into one ID');
   assert.notStrictEqual(commandExpensePaths[0], commandExpensePaths[1], 'command IDs are not unique');
 
+  textarea.value = JSON.stringify({ commands: [
+    { operation: 'delete', module: 'expense', id: 'new-expense' },
+    { operation: 'delete', module: 'milk', name: 'Alice', recordId: 'new-milk' }
+  ] });
+  await context.window.handleAIPaste();
+  const deleteBatch = sentBatches[2];
+  assert.strictEqual(deleteBatch['expenseDB/new-expense'], null, 'explicit expense delete was not emitted');
+  assert.strictEqual(deleteBatch['milkDB/Alice/records/new-milk'], null, 'explicit grouped-record delete was not emitted');
+  assert(!state.expenseDB.some(item => item.id === 'new-expense'), 'deleted expense remains locally');
+  assert(!state.milkDB.Alice.records.some(item => item.id === 'new-milk'), 'deleted milk record remains locally');
+  assert(state.milkDB.Alice.records.some(item => item.id === 'old-milk'), 'unrelated milk record was deleted');
+
   console.log('PASS: runtime full-state import preserves old records and adds new records');
   console.log('PASS: runtime command batch gives identical commands distinct IDs');
+  console.log('PASS: runtime explicit delete deltas remove only the requested IDs');
   console.log(`PASS: ${sentBatches.length} safe batches queued and ${cacheReasons.length} cache saves completed`);
 })().catch(error => {
   console.error(error.stack || error);
