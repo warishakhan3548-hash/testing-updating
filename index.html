@@ -14337,106 +14337,61 @@ Allowed action schemas:
 <script>
 // ========================== AI PROMPT & AUTO-EXECUTION LOGIC (OMNI-UPGRADED) ==========================
 window.generateAndCopyAIPrompt = function() {
-    // Snapshot by value so exporting cannot mutate live app state or sync metadata.
-    let currentState = {};
-    try {
-        const liveState = typeof window.aarishCostGetStateV1 === 'function'
-            ? window.aarishCostGetStateV1()
-            : (typeof aarishCostGetStateV1 === 'function' ? aarishCostGetStateV1() : {});
-        currentState = JSON.parse(JSON.stringify(liveState || {}));
-    } catch (e) {
-        currentState = {};
-    }
-    if (currentState && typeof currentState === 'object') delete currentState._syncMeta;
+    const currentState = aarishCostGetStateV1();
 
+    // [OMNI-ARCHITECT UPGRADE] Keep sync metadata out of the AI context.
+    if (currentState && currentState._syncMeta) delete currentState._syncMeta;
+
+    const jsonStr = JSON.stringify(currentState);
+
+    // [OMNI-ARCHITECT UPGRADE] Supply today's local date for new entries.
     const todayISO = new Date();
     todayISO.setMinutes(todayISO.getMinutes() - todayISO.getTimezoneOffset());
     const today = todayISO.toISOString().split('T')[0];
-    const fileName = `AarishAI_Database_State_${today}.txt`;
-    const jsonStr = JSON.stringify(currentState, null, 2);
 
-    // A clearly delimited TXT file keeps IDs and nested records machine-readable for ChatGPT/Gemini.
-    const fileContent = [
-        '[AARISH DAIRY PRO - MACHINE DATABASE SNAPSHOT]',
-        `FORMAT: JSON snapshot in TXT container`,
-        `GENERATED_DATE: ${today}`,
-        'IMPORTANT: This file contains the source-of-truth IDs used for safe updates.',
-        '',
-        '[CURRENT_DATA_JSON_START]',
-        jsonStr,
-        '[CURRENT_DATA_JSON_END]',
-        '',
-        '[AI_CONTEXT_RULES]',
-        'Use the JSON above to resolve existing profile names and record IDs.',
-        'Do not invent an ID when modifying an existing record; reuse its exact ID.',
-        'This file is context only. Return only the requested delta, never the whole database.'
-    ].join('\n');
+    const prompt = `[SYSTEM ROLE : APEX FINANCIAL ENGINE]
+You are 'AarishAI' - an elite Financial Manager & Database Engine for "Aarish Dairy Pro".
+Interpret inputs in Hindi/Hinglish and perform CRUD operations strictly on the JSON provided.
 
-    const shortPrompt = `[SYSTEM ROLE: AARISH AI DELTA ENGINE]
-Read the attached file ${fileName} silently as the current database context. Interpret Hindi/Hinglish commands.
+[CURRENT DATE FOR ENTRIES]
+${today}
 
-[NON-DESTRUCTIVE OUTPUT CONTRACT]
-1. Do not return the complete database. Return only records that are new or explicitly modified.
-2. For a new/modified array record, use: {"expenseDB":[{"id":"new_or_existing_id","date":"${today}","category":"...","amount":0}]}, or the matching udharDB/diaryDB root.
-3. For milk, salary, or business records, use: {"milkDB":{"Exact Profile Name":{"records":[{"id":"new_or_existing_id","date":"${today}","morning":0,"evening":0}]}}} (same pattern for salaryDB/projectDB).
-4. To delete one known record, return {"commands":[{"operation":"delete","module":"expense","id":"EXACT_ID"}]} or include the exact profile name and recordId for grouped records.
-5. Reuse exact existing IDs for edits. Generate a stable new ID such as ai_exp_1 for new records.
-6. Output raw valid JSON only: no markdown fences, no explanation, no greeting. Wait silently until I give a command.
+[STRICT SCHEMA & FINANCIAL LOGIC - OBEY ABSOLUTELY]
+1. UDHAR (udharDB: Array):
+   - User gives ("diye") -> { id: 'udhar_xyz', name: '...', amount: X, type: 'credit', date: '${today}' }
+   - User takes ("liye") -> { id: 'udhar_xyz', name: '...', amount: X, type: 'debit', date: '${today}' }
 
-When I explicitly ask to save/update/delete, return only the delta JSON.`;
+2. MILK (milkDB: Object):
+   - Ensure customer profile exists with type: "lene_wala" (Seller) or "dene_wala" (Buyer).
+   - Append to records array: { id: 'milk_xyz', date: '${today}', morning: X, evening: Y }
 
-    let downloadOk = false;
-    try {
-        const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = fileName;
-        anchor.rel = 'noopener';
-        anchor.style.display = 'none';
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        // Keep the URL alive long enough for mobile download managers to consume it.
-        setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 10000);
-        downloadOk = true;
-    } catch (e) {
-        try { console.warn('AI database TXT download failed.', e); } catch (_) {}
-    }
+3. SALARY (salaryDB: Object):
+   - Ensure employee profile exists with type: "lene_wala" (Receives) or "dene_wala" (Pays).
+   - Append to records array: { id: 'sal_xyz', date: '${today}', amount: X }
 
-    const copyPromise = typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
-        ? navigator.clipboard.writeText(shortPrompt)
-        : Promise.reject(new Error('clipboard_unavailable'));
-    copyPromise.then(() => {
-        try { if (typeof showToast === 'function') showToast(downloadOk ? 'TXT database downloaded & delta prompt copied.' : 'Delta prompt copied; TXT download failed.'); } catch (e) {}
+4. EXPENSE (expenseDB: Array):
+   - Daily kharcha -> { id: 'exp_xyz', date: '${today}', category: '...', amount: X }
+
+5. BUSINESS (projectDB: Object):
+   - Append to records: { id: 'proj_xyz', date: '${today}', title: '...', amount: X, color: 'green|red|blue|orange' }
+   - green=Income, red=Expense, blue=Bank, orange=Pending.
+
+6. DIARY (diaryDB: Array):
+   - Stories/Notes -> { id: 'dia_xyz', date: '${today}', title: '...', content: '...', updated: ${Date.now()} }
+
+[CURRENT DATABASE STATE]
+${jsonStr}
+
+[EXECUTION PROTOCOL - NO EXCEPTIONS]
+- Track inputs silently. Acknowledge politely in Hinglish. DO NOT output JSON immediately.
+- TRIGGER: ONLY when user explicitly says "khata mein chadha do", "update kar do", or "save kar do", output the ENTIRE updated JSON.
+- STRICT RULE: Output ONLY valid, raw JSON. NO markdown. NO \`\`\`json wrappers. NO intro/outro text. First character MUST be '{' and last MUST be '}'.`;
+
+    navigator.clipboard.writeText(prompt).then(() => {
+        showToast('Omni-Prompt Copied! Paste it to AI.');
     }).catch(() => {
-        try { if (typeof showToast === 'function') showToast(downloadOk ? 'TXT database downloaded; clipboard permission blocked.' : 'TXT download and clipboard both failed.'); } catch (e) {}
+        showToast('Failed to copy. Please try again.');
     });
-
-    // PDF is best-effort and must never block TXT download or clipboard preparation.
-    // Retry a few times because the visual engine may load after the user taps the button.
-    let pdfAttempt = 0;
-    const tryVisualPdf = () => {
-        setTimeout(() => {
-            pdfAttempt++;
-            try {
-                const pdfEngineReady = !!(window.AarishTitaniumPDF && typeof window.AarishTitaniumPDF.renderDataset === 'function');
-                if (typeof window.aarishExportPremiumPdfCoreV1 === 'function' && pdfEngineReady) {
-                    Promise.resolve(window.aarishExportPremiumPdfCoreV1('all'))
-                        .then(() => { try { if (typeof showToast === 'function') showToast('Visual All-PDF generated.'); } catch (e) {} })
-                        .catch(() => { try { if (typeof showToast === 'function') showToast('TXT ready; Visual All-PDF could not be generated.'); } catch (e) {} });
-                } else if (pdfAttempt < 3) {
-                    tryVisualPdf();
-                } else {
-                    try { if (typeof showToast === 'function') showToast('TXT ready; Visual All-PDF engine is not ready.'); } catch (e) {}
-                }
-            } catch (e) {
-                if (pdfAttempt < 3) tryVisualPdf();
-                else try { if (typeof showToast === 'function') showToast('TXT ready; Visual All-PDF could not be generated.'); } catch (_) {}
-            }
-        }, pdfAttempt === 0 ? 1500 : 2000);
-    };
-    tryVisualPdf();
 };
 
 // ========================== OMNI-AI JSON EXECUTOR CORE ==========================
@@ -14631,32 +14586,6 @@ window.handleAIPaste = async function() {
                 const type = asText(cmd.type || cmd.module).toLowerCase();
                 const date = asText(cmd.date) || today;
                 const amount = asNumber(cmd.amount);
-                const operation = asText(cmd.operation || cmd.action || cmd.op).toLowerCase();
-                const isDelete = operation === 'delete' || operation === 'remove';
-
-                // Deletions require an explicit ID and, for grouped tables, an exact profile name.
-                // A vague delete request is ignored rather than deleting a whole table/profile.
-                if (isDelete) {
-                    const root = (type === 'expense' || type === 'kharcha') ? 'expenseDB'
-                        : (type === 'udhar' || type === 'credit' || type === 'loan') ? 'udharDB'
-                        : (type === 'diary' || type === 'note') ? 'diaryDB'
-                        : (type === 'milk' || type === 'doodh') ? 'milkDB'
-                        : (type === 'salary' || type === 'tankha') ? 'salaryDB'
-                        : (type === 'business' || type === 'project' || type === 'khata') ? 'projectDB' : '';
-                    const name = asText(cmd.name || cmd.profile || cmd.khata);
-                    const recordId = asText(cmd.recordId || cmd.record_id || cmd.id);
-                    const isGrouped = root === 'milkDB' || root === 'salaryDB' || root === 'projectDB';
-                    let deletePath = '';
-                    if (!root) continue;
-                    if (isGrouped && name && recordId) deletePath = `${root}/${name}/records/${recordId}`;
-                    else if (isGrouped && name && (cmd.deleteProfile === true || asText(cmd.target).toLowerCase() === 'profile')) deletePath = `${root}/${name}`;
-                    else if (!isGrouped && recordId) deletePath = `${root}/${recordId}`;
-                    if (deletePath && put(batchPayload, deletePath, null)) {
-                        uiUpdates.add(root);
-                        addedCount++;
-                    }
-                    continue;
-                }
 
                 if (type === 'expense' || type === 'kharcha') {
                     const entry = { id: makeId('exp', cmd, commandIndex, 'command-expense'), date, category: asText(cmd.category || cmd.detail) || 'AI Entry', amount };
