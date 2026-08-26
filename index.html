@@ -14380,7 +14380,7 @@ Read the attached file ${fileName} silently as the current database context. Int
 2. For a new/modified array record, use: {"expenseDB":[{"id":"new_or_existing_id","date":"${today}","category":"...","amount":0}]}, or the matching udharDB/diaryDB root.
 3. For milk, salary, or business records, use: {"milkDB":{"Exact Profile Name":{"records":[{"id":"new_or_existing_id","date":"${today}","morning":0,"evening":0}]}}} (same pattern for salaryDB/projectDB).
 4. Preferred output is a JSON array of surgical deltas: [{"path":"expenseDB/EXACT_ID","data":{...complete record...}}]. For milk/salary/business records use the exact root/Profile/records/ID path.
-5. To delete one known record, set its data field exactly to null. Legacy command form is also accepted: {"commands":[{"operation":"delete","module":"expense","id":"EXACT_ID"}]}.
+5. To delete one known record, return a surgical delta with its exact path and set the data field exactly to null.
 6. Reuse exact existing IDs for edits. Generate a stable new ID such as ai_exp_1 for new records.
 7. Output raw valid JSON only: no markdown fences, no explanation, no greeting. Wait silently until I give a command.
 
@@ -14409,10 +14409,68 @@ When I explicitly ask to save/update/delete, return only the delta JSON.`;
     const copyPromise = typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
         ? navigator.clipboard.writeText(shortPrompt)
         : Promise.reject(new Error('clipboard_unavailable'));
+    const showManualPromptFallbackV1 = promptText => {
+        try {
+            const existing = document.getElementById('aarish-ai-prompt-fallback-modal');
+            if (existing) existing.remove();
+            const overlay = document.createElement('div');
+            overlay.id = 'aarish-ai-prompt-fallback-modal';
+            overlay.className = 'modal-overlay';
+            overlay.style.zIndex = '10000';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width:680px;width:calc(100% - 28px);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;">
+                        <h3 style="margin:0;font-weight:800;">Copy AI prompt manually</h3>
+                        <button type="button" data-ai-prompt-fallback-close aria-label="Close">×</button>
+                    </div>
+                    <p style="margin:0 0 10px;opacity:.78;">Clipboard और download दोनों उपलब्ध नहीं हैं। नीचे का prompt select करके manually copy करें, और generated TXT file attach करना न भूलें।</p>
+                    <textarea data-ai-prompt-fallback-text readonly spellcheck="false" style="width:100%;min-height:260px;resize:vertical;"></textarea>
+                    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
+                        <button type="button" data-ai-prompt-fallback-copy class="btn-primary">Copy prompt</button>
+                        <button type="button" data-ai-prompt-fallback-close>Close</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(overlay);
+            const textarea = overlay.querySelector('[data-ai-prompt-fallback-text]');
+            if (textarea) {
+                textarea.value = promptText;
+                textarea.focus();
+                textarea.select();
+            }
+            overlay.querySelectorAll('[data-ai-prompt-fallback-close]').forEach(button => {
+                button.addEventListener('click', () => overlay.remove());
+            });
+            const copyButton = overlay.querySelector('[data-ai-prompt-fallback-copy]');
+            if (copyButton) copyButton.addEventListener('click', async () => {
+                try {
+                    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                        await navigator.clipboard.writeText(promptText);
+                        if (typeof showToast === 'function') showToast('Prompt copied. TXT file attach करना न भूलें.');
+                    } else if (textarea) {
+                        textarea.focus(); textarea.select();
+                        if (typeof showToast === 'function') showToast('Prompt selected; अब manually copy करें.');
+                    }
+                } catch (e) {
+                    if (textarea) { textarea.focus(); textarea.select(); }
+                    try { if (typeof showToast === 'function') showToast('Prompt selected; अब manually copy करें.'); } catch (toastError) {}
+                }
+            });
+        } catch (e) {
+            try { if (typeof showToast === 'function') showToast('Prompt उपलब्ध है, लेकिन fallback window नहीं खुल सकी.'); } catch (toastError) {}
+        }
+    };
     copyPromise.then(() => {
-        try { if (typeof showToast === 'function') showToast(downloadOk ? 'TXT database downloaded & delta prompt copied.' : 'Delta prompt copied; TXT download failed.'); } catch (e) {}
+        try { if (typeof showToast === 'function') showToast(downloadOk ? 'TXT database downloaded & delta prompt copied. TXT attach करना न भूलें.' : 'Delta prompt copied; TXT download failed.'); } catch (e) {}
     }).catch(() => {
-        try { if (typeof showToast === 'function') showToast(downloadOk ? 'TXT database downloaded; clipboard permission blocked.' : 'TXT download and clipboard both failed.'); } catch (e) {}
+        try {
+            if (downloadOk) {
+                if (typeof showToast === 'function') showToast('TXT database downloaded; clipboard permission blocked. TXT attach करना न भूलें.');
+            }
+            else {
+                showManualPromptFallbackV1(shortPrompt);
+                if (typeof showToast === 'function') showToast('TXT download और clipboard दोनों fail हुए; prompt नीचे दिया है.');
+            }
+        } catch (e) {}
     });
 
     // PDF is best-effort and must never block TXT download or clipboard preparation.
@@ -14445,9 +14503,24 @@ When I explicitly ask to save/update/delete, return only the delta JSON.`;
 // Accepts command arrays/objects from AarishAI and persists them through the
 // existing Firebase outbox + local cache layers. Legacy full-state JSON remains
 // supported so the prompt generator above continues to work unchanged.
-window.handleAIPaste = async function() {
+// Debounced entry point: raw oninput fires on every keystroke/paste-chunk. Without this,
+// a mutating (and delete-capable) apply pipeline could run mid-edit on a half-typed value.
+let __aarishAIPasteDebounceTimerV1 = null;
+window.handleAIPaste = function() {
+    if (__aarishAIPasteDebounceTimerV1) clearTimeout(__aarishAIPasteDebounceTimerV1);
+    __aarishAIPasteDebounceTimerV1 = setTimeout(() => {
+        __aarishAIPasteDebounceTimerV1 = null;
+        window.__aarishProcessAIPasteV1();
+    }, 700);
+};
+
+window.__aarishProcessAIPasteV1 = async function() {
     const inputEl = document.getElementById('ai-json-paste');
-    if (!inputEl || window.__aarishAIPasteBusy) return;
+    if (!inputEl) return;
+    if (window.__aarishAIPasteBusy) {
+        try { if (typeof showToast === 'function') showToast('Pichla AI sync abhi chal raha hai — thoda ruk kar dobara try karein.'); } catch (e) {}
+        return;
+    }
 
     const raw = String(inputEl.value || '').trim();
     if (!raw) return;
@@ -14463,11 +14536,15 @@ window.handleAIPaste = async function() {
             data = JSON.parse(withoutFence);
         } catch (directError) {
             const jsonMatch = withoutFence.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
-            if (!jsonMatch) return;
+            if (!jsonMatch) throw directError;
             data = JSON.parse(jsonMatch[0]);
         }
     } catch (e) {
-        // oninput fires while text is still being entered. Do not mutate state until JSON is valid.
+        // A short/still-typing value failing is expected and stays silent. A long pasted
+        // value that still won't parse is not "still typing" — say so instead of no-op'ing.
+        if (raw.length > 40) {
+            try { if (typeof showToast === 'function') showToast('AI ka jawaab valid JSON nahi mila — dobara paste karke dekhein.'); } catch (toastError) {}
+        }
         return;
     }
 
@@ -14481,7 +14558,7 @@ window.handleAIPaste = async function() {
     };
     const today = typeof getTodayISO === 'function'
         ? getTodayISO()
-        : new Date().toISOString().split('T')[0];
+        : (() => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().split('T')[0]; })();
     const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
     const clone = value => {
         try { return JSON.parse(JSON.stringify(value)); } catch (e) { return value; }
@@ -14504,11 +14581,26 @@ window.handleAIPaste = async function() {
     const cleanPath = path => typeof aarishCostCleanPathV1 === 'function'
         ? aarishCostCleanPathV1(path)
         : String(path || '').replace(/^\/+|\/+$/g, '');
+    // Every delta path funnels through put() — this is the one place to normalise numeric
+    // fields, so a stray string/missing amount can never reach Firebase unchecked.
+    const NUMERIC_FIELDS_V1 = ['amount', 'morning', 'evening', 'rate'];
+    const sanitizeNumericFieldsV1 = value => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+        const copy = clone(value);
+        NUMERIC_FIELDS_V1.forEach(field => {
+            if (hasOwn(copy, field)) copy[field] = asNumber(copy[field]);
+        });
+        return copy;
+    };
     const put = (payload, path, value) => {
         const safePath = cleanPath(path);
         if (!safePath || safePath.split('/').includes('_syncMeta')) return false;
         if (typeof aarishCostIsLocalOnlyPathCoreV10 === 'function' && aarishCostIsLocalOnlyPathCoreV10(safePath)) return false;
-        payload[safePath] = clone(value);
+        const lastSegment = safePath.split('/').pop();
+        const safeValue = (NUMERIC_FIELDS_V1.includes(lastSegment) && value !== null && typeof value !== 'object')
+            ? asNumber(value)
+            : sanitizeNumericFieldsV1(value);
+        payload[safePath] = safeValue;
         return true;
     };
     const isSafeExplicitDeltaPath = path => {
@@ -14521,7 +14613,10 @@ window.handleAIPaste = async function() {
         if (arrayRoots.includes(root)) return parts.length === 2;
         if (groupedRoots.includes(root)) {
             // A profile parent write is intentionally rejected: it can erase records.
-            return parts.length === 3 || (parts.length === 4 && parts[2] === 'records');
+            // The bare "records" collection node is rejected too — writing here can erase
+            // every record under a profile in one shot (this closes that gap).
+            if (parts.length === 3) return parts[2] !== 'records';
+            return parts.length === 4 && parts[2] === 'records';
         }
         return false;
     };
@@ -14579,18 +14674,6 @@ window.handleAIPaste = async function() {
         appendGroupedTableDelta(payload, 'projectDB', state.projectDB, 'proj');
         return payload;
     };
-    const normaliseFlow = value => {
-        const flow = asText(value).toLowerCase();
-        if (['debit', 'debited', 'liye', 'borrow', 'taken', 'payable'].includes(flow)) return 'debit';
-        return 'credit';
-    };
-    const addProfileFields = (payload, root, name, profile) => {
-        if (!name || !profile || typeof profile !== 'object') return;
-        Object.keys(profile).forEach(key => {
-            if (key !== 'records') put(payload, `${root}/${name}/${key}`, profile[key]);
-        });
-    };
-
     const applyAndQueue = async (payload, reason, count) => {
         const paths = Object.keys(payload || {});
         if (!paths.length) return { queued: false, reason: 'empty', count: 0 };
@@ -14640,7 +14723,6 @@ window.handleAIPaste = async function() {
             else if (Array.isArray(data.aarish_ai_commands)) commands = data.aarish_ai_commands;
             else if (Array.isArray(data.commands)) commands = data.commands;
             else if (data.path && hasOwn(data, 'data')) commands = [data];
-            else if (data.type || data.module) commands = [data];
 
             for (let commandIndex = 0; commandIndex < commands.length; commandIndex++) {
                 const cmd = commands[commandIndex];
@@ -14657,79 +14739,8 @@ window.handleAIPaste = async function() {
                     continue;
                 }
 
-                const type = asText(cmd.type || cmd.module).toLowerCase();
-                const date = asText(cmd.date) || today;
-                const amount = asNumber(cmd.amount);
-                const operation = asText(cmd.operation || cmd.action || cmd.op).toLowerCase();
-                const isDelete = operation === 'delete' || operation === 'remove';
-
-                // Deletions require an explicit ID and, for grouped tables, an exact profile name.
-                // A vague delete request is ignored rather than deleting a whole table/profile.
-                if (isDelete) {
-                    const root = (type === 'expense' || type === 'kharcha') ? 'expenseDB'
-                        : (type === 'udhar' || type === 'credit' || type === 'loan') ? 'udharDB'
-                        : (type === 'diary' || type === 'note') ? 'diaryDB'
-                        : (type === 'milk' || type === 'doodh') ? 'milkDB'
-                        : (type === 'salary' || type === 'tankha') ? 'salaryDB'
-                        : (type === 'business' || type === 'project' || type === 'khata') ? 'projectDB' : '';
-                    const name = asText(cmd.name || cmd.profile || cmd.khata);
-                    const recordId = asText(cmd.recordId || cmd.record_id || cmd.id);
-                    const isGrouped = root === 'milkDB' || root === 'salaryDB' || root === 'projectDB';
-                    let deletePath = '';
-                    if (!root) continue;
-                    if (isGrouped && name && recordId) deletePath = `${root}/${name}/records/${recordId}`;
-                    else if (isGrouped && name && (cmd.deleteProfile === true || asText(cmd.target).toLowerCase() === 'profile')) deletePath = `${root}/${name}`;
-                    else if (!isGrouped && recordId) deletePath = `${root}/${recordId}`;
-                    if (deletePath && put(batchPayload, deletePath, null)) {
-                        uiUpdates.add(root);
-                        addedCount++;
-                    }
-                    continue;
-                }
-
-                if (type === 'expense' || type === 'kharcha') {
-                    const entry = { id: makeId('exp', cmd, commandIndex, 'command-expense'), date, category: asText(cmd.category || cmd.detail) || 'AI Entry', amount };
-                    put(batchPayload, `expenseDB/${entry.id}`, entry); uiUpdates.add('expenseDB'); addedCount++;
-                } else if (type === 'udhar' || type === 'credit' || type === 'loan') {
-                    const entry = { id: makeId('udh', cmd, commandIndex, 'command-udhar'), date, name: asText(cmd.name) || 'Unknown', amount, type: normaliseFlow(cmd.flow || cmd.direction || cmd.entryType) };
-                    put(batchPayload, `udharDB/${entry.id}`, entry); uiUpdates.add('udharDB'); addedCount++;
-                } else if (type === 'milk' || type === 'doodh') {
-                    const name = asText(cmd.name);
-                    if (!name) continue;
-                    const existingMilk = typeof milkDB !== 'undefined' && milkDB[name];
-                    const profile = {};
-                    if (!existingMilk || hasOwn(cmd, 'rate')) profile.rate = asNumber(cmd.rate) || 55;
-                    if (!existingMilk || hasOwn(cmd, 'flow')) profile.type = asText(cmd.flow) || 'lene_wala';
-                    if (!existingMilk) {
-                        profile.canonicalNameV18 = typeof aarishMilkNameKeyCore === 'function' ? aarishMilkNameKeyCore(name) : name.toLowerCase();
-                        profile.createdAtV18 = new Date().toISOString();
-                    }
-                    addProfileFields(batchPayload, 'milkDB', name, profile);
-                    const entry = { id: makeId('mlk', cmd, commandIndex, `command-milk/${name}`), date, morning: asNumber(cmd.morning), evening: asNumber(cmd.evening) };
-                    put(batchPayload, `milkDB/${name}/records/${entry.id}`, entry); uiUpdates.add('milkDB'); addedCount++;
-                } else if (type === 'salary' || type === 'tankha') {
-                    const name = asText(cmd.name);
-                    if (!name) continue;
-                    const existingSalary = typeof salaryDB !== 'undefined' && salaryDB[name];
-                    const profile = {};
-                    if (!existingSalary || hasOwn(cmd, 'company')) profile.company = asText(cmd.company) || 'AI Entry';
-                    if (!existingSalary || hasOwn(cmd, 'flow')) profile.type = asText(cmd.flow) || 'dene_wala';
-                    if (!existingSalary) profile.createdAtV18 = new Date().toISOString();
-                    addProfileFields(batchPayload, 'salaryDB', name, profile);
-                    const entry = { id: makeId('sal', cmd, commandIndex, `command-salary/${name}`), date, amount };
-                    put(batchPayload, `salaryDB/${name}/records/${entry.id}`, entry); uiUpdates.add('salaryDB'); addedCount++;
-                } else if (type === 'diary' || type === 'note') {
-                    const entry = { id: makeId('dia', cmd, commandIndex, 'command-diary'), date, title: asText(cmd.title) || 'AI Note', content: asText(cmd.content || cmd.detail), updated: Date.now() };
-                    put(batchPayload, `diaryDB/${entry.id}`, entry); uiUpdates.add('diaryDB'); addedCount++;
-                } else if (type === 'business' || type === 'project' || type === 'khata') {
-                    const name = asText(cmd.name || cmd.khata);
-                    if (!name) continue;
-                    const profile = {};
-                    if (typeof projectDB === 'undefined' || !projectDB[name]) profile.createdAt = Date.now();
-                    addProfileFields(batchPayload, 'projectDB', name, profile);
-                    const entry = { id: makeId('proj', cmd, commandIndex, `command-project/${name}`), date, title: asText(cmd.detail || cmd.title) || 'AI Record', amount, color: asText(cmd.color) || 'green' };
-                    put(batchPayload, `projectDB/${name}/records/${entry.id}`, entry); uiUpdates.add('projectDB'); addedCount++;
-                }
+                // Unsupported legacy type/module commands are intentionally ignored. All writes,
+                // including deletes, must use the explicit path + data contract above.
             }
         }
 
