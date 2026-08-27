@@ -3990,7 +3990,7 @@ html.aarish-tab-switching-v31 .screen.active .glass-card:active {
             <h3 class="text-[15px] font-bold mb-2 flex items-center gap-2 text-gray-700 dark:text-gray-300">
                 <i class="fa-solid fa-paste text-[#34C759]"></i> 2. Auto-Execute JSON
             </h3>
-            <textarea id="ai-json-paste" oninput="handleAIPaste()" class="input-box w-full !min-h-[80px] !text-sm mb-1 resize-none" placeholder="Paste the JSON response from AI here..."></textarea>
+            <textarea id="ai-json-paste" oninput="__aarishProcessAIPasteV1()" class="input-box w-full !min-h-[80px] !text-sm mb-1 resize-none" placeholder="Paste the JSON response from AI here..."></textarea>
         </div>
         <div class="flex items-center justify-center gap-3 mb-6 opacity-50">
             <div class="h-px bg-gray-400 flex-1"></div><span class="text-[10px] font-extrabold uppercase">OR</span><div class="h-px bg-gray-400 flex-1"></div>
@@ -14625,445 +14625,170 @@ EDIT action schemas (must include the exact existing "id"; only fields you provi
 
 <!-- AARISH_AI_PROMPT_AUTOPASTE_ENGINE_V1_START -->
 <script>
-// ========================== AI PROMPT & AUTO-EXECUTION LOGIC (OMNI-UPGRADED) ==========================
+// ========================== OMNI AI ENGINE - HEADLESS SURGICAL CORE ==========================
+// 1. THE PROMPT INJECTOR : AI को सिर्फ काम की चीजें दिखाना (Compact Snapshot)
 window.generateAndCopyAIPrompt = function() {
-    // Snapshot by value so exporting cannot mutate live app state or sync metadata.
-    let currentState = {};
-    try {
-        const liveState = typeof window.aarishCostGetStateV1 === 'function'
-            ? window.aarishCostGetStateV1()
-            : (typeof aarishCostGetStateV1 === 'function' ? aarishCostGetStateV1() : {});
-        currentState = JSON.parse(JSON.stringify(liveState || {}));
-    } catch (e) {
-        currentState = {};
-    }
-    if (currentState && typeof currentState === 'object') delete currentState._syncMeta;
+    haptic();
+    showLoader("PREPARING AI PROMPT...");
 
-    const todayISO = new Date();
-    todayISO.setMinutes(todayISO.getMinutes() - todayISO.getTimezoneOffset());
-    const today = todayISO.toISOString().split('T')[0];
-    const fileName = `AarishAI_Database_State_${today}.txt`;
-    const jsonStr = JSON.stringify(currentState, null, 2);
-
-    // A clearly delimited TXT file keeps IDs and nested records machine-readable for ChatGPT/Gemini.
-    const fileContent = [
-        '[AARISH DAIRY PRO - MACHINE DATABASE SNAPSHOT]',
-        `FORMAT: JSON snapshot in TXT container`,
-        `GENERATED_DATE: ${today}`,
-        'IMPORTANT: This file contains the source-of-truth IDs used for safe updates.',
-        '',
-        '[CURRENT_DATA_JSON_START]',
-        jsonStr,
-        '[CURRENT_DATA_JSON_END]',
-        '',
-        '[AI_CONTEXT_RULES]',
-        'Use the JSON above to resolve existing profile names and record IDs.',
-        'Do not invent an ID when modifying an existing record; reuse its exact ID.',
-        'This file is context only. Return only the requested delta, never the whole database.'
-    ].join('\n');
-
-    const shortPrompt = `[SYSTEM ROLE: AARISH AI DELTA ENGINE]
-Read the attached file ${fileName} silently as the current database context. It contains every record's exact "id". Interpret Hindi/Hinglish commands.
-
-[NON-DESTRUCTIVE OUTPUT CONTRACT — CRITICAL]
-1. NEVER return the complete database. Return ONLY the specific records that are new, explicitly modified, or deleted.
-2. For edits/deletes, you MUST reuse the exact existing "id" from the attached file. Never invent or guess an ID for an edit or delete.
-3. To DELETE a record by exact ID, output: [{"path":"expenseDB/EXACT_ID","data":null}] — set data to null. The same path pattern works for udharDB/diaryDB/milkDB/salaryDB/projectDB.
-4. To EDIT a record by exact ID, output: [{"path":"expenseDB/EXACT_ID","data":{...complete updated record with same id...}}]. Include ALL fields of the record, not just the changed ones.
-5. To ADD a new record, generate a stable new ID such as ai_exp_1: [{"path":"expenseDB/ai_exp_1","data":{...full record...}}].
-6. For milk/salary/business records use the exact path: root/ProfileName/records/EXACT_ID.
-7. Output raw valid JSON only: no markdown fences, no explanation, no greeting. Wait silently until I give a command.
-
-When I explicitly ask to add/edit/delete, return ONLY the delta JSON for that specific record.`;
-
-    let downloadOk = false;
-    try {
-        const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = fileName;
-        anchor.rel = 'noopener';
-        anchor.style.display = 'none';
-        document.body.appendChild(anchor);
-        anchor.click();
-        if (typeof anchor.remove === 'function') anchor.remove();
-        else if (document.body.removeChild) document.body.removeChild(anchor);
-        // Keep the URL alive long enough for mobile download managers to consume it.
-        setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 10000);
-        downloadOk = true;
-    } catch (e) {
-        try { console.warn('AI database TXT download failed.', e); } catch (_) {}
-    }
-
-    const copyPromise = typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
-        ? navigator.clipboard.writeText(shortPrompt)
-        : Promise.reject(new Error('clipboard_unavailable'));
-    const showManualPromptFallbackV1 = promptText => {
-        try {
-            const existing = document.getElementById('aarish-ai-prompt-fallback-modal');
-            if (existing) existing.remove();
-            const overlay = document.createElement('div');
-            overlay.id = 'aarish-ai-prompt-fallback-modal';
-            overlay.className = 'modal-overlay';
-            overlay.style.zIndex = '10000';
-            overlay.innerHTML = `
-                <div class="modal-content" style="max-width:680px;width:calc(100% - 28px);">
-                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;">
-                        <h3 style="margin:0;font-weight:800;">Copy AI prompt manually</h3>
-                        <button type="button" data-ai-prompt-fallback-close aria-label="Close">×</button>
-                    </div>
-                    <p style="margin:0 0 10px;opacity:.78;">Clipboard और download दोनों उपलब्ध नहीं हैं। नीचे का prompt select करके manually copy करें, और generated TXT file attach करना न भूलें।</p>
-                    <textarea data-ai-prompt-fallback-text readonly spellcheck="false" style="width:100%;min-height:260px;resize:vertical;"></textarea>
-                    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
-                        <button type="button" data-ai-prompt-fallback-copy class="btn-primary">Copy prompt</button>
-                        <button type="button" data-ai-prompt-fallback-close>Close</button>
-                    </div>
-                </div>`;
-            document.body.appendChild(overlay);
-            const textarea = overlay.querySelector('[data-ai-prompt-fallback-text]');
-            if (textarea) {
-                textarea.value = promptText;
-                textarea.focus();
-                textarea.select();
-            }
-            overlay.querySelectorAll('[data-ai-prompt-fallback-close]').forEach(button => {
-                button.addEventListener('click', () => overlay.remove());
-            });
-            const copyButton = overlay.querySelector('[data-ai-prompt-fallback-copy]');
-            if (copyButton) copyButton.addEventListener('click', async () => {
-                try {
-                    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-                        await navigator.clipboard.writeText(promptText);
-                        if (typeof showToast === 'function') showToast('Prompt copied. TXT file attach करना न भूलें.');
-                    } else if (textarea) {
-                        textarea.focus(); textarea.select();
-                        if (typeof showToast === 'function') showToast('Prompt selected; अब manually copy करें.');
-                    }
-                } catch (e) {
-                    if (textarea) { textarea.focus(); textarea.select(); }
-                    try { if (typeof showToast === 'function') showToast('Prompt selected; अब manually copy करें.'); } catch (toastError) {}
-                }
-            });
-        } catch (e) {
-            try { if (typeof showToast === 'function') showToast('Prompt उपलब्ध है, लेकिन fallback window नहीं खुल सकी.'); } catch (toastError) {}
-        }
+    const dbSnapshot = {
+        udhar: udharDB.map(u => ({ id: u.id, name: u.name, amount: u.amount, type: u.type })),
+        expense: expenseDB.map(e => ({ id: e.id, category: e.category, amount: e.amount, date: e.date })),
+        diary: diaryDB.map(d => ({ id: d.id, title: d.title, date: d.date })),
+        milk: Object.keys(milkDB || {}).reduce((acc, name) => {
+            acc[name] = (milkDB[name].records || []).map(r => ({
+                id: r.id,
+                date: r.date,
+                morning: r.morning,
+                evening: r.evening
+            }));
+            return acc;
+        }, {}),
+        salary: Object.keys(salaryDB || {}).reduce((acc, name) => {
+            acc[name] = (salaryDB[name].records || []).map(r => ({
+                id: r.id,
+                date: r.date,
+                amount: r.amount
+            }));
+            return acc;
+        }, {})
     };
-    copyPromise.then(() => {
-        try { if (typeof showToast === 'function') showToast(downloadOk ? 'TXT database downloaded & delta prompt copied. TXT attach करना न भूलें.' : 'Delta prompt copied; TXT download failed.'); } catch (e) {}
-    }).catch(() => {
-        try {
-            if (downloadOk) {
-                if (typeof showToast === 'function') showToast('TXT database downloaded; clipboard permission blocked. TXT attach करना न भूलें.');
-            }
-            else {
-                showManualPromptFallbackV1(shortPrompt);
-                if (typeof showToast === 'function') showToast('TXT download और clipboard दोनों fail हुए; prompt नीचे दिया है.');
-            }
-        } catch (e) {}
-    });
 
-    // PDF is best-effort and must never block TXT download or clipboard preparation.
-    // Retry a few times because the visual engine may load after the user taps the button.
-    let pdfAttempt = 0;
-    const tryVisualPdf = () => {
-        setTimeout(() => {
-            pdfAttempt++;
-            try {
-                const pdfEngineReady = !!(window.AarishTitaniumPDF && typeof window.AarishTitaniumPDF.renderDataset === 'function');
-                if (typeof window.aarishExportPremiumPdfCoreV1 === 'function' && pdfEngineReady) {
-                    Promise.resolve(window.aarishExportPremiumPdfCoreV1('all'))
-                        .then(() => { try { if (typeof showToast === 'function') showToast('Visual All-PDF generated.'); } catch (e) {} })
-                        .catch(() => { try { if (typeof showToast === 'function') showToast('TXT ready; Visual All-PDF could not be generated.'); } catch (e) {} });
-                } else if (pdfAttempt < 3) {
-                    tryVisualPdf();
-                } else {
-                    try { if (typeof showToast === 'function') showToast('TXT ready; Visual All-PDF engine is not ready.'); } catch (e) {}
-                }
-            } catch (e) {
-                if (pdfAttempt < 3) tryVisualPdf();
-                else try { if (typeof showToast === 'function') showToast('TXT ready; Visual All-PDF could not be generated.'); } catch (_) {}
-            }
-        }, pdfAttempt === 0 ? 1500 : 2000);
-    };
-    tryVisualPdf();
+    const systemPrompt = `You are "Aarish Omni‑Secretary", an elite AI assistant for the Aarish Dairy Pro app.
+
+Here is the current snapshot of my database (use it to resolve existing IDs and names):
+\`\`\`json
+${JSON.stringify(dbSnapshot)}
+\`\`\`
+
+I will give you a natural language command (Hindi or English). You MUST decide if the command wants to ADD, EDIT, or DELETE an entry.
+
+**OUTPUT RULES (STRICT)**:
+- Return ONLY a single JSON object with a top‑level key "actions" that holds an array of action objects.
+- Do NOT include any explanatory text, markdown, or code fences.
+- Each action object must have these fields:
+  - "module": "udhar" | "expense" | "diary" | "milk" | "salary"
+  - "action": "ADD" | "EDIT" | "DELETE"
+  - "id": (for EDIT/DELETE) the exact ID from the snapshot; (for ADD) leave empty or omit.
+  - "parentId": (for milk/salary only) the exact customer/employee name.
+  - "data": an object containing the fields to set/change (amount, date, category, title, content, morning, evening, etc.)
+
+**EXAMPLES**:
+- For DELETE: {"actions":[{"module":"udhar","action":"DELETE","id":"udh_abc123"}]}
+- For EDIT: {"actions":[{"module":"milk","action":"EDIT","id":"mlk_xyz","parentId":"Ramu","data":{"amount":70}}]}
+- For ADD: {"actions":[{"module":"expense","action":"ADD","data":{"category":"Tea","amount":20,"date":"2026-08-27"}}]}
+
+Always use the exact existing ID for edits/deletes. Do not invent IDs.`;
+
+    navigator.clipboard.writeText(systemPrompt)
+        .then(() => {
+            hideLoader();
+            showToast("✅ AI Prompt Copied! Paste into ChatGPT/Gemini.");
+        })
+        .catch(() => {
+            hideLoader();
+            showToast("⚠️ Clipboard failed. Allow permissions.");
+        });
 };
 
-// ========================== OMNI-AI JSON EXECUTOR CORE ==========================
-// Accepts command arrays/objects from AarishAI and persists them through the
-// existing Firebase outbox + local cache layers. Legacy full-state JSON remains
-// supported so the prompt generator above continues to work unchanged.
-// Debounced entry point: raw oninput fires on every keystroke/paste-chunk. Without this,
-// a mutating (and delete-capable) apply pipeline could run mid-edit on a half-typed value.
-let __aarishAIPasteDebounceTimerV1 = null;
-window.handleAIPaste = function() {
-    if (__aarishAIPasteDebounceTimerV1) clearTimeout(__aarishAIPasteDebounceTimerV1);
-    __aarishAIPasteDebounceTimerV1 = setTimeout(() => {
-        __aarishAIPasteDebounceTimerV1 = null;
-        window.__aarishProcessAIPasteV1();
-    }, 700);
-};
+// ========================== 2. THE HEADLESS EXECUTOR ==========================
+const OmniAIEngine = {
+    async execute(task) {
+        const { module, action, id, parentId, data } = task;
+        const safeId = id || window.aarishV98Id('ai');
 
-window.__aarishProcessAIPasteV1 = async function() {
-    const inputEl = document.getElementById('ai-json-paste');
-    if (!inputEl) return;
-    if (window.__aarishAIPasteBusy) {
-        try { if (typeof showToast === 'function') showToast('Pichla AI sync abhi chal raha hai — thoda ruk kar dobara try karein.'); } catch (e) {}
-        return;
-    }
-
-    const raw = String(inputEl.value || '').trim();
-    if (!raw) return;
-
-    let data;
-    try {
-        // Parse exact JSON first, then tolerate one markdown fence or surrounding prose.
-        const withoutFence = raw
-            .replace(/^```(?:json|javascript)?\s*/i, '')
-            .replace(/\s*```$/i, '')
-            .trim();
-        try {
-            data = JSON.parse(withoutFence);
-        } catch (directError) {
-            const jsonMatch = withoutFence.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
-            if (!jsonMatch) throw directError;
-            data = JSON.parse(jsonMatch[0]);
-        }
-    } catch (e) {
-        // A short/still-typing value failing is expected and stays silent. A long pasted
-        // value that still won't parse is not "still typing" — say so instead of no-op'ing.
-        if (raw.length > 40) {
-            try { if (typeof showToast === 'function') showToast('AI ka jawaab valid JSON nahi mila — dobara paste karke dekhein.'); } catch (toastError) {}
-        }
-        return;
-    }
-
-    if (!data || typeof data !== 'object') return;
-    window.__aarishAIPasteBusy = true;
-
-    const asText = value => String(value == null ? '' : value).trim();
-    const asNumber = value => {
-        const number = Number(value);
-        return Number.isFinite(number) ? number : 0;
-    };
-    const today = typeof getTodayISO === 'function'
-        ? getTodayISO()
-        : (() => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().split('T')[0]; })();
-    const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
-    const clone = value => {
-        try { return JSON.parse(JSON.stringify(value)); } catch (e) { return value; }
-    };
-    const hash = value => {
-        let h = 2166136261;
-        const str = String(value);
-        for (let i = 0; i < str.length; i++) {
-            h ^= str.charCodeAt(i);
-            h = Math.imul(h, 16777619);
-        }
-        return (h >>> 0).toString(36);
-    };
-    const makeId = (prefix, value, index, scope) => {
-        const explicit = value && typeof value === 'object' ? asText(value.id) : '';
-        if (explicit) return explicit;
-        // Deterministic IDs make a repeated AI paste idempotent instead of duplicating legacy records.
-        return `${prefix}_${hash(JSON.stringify(value) + '|' + String(scope || '') + '|' + String(index))}`;
-    };
-    const cleanPath = path => typeof aarishCostCleanPathV1 === 'function'
-        ? aarishCostCleanPathV1(path)
-        : String(path || '').replace(/^\/+|\/+$/g, '');
-    // Every delta path funnels through put() — this is the one place to normalise numeric
-    // fields, so a stray string/missing amount can never reach Firebase unchecked.
-    const NUMERIC_FIELDS_V1 = ['amount', 'morning', 'evening', 'rate'];
-    const sanitizeNumericFieldsV1 = value => {
-        if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
-        const copy = clone(value);
-        NUMERIC_FIELDS_V1.forEach(field => {
-            if (hasOwn(copy, field)) copy[field] = asNumber(copy[field]);
-        });
-        return copy;
-    };
-    const put = (payload, path, value) => {
-        const safePath = cleanPath(path);
-        if (!safePath || safePath.split('/').includes('_syncMeta')) return false;
-        if (typeof aarishCostIsLocalOnlyPathCoreV10 === 'function' && aarishCostIsLocalOnlyPathCoreV10(safePath)) return false;
-        const lastSegment = safePath.split('/').pop();
-        const safeValue = (NUMERIC_FIELDS_V1.includes(lastSegment) && value !== null && typeof value !== 'object')
-            ? asNumber(value)
-            : sanitizeNumericFieldsV1(value);
-        payload[safePath] = safeValue;
-        return true;
-    };
-    const isSafeExplicitDeltaPath = path => {
-        const safePath = cleanPath(path);
-        const parts = safePath.split('/');
-        const root = parts[0];
-        const arrayRoots = ['udharDB', 'expenseDB', 'diaryDB'];
-        const groupedRoots = ['milkDB', 'salaryDB', 'projectDB'];
-        if (!safePath || parts.some(part => !part || part === '.' || part === '..' || part === '_syncMeta')) return false;
-        if (arrayRoots.includes(root)) return parts.length === 2;
-        if (groupedRoots.includes(root)) {
-            // A profile parent write is intentionally rejected: it can erase records.
-            // The bare "records" collection node is rejected too — writing here can erase
-            // every record under a profile in one shot (this closes that gap).
-            if (parts.length === 3) return parts[2] !== 'records';
-            return parts.length === 4 && parts[2] === 'records';
-        }
-        return false;
-    };
-    const listify = value => {
-        if (Array.isArray(value)) return value.filter(item => item && typeof item === 'object');
-        if (value && typeof value === 'object') {
-            return Object.keys(value).map(key => {
-                const item = value[key];
-                if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
-                const copy = clone(item);
-                if (!asText(copy.id)) copy.id = key;
-                return copy;
-            }).filter(Boolean);
-        }
-        return [];
-    };
-
-    // Full-state AI output is treated as a snapshot of desired records, never as a destructive database replacement.
-    // Array tables receive only record-level writes; grouped tables receive only profile-field and record-level writes.
-    const appendArrayTableDelta = (payload, root, value, prefix) => {
-        listify(value).forEach((item, index) => {
-            const copy = clone(item) || {};
-            const id = makeId(prefix, copy, index, root);
-            copy.id = id;
-            put(payload, `${root}/${id}`, copy);
-        });
-    };
-    const appendGroupedTableDelta = (payload, root, value, prefix) => {
-        if (!value || typeof value !== 'object' || Array.isArray(value)) return;
-        Object.keys(value).forEach(profileName => {
-            const profile = value[profileName];
-            if (!profile || typeof profile !== 'object' || Array.isArray(profile)) return;
-
-            // Never write the whole profile object: doing so can erase records created by another tab/device.
-            Object.keys(profile).forEach(key => {
-                if (key === 'records') return;
-                put(payload, `${root}/${profileName}/${key}`, profile[key]);
-            });
-
-            listify(profile.records).forEach((record, index) => {
-                const copy = clone(record) || {};
-                const id = makeId(prefix, copy, index, `${root}/${profileName}`);
-                copy.id = id;
-                put(payload, `${root}/${profileName}/records/${id}`, copy);
-            });
-        });
-    };
-    const appendFullStateDelta = state => {
-        const payload = {};
-        appendArrayTableDelta(payload, 'udharDB', state.udharDB, 'udh');
-        appendArrayTableDelta(payload, 'expenseDB', state.expenseDB, 'exp');
-        appendArrayTableDelta(payload, 'diaryDB', state.diaryDB, 'dia');
-        appendGroupedTableDelta(payload, 'milkDB', state.milkDB, 'mlk');
-        appendGroupedTableDelta(payload, 'salaryDB', state.salaryDB, 'sal');
-        appendGroupedTableDelta(payload, 'projectDB', state.projectDB, 'proj');
-        return payload;
-    };
-    const applyAndQueue = async (payload, reason, count) => {
-        const paths = Object.keys(payload || {});
-        if (!paths.length) return { queued: false, reason: 'empty', count: 0 };
-
-        // Apply before the network operation so the UI cannot briefly show then lose the new records.
-        if (typeof aarishCostApplyMegaToStateCoreV3 === 'function') {
-            aarishCostApplyMegaToStateCoreV3(payload, reason + '-local-before-queue');
-        }
-        try { if (typeof updateDashboard === 'function') updateDashboard(); } catch (e) {}
-        try { if (typeof updateActiveScreen === 'function') updateActiveScreen(); } catch (e) {}
-
-        let result = { queued: false, reason: 'sync-unavailable' };
-        if (window.aarishFirebaseBatchLaterV87) {
-            result = await window.aarishFirebaseBatchLaterV87(payload, reason);
-        } else if (window.aarishFirebaseLaterV48) {
-            result = { queued: true, writes: paths.length };
-            for (const path of paths) await window.aarishFirebaseLaterV48(path, 'set', payload[path], { fast: true, reason });
-        }
-
-        // A concurrent cloud pull may have happened while the outbox was being written.
-        // Replaying the same delta after queueing makes the local result convergence-safe and idempotent.
-        if (typeof aarishCostApplyMegaToStateCoreV3 === 'function') {
-            aarishCostApplyMegaToStateCoreV3(payload, reason + '-local-after-queue');
-        }
-        if (typeof saveCacheNowCostV81 === 'function') await saveCacheNowCostV81(reason + '-local-cache');
-        return Object.assign({}, result, { count: Number(count || 0), writes: paths.length });
-    };
-
-    try {
-        if (typeof showLoader === 'function') showLoader('AI Syncing Data...');
-
-        const fullStateRoots = ['expenseDB', 'udharDB', 'milkDB', 'salaryDB', 'diaryDB', 'projectDB'];
-        const isFullState = !Array.isArray(data) && fullStateRoots.some(key => hasOwn(data, key));
-        let batchPayload = {};
-        let addedCount = 0;
-        const uiUpdates = new Set();
-
-        if (isFullState) {
-            batchPayload = appendFullStateDelta(data);
-            addedCount = Object.keys(batchPayload).filter(path =>
-                /^(?:udharDB|expenseDB|diaryDB)\/[^/]+$/.test(path) || /\/records\/[^/]+$/.test(path)
-            ).length;
-            fullStateRoots.forEach(root => { if (hasOwn(data, root)) uiUpdates.add(root); });
-        } else {
-            let commands = [];
-            if (Array.isArray(data)) commands = data;
-            else if (Array.isArray(data.aarish_ai_commands)) commands = data.aarish_ai_commands;
-            else if (Array.isArray(data.commands)) commands = data.commands;
-            else if (data.path && hasOwn(data, 'data')) commands = [data];
-
-            for (let commandIndex = 0; commandIndex < commands.length; commandIndex++) {
-                const cmd = commands[commandIndex];
-                if (!cmd || typeof cmd !== 'object' || Array.isArray(cmd)) continue;
-
-                // Preferred surgical protocol: [{ path: 'root/id', data: object|null }].
-                // Only allow known record/profile-field paths; never accept a destructive table parent.
-                if (asText(cmd.path) && hasOwn(cmd, 'data')) {
-                    const explicitPath = cleanPath(cmd.path);
-                    if (isSafeExplicitDeltaPath(explicitPath) && put(batchPayload, explicitPath, cmd.data)) {
-                        uiUpdates.add(explicitPath.split('/')[0]);
-                        addedCount++;
-                    }
-                    continue;
-                }
-
-                // Unsupported legacy type/module commands are intentionally ignored. All writes,
-                // including deletes, must use the explicit path + data contract above.
+        if (['udhar', 'expense', 'diary'].includes(module)) {
+            let targetDB, dbName, firebaseFn;
+            if (module === 'udhar') {
+                targetDB = udharDB; dbName = 'udharDB'; firebaseFn = window.aarishFirebaseLaterV48;
+            } else if (module === 'expense') {
+                targetDB = expenseDB; dbName = 'expenseDB'; firebaseFn = window.aarishFirebaseLaterV48;
+            } else {
+                targetDB = diaryDB; dbName = 'diaryDB'; firebaseFn = window.diaryFirebaseCoreV1 || window.aarishFirebaseLaterV48;
             }
-        }
 
-        if (!Object.keys(batchPayload).length) {
-            try { if (typeof showToast === 'function') showToast('Valid JSON, but no safe data changes found.'); } catch (e) {}
+            if (action === 'DELETE') {
+                targetDB = targetDB.filter(x => String(x.id) !== String(id));
+            } else if (action === 'EDIT') {
+                const idx = targetDB.findIndex(x => String(x.id) === String(id));
+                if (idx > -1) targetDB[idx] = { ...targetDB[idx], ...data, updated: Date.now() };
+            } else if (action === 'ADD') {
+                targetDB.unshift({ id: safeId, ...data, createdAt: Date.now() });
+            }
+
+            if (module === 'udhar') { udharDB = targetDB; await firebaseFn(dbName, 'set', udharDB); }
+            else if (module === 'expense') { expenseDB = targetDB; await firebaseFn(dbName, 'set', expenseDB); }
+            else { diaryDB = targetDB; if (typeof window.setDiaryDBCoreV1 === 'function') window.setDiaryDBCoreV1(diaryDB); await firebaseFn(dbName, 'set', diaryDB); }
             return;
         }
 
-        const result = await applyAndQueue(batchPayload, isFullState ? 'ai-full-state-delta' : 'ai-json-auto', addedCount);
-        inputEl.value = '';
-        try { if (typeof closeModal === 'function') closeModal('gemini-key-modal'); } catch (e) {}
-        try { if (typeof haptic === 'function') haptic(); } catch (e) {}
-        const saved = result && (result.queued || result.direct || result.reason === 'sync-unavailable');
-        try {
-            if (typeof showToast === 'function') showToast(saved ? `AI Magic: ${addedCount || Object.keys(batchPayload).length} entries saved safely!` : 'Saved locally; cloud sync will retry.');
-        } catch (e) {}
+        if (['milk', 'salary'].includes(module)) {
+            if (!parentId) return;
+            let coreDB = (module === 'milk') ? milkDB : salaryDB;
+            if (!coreDB[parentId]) {
+                if (action === 'ADD') coreDB[parentId] = { records: [] };
+                else return;
+            }
 
-        try { if (typeof updateDashboard === 'function') updateDashboard(); } catch (e) {}
-        try { if (typeof updateActiveScreen === 'function') updateActiveScreen(); } catch (e) {}
-        if (uiUpdates.has('expenseDB')) { try { if (typeof renderExpenseList === 'function') renderExpenseList(); } catch (e) {} }
-        if (uiUpdates.has('udharDB')) { try { if (typeof renderUdharList === 'function') renderUdharList(); } catch (e) {} }
-        if (uiUpdates.has('milkDB')) { try { if (typeof renderMilkList === 'function') renderMilkList(); } catch (e) {} }
-        if (uiUpdates.has('salaryDB')) { try { if (typeof renderSalaryList === 'function') renderSalaryList(); } catch (e) {} }
-        if (uiUpdates.has('diaryDB')) { try { if (typeof renderDiaryList === 'function') renderDiaryList(); } catch (e) {} }
-        if (uiUpdates.has('projectDB')) { try { if (typeof renderProjectsList === 'function') renderProjectsList(); } catch (e) {} }
-    } catch (e) {
-        console.warn('AI JSON Executor Error:', e);
-        try { if (typeof showToast === 'function') showToast('AI sync failed. Local data remains protected.'); } catch (toastError) {}
-    } finally {
-        try { if (typeof hideLoader === 'function') hideLoader(); } catch (e) {}
-        window.__aarishAIPasteBusy = false;
+            let records = coreDB[parentId].records || [];
+            if (action === 'DELETE') records = records.filter(x => String(x.id) !== String(id));
+            else if (action === 'EDIT') {
+                const idx = records.findIndex(x => String(x.id) === String(id));
+                if (idx > -1) records[idx] = { ...records[idx], ...data, updated: Date.now() };
+            } else if (action === 'ADD') {
+                records.push({ id: safeId, ...data, createdAt: Date.now() });
+            }
+
+            coreDB[parentId].records = records;
+
+            if (module === 'milk') await window.aarishMilkFirebaseWriteCore(`milkDB/${parentId}`, 'set', coreDB[parentId], 'ai-surgery');
+            else await window.salaryFirebaseCoreV1(`salaryDB/${parentId}`, 'set', coreDB[parentId], { fast: true });
+        }
     }
 };
+
+// ========================== 3. THE INTERCEPTOR (AI JSON BOX) ==========================
+window.handleAIPaste = async function() {
+    const inputEl = document.getElementById('ai-json-paste');
+    if (!inputEl) return;
+    const raw = String(inputEl.value || '').trim();
+    if (!raw) return;
+
+    let jsonStr = raw;
+    try {
+        const cleaned = raw.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (match) jsonStr = match[0];
+        const parsed = JSON.parse(jsonStr);
+
+        if (!parsed.actions || !Array.isArray(parsed.actions)) return;
+
+        showLoader("OMNI ENGINE EXECUTING...");
+        for (const task of parsed.actions) await OmniAIEngine.execute(task);
+
+        if (typeof updateDashboard === 'function') updateDashboard();
+        if (typeof updateActiveScreen === 'function') updateActiveScreen();
+
+        inputEl.value = '';
+        if (typeof closeModal === 'function') closeModal('gemini-key-modal');
+        showToast("✅ AI Surgery Complete!");
+    } catch (e) {
+        console.warn("OmniAI parse error:", e);
+    } finally {
+        hideLoader();
+    }
+};
+
+let __aarishAIPasteDebounceTimerV1 = null;
+window.__aarishProcessAIPasteV1 = function() {
+    if (__aarishAIPasteDebounceTimerV1) clearTimeout(__aarishAIPasteDebounceTimerV1);
+    __aarishAIPasteDebounceTimerV1 = setTimeout(() => {
+        __aarishAIPasteDebounceTimerV1 = null;
+        window.handleAIPaste();
+    }, 700);
+};
+
+window.OmniAIEngine = OmniAIEngine;
 </script>
 <!-- AARISH_AI_PROMPT_AUTOPASTE_ENGINE_V1_END -->
 
