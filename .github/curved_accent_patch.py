@@ -7,6 +7,10 @@ tail = s[start:]
 end = tail.index("\n}\n", tail.index("Widget build(BuildContext context)")) + 3
 block = tail[:end]
 
+if "clipBehavior: Clip.antiAlias" in block and "width: 6" in block:
+    print("Curved accent strip already applied")
+    raise SystemExit(0)
+
 old_border = """    final Border border = accentColor == null
         ? Border.all(color: borderColor ?? surfaceBorder)
         : Border(
