@@ -31,7 +31,7 @@ const Color appleOrange = Color(0xFFFF9500);
 const Color diaryOrange = Color(0xFFF5A623);
 const Color diaryOrange2 = Color(0xFFFFB340);
 const Color systemGray = Color(0xFF8E8E93);
-const Color lightCanvas = Color(0xFFF5F5F7);
+const Color lightCanvas = Color(0xFFF8FBFF);
 const Color darkGlassTop = Color(0xFF121826);
 const Color darkGlassBottom = Color(0xFF080C18);
 const Uuid _ids = Uuid();
@@ -137,9 +137,8 @@ ThemeData _theme(Brightness brightness) {
   final bool dark = brightness == Brightness.dark;
   final Color surface = dark ? darkGlassTop : Colors.white;
   final Color text = dark ? Colors.white : const Color(0xFF1C1C1E);
-  final Color outline = dark
-      ? Colors.white.withAlpha(35)
-      : Colors.black.withAlpha(11);
+  final Color outline =
+      dark ? Colors.white.withAlpha(35) : Colors.black.withAlpha(11);
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
@@ -163,9 +162,8 @@ ThemeData _theme(Brightness brightness) {
     iconTheme: IconThemeData(color: text),
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
-    dividerColor: dark
-        ? Colors.white.withAlpha(23)
-        : Colors.black.withAlpha(11),
+    dividerColor:
+        dark ? Colors.white.withAlpha(23) : Colors.black.withAlpha(11),
     textSelectionTheme: TextSelectionThemeData(
       cursorColor: appleBlue,
       selectionColor: appleBlue.withAlpha(54),
@@ -173,24 +171,28 @@ ThemeData _theme(Brightness brightness) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: dark
-          ? const Color(0x2E767680)
-          : const Color(0x17767680),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-      hintStyle: const TextStyle(color: systemGray, fontWeight: FontWeight.w500),
-      labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+      fillColor: dark ? const Color(0x2EFFFFFF) : const Color(0xE8FFFFFF),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 19),
+      hintStyle: const TextStyle(
+        color: systemGray,
+        fontSize: 16.5,
+        fontWeight: FontWeight.w600,
+      ),
+      labelStyle: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700),
       prefixIconColor: appleBlue,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         borderSide: BorderSide(color: outline),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: outline),
+        borderRadius: BorderRadius.circular(20),
+        borderSide: BorderSide(
+          color: dark ? Colors.white.withAlpha(34) : appleBlue.withAlpha(34),
+        ),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: appleBlue, width: 1.4),
+        borderRadius: BorderRadius.circular(20),
+        borderSide: const BorderSide(color: appleBlue, width: 1.5),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
@@ -557,7 +559,9 @@ class _LoginScreenState extends State<_LoginScreen> {
                               ),
                               const SizedBox(width: 12),
                               Text(
-                                _working ? 'Signing in…' : 'Continue with Google',
+                                _working
+                                    ? 'Signing in…'
+                                    : 'Continue with Google',
                                 style: const TextStyle(
                                   color: Colors.black87,
                                   fontSize: 15,
@@ -569,7 +573,8 @@ class _LoginScreenState extends State<_LoginScreen> {
                                 const SizedBox(
                                   width: 17,
                                   height: 17,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
                                 ),
                               ],
                             ],
@@ -638,10 +643,10 @@ class _TabSpec {
 
 const List<_TabSpec> _tabs = <_TabSpec>[
   _TabSpec('Home', Icons.home_rounded, appleBlue),
-  _TabSpec('Milk', Icons.local_drink_rounded, appleBlue),
-  _TabSpec('Credit', Icons.volunteer_activism_rounded, appleBlue),
-  _TabSpec('Expenses', Icons.receipt_long_rounded, semanticRed),
-  _TabSpec('Salary', Icons.payments_rounded, appleBlue),
+  _TabSpec('Milk', Icons.local_drink_rounded, appleGreen),
+  _TabSpec('Credit', Icons.volunteer_activism_rounded, appleGreen),
+  _TabSpec('Expenses', Icons.receipt_long_rounded, appleBlue),
+  _TabSpec('Salary', Icons.payments_rounded, salaryGreen),
   _TabSpec('Diary', Icons.menu_book_rounded, diaryOrange),
   _TabSpec('Business', Icons.work_rounded, appleBlue),
 ];
@@ -920,9 +925,8 @@ class _BottomLedgerNav extends StatelessWidget {
         color: dark ? const Color(0xD10E1422) : const Color(0xD1FFFFFF),
         border: Border(
           top: BorderSide(
-            color: dark
-                ? Colors.white.withAlpha(23)
-                : Colors.black.withAlpha(11),
+            color:
+                dark ? Colors.white.withAlpha(23) : Colors.black.withAlpha(11),
           ),
         ),
         boxShadow: <BoxShadow>[
@@ -941,7 +945,7 @@ class _BottomLedgerNav extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 70,
+          height: 86,
           child: SingleChildScrollView(
             controller: controller,
             scrollDirection: Axis.horizontal,
@@ -956,7 +960,7 @@ class _BottomLedgerNav extends StatelessWidget {
                   return _Pressable(
                     onTap: () => onSelected(index),
                     semanticLabel: '${spec.label} tab',
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(20),
                     child: AnimatedSlide(
                       offset: active ? const Offset(0, -.045) : Offset.zero,
                       duration: const Duration(milliseconds: 280),
@@ -964,14 +968,14 @@ class _BottomLedgerNav extends StatelessWidget {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 280),
                         curve: const Cubic(0.32, 0.72, 0, 1),
-                        width: 70,
-                        height: 58,
+                        width: 80,
+                        height: 72,
                         margin: const EdgeInsets.symmetric(horizontal: 2),
                         decoration: BoxDecoration(
                           color: active
                               ? color.withAlpha(dark ? 23 : 14)
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(20),
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -982,7 +986,7 @@ class _BottomLedgerNav extends StatelessWidget {
                               curve: const Cubic(0.34, 1.18, 0.64, 1),
                               child: Icon(
                                 spec.icon,
-                                size: 20,
+                                size: 27,
                                 color: active ? color : systemGray,
                                 shadows: active
                                     ? <Shadow>[
@@ -994,12 +998,12 @@ class _BottomLedgerNav extends StatelessWidget {
                                     : null,
                               ),
                             ),
-                            const SizedBox(height: 3),
+                            const SizedBox(height: 4),
                             Text(
                               spec.label,
                               style: TextStyle(
                                 color: active ? color : systemGray,
-                                fontSize: 9.5,
+                                fontSize: 12,
                                 fontWeight:
                                     active ? FontWeight.w900 : FontWeight.w700,
                                 shadows: active
@@ -1012,12 +1016,12 @@ class _BottomLedgerNav extends StatelessWidget {
                                     : null,
                               ),
                             ),
-                            const SizedBox(height: 3),
+                            const SizedBox(height: 4),
                             AnimatedContainer(
                               duration: const Duration(milliseconds: 280),
                               curve: const Cubic(0.32, 0.72, 0, 1),
-                              width: active ? 34 : 0,
-                              height: 3,
+                              width: active ? 38 : 0,
+                              height: 4,
                               decoration: BoxDecoration(
                                 color: color.withAlpha(active ? 135 : 0),
                                 borderRadius: BorderRadius.circular(99),
@@ -1136,8 +1140,7 @@ class _PressableState extends State<_Pressable>
                   Positioned.fill(
                     child: IgnorePointer(
                       child: ClipRRect(
-                        borderRadius:
-                            widget.borderRadius ?? BorderRadius.zero,
+                        borderRadius: widget.borderRadius ?? BorderRadius.zero,
                         child: ColoredBox(
                           color: Colors.white.withAlpha(
                             (_pressController.value * 18).round(),
@@ -1176,9 +1179,8 @@ class _GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-    final Color surfaceBorder = dark
-        ? Colors.white.withAlpha(35)
-        : Colors.white.withAlpha(173);
+    final Color surfaceBorder =
+        dark ? Colors.white.withAlpha(35) : Colors.white.withAlpha(173);
     final List<Color> surfaceColors;
     if (tintColor == null) {
       surfaceColors = dark
@@ -1216,7 +1218,8 @@ class _GlassCard extends StatelessWidget {
         BoxShadow(
           color: shadowColor!,
           blurRadius: dark ? 28 : 22,
-          offset: accentColor == null ? const Offset(0, 8) : const Offset(-4, 0),
+          offset:
+              accentColor == null ? const Offset(0, 8) : const Offset(-4, 0),
         ),
       BoxShadow(
         color: Colors.black.withAlpha(dark ? 87 : 10),
@@ -1268,12 +1271,11 @@ class _ScreenHeader extends StatelessWidget {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: dark ? const Color(0xC7000000) : const Color(0xD1F5F5F7),
+        color: dark ? const Color(0xD6000000) : const Color(0xF2FFFFFF),
         border: Border(
           bottom: BorderSide(
-            color: dark
-                ? Colors.white.withAlpha(23)
-                : Colors.black.withAlpha(11),
+            color:
+                dark ? Colors.white.withAlpha(23) : Colors.black.withAlpha(11),
           ),
         ),
         boxShadow: <BoxShadow>[
@@ -1287,10 +1289,13 @@ class _ScreenHeader extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 11, 16, 12),
+          padding: const EdgeInsets.fromLTRB(24, 14, 20, 16),
           child: Row(
             children: <Widget>[
-              if (leading != null) ...<Widget>[leading!, const SizedBox(width: 11)],
+              if (leading != null) ...<Widget>[
+                leading!,
+                const SizedBox(width: 11)
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1301,7 +1306,7 @@ class _ScreenHeader extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: color,
-                        fontSize: leading == null ? 25 : 20,
+                        fontSize: leading == null ? 30 : 26,
                         fontWeight: FontWeight.w900,
                         letterSpacing: -.5,
                         shadows: color == null
@@ -1372,13 +1377,13 @@ class _CircleAction extends StatelessWidget {
         child: _Pressable(
           onTap: onTap,
           semanticLabel: semanticLabel,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(18),
           child: Container(
-            width: 40,
-            height: 40,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               color: color.withAlpha(23),
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(18),
               border: Border.all(color: color.withAlpha(38)),
               boxShadow: <BoxShadow>[
                 BoxShadow(
@@ -1388,7 +1393,7 @@ class _CircleAction extends StatelessWidget {
                 ),
               ],
             ),
-            child: Icon(icon, size: 18, color: color),
+            child: Icon(icon, size: 21, color: color),
           ),
         ),
       );
@@ -1400,10 +1405,10 @@ class _BackCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _Pressable(
         onTap: () => Navigator.of(context).maybePop(),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         child: Container(
-          width: 40,
-          height: 40,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Theme.of(context).brightness == Brightness.dark
@@ -1546,7 +1551,8 @@ class _EmptyState extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: color.withAlpha(prominent ? 24 : 14),
                   shape: BoxShape.circle,
-                  border: Border.all(color: color.withAlpha(prominent ? 50 : 25)),
+                  border:
+                      Border.all(color: color.withAlpha(prominent ? 50 : 25)),
                   boxShadow: <BoxShadow>[
                     BoxShadow(
                       color: color.withAlpha(prominent ? 46 : 20),
@@ -1604,10 +1610,10 @@ class _PrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _Pressable(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(compact ? 14 : 17),
+        borderRadius: BorderRadius.circular(compact ? 18 : 20),
         child: Container(
-          height: compact ? 40 : 54,
-          padding: EdgeInsets.symmetric(horizontal: compact ? 15 : 20),
+          height: compact ? 50 : 58,
+          padding: EdgeInsets.symmetric(horizontal: compact ? 18 : 22),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
@@ -1616,7 +1622,7 @@ class _PrimaryButton extends StatelessWidget {
                   ? <Color>[color.withAlpha(40), color.withAlpha(22)]
                   : <Color>[color, _toneCompanion(color)],
             ),
-            borderRadius: BorderRadius.circular(compact ? 14 : 17),
+            borderRadius: BorderRadius.circular(compact ? 18 : 20),
             border: Border.all(
               color: tonal ? color.withAlpha(55) : Colors.white.withAlpha(28),
             ),
@@ -1632,13 +1638,13 @@ class _PrimaryButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Icon(icon, color: foregroundColor, size: compact ? 17 : 20),
+              Icon(icon, color: foregroundColor, size: compact ? 19 : 22),
               const SizedBox(width: 7),
               Text(
                 label,
                 style: TextStyle(
                   color: foregroundColor,
-                  fontSize: compact ? 13 : 15,
+                  fontSize: compact ? 15 : 17,
                   fontWeight: FontWeight.w900,
                   shadows: <Shadow>[
                     Shadow(
@@ -1701,9 +1707,8 @@ class _AmountHero extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: dark
-              ? Colors.white.withAlpha(38)
-              : Colors.white.withAlpha(125),
+          color:
+              dark ? Colors.white.withAlpha(38) : Colors.white.withAlpha(125),
         ),
         boxShadow: <BoxShadow>[
           BoxShadow(
@@ -1946,7 +1951,8 @@ class _ListCard extends StatelessWidget {
                     ),
                   )
                 else
-                  Icon(Icons.chevron_right_rounded, color: color.withAlpha(130)),
+                  Icon(Icons.chevron_right_rounded,
+                      color: color.withAlpha(130)),
               ],
             ),
           ),
@@ -2098,12 +2104,11 @@ class _SheetFrame extends StatelessWidget {
               ? const <Color>[Color(0xF01C2230), Color(0xE60A0F1C)]
               : const <Color>[Color(0xF7FFFFFF), Color(0xEFFFFFFF)],
         ),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
         border: Border(
           top: BorderSide(
-            color: dark
-                ? Colors.white.withAlpha(27)
-                : Colors.white.withAlpha(210),
+            color:
+                dark ? Colors.white.withAlpha(27) : Colors.white.withAlpha(210),
           ),
         ),
         boxShadow: <BoxShadow>[
@@ -2118,9 +2123,9 @@ class _SheetFrame extends StatelessWidget {
         top: false,
         child: SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
-            20,
-            10,
-            20,
+            24,
+            12,
+            24,
             MediaQuery.viewInsetsOf(context).bottom + 24,
           ),
           child: Column(
@@ -2128,7 +2133,7 @@ class _SheetFrame extends StatelessWidget {
             children: <Widget>[
               Align(
                 child: Container(
-                  width: 48,
+                  width: 54,
                   height: 6,
                   decoration: BoxDecoration(
                     color: dark
@@ -2138,16 +2143,16 @@ class _SheetFrame extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 26),
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 23,
+                  fontSize: 30,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -.5,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               ...children,
             ],
           ),
@@ -2238,7 +2243,9 @@ String _today() => DateFormat('yyyy-MM-dd').format(DateTime.now());
 
 String _displayDate(dynamic value) {
   final DateTime? date = LedgerMath.date(value);
-  return date == null ? '${value ?? '—'}' : DateFormat('dd MMM yyyy').format(date);
+  return date == null
+      ? '${value ?? '—'}'
+      : DateFormat('dd MMM yyyy').format(date);
 }
 
 String _money(dynamic value) {
@@ -2306,12 +2313,12 @@ double _salaryGlobalNet(Map<String, dynamic> state) {
   return net;
 }
 
-List<Color> _moduleTabColors(Map<String, dynamic> state) => <Color>[
+List<Color> _moduleTabColors(Map<String, dynamic> state) => const <Color>[
       appleBlue,
-      _tone(_milkGlobalNet(state)),
-      _tone(_creditGlobalNet(state)),
-      semanticRed,
-      _tone(_salaryGlobalNet(state)),
+      appleGreen,
+      appleGreen,
+      appleBlue,
+      salaryGreen,
       diaryOrange,
       appleBlue,
     ];
@@ -2422,7 +2429,9 @@ class DashboardScreen extends StatelessWidget {
               onTap: () => unawaited(_showExportCenter(context, sync)),
             ),
             _CircleAction(
-              icon: sync.darkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              icon: sync.darkMode
+                  ? Icons.light_mode_rounded
+                  : Icons.dark_mode_rounded,
               color: sync.darkMode ? Colors.amber : const Color(0xFF374151),
               semanticLabel: 'Theme',
               onTap: () => unawaited(sync.setDarkMode(!sync.darkMode)),
@@ -2563,7 +2572,8 @@ class _SyncPill extends StatelessWidget {
                   child: CircularProgressIndicator(strokeWidth: 1.8),
                 )
               else
-                const Icon(Icons.cloud_upload_rounded, color: appleBlue, size: 15),
+                const Icon(Icons.cloud_upload_rounded,
+                    color: appleBlue, size: 15),
               const SizedBox(width: 7),
               Text(
                 sync.syncing
@@ -2692,12 +2702,13 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final List<PartyBalance> balances = LedgerMath.partyBalances(widget.sync.state)
-        .where(
-          (PartyBalance item) =>
-              item.name.toLowerCase().contains(_query.toLowerCase()),
-        )
-        .toList();
+    final List<PartyBalance> balances =
+        LedgerMath.partyBalances(widget.sync.state)
+            .where(
+              (PartyBalance item) =>
+                  item.name.toLowerCase().contains(_query.toLowerCase()),
+            )
+            .toList();
     return Scaffold(
       body: Column(
         children: <Widget>[
@@ -2738,11 +2749,13 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
                 ),
                 const SizedBox(height: 18),
                 if (balances.isEmpty)
-                  const _EmptyState(Icons.contact_page_rounded, 'No party balances found')
+                  const _EmptyState(
+                      Icons.contact_page_rounded, 'No party balances found')
                 else
                   ...balances.map((PartyBalance item) {
                     final Color color = _tone(item.net);
-                    final String label = item.net >= 0 ? 'TO RECEIVE' : 'TO PAY';
+                    final String label =
+                        item.net >= 0 ? 'TO RECEIVE' : 'TO PAY';
                     return _ListCard(
                       title: item.name,
                       subtitle:
@@ -2802,7 +2815,8 @@ class _MilkScreenState extends State<MilkScreen> {
             const SizedBox(height: 13),
             TextField(
               controller: rate,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: <TextInputFormatter>[
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
               ],
@@ -2861,7 +2875,8 @@ class _MilkScreenState extends State<MilkScreen> {
       (String key) => key.toLowerCase() == customerName.toLowerCase(),
     );
     if (duplicate) {
-      _toast(context, 'Customer already exists — duplicate not created.', error: true);
+      _toast(context, 'Customer already exists — duplicate not created.',
+          error: true);
       return;
     }
     await _runMutation(
@@ -2886,9 +2901,11 @@ class _MilkScreenState extends State<MilkScreen> {
     final Map<String, dynamic> database = _map(widget.sync.state['milkDB']);
     final Color moduleColor = _tone(_milkGlobalNet(widget.sync.state));
     final List<String> names = database.keys
-        .where((String name) => name.toLowerCase().contains(_query.toLowerCase()))
+        .where(
+            (String name) => name.toLowerCase().contains(_query.toLowerCase()))
         .toList()
-      ..sort((String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      ..sort(
+          (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -3100,7 +3117,8 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
   }
 
   Future<void> _deleteEntry(String id) async {
-    if (!await _confirm(context, 'Delete entry?', 'This milk entry will be deleted permanently.')) {
+    if (!await _confirm(context, 'Delete entry?',
+        'This milk entry will be deleted permanently.')) {
       return;
     }
     if (!mounted) return;
@@ -3142,12 +3160,15 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
         builder: (BuildContext context, Widget? child) {
           final Map<String, dynamic> database =
               _map(widget.sync.state['milkDB']);
-          final Map<String, dynamic>? profile = database[widget.customerName] is Map
-              ? _map(database[widget.customerName])
-              : null;
+          final Map<String, dynamic>? profile =
+              database[widget.customerName] is Map
+                  ? _map(database[widget.customerName])
+                  : null;
           if (profile == null) {
             return const Scaffold(
-              body: Center(child: _EmptyState(Icons.water_drop_rounded, 'Customer no longer exists')),
+              body: Center(
+                  child: _EmptyState(
+                      Icons.water_drop_rounded, 'Customer no longer exists')),
             );
           }
           final List<Map<String, dynamic>> records = _rows(profile['records'])
@@ -3215,10 +3236,18 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                             onTap: () => unawaited(
                               _ExportService.sharePdf(
                                 '${widget.customerName} Milk Bill',
-                                <String>['Date', 'Flow', 'Morning', 'Evening', 'Total'],
+                                <String>[
+                                  'Date',
+                                  'Flow',
+                                  'Morning',
+                                  'Evening',
+                                  'Total'
+                                ],
                                 records.map((Map<String, dynamic> row) {
-                                  final double quantity = LedgerMath.milkQuantity(row);
-                                  final String flow = LedgerMath.milkFlow(row, profile);
+                                  final double quantity =
+                                      LedgerMath.milkQuantity(row);
+                                  final String flow =
+                                      LedgerMath.milkFlow(row, profile);
                                   return <String>[
                                     _displayDate(row['date']),
                                     flow,
@@ -3240,12 +3269,15 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                         ],
                       ),
                       if (records.isEmpty)
-                        const _EmptyState(Icons.water_drop_outlined, 'No entries for this month')
+                        const _EmptyState(Icons.water_drop_outlined,
+                            'No entries for this month')
                       else
                         _RecordsCard(
                           children: records.map((Map<String, dynamic> row) {
-                            final String flow = LedgerMath.milkFlow(row, profile);
-                            final double quantity = LedgerMath.milkQuantity(row);
+                            final String flow =
+                                LedgerMath.milkFlow(row, profile);
+                            final double quantity =
+                                LedgerMath.milkQuantity(row);
                             final Color rowColor =
                                 flow == 'taken' ? semanticRed : appleGreen;
                             return _RecordTile(
@@ -3255,7 +3287,8 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                               amount:
                                   '${flow == 'taken' ? '-' : '+'}${quantity.toStringAsFixed(2)} KG',
                               color: rowColor,
-                              onDelete: () => unawaited(_deleteEntry('${row['id']}')),
+                              onDelete: () =>
+                                  unawaited(_deleteEntry('${row['id']}')),
                             );
                           }).toList(),
                         ),
@@ -3359,7 +3392,8 @@ class _RecordTile extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(15, 13, 8, 13),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Theme.of(context).dividerColor.withAlpha(80)),
+          bottom:
+              BorderSide(color: Theme.of(context).dividerColor.withAlpha(80)),
         ),
       ),
       child: Row(
@@ -3527,7 +3561,8 @@ class _SalaryScreenState extends State<SalaryScreen> {
       return;
     }
     final String personName = _cleanKey(name.text);
-    final String companyName = company.text.trim().isEmpty ? '—' : company.text.trim();
+    final String companyName =
+        company.text.trim().isEmpty ? '—' : company.text.trim();
     name.dispose();
     company.dispose();
     if (personName.isEmpty) {
@@ -3535,7 +3570,8 @@ class _SalaryScreenState extends State<SalaryScreen> {
       return;
     }
     final Map<String, dynamic> database = _map(widget.sync.state['salaryDB']);
-    if (database.keys.any((String key) => key.toLowerCase() == personName.toLowerCase())) {
+    if (database.keys
+        .any((String key) => key.toLowerCase() == personName.toLowerCase())) {
       _toast(context, 'Person already exists.', error: true);
       return;
     }
@@ -3560,9 +3596,11 @@ class _SalaryScreenState extends State<SalaryScreen> {
     final Map<String, dynamic> database = _map(widget.sync.state['salaryDB']);
     final Color moduleColor = _tone(_salaryGlobalNet(widget.sync.state));
     final List<String> names = database.keys
-        .where((String name) => name.toLowerCase().contains(_query.toLowerCase()))
+        .where(
+            (String name) => name.toLowerCase().contains(_query.toLowerCase()))
         .toList()
-      ..sort((String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      ..sort(
+          (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -3649,7 +3687,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
     final bool? save = await _openSheet<bool>(
       context,
       _SheetFrame(
-        title: 'Salary Entry',
+        title: 'Add Salary Entry',
         children: <Widget>[
           _DateField(controller: date),
           const SizedBox(height: 13),
@@ -3713,7 +3751,8 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
   }
 
   Future<void> _deleteEntry(String id) async {
-    if (!await _confirm(context, 'Delete salary?', 'This salary entry will be deleted permanently.')) {
+    if (!await _confirm(context, 'Delete salary?',
+        'This salary entry will be deleted permanently.')) {
       return;
     }
     if (!mounted) return;
@@ -3757,10 +3796,13 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
               _map(widget.sync.state['salaryDB']);
           if (database[widget.personName] is! Map) {
             return const Scaffold(
-              body: Center(child: _EmptyState(Icons.groups_rounded, 'Profile no longer exists')),
+              body: Center(
+                  child: _EmptyState(
+                      Icons.groups_rounded, 'Profile no longer exists')),
             );
           }
-          final Map<String, dynamic> profile = _map(database[widget.personName]);
+          final Map<String, dynamic> profile =
+              _map(database[widget.personName]);
           final List<Map<String, dynamic>> records = _rows(profile['records'])
               .where(
                 (Map<String, dynamic> row) =>
@@ -3830,7 +3872,9 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                                       (Map<String, dynamic> row) => <String>[
                                         _displayDate(row['date']),
                                         _plainMoney(
-                                          (profile['type'] == 'lene_wala' ? 1 : -1) *
+                                          (profile['type'] == 'lene_wala'
+                                                  ? 1
+                                                  : -1) *
                                               LedgerMath.number(row['amount']),
                                         ),
                                       ],
@@ -3849,14 +3893,16 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                         ],
                       ),
                       if (records.isEmpty)
-                        const _EmptyState(Icons.currency_rupee_rounded, 'No salary entries for this month')
+                        const _EmptyState(Icons.currency_rupee_rounded,
+                            'No salary entries for this month')
                       else
                         _RecordsCard(
                           children: records
                               .map(
                                 (Map<String, dynamic> row) => _RecordTile(
                                   title: _displayDate(row['date']),
-                                  subtitle: profile['company']?.toString() ?? '—',
+                                  subtitle:
+                                      profile['company']?.toString() ?? '—',
                                   amount: _signedMoney(
                                     (profile['type'] == 'lene_wala' ? 1 : -1) *
                                         LedgerMath.number(row['amount']),
@@ -3891,7 +3937,8 @@ List<_CreditGroup> _creditGroups(dynamic source) {
   for (final Map<String, dynamic> row in _rows(source)) {
     final String name = LedgerMath.cleanName(row['name']);
     if (name.isEmpty) continue;
-    final _CreditGroup group = grouped.putIfAbsent(name, () => _CreditGroup(name));
+    final _CreditGroup group =
+        grouped.putIfAbsent(name, () => _CreditGroup(name));
     group.net += LedgerMath.creditSigned(row);
     final String date = '${row['date'] ?? ''}';
     if (date.compareTo(group.lastDate) > 0) group.lastDate = date;
@@ -3918,7 +3965,8 @@ class _CreditScreenState extends State<CreditScreen> {
 
   Future<void> _addEntry({String? fixedName}) async {
     final TextEditingController date = TextEditingController(text: _today());
-    final TextEditingController name = TextEditingController(text: fixedName ?? '');
+    final TextEditingController name =
+        TextEditingController(text: fixedName ?? '');
     final TextEditingController amount = TextEditingController();
     String type = 'credit';
     final bool? save = await _openSheet<bool>(
@@ -3926,7 +3974,7 @@ class _CreditScreenState extends State<CreditScreen> {
       StatefulBuilder(
         builder: (BuildContext sheetContext, StateSetter setSheetState) =>
             _SheetFrame(
-          title: 'Credit Entry',
+          title: 'Credit / Loan Entry',
           children: <Widget>[
             _DateField(controller: date),
             const SizedBox(height: 13),
@@ -3943,7 +3991,8 @@ class _CreditScreenState extends State<CreditScreen> {
             TextField(
               controller: amount,
               autofocus: fixedName != null,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: <TextInputFormatter>[
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
               ],
@@ -3952,31 +4001,33 @@ class _CreditScreenState extends State<CreditScreen> {
                 prefixText: '₹ ',
               ),
             ),
-            const SizedBox(height: 13),
-            SegmentedButton<String>(
-              segments: const <ButtonSegment<String>>[
-                ButtonSegment<String>(
-                  value: 'credit',
-                  label: Text('Given (+)'),
-                  icon: Icon(Icons.arrow_upward_rounded),
+            const SizedBox(height: 22),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: _PrimaryButton(
+                    label: 'Given',
+                    icon: Icons.add_rounded,
+                    color: appleGreen,
+                    onTap: () {
+                      type = 'credit';
+                      Navigator.pop(sheetContext, true);
+                    },
+                  ),
                 ),
-                ButtonSegment<String>(
-                  value: 'debit',
-                  label: Text('Taken (-)'),
-                  icon: Icon(Icons.arrow_downward_rounded),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _PrimaryButton(
+                    label: 'Taken',
+                    icon: Icons.remove_rounded,
+                    color: appleRed,
+                    onTap: () {
+                      type = 'debit';
+                      Navigator.pop(sheetContext, true);
+                    },
+                  ),
                 ),
               ],
-              selected: <String>{type},
-              onSelectionChanged: (Set<String> values) {
-                HapticFeedback.selectionClick();
-                setSheetState(() => type = values.first);
-              },
-            ),
-            const SizedBox(height: 20),
-            _PrimaryButton(
-              label: type == 'credit' ? 'Save Given' : 'Save Taken',
-              color: type == 'credit' ? appleGreen : appleRed,
-              onTap: () => Navigator.pop(sheetContext, true),
             ),
           ],
         ),
@@ -3997,7 +4048,8 @@ class _CreditScreenState extends State<CreditScreen> {
     if (LedgerMath.strictDate(entryDate) == null ||
         person.isEmpty ||
         entryAmount <= 0) {
-      _toast(context, 'Fill the complete form with a valid amount.', error: true);
+      _toast(context, 'Fill the complete form with a valid amount.',
+          error: true);
       return;
     }
     final String id = _newId('udh');
@@ -4021,13 +4073,15 @@ class _CreditScreenState extends State<CreditScreen> {
   @override
   Widget build(BuildContext context) {
     final double net = _creditGlobalNet(widget.sync.state);
-    final Color moduleColor = _tone(net);
-    final List<_CreditGroup> groups = _creditGroups(widget.sync.state['udharDB'])
-        .where(
-          (_CreditGroup group) =>
-              group.name.toLowerCase().contains(_query.toLowerCase()),
-        )
-        .toList();
+    final Color moduleColor = appleGreen;
+    final Color balanceColor = _tone(net, neutral: appleGreen);
+    final List<_CreditGroup> groups =
+        _creditGroups(widget.sync.state['udharDB'])
+            .where(
+              (_CreditGroup group) =>
+                  group.name.toLowerCase().contains(_query.toLowerCase()),
+            )
+            .toList();
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -4055,7 +4109,7 @@ class _CreditScreenState extends State<CreditScreen> {
                         ? 'Net Balance / Loss'
                         : 'Net Balance',
                 value: _signedMoney(net),
-                color: moduleColor,
+                color: balanceColor,
               ),
               const SizedBox(height: 18),
               _SearchBox(
@@ -4064,7 +4118,8 @@ class _CreditScreenState extends State<CreditScreen> {
               ),
               const SizedBox(height: 18),
               if (groups.isEmpty)
-                const _EmptyState(Icons.account_balance_wallet_rounded, 'No credit records found')
+                const _EmptyState(Icons.account_balance_wallet_rounded,
+                    'No credit records found')
               else
                 ...groups.map((_CreditGroup group) {
                   final Color color = _tone(group.net);
@@ -4122,16 +4177,19 @@ class CreditDetailScreen extends StatelessWidget {
             TextField(
               controller: amount,
               autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: <TextInputFormatter>[
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
               ],
-              decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
+              decoration:
+                  const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
             ),
             const SizedBox(height: 13),
             SegmentedButton<String>(
               segments: const <ButtonSegment<String>>[
-                ButtonSegment<String>(value: 'credit', label: Text('Given (+)')),
+                ButtonSegment<String>(
+                    value: 'credit', label: Text('Given (+)')),
                 ButtonSegment<String>(value: 'debit', label: Text('Taken (-)')),
               ],
               selected: <String>{type},
@@ -4182,7 +4240,8 @@ class CreditDetailScreen extends StatelessWidget {
   }
 
   Future<void> _deleteEntry(BuildContext context, String id) async {
-    if (!await _confirm(context, 'Delete credit entry?', 'This record will be permanently deleted.')) {
+    if (!await _confirm(context, 'Delete credit entry?',
+        'This record will be permanently deleted.')) {
       return;
     }
     if (!context.mounted) return;
@@ -4206,7 +4265,8 @@ class CreditDetailScreen extends StatelessWidget {
     }
     if (!context.mounted) return;
     final Map<String, dynamic> deletes = <String, dynamic>{
-      for (final Map<String, dynamic> row in records) 'udharDB/${row['id']}': null,
+      for (final Map<String, dynamic> row in records)
+        'udharDB/${row['id']}': null,
     };
     try {
       if (deletes.isNotEmpty) {
@@ -4222,16 +4282,17 @@ class CreditDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: sync,
         builder: (BuildContext context, Widget? child) {
-          final List<Map<String, dynamic>> records = _rows(sync.state['udharDB'])
-              .where(
-                (Map<String, dynamic> row) =>
-                    LedgerMath.cleanName(row['name']) == personName,
-              )
-              .toList()
-            ..sort(
-              (Map<String, dynamic> a, Map<String, dynamic> b) =>
-                  '${b['date']}'.compareTo('${a['date']}'),
-            );
+          final List<Map<String, dynamic>> records =
+              _rows(sync.state['udharDB'])
+                  .where(
+                    (Map<String, dynamic> row) =>
+                        LedgerMath.cleanName(row['name']) == personName,
+                  )
+                  .toList()
+                ..sort(
+                  (Map<String, dynamic> a, Map<String, dynamic> b) =>
+                      '${b['date']}'.compareTo('${a['date']}'),
+                );
           final double net = records.fold<double>(
             0,
             (double sum, Map<String, dynamic> row) =>
@@ -4259,7 +4320,11 @@ class CreditDetailScreen extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
                     children: <Widget>[
                       _AmountHero(
-                        label: net > 0 ? 'To Receive' : net < 0 ? 'To Pay' : 'Net Balance',
+                        label: net > 0
+                            ? 'To Receive'
+                            : net < 0
+                                ? 'To Pay'
+                                : 'Net Balance',
                         value: _signedMoney(net),
                         color: color,
                       ),
@@ -4280,8 +4345,11 @@ class CreditDetailScreen extends StatelessWidget {
                                     .map(
                                       (Map<String, dynamic> row) => <String>[
                                         _displayDate(row['date']),
-                                        LedgerMath.creditSigned(row) >= 0 ? 'Given' : 'Taken',
-                                        _plainMoney(LedgerMath.creditSigned(row)),
+                                        LedgerMath.creditSigned(row) >= 0
+                                            ? 'Given'
+                                            : 'Taken',
+                                        _plainMoney(
+                                            LedgerMath.creditSigned(row)),
                                       ],
                                     )
                                     .toList(),
@@ -4298,7 +4366,8 @@ class CreditDetailScreen extends StatelessWidget {
                         ],
                       ),
                       if (records.isEmpty)
-                        const _EmptyState(Icons.account_balance_wallet_outlined, 'No entries found')
+                        const _EmptyState(Icons.account_balance_wallet_outlined,
+                            'No entries found')
                       else
                         _RecordsCard(
                           children: records.map((Map<String, dynamic> row) {
@@ -4308,8 +4377,8 @@ class CreditDetailScreen extends StatelessWidget {
                               subtitle: signed >= 0 ? 'Given' : 'Taken',
                               amount: _signedMoney(signed),
                               color: _tone(signed),
-                              onDelete: () =>
-                                  unawaited(_deleteEntry(context, '${row['id']}')),
+                              onDelete: () => unawaited(
+                                  _deleteEntry(context, '${row['id']}')),
                             );
                           }).toList(),
                         ),
@@ -4398,7 +4467,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             inputFormatters: <TextInputFormatter>[
               FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
             ],
-            decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
+            decoration:
+                const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
           ),
           const SizedBox(height: 20),
           _PrimaryButton(
@@ -4416,9 +4486,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       return;
     }
     final String entryDate = date.text.trim();
-    final String entryCategory = _cleanKey(category.text).isEmpty
-        ? 'Other'
-        : _cleanKey(category.text);
+    final String entryCategory =
+        _cleanKey(category.text).isEmpty ? 'Other' : _cleanKey(category.text);
     final double entryAmount = double.tryParse(amount.text) ?? 0;
     date.dispose();
     category.dispose();
@@ -4448,7 +4517,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   Widget build(BuildContext context) {
     final DateTime now = DateTime.now();
     final Map<String, _ExpenseGroup> grouped = <String, _ExpenseGroup>{};
-    for (final Map<String, dynamic> row in _rows(widget.sync.state['expenseDB'])) {
+    for (final Map<String, dynamic> row
+        in _rows(widget.sync.state['expenseDB'])) {
       if (!LedgerMath.inMonth(row, now.month, now.year)) continue;
       final String name = _cleanKey(row['category']).isEmpty
           ? 'Other'
@@ -4472,7 +4542,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       children: <Widget>[
         _ScreenHeader(
           title: 'Expenses',
-          color: semanticRed,
+          color: appleBlue,
           actions: <Widget>[
             _CircleAction(
               icon: Icons.ios_share_rounded,
@@ -4497,12 +4567,13 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               _AmountHero(
                 label: 'Month Expense',
                 value: _money(total),
-                color: semanticRed,
+                color: appleBlue,
               ),
               const SizedBox(height: 22),
               const _SectionTitle('Categories'),
               if (groups.isEmpty)
-                const _EmptyState(Icons.receipt_long_rounded, 'No expenses this month')
+                const _EmptyState(
+                    Icons.receipt_long_rounded, 'No expenses this month')
               else
                 ...groups.map(
                   (_ExpenseGroup group) => _ListCard(
@@ -4564,7 +4635,8 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
             inputFormatters: <TextInputFormatter>[
               FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
             ],
-            decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
+            decoration:
+                const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
           ),
           const SizedBox(height: 20),
           _PrimaryButton(
@@ -4613,13 +4685,15 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
   }
 
   Future<void> _deleteEntry(String id) async {
-    if (!await _confirm(context, 'Delete expense?', 'This expense will be permanently deleted.')) {
+    if (!await _confirm(context, 'Delete expense?',
+        'This expense will be permanently deleted.')) {
       return;
     }
     if (!mounted) return;
     await _runMutation(
       context,
-      () => widget.sync.write('expenseDB/$id', null, reason: 'expense-entry-delete'),
+      () => widget.sync
+          .write('expenseDB/$id', null, reason: 'expense-entry-delete'),
       'Expense deleted!',
     );
   }
@@ -4639,7 +4713,8 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     };
     try {
       if (deletes.isNotEmpty) {
-        await widget.sync.writeBatch(deletes, reason: 'expense-category-delete');
+        await widget.sync
+            .writeBatch(deletes, reason: 'expense-category-delete');
       }
       if (mounted) Navigator.pop(context);
     } catch (error) {
@@ -4742,7 +4817,8 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                         ],
                       ),
                       if (records.isEmpty)
-                        const _EmptyState(Icons.receipt_long_rounded, 'No expenses for this month')
+                        const _EmptyState(Icons.receipt_long_rounded,
+                            'No expenses for this month')
                       else
                         _RecordsCard(
                           children: records
@@ -4826,13 +4902,15 @@ Future<void> _saveDiarySheet(
     return;
   }
   final String entryDate = date.text.trim();
-  final String entryTitle = title.text.trim().isEmpty ? 'Untitled' : title.text.trim();
+  final String entryTitle =
+      title.text.trim().isEmpty ? 'Untitled' : title.text.trim();
   final String entryContent = content.text.trim();
   date.dispose();
   title.dispose();
   content.dispose();
   if (LedgerMath.strictDate(entryDate) == null || entryContent.isEmpty) {
-    _toast(context, 'Please enter a valid date and write something.', error: true);
+    _toast(context, 'Please enter a valid date and write something.',
+        error: true);
     return;
   }
   final String id = existing == null ? _newId('dia') : '${existing['id']}';
@@ -4872,22 +4950,21 @@ class _DiaryScreenState extends State<DiaryScreen> {
         .split(RegExp(r'\s+'))
         .where((String word) => word.isNotEmpty)
         .toList();
-    final List<Map<String, dynamic>> entries = _rows(widget.sync.state['diaryDB'])
-        .where((Map<String, dynamic> row) {
-          final String haystack =
-              '${row['title'] ?? ''} ${row['content'] ?? ''} ${row['date'] ?? ''}'
-                  .toLowerCase();
-          return words.every(haystack.contains);
-        })
-        .toList()
-      ..sort((Map<String, dynamic> a, Map<String, dynamic> b) {
-        final int byDate = '${b['date']}'.compareTo('${a['date']}');
-        return byDate != 0
-            ? byDate
-            : LedgerMath.number(b['updated']).compareTo(
-                LedgerMath.number(a['updated']),
-              );
-      });
+    final List<Map<String, dynamic>> entries =
+        _rows(widget.sync.state['diaryDB']).where((Map<String, dynamic> row) {
+      final String haystack =
+          '${row['title'] ?? ''} ${row['content'] ?? ''} ${row['date'] ?? ''}'
+              .toLowerCase();
+      return words.every(haystack.contains);
+    }).toList()
+          ..sort((Map<String, dynamic> a, Map<String, dynamic> b) {
+            final int byDate = '${b['date']}'.compareTo('${a['date']}');
+            return byDate != 0
+                ? byDate
+                : LedgerMath.number(b['updated']).compareTo(
+                    LedgerMath.number(a['updated']),
+                  );
+          });
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -5013,7 +5090,8 @@ class DiaryDetailScreen extends StatelessWidget {
   final String entryId;
 
   Future<void> _delete(BuildContext context) async {
-    if (!await _confirm(context, 'Delete diary page?', 'This page will be permanently deleted.')) {
+    if (!await _confirm(context, 'Delete diary page?',
+        'This page will be permanently deleted.')) {
       return;
     }
     if (!context.mounted) return;
@@ -5038,7 +5116,9 @@ class DiaryDetailScreen extends StatelessWidget {
           }
           if (entry == null) {
             return const Scaffold(
-              body: Center(child: _EmptyState(Icons.auto_stories_rounded, 'Diary page no longer exists')),
+              body: Center(
+                  child: _EmptyState(Icons.auto_stories_rounded,
+                      'Diary page no longer exists')),
             );
           }
           final Map<String, dynamic> current = entry;
@@ -5189,7 +5269,7 @@ class _BusinessScreenState extends State<BusinessScreen> {
           ),
           const SizedBox(height: 20),
           _PrimaryButton(
-            label: 'Create Account',
+            label: 'Create Khata',
             color: appleBlue,
             onTap: () => Navigator.pop(context, true),
           ),
@@ -5207,7 +5287,8 @@ class _BusinessScreenState extends State<BusinessScreen> {
       return;
     }
     final Map<String, dynamic> database = _map(widget.sync.state['projectDB']);
-    if (database.keys.any((String key) => key.toLowerCase() == project.toLowerCase())) {
+    if (database.keys
+        .any((String key) => key.toLowerCase() == project.toLowerCase())) {
       _toast(context, 'Account already exists.', error: true);
       return;
     }
@@ -5250,9 +5331,11 @@ class _BusinessScreenState extends State<BusinessScreen> {
   Widget build(BuildContext context) {
     final Map<String, dynamic> database = _map(widget.sync.state['projectDB']);
     final List<String> names = database.keys
-        .where((String name) => name.toLowerCase().contains(_query.toLowerCase()))
+        .where(
+            (String name) => name.toLowerCase().contains(_query.toLowerCase()))
         .toList()
-      ..sort((String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      ..sort(
+          (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -5281,10 +5364,12 @@ class _BusinessScreenState extends State<BusinessScreen> {
               ),
               const SizedBox(height: 18),
               if (names.isEmpty)
-                const _EmptyState(Icons.business_center_rounded, 'No business khatas added yet')
+                const _EmptyState(Icons.business_center_rounded,
+                    'No business khatas added yet')
               else
                 ...names.map((String name) {
-                  final int count = _rows(_map(database[name])['records']).length;
+                  final int count =
+                      _rows(_map(database[name])['records']).length;
                   return _ListCard(
                     title: name,
                     subtitle: '$count Records Logged',
@@ -5293,7 +5378,8 @@ class _BusinessScreenState extends State<BusinessScreen> {
                     onDelete: () => unawaited(_deleteProject(name)),
                     onTap: () => Navigator.of(context).push(
                       _premiumRoute<void>(
-                        BusinessDetailScreen(sync: widget.sync, projectName: name),
+                        BusinessDetailScreen(
+                            sync: widget.sync, projectName: name),
                       ),
                     ),
                   );
@@ -5342,29 +5428,34 @@ class BusinessDetailScreen extends StatelessWidget {
             TextField(
               controller: amount,
               autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: <TextInputFormatter>[
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
               ],
-              decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
+              decoration:
+                  const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
             ),
             const SizedBox(height: 15),
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _businessTones.entries.map(
-                (MapEntry<String, _BusinessTone> entry) => ChoiceChip(
-                  selected: tone == entry.key,
-                  label: Text(entry.value.badge),
-                  avatar: Icon(entry.value.icon, size: 16, color: entry.value.color),
-                  selectedColor: entry.value.color.withAlpha(45),
-                  side: BorderSide(color: entry.value.color.withAlpha(70)),
-                  onSelected: (_) {
-                    HapticFeedback.selectionClick();
-                    setSheetState(() => tone = entry.key);
-                  },
-                ),
-              ).toList(),
+              children: _businessTones.entries
+                  .map(
+                    (MapEntry<String, _BusinessTone> entry) => ChoiceChip(
+                      selected: tone == entry.key,
+                      label: Text(entry.value.badge),
+                      avatar: Icon(entry.value.icon,
+                          size: 16, color: entry.value.color),
+                      selectedColor: entry.value.color.withAlpha(45),
+                      side: BorderSide(color: entry.value.color.withAlpha(70)),
+                      onSelected: (_) {
+                        HapticFeedback.selectionClick();
+                        setSheetState(() => tone = entry.key);
+                      },
+                    ),
+                  )
+                  .toList(),
             ),
             const SizedBox(height: 20),
             _PrimaryButton(
@@ -5383,13 +5474,15 @@ class BusinessDetailScreen extends StatelessWidget {
       return;
     }
     final String entryDate = date.text.trim();
-    final String entryTitle = title.text.trim().isEmpty ? 'Record' : title.text.trim();
+    final String entryTitle =
+        title.text.trim().isEmpty ? 'Record' : title.text.trim();
     final double entryAmount = double.tryParse(amount.text) ?? 0;
     date.dispose();
     title.dispose();
     amount.dispose();
     if (LedgerMath.strictDate(entryDate) == null || entryAmount <= 0) {
-      _toast(context, 'Enter details and a valid positive amount.', error: true);
+      _toast(context, 'Enter details and a valid positive amount.',
+          error: true);
       return;
     }
     final String id = _newId('prj');
@@ -5411,7 +5504,8 @@ class BusinessDetailScreen extends StatelessWidget {
   }
 
   Future<void> _deleteEntry(BuildContext context, String id) async {
-    if (!await _confirm(context, 'Delete record?', 'This business record will be permanently deleted.')) {
+    if (!await _confirm(context, 'Delete record?',
+        'This business record will be permanently deleted.')) {
       return;
     }
     if (!context.mounted) return;
@@ -5454,7 +5548,9 @@ class BusinessDetailScreen extends StatelessWidget {
           final Map<String, dynamic> database = _map(sync.state['projectDB']);
           if (database[projectName] is! Map) {
             return const Scaffold(
-              body: Center(child: _EmptyState(Icons.business_center_rounded, 'Account no longer exists')),
+              body: Center(
+                  child: _EmptyState(Icons.business_center_rounded,
+                      'Account no longer exists')),
             );
           }
           final Map<String, dynamic> project = _map(database[projectName]);
@@ -5470,7 +5566,8 @@ class BusinessDetailScreen extends StatelessWidget {
             final String key = _businessTones.containsKey('${row['color']}')
                 ? '${row['color']}'
                 : 'blue';
-            totals[key] = (totals[key] ?? 0) + LedgerMath.number(row['amount']).abs();
+            totals[key] =
+                (totals[key] ?? 0) + LedgerMath.number(row['amount']).abs();
           }
           return Scaffold(
             body: Column(
@@ -5505,42 +5602,43 @@ class BusinessDetailScreen extends StatelessWidget {
                           physics: const NeverScrollableScrollPhysics(),
                           childAspectRatio: 1.55,
                           children: totals.entries
-                              .where((MapEntry<String, double> item) => item.value > 0)
+                              .where((MapEntry<String, double> item) =>
+                                  item.value > 0)
                               .map((MapEntry<String, double> item) {
-                                final _BusinessTone tone = _businessTones[item.key]!;
-                                return _GlassCard(
-                                  padding: const EdgeInsets.all(13),
-                                  borderRadius: 19,
-                                  borderColor: tone.color.withAlpha(60),
-                                  shadowColor: tone.color.withAlpha(20),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      Text(
-                                        tone.label,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: tone.color,
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 5),
-                                      Text(
-                                        _money(item.value),
-                                        style: TextStyle(
-                                          color: tone.color,
-                                          fontSize: 19,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                    ],
+                            final _BusinessTone tone =
+                                _businessTones[item.key]!;
+                            return _GlassCard(
+                              padding: const EdgeInsets.all(13),
+                              borderRadius: 19,
+                              borderColor: tone.color.withAlpha(60),
+                              shadowColor: tone.color.withAlpha(20),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    tone.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: tone.color,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w900,
+                                    ),
                                   ),
-                                );
-                              })
-                              .toList(),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    _money(item.value),
+                                    style: TextStyle(
+                                      color: tone.color,
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
                         ),
                       const SizedBox(height: 23),
                       _SectionTitle(
@@ -5556,7 +5654,8 @@ class BusinessDetailScreen extends StatelessWidget {
                                 '$projectName Business Khata',
                                 <String>['Date', 'Detail', 'Type', 'Amount'],
                                 records.map((Map<String, dynamic> row) {
-                                  final String key = _businessTones.containsKey('${row['color']}')
+                                  final String key = _businessTones
+                                          .containsKey('${row['color']}')
                                       ? '${row['color']}'
                                       : 'blue';
                                   return <String>[
@@ -5579,21 +5678,24 @@ class BusinessDetailScreen extends StatelessWidget {
                         ],
                       ),
                       if (records.isEmpty)
-                        const _EmptyState(Icons.business_center_outlined, 'No records logged yet')
+                        const _EmptyState(Icons.business_center_outlined,
+                            'No records logged yet')
                       else
                         _RecordsCard(
                           children: records.map((Map<String, dynamic> row) {
-                            final String key = _businessTones.containsKey('${row['color']}')
-                                ? '${row['color']}'
-                                : 'blue';
+                            final String key =
+                                _businessTones.containsKey('${row['color']}')
+                                    ? '${row['color']}'
+                                    : 'blue';
                             final _BusinessTone tone = _businessTones[key]!;
                             return _RecordTile(
                               title: '${row['title'] ?? 'Record'}',
-                              subtitle: '${_displayDate(row['date'])} • ${tone.badge}',
+                              subtitle:
+                                  '${_displayDate(row['date'])} • ${tone.badge}',
                               amount: _money(row['amount']),
                               color: tone.color,
-                              onDelete: () =>
-                                  unawaited(_deleteEntry(context, '${row['id']}')),
+                              onDelete: () => unawaited(
+                                  _deleteEntry(context, '${row['id']}')),
                             );
                           }).toList(),
                         ),
@@ -5652,7 +5754,8 @@ class _AiHubScreenState extends State<AiHubScreen> {
 
   Future<void> _loadSettings() async {
     final String key = await _secureStorage.read(key: 'gemini.apiKey') ?? '';
-    final String model = widget.sync.readSetting('gemini.model') ?? 'gemini-2.5-flash';
+    final String model =
+        widget.sync.readSetting('gemini.model') ?? 'gemini-2.5-flash';
     if (mounted) {
       setState(() {
         _apiKey = key;
@@ -5692,7 +5795,9 @@ class _AiHubScreenState extends State<AiHubScreen> {
                     HapticFeedback.selectionClick();
                     setSheetState(() => obscure = !obscure);
                   },
-                  icon: Icon(obscure ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+                  icon: Icon(obscure
+                      ? Icons.visibility_rounded
+                      : Icons.visibility_off_rounded),
                 ),
               ),
             ),
@@ -5778,7 +5883,9 @@ class _AiHubScreenState extends State<AiHubScreen> {
     _scrollToEnd();
     try {
       final _AiOutcome outcome;
-      if (prompt.startsWith('{') || prompt.startsWith('[') || prompt.startsWith('```')) {
+      if (prompt.startsWith('{') ||
+          prompt.startsWith('[') ||
+          prompt.startsWith('```')) {
         outcome = _GeminiLedgerClient.parseEnvelope(prompt);
       } else {
         if (_apiKey.isEmpty) {
@@ -5805,7 +5912,9 @@ class _AiHubScreenState extends State<AiHubScreen> {
               '${action['path']}': action['data'],
           };
           await widget.sync.writeBatch(writes, reason: 'ai-confirmed-delta');
-          if (mounted) _toast(context, '${writes.length} AI change(s) saved safely.');
+          if (mounted) {
+            _toast(context, '${writes.length} AI change(s) saved safely.');
+          }
         }
       }
       if (mounted) {
@@ -5826,7 +5935,9 @@ class _AiHubScreenState extends State<AiHubScreen> {
       if (mounted) {
         setState(() {
           _messages.add(
-            _AiMessage('Error: ${error.toString().replaceFirst('Exception: ', '')}', false),
+            _AiMessage(
+                'Error: ${error.toString().replaceFirst('Exception: ', '')}',
+                false),
           );
         });
       }
@@ -5840,7 +5951,8 @@ class _AiHubScreenState extends State<AiHubScreen> {
     List<Map<String, dynamic>> rawActions,
   ) {
     if (rawActions.length > 25) {
-      throw const LedgerSyncException('AI returned too many actions (maximum 25).');
+      throw const LedgerSyncException(
+          'AI returned too many actions (maximum 25).');
     }
     final List<Map<String, dynamic>> result = <Map<String, dynamic>>[];
     for (final Map<String, dynamic> raw in rawActions) {
@@ -5887,7 +5999,8 @@ class _AiHubScreenState extends State<AiHubScreen> {
               children: <Widget>[
                 const Text(
                   'Nothing is changed until you tap Apply.',
-                  style: TextStyle(color: systemGray, fontWeight: FontWeight.w600),
+                  style:
+                      TextStyle(color: systemGray, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 14),
                 ...actions.map(
@@ -5961,14 +6074,16 @@ class _AiHubScreenState extends State<AiHubScreen> {
                 itemBuilder: (BuildContext context, int index) {
                   final _AiMessage message = _messages[index];
                   return Align(
-                    alignment:
-                        message.user ? Alignment.centerRight : Alignment.centerLeft,
+                    alignment: message.user
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
                     child: Container(
                       constraints: BoxConstraints(
                         maxWidth: MediaQuery.sizeOf(context).width * .82,
                       ),
                       margin: const EdgeInsets.only(bottom: 11),
-                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 15, vertical: 12),
                       decoration: BoxDecoration(
                         gradient: message.user
                             ? const LinearGradient(
@@ -6032,7 +6147,8 @@ class _AiHubScreenState extends State<AiHubScreen> {
                         onSubmitted: (_) => unawaited(_send()),
                         decoration: const InputDecoration(
                           hintText: 'Ask or paste AI JSON…',
-                          contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 15, vertical: 12),
                         ),
                       ),
                     ),
@@ -6045,7 +6161,10 @@ class _AiHubScreenState extends State<AiHubScreen> {
                         height: 46,
                         decoration: const BoxDecoration(
                           gradient: LinearGradient(
-                            colors: <Color>[Color(0xFF4285F4), Color(0xFF9B72CB)],
+                            colors: <Color>[
+                              Color(0xFF4285F4),
+                              Color(0xFF9B72CB)
+                            ],
                           ),
                           shape: BoxShape.circle,
                         ),
@@ -6057,7 +6176,8 @@ class _AiHubScreenState extends State<AiHubScreen> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Icon(Icons.arrow_upward_rounded, color: Colors.white),
+                            : const Icon(Icons.arrow_upward_rounded,
+                                color: Colors.white),
                       ),
                     ),
                   ],
@@ -6111,7 +6231,8 @@ Maximum 25 actions.
                 'role': 'user',
                 'parts': <Map<String, String>>[
                   <String, String>{
-                    'text': 'USER REQUEST:\n$userText\n\nCURRENT STATE JSON:\n$snapshot',
+                    'text':
+                        'USER REQUEST:\n$userText\n\nCURRENT STATE JSON:\n$snapshot',
                   },
                 ],
               },
@@ -6145,23 +6266,24 @@ Maximum 25 actions.
 
   static _AiOutcome parseEnvelope(String raw) {
     String clean = raw.trim();
-    clean = clean.replaceFirst(RegExp(r'^```(?:json)?\s*', caseSensitive: false), '');
+    clean = clean.replaceFirst(
+        RegExp(r'^```(?:json)?\s*', caseSensitive: false), '');
     clean = clean.replaceFirst(RegExp(r'\s*```$'), '');
     final dynamic decoded = jsonDecode(clean);
     if (decoded is List) {
       return _AiOutcome(
         reply: '',
-        actions: decoded
-            .whereType<Map>()
-            .map<Map<String, dynamic>>(_map)
-            .toList(),
+        actions:
+            decoded.whereType<Map>().map<Map<String, dynamic>>(_map).toList(),
       );
     }
     if (decoded is! Map) {
-      throw const LedgerSyncException('AI JSON must be an object or action list.');
+      throw const LedgerSyncException(
+          'AI JSON must be an object or action list.');
     }
     final Map<String, dynamic> envelope = _map(decoded);
-    final dynamic rawActions = envelope['actions'] ?? envelope['deltas'] ?? <dynamic>[];
+    final dynamic rawActions =
+        envelope['actions'] ?? envelope['deltas'] ?? <dynamic>[];
     final List<Map<String, dynamic>> actions = rawActions is List
         ? rawActions.whereType<Map>().map<Map<String, dynamic>>(_map).toList()
         : <Map<String, dynamic>>[];
@@ -6200,7 +6322,11 @@ Maximum 25 actions.
 
 String _plainMoney(dynamic value) {
   final double number = LedgerMath.number(value);
-  final String sign = number < 0 ? '-' : number > 0 ? '+' : '';
+  final String sign = number < 0
+      ? '-'
+      : number > 0
+          ? '+'
+          : '';
   return '${sign}Rs ${NumberFormat('#,##,##0.##', 'en_IN').format(number.abs())}';
 }
 
@@ -6491,11 +6617,13 @@ class _ExportService {
                 ),
                 ...rows.map(
                   (List<String> row) => pw.TableRow(
-                    children: List<pw.Widget>.generate(headers.length, (int index) {
+                    children:
+                        List<pw.Widget>.generate(headers.length, (int index) {
                       final String value = index < row.length ? row[index] : '';
                       return pw.Padding(
                         padding: const pw.EdgeInsets.all(7),
-                        child: pw.Text(value, style: const pw.TextStyle(fontSize: 8.5)),
+                        child: pw.Text(value,
+                            style: const pw.TextStyle(fontSize: 8.5)),
                       );
                     }),
                   ),
@@ -6515,7 +6643,8 @@ class _ExportService {
     final Uint8List bytes = await document.save();
     await Printing.sharePdf(
       bytes: bytes,
-      filename: '${_safeFilename(title)}_${DateFormat('yyyyMMdd').format(DateTime.now())}.pdf',
+      filename:
+          '${_safeFilename(title)}_${DateFormat('yyyyMMdd').format(DateTime.now())}.pdf',
     );
   }
 
@@ -6561,7 +6690,8 @@ class _ExportService {
 
   static _ExportDataset _allDataset(Map<String, dynamic> state) {
     final List<List<String>> rows = <List<String>>[];
-    for (final MapEntry<String, dynamic> entry in _map(state['milkDB']).entries) {
+    for (final MapEntry<String, dynamic> entry
+        in _map(state['milkDB']).entries) {
       final Map<String, dynamic> profile = _map(entry.value);
       for (final Map<String, dynamic> row in _rows(profile['records'])) {
         final double quantity = LedgerMath.milkQuantity(row);
@@ -6604,7 +6734,8 @@ class _ExportService {
         '',
       ]);
     }
-    for (final MapEntry<String, dynamic> entry in _map(state['salaryDB']).entries) {
+    for (final MapEntry<String, dynamic> entry
+        in _map(state['salaryDB']).entries) {
       final Map<String, dynamic> profile = _map(entry.value);
       final double sign = profile['type'] == 'lene_wala' ? 1 : -1;
       for (final Map<String, dynamic> row in _rows(profile['records'])) {
@@ -6630,7 +6761,8 @@ class _ExportService {
         '',
       ]);
     }
-    for (final MapEntry<String, dynamic> entry in _map(state['projectDB']).entries) {
+    for (final MapEntry<String, dynamic> entry
+        in _map(state['projectDB']).entries) {
       final Map<String, dynamic> project = _map(entry.value);
       for (final Map<String, dynamic> row in _rows(project['records'])) {
         final String color = '${row['color'] ?? 'blue'}'.toLowerCase();
@@ -6672,7 +6804,8 @@ class _ExportService {
 
   static _ExportDataset _milkDataset(Map<String, dynamic> state) {
     final List<List<String>> rows = <List<String>>[];
-    for (final MapEntry<String, dynamic> entry in _map(state['milkDB']).entries) {
+    for (final MapEntry<String, dynamic> entry
+        in _map(state['milkDB']).entries) {
       final Map<String, dynamic> profile = _map(entry.value);
       for (final Map<String, dynamic> row in _rows(profile['records'])) {
         final double morning = LedgerMath.number(row['morning']).abs();
@@ -6879,12 +7012,14 @@ class _ExportService {
       ..writeln('OWNER-CENTRIC ACCOUNTING RULES')
       ..writeln('1. Positive signed amount = owner receives / money inflow.')
       ..writeln('2. Negative signed amount = owner pays / money outflow.')
-      ..writeln('3. Zero signed amount = informational; do not count as finance.')
+      ..writeln(
+          '3. Zero signed amount = informational; do not count as finance.')
       ..writeln('4. Diary rows are notes, never financial transactions.')
       ..writeln();
     for (int rowIndex = 0; rowIndex < dataset.rows.length; rowIndex++) {
       final List<String> row = dataset.rows[rowIndex];
-      output.writeln('BEGIN_RECORD ${(rowIndex + 1).toString().padLeft(6, '0')}');
+      output
+          .writeln('BEGIN_RECORD ${(rowIndex + 1).toString().padLeft(6, '0')}');
       for (int column = 0; column < dataset.headers.length; column++) {
         final String value = column < row.length ? row[column] : '';
         output.writeln(
