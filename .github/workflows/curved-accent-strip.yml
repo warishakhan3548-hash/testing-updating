@@ -1,0 +1,135 @@
+name: Curved Accent Strip UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/curved-accent-strip.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch shared premium card accent
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('lib/main.dart')
+          text = path.read_text(encoding='utf-8')
+
+          start = text.index('class _GlassCard extends StatelessWidget {')
+          segment = text[start:]
+          end_rel = segment.index('\n}\n', segment.index('Widget build(BuildContext context)')) + 3
+          card = segment[:end_rel]
+
+          old_border = '''    final Border border = accentColor == null
+        ? Border.all(color: borderColor ?? surfaceBorder)
+        : Border(
+            left: BorderSide(color: accentColor!, width: 4),
+            top: BorderSide(color: surfaceBorder),
+            right: BorderSide(
+              color: dark
+                  ? Colors.white.withAlpha(20)
+                  : Colors.white.withAlpha(92),
+            ),
+            bottom: BorderSide(
+              color: dark
+                  ? Colors.black.withAlpha(97)
+                  : Colors.white.withAlpha(66),
+            ),
+          );'''
+          new_border = '''    final Border border = Border.all(
+      color: borderColor ?? surfaceBorder,
+    );'''
+          if card.count(old_border) != 1:
+              raise SystemExit(f'Expected old accent border once, got {card.count(old_border)}')
+          card = card.replace(old_border, new_border)
+
+          pattern = re.compile(
+              r'''    return Container\(\n      padding: padding,\n      decoration: BoxDecoration\((.*?)\n      \),\n      child: child,\n    \);''',
+              re.S,
+          )
+          match = pattern.search(card)
+          if not match:
+              raise SystemExit('Could not locate _GlassCard return Container')
+
+          decoration_body = match.group(1)
+          replacement = f'''    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration({decoration_body}
+      ),
+      child: Stack(
+        children: <Widget>[
+          if (accentColor != null)
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 6,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: accentColor,
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: accentColor!.withAlpha(dark ? 92 : 72),
+                      blurRadius: 16,
+                      offset: const Offset(3, 0),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Padding(
+            padding: padding,
+            child: child,
+          ),
+        ],
+      ),
+    );'''
+          card = pattern.sub(replacement, card, count=1)
+
+          # The shared primitive is used by all list cards that opt into accentColor.
+          # This preserves their data/color logic and changes only the stripe geometry.
+          text = text[:start] + card + segment[end_rel:]
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format
+        run: dart format lib/main.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test ledger invariants
+        run: flutter test
+
+      - name: Commit and push verified UI
+        shell: bash
+        run: |
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/main.dart
+          git commit -m "Curve module card accent strips"
+          git push origin HEAD:main
