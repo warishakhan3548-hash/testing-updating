@@ -34,6 +34,83 @@ const Color systemGray = Color(0xFF8E8E93);
 const Color lightCanvas = Color(0xFFF8FBFF);
 const Color darkGlassTop = Color(0xFF121826);
 const Color darkGlassBottom = Color(0xFF080C18);
+
+abstract final class UIConstants {
+  static const double minTapTarget = 48;
+  static const double inputRadius = 20;
+  static const double compactRadius = 18;
+  static const double actionRadius = 22;
+  static const double cardRadius = 26;
+  static const double heroRadius = 28;
+  static const double sheetRadius = 36;
+  static const double accentStroke = 6;
+  static const double borderWidth = 1;
+
+  static const EdgeInsets cardPadding = EdgeInsets.all(18);
+  static const EdgeInsets compactCardPadding = EdgeInsets.all(15);
+  static const EdgeInsets inputPadding =
+      EdgeInsets.symmetric(horizontal: 20, vertical: 18);
+  static const EdgeInsets actionPadding = EdgeInsets.symmetric(horizontal: 22);
+
+  static const Duration motion = Duration(milliseconds: 280);
+}
+
+abstract final class AppStyles {
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static BorderSide hairline(
+    BuildContext context, {
+    Color? accent,
+    bool active = false,
+  }) {
+    final bool dark = isDark(context);
+    final Color color = accent == null
+        ? (dark ? Colors.white.withAlpha(31) : Colors.black.withAlpha(14))
+        : accent.withAlpha(active ? (dark ? 112 : 92) : (dark ? 64 : 52));
+    return BorderSide(color: color, width: UIConstants.borderWidth);
+  }
+
+  static List<BoxShadow> surfaceDepth(BuildContext context) {
+    final bool dark = isDark(context);
+    return <BoxShadow>[
+      BoxShadow(
+        color: Colors.black.withAlpha(dark ? 108 : 16),
+        blurRadius: dark ? 34 : 24,
+        spreadRadius: dark ? -3 : -5,
+        offset: Offset.zero,
+      ),
+    ];
+  }
+
+  static List<BoxShadow> glow(
+    BuildContext context,
+    Color color, {
+    bool strong = false,
+  }) {
+    final bool dark = isDark(context);
+    return <BoxShadow>[
+      BoxShadow(
+        color: color.withAlpha(
+          strong ? (dark ? 86 : 66) : (dark ? 58 : 44),
+        ),
+        blurRadius: strong ? 30 : 22,
+        spreadRadius: strong ? 1 : 0,
+        offset: Offset.zero,
+      ),
+      ...surfaceDepth(context),
+    ];
+  }
+
+  static List<Shadow> inkGlow(Color color, {bool strong = false}) => <Shadow>[
+        Shadow(
+          color: color.withAlpha(strong ? 104 : 72),
+          blurRadius: strong ? 12 : 8,
+          offset: Offset.zero,
+        ),
+      ];
+}
+
 const Uuid _ids = Uuid();
 
 const FirebaseOptions _webFirebaseOptions = FirebaseOptions(
@@ -172,7 +249,7 @@ ThemeData _theme(Brightness brightness) {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: dark ? const Color(0x2EFFFFFF) : const Color(0xE8FFFFFF),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 19),
+      contentPadding: UIConstants.inputPadding,
       hintStyle: const TextStyle(
         color: systemGray,
         fontSize: 16.5,
@@ -181,18 +258,19 @@ ThemeData _theme(Brightness brightness) {
       labelStyle: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700),
       prefixIconColor: appleBlue,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: BorderSide(color: outline),
+        borderRadius: BorderRadius.circular(UIConstants.inputRadius),
+        borderSide: BorderSide(color: outline, width: UIConstants.borderWidth),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(UIConstants.inputRadius),
         borderSide: BorderSide(
           color: dark ? Colors.white.withAlpha(34) : appleBlue.withAlpha(34),
+          width: UIConstants.borderWidth,
         ),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: const BorderSide(color: appleBlue, width: 1.5),
+        borderRadius: BorderRadius.circular(UIConstants.inputRadius),
+        borderSide: const BorderSide(color: appleBlue, width: 1.4),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
@@ -202,7 +280,9 @@ ThemeData _theme(Brightness brightness) {
         color: Colors.white,
         fontWeight: FontWeight.w700,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(UIConstants.compactRadius),
+      ),
     ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: Colors.transparent,
@@ -210,13 +290,17 @@ ThemeData _theme(Brightness brightness) {
       elevation: 0,
       showDragHandle: false,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(UIConstants.sheetRadius),
+        ),
       ),
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: dark ? const Color(0xFF1C2230) : Colors.white,
       elevation: 24,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(UIConstants.cardRadius),
+      ),
     ),
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: <TargetPlatform, PageTransitionsBuilder>{
@@ -489,7 +573,8 @@ class _LoginScreenState extends State<_LoginScreen> {
                       BoxShadow(
                         color: Colors.black.withAlpha(174),
                         blurRadius: 58,
-                        offset: Offset(0, 18),
+                        spreadRadius: -6,
+                        offset: Offset.zero,
                       ),
                       BoxShadow(
                         color: appleBlue.withAlpha(20),
@@ -707,7 +792,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   void _scrollNavigation(int index) {
-    final double target = math.max(0, index * 74 - 120).toDouble();
+    final double target = math.max(0, index * 82 - 120).toDouble();
     if (_navController.hasClients) {
       _navController.animateTo(
         math.min(target, _navController.position.maxScrollExtent),
@@ -922,30 +1007,14 @@ class _BottomLedgerNav extends StatelessWidget {
     final List<Color> colors = _moduleTabColors(sync.state);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: dark ? const Color(0xD10E1422) : const Color(0xD1FFFFFF),
-        border: Border(
-          top: BorderSide(
-            color:
-                dark ? Colors.white.withAlpha(23) : Colors.black.withAlpha(11),
-          ),
-        ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withAlpha(dark ? 96 : 10),
-            blurRadius: dark ? 18 : 10,
-            offset: const Offset(0, -4),
-          ),
-          BoxShadow(
-            color: Colors.black.withAlpha(dark ? 153 : 20),
-            blurRadius: dark ? 62 : 44,
-            offset: const Offset(0, -18),
-          ),
-        ],
+        color: dark ? const Color(0xE60B1220) : const Color(0xF2FFFFFF),
+        border: Border(top: AppStyles.hairline(context)),
+        boxShadow: AppStyles.surfaceDepth(context),
       ),
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 86,
+          height: 88,
           child: SingleChildScrollView(
             controller: controller,
             scrollDirection: Axis.horizontal,
@@ -960,56 +1029,50 @@ class _BottomLedgerNav extends StatelessWidget {
                   return _Pressable(
                     onTap: () => onSelected(index),
                     semanticLabel: '${spec.label} tab',
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius:
+                        BorderRadius.circular(UIConstants.actionRadius),
                     child: AnimatedSlide(
-                      offset: active ? const Offset(0, -.045) : Offset.zero,
-                      duration: const Duration(milliseconds: 280),
+                      offset: active ? const Offset(0, -.035) : Offset.zero,
+                      duration: UIConstants.motion,
                       curve: const Cubic(0.32, 0.72, 0, 1),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 280),
+                        duration: UIConstants.motion,
                         curve: const Cubic(0.32, 0.72, 0, 1),
-                        width: 80,
-                        height: 72,
+                        width: 82,
+                        height: 74,
                         margin: const EdgeInsets.symmetric(horizontal: 2),
                         decoration: BoxDecoration(
                           color: active
-                              ? color.withAlpha(dark ? 44 : 24)
+                              ? color.withAlpha(dark ? 42 : 22)
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: active
-                                ? color.withAlpha(dark ? 54 : 38)
-                                : Colors.transparent,
+                          borderRadius:
+                              BorderRadius.circular(UIConstants.actionRadius),
+                          border: Border.fromBorderSide(
+                            active
+                                ? AppStyles.hairline(
+                                    context,
+                                    accent: color,
+                                    active: true,
+                                  )
+                                : const BorderSide(color: Colors.transparent),
                           ),
                           boxShadow: active
-                              ? <BoxShadow>[
-                                  BoxShadow(
-                                    color: color.withAlpha(dark ? 42 : 26),
-                                    blurRadius: 22,
-                                    offset: const Offset(0, 7),
-                                  ),
-                                ]
+                              ? AppStyles.glow(context, color)
                               : const <BoxShadow>[],
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
                             AnimatedScale(
-                              scale: active ? 1.15 : 1,
-                              duration: const Duration(milliseconds: 320),
+                              scale: active ? 1.13 : 1,
+                              duration: UIConstants.motion,
                               curve: const Cubic(0.34, 1.18, 0.64, 1),
                               child: Icon(
                                 spec.icon,
                                 size: 27,
                                 color: active ? color : systemGray,
-                                shadows: active
-                                    ? <Shadow>[
-                                        Shadow(
-                                          color: color.withAlpha(92),
-                                          blurRadius: 10,
-                                        ),
-                                      ]
-                                    : null,
+                                shadows:
+                                    active ? AppStyles.inkGlow(color) : null,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -1020,30 +1083,25 @@ class _BottomLedgerNav extends StatelessWidget {
                                 fontSize: 12,
                                 fontWeight:
                                     active ? FontWeight.w900 : FontWeight.w700,
-                                shadows: active
-                                    ? <Shadow>[
-                                        Shadow(
-                                          color: color.withAlpha(88),
-                                          blurRadius: 10,
-                                        ),
-                                      ]
-                                    : null,
+                                shadows:
+                                    active ? AppStyles.inkGlow(color) : null,
                               ),
                             ),
                             const SizedBox(height: 4),
                             AnimatedContainer(
-                              duration: const Duration(milliseconds: 280),
+                              duration: UIConstants.motion,
                               curve: const Cubic(0.32, 0.72, 0, 1),
                               width: active ? 38 : 0,
                               height: 4,
                               decoration: BoxDecoration(
-                                color: color.withAlpha(active ? 135 : 0),
+                                color: color.withAlpha(active ? 145 : 0),
                                 borderRadius: BorderRadius.circular(99),
                                 boxShadow: active
                                     ? <BoxShadow>[
                                         BoxShadow(
-                                          color: color.withAlpha(72),
+                                          color: color.withAlpha(76),
                                           blurRadius: 12,
+                                          offset: Offset.zero,
                                         ),
                                       ]
                                     : null,
@@ -1174,12 +1232,12 @@ class _PressableState extends State<_Pressable>
 class _GlassCard extends StatelessWidget {
   const _GlassCard({
     required this.child,
-    this.padding = const EdgeInsets.all(18),
+    this.padding = UIConstants.cardPadding,
     this.accentColor,
     this.borderColor,
     this.shadowColor,
     this.tintColor,
-    this.borderRadius = 24,
+    this.borderRadius = UIConstants.cardRadius,
   });
 
   final Widget child;
@@ -1193,46 +1251,39 @@ class _GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-    final Color surfaceBorder =
-        dark ? Colors.white.withAlpha(35) : Colors.white.withAlpha(173);
     final List<Color> surfaceColors;
     if (tintColor == null) {
       surfaceColors = dark
-          ? const <Color>[Color(0xDB121826), Color(0xB3080C18)]
-          : const <Color>[Color(0xD6FFFFFF), Color(0x99FFFFFF)];
+          ? const <Color>[Color(0xE0121826), Color(0xC4080C18)]
+          : const <Color>[Color(0xECFFFFFF), Color(0xBFFFFFFF)];
     } else {
       surfaceColors = dark
           ? <Color>[
-              Color.lerp(darkGlassTop, tintColor, .15)!.withAlpha(224),
-              Color.lerp(darkGlassBottom, tintColor, .075)!.withAlpha(194),
+              Color.lerp(darkGlassTop, tintColor, .15)!.withAlpha(228),
+              Color.lerp(darkGlassBottom, tintColor, .075)!.withAlpha(202),
             ]
           : <Color>[
-              Color.lerp(Colors.white, tintColor, .08)!.withAlpha(230),
-              Color.lerp(Colors.white, tintColor, .045)!.withAlpha(174),
+              Color.lerp(Colors.white, tintColor, .08)!.withAlpha(236),
+              Color.lerp(Colors.white, tintColor, .045)!.withAlpha(186),
             ];
     }
-    final Border border = Border.all(
-      color: borderColor ?? surfaceBorder,
-    );
-    final List<BoxShadow> shadows = <BoxShadow>[
-      if (shadowColor != null)
-        BoxShadow(
-          color: shadowColor!,
-          blurRadius: dark ? 28 : 22,
-          offset:
-              accentColor == null ? const Offset(0, 8) : const Offset(-4, 0),
-        ),
-      BoxShadow(
-        color: Colors.black.withAlpha(dark ? 87 : 10),
-        blurRadius: dark ? 14 : 8,
-        offset: const Offset(0, 4),
-      ),
-      BoxShadow(
-        color: Colors.black.withAlpha(dark ? 163 : 22),
-        blurRadius: dark ? 64 : 48,
-        offset: Offset(0, dark ? 22 : 16),
-      ),
-    ];
+    final BorderSide side = borderColor != null
+        ? BorderSide(
+            color: borderColor!,
+            width: UIConstants.borderWidth,
+          )
+        : AppStyles.hairline(
+            context,
+            accent: accentColor,
+            active: accentColor != null,
+          );
+    final List<BoxShadow> shadows = shadowColor != null
+        ? AppStyles.glow(
+            context,
+            shadowColor!,
+            strong: accentColor != null,
+          )
+        : AppStyles.surfaceDepth(context);
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -1242,27 +1293,20 @@ class _GlassCard extends StatelessWidget {
           colors: surfaceColors,
         ),
         borderRadius: BorderRadius.circular(borderRadius),
-        border: border,
+        border: Border.fromBorderSide(side),
         boxShadow: shadows,
       ),
       child: Stack(
         children: <Widget>[
           if (accentColor != null)
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: 6,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: accentColor,
-                  boxShadow: <BoxShadow>[
-                    BoxShadow(
-                      color: accentColor!.withAlpha(dark ? 92 : 72),
-                      blurRadius: 16,
-                      offset: const Offset(3, 0),
-                    ),
-                  ],
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _CardAccentPainter(
+                    color: accentColor!,
+                    radius: borderRadius,
+                    dark: dark,
+                  ),
                 ),
               ),
             ),
@@ -1274,6 +1318,58 @@ class _GlassCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CardAccentPainter extends CustomPainter {
+  const _CardAccentPainter({
+    required this.color,
+    required this.radius,
+    required this.dark,
+  });
+
+  final Color color;
+  final double radius;
+  final bool dark;
+
+  Path _rail(Size size) {
+    final double r = math.min(radius, size.height / 2);
+    final Path path = Path()
+      ..moveTo(r * .72, 0)
+      ..quadraticBezierTo(0, 0, 0, r)
+      ..lineTo(0, size.height - r)
+      ..quadraticBezierTo(0, size.height, r * .72, size.height);
+    return path;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final Path path = _rail(size);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color.withAlpha(dark ? 64 : 50)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = UIConstants.accentStroke + 8
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = UIConstants.accentStroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CardAccentPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.radius != radius ||
+      oldDelegate.dark != dark;
 }
 
 class _ScreenHeader extends StatelessWidget {
@@ -1298,20 +1394,9 @@ class _ScreenHeader extends StatelessWidget {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: dark ? const Color(0xD6000000) : const Color(0xF2FFFFFF),
-        border: Border(
-          bottom: BorderSide(
-            color:
-                dark ? Colors.white.withAlpha(23) : Colors.black.withAlpha(11),
-          ),
-        ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withAlpha(dark ? 133 : 13),
-            blurRadius: dark ? 36 : 28,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        color: dark ? const Color(0xE6000000) : const Color(0xF7FFFFFF),
+        border: Border(bottom: AppStyles.hairline(context)),
+        boxShadow: AppStyles.surfaceDepth(context),
       ),
       child: SafeArea(
         bottom: false,
@@ -1321,7 +1406,7 @@ class _ScreenHeader extends StatelessWidget {
             children: <Widget>[
               if (leading != null) ...<Widget>[
                 leading!,
-                const SizedBox(width: 11)
+                const SizedBox(width: 11),
               ],
               Expanded(
                 child: Column(
@@ -1336,14 +1421,8 @@ class _ScreenHeader extends StatelessWidget {
                         fontSize: leading == null ? 30 : 26,
                         fontWeight: FontWeight.w900,
                         letterSpacing: -.5,
-                        shadows: color == null
-                            ? null
-                            : <Shadow>[
-                                Shadow(
-                                  color: color!.withAlpha(76),
-                                  blurRadius: 12,
-                                ),
-                              ],
+                        shadows:
+                            color == null ? null : AppStyles.inkGlow(color!),
                       ),
                     ),
                     if (subtitle != null) ...<Widget>[
@@ -1404,23 +1483,24 @@ class _CircleAction extends StatelessWidget {
         child: _Pressable(
           onTap: onTap,
           semanticLabel: semanticLabel,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(UIConstants.compactRadius),
           child: Container(
-            width: 48,
-            height: 48,
+            width: 50,
+            height: 50,
             decoration: BoxDecoration(
               color: color.withAlpha(23),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: color.withAlpha(38)),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: color.withAlpha(31),
-                  blurRadius: 14,
-                  offset: const Offset(0, 5),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(UIConstants.compactRadius),
+              border: Border.fromBorderSide(
+                AppStyles.hairline(context, accent: color, active: true),
+              ),
+              boxShadow: AppStyles.glow(context, color),
             ),
-            child: Icon(icon, size: 21, color: color),
+            child: Icon(
+              icon,
+              size: 22,
+              color: color,
+              shadows: AppStyles.inkGlow(color),
+            ),
           ),
         ),
       );
@@ -1432,20 +1512,17 @@ class _BackCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _Pressable(
         onTap: () => Navigator.of(context).maybePop(),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(25),
         child: Container(
-          width: 48,
-          height: 48,
+          width: 50,
+          height: 50,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.white10
-                : Colors.black.withAlpha(13),
-            border: Border.all(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white.withAlpha(20)
-                  : Colors.black.withAlpha(8),
-            ),
+                ? Colors.white.withAlpha(13)
+                : Colors.black.withAlpha(10),
+            border: Border.fromBorderSide(AppStyles.hairline(context)),
+            boxShadow: AppStyles.surfaceDepth(context),
           ),
           child: const Icon(Icons.chevron_left_rounded),
         ),
@@ -1486,25 +1563,44 @@ class _SearchBoxState extends State<_SearchBox> {
 
   @override
   Widget build(BuildContext context) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
     final OutlineInputBorder idleBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(16),
-      borderSide: BorderSide(color: widget.color.withAlpha(55)),
+      borderRadius: BorderRadius.circular(UIConstants.inputRadius),
+      borderSide: AppStyles.hairline(
+        context,
+        accent: widget.color,
+      ),
     );
     return TextField(
       onChanged: _onChanged,
       cursorColor: widget.color,
       textInputAction: TextInputAction.search,
-      style: TextStyle(color: widget.color, fontWeight: FontWeight.w800),
+      style: TextStyle(
+        color: widget.color,
+        fontSize: 16,
+        fontWeight: FontWeight.w800,
+        shadows: AppStyles.inkGlow(widget.color),
+      ),
       decoration: InputDecoration(
         hintText: widget.hint,
+        filled: true,
+        fillColor: widget.color.withAlpha(dark ? 12 : 8),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 19),
         hintStyle: TextStyle(
           color: widget.color.withAlpha(160),
+          fontSize: 16,
           fontWeight: FontWeight.w800,
         ),
-        prefixIcon: Icon(Icons.search_rounded, color: widget.color),
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          color: widget.color,
+          shadows: AppStyles.inkGlow(widget.color),
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 54),
         enabledBorder: idleBorder,
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(UIConstants.inputRadius),
           borderSide: BorderSide(color: widget.color, width: 1.4),
         ),
       ),
@@ -1573,28 +1669,32 @@ class _EmptyState extends StatelessWidget {
           child: Column(
             children: <Widget>[
               Container(
-                width: prominent ? 92 : 68,
-                height: prominent ? 92 : 68,
+                width: prominent ? 92 : 72,
+                height: prominent ? 92 : 72,
                 decoration: BoxDecoration(
                   color: color.withAlpha(prominent ? 24 : 14),
                   shape: BoxShape.circle,
-                  border:
-                      Border.all(color: color.withAlpha(prominent ? 50 : 25)),
-                  boxShadow: <BoxShadow>[
-                    BoxShadow(
-                      color: color.withAlpha(prominent ? 46 : 20),
-                      blurRadius: prominent ? 32 : 20,
-                      offset: const Offset(0, 10),
+                  border: Border.fromBorderSide(
+                    AppStyles.hairline(
+                      context,
+                      accent: color,
+                      active: prominent,
                     ),
-                  ],
+                  ),
+                  boxShadow: AppStyles.glow(
+                    context,
+                    color,
+                    strong: prominent,
+                  ),
                 ),
                 child: Icon(
                   icon,
-                  size: prominent ? 42 : 31,
-                  color: color.withAlpha(prominent ? 235 : 145),
+                  size: prominent ? 42 : 32,
+                  color: color.withAlpha(prominent ? 235 : 150),
+                  shadows: AppStyles.inkGlow(color),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               Text(
                 message,
                 textAlign: TextAlign.center,
@@ -1602,11 +1702,8 @@ class _EmptyState extends StatelessWidget {
                   color: prominent ? color : systemGray,
                   fontSize: prominent ? 17 : 14,
                   fontWeight: prominent ? FontWeight.w900 : FontWeight.w700,
-                  shadows: prominent
-                      ? <Shadow>[
-                          Shadow(color: color.withAlpha(64), blurRadius: 12),
-                        ]
-                      : null,
+                  shadows:
+                      prominent ? AppStyles.inkGlow(color) : const <Shadow>[],
                 ),
               ),
             ],
@@ -1637,10 +1734,12 @@ class _PrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _Pressable(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(compact ? 18 : 20),
+        borderRadius: BorderRadius.circular(UIConstants.actionRadius),
         child: Container(
-          height: compact ? 50 : 58,
-          padding: EdgeInsets.symmetric(horizontal: compact ? 18 : 22),
+          constraints:
+              const BoxConstraints(minHeight: UIConstants.minTapTarget),
+          height: compact ? 52 : 58,
+          padding: UIConstants.actionPadding,
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
@@ -1649,38 +1748,34 @@ class _PrimaryButton extends StatelessWidget {
                   ? <Color>[color.withAlpha(40), color.withAlpha(22)]
                   : <Color>[color, _toneCompanion(color)],
             ),
-            borderRadius: BorderRadius.circular(compact ? 18 : 20),
-            border: Border.all(
-              color: tonal ? color.withAlpha(55) : Colors.white.withAlpha(28),
+            borderRadius: BorderRadius.circular(UIConstants.actionRadius),
+            border: Border.fromBorderSide(
+              AppStyles.hairline(context, accent: color, active: true),
             ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: color.withAlpha(tonal ? 40 : 72),
-                blurRadius: tonal ? 20 : 16,
-                offset: const Offset(0, 7),
-              ),
-            ],
+            boxShadow: AppStyles.glow(
+              context,
+              color,
+              strong: !tonal,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Icon(icon, color: foregroundColor, size: compact ? 19 : 22),
-              const SizedBox(width: 7),
+              Icon(
+                icon,
+                color: foregroundColor,
+                size: compact ? 20 : 22,
+                shadows: AppStyles.inkGlow(foregroundColor),
+              ),
+              const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(
                   color: foregroundColor,
-                  fontSize: compact ? 15 : 17,
+                  fontSize: compact ? 15.5 : 17,
                   fontWeight: FontWeight.w900,
-                  shadows: <Shadow>[
-                    Shadow(
-                      color: tonal
-                          ? color.withAlpha(72)
-                          : Colors.black.withAlpha(34),
-                      blurRadius: 8,
-                    ),
-                  ],
+                  shadows: AppStyles.inkGlow(foregroundColor),
                 ),
               ),
             ],
@@ -1712,48 +1807,31 @@ class _AmountHero extends StatelessWidget {
         : Color.lerp(const Color(0xFF06111F), color, .60)!;
     final List<Color> background = dark
         ? <Color>[
-            Color.lerp(darkGlassTop, color, .21)!.withAlpha(230),
+            Color.lerp(darkGlassTop, color, .21)!.withAlpha(232),
             Color.lerp(darkGlassBottom, _toneCompanion(color), .16)!
-                .withAlpha(215),
-            Color.lerp(Colors.black, color, .18)!.withAlpha(200),
+                .withAlpha(218),
+            Color.lerp(Colors.black, color, .18)!.withAlpha(204),
           ]
         : <Color>[
-            Color.lerp(Colors.white, color, .11)!.withAlpha(235),
+            Color.lerp(Colors.white, color, .11)!.withAlpha(240),
             Color.lerp(Colors.white, _toneCompanion(color), .08)!
-                .withAlpha(210),
-            Color.lerp(Colors.white, color, .13)!.withAlpha(184),
+                .withAlpha(218),
+            Color.lerp(Colors.white, color, .13)!.withAlpha(194),
           ];
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: background,
         ),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color:
-              dark ? Colors.white.withAlpha(38) : Colors.white.withAlpha(125),
+        borderRadius: BorderRadius.circular(UIConstants.heroRadius),
+        border: Border.fromBorderSide(
+          AppStyles.hairline(context, accent: color, active: true),
         ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withAlpha(dark ? 110 : 15),
-            blurRadius: dark ? 24 : 10,
-            offset: const Offset(0, 6),
-          ),
-          BoxShadow(
-            color: color.withAlpha(dark ? 73 : 62),
-            blurRadius: dark ? 34 : 24,
-            offset: const Offset(0, 10),
-          ),
-          BoxShadow(
-            color: color.withAlpha(dark ? 56 : 39),
-            blurRadius: dark ? 76 : 58,
-            offset: const Offset(0, 30),
-          ),
-        ],
+        boxShadow: AppStyles.glow(context, color, strong: true),
       ),
       child: Row(
         children: <Widget>[
@@ -1856,52 +1934,49 @@ class _ListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 13),
+        padding: const EdgeInsets.only(bottom: 14),
         child: _Pressable(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(UIConstants.cardRadius),
           child: _GlassCard(
-            borderRadius: 24,
-            padding: const EdgeInsets.all(15),
+            borderRadius: UIConstants.cardRadius,
+            padding: UIConstants.compactCardPadding,
             accentColor: color,
-            shadowColor: color.withAlpha(58),
+            shadowColor: color,
             child: Row(
               children: <Widget>[
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: color.withAlpha(29),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: color.withAlpha(72)),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: color.withAlpha(62),
-                        blurRadius: 22,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
+                    borderRadius:
+                        BorderRadius.circular(UIConstants.compactRadius),
+                    border: Border.fromBorderSide(
+                      AppStyles.hairline(context, accent: color, active: true),
+                    ),
+                    boxShadow: AppStyles.glow(context, color),
                   ),
                   child: avatarText == null
-                      ? Icon(icon, color: color, size: 21)
+                      ? Icon(
+                          icon,
+                          color: color,
+                          size: 22,
+                          shadows: AppStyles.inkGlow(color),
+                        )
                       : Center(
                           child: Text(
                             avatarText!,
                             style: TextStyle(
                               color: color,
-                              fontSize: 17,
+                              fontSize: 18,
                               fontWeight: FontWeight.w900,
-                              shadows: <Shadow>[
-                                Shadow(
-                                  color: color.withAlpha(78),
-                                  blurRadius: 10,
-                                ),
-                              ],
+                              shadows: AppStyles.inkGlow(color),
                             ),
                           ),
                         ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 15),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1912,11 +1987,9 @@ class _ListCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: color,
-                          fontSize: 16,
+                          fontSize: 16.5,
                           fontWeight: FontWeight.w900,
-                          shadows: <Shadow>[
-                            Shadow(color: color.withAlpha(70), blurRadius: 10),
-                          ],
+                          shadows: AppStyles.inkGlow(color),
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1939,11 +2012,9 @@ class _ListCard extends StatelessWidget {
                     trailing!,
                     style: TextStyle(
                       color: color,
-                      fontSize: 15,
+                      fontSize: 15.5,
                       fontWeight: FontWeight.w900,
-                      shadows: <Shadow>[
-                        Shadow(color: color.withAlpha(70), blurRadius: 10),
-                      ],
+                      shadows: AppStyles.inkGlow(color),
                     ),
                   ),
                 ],
@@ -1953,21 +2024,23 @@ class _ListCard extends StatelessWidget {
                     child: _Pressable(
                       onTap: onDelete,
                       semanticLabel: 'Delete $title',
-                      borderRadius: BorderRadius.circular(13),
+                      borderRadius:
+                          BorderRadius.circular(UIConstants.compactRadius),
                       child: Container(
-                        width: 42,
-                        height: 42,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
                           color: appleRed.withAlpha(24),
-                          borderRadius: BorderRadius.circular(13),
-                          border: Border.all(color: appleRed.withAlpha(46)),
-                          boxShadow: <BoxShadow>[
-                            BoxShadow(
-                              color: appleRed.withAlpha(33),
-                              blurRadius: 18,
-                              offset: const Offset(0, 8),
+                          borderRadius:
+                              BorderRadius.circular(UIConstants.compactRadius),
+                          border: Border.fromBorderSide(
+                            AppStyles.hairline(
+                              context,
+                              accent: appleRed,
+                              active: true,
                             ),
-                          ],
+                          ),
+                          boxShadow: AppStyles.glow(context, appleRed),
                         ),
                         child: const Icon(
                           Icons.delete_rounded,
@@ -1978,8 +2051,11 @@ class _ListCard extends StatelessWidget {
                     ),
                   )
                 else
-                  Icon(Icons.chevron_right_rounded,
-                      color: color.withAlpha(130)),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: color.withAlpha(150),
+                    shadows: AppStyles.inkGlow(color),
+                  ),
               ],
             ),
           ),
@@ -2069,9 +2145,9 @@ class _MonthYearPicker extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         SizedBox(
-          width: 112,
+          width: 118,
           child: DropdownButtonFormField<int>(
             key: ValueKey<String>('year-$year'),
             initialValue: year,
@@ -2102,13 +2178,16 @@ class _MonthYearPicker extends StatelessWidget {
 }
 
 InputDecoration _pickerDecoration() => InputDecoration(
-      contentPadding: const EdgeInsets.all(14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: appleBlue.withAlpha(55)),
+        borderRadius: BorderRadius.circular(UIConstants.inputRadius),
+        borderSide: BorderSide(
+          color: appleBlue.withAlpha(55),
+          width: UIConstants.borderWidth,
+        ),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(UIConstants.inputRadius),
         borderSide: const BorderSide(color: appleBlue, width: 1.4),
       ),
     );
@@ -2133,21 +2212,21 @@ class _SheetFrame extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: dark
-              ? const <Color>[Color(0xF01C2230), Color(0xE60A0F1C)]
-              : const <Color>[Color(0xF7FFFFFF), Color(0xEFFFFFFF)],
+              ? const <Color>[Color(0xF51C2230), Color(0xF00A0F1C)]
+              : const <Color>[Color(0xFAFFFFFF), Color(0xF4FFFFFF)],
         ),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(UIConstants.sheetRadius),
+        ),
         border: Border(
-          top: BorderSide(
-            color:
-                dark ? Colors.white.withAlpha(27) : Colors.white.withAlpha(210),
-          ),
+          top: AppStyles.hairline(context),
         ),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Colors.black.withAlpha(dark ? 168 : 40),
-            blurRadius: dark ? 72 : 62,
-            offset: const Offset(0, -20),
+            color: Colors.black.withAlpha(dark ? 154 : 34),
+            blurRadius: dark ? 70 : 58,
+            spreadRadius: -5,
+            offset: Offset.zero,
           ),
         ],
       ),
@@ -2500,10 +2579,10 @@ class DashboardScreen extends StatelessWidget {
                   mainAxisSpacing: 13,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: 1.05,
+                  childAspectRatio: 1.0,
                   children: <Widget>[
                     _MetricCard(
-                      icon: Icons.savings_rounded,
+                      icon: Icons.volunteer_activism_rounded,
                       label: 'To Receive (+)',
                       value: _money(totals.toReceive),
                       color: appleGreen,
@@ -2639,16 +2718,16 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _GlassCard(
-        padding: const EdgeInsets.all(15),
-        borderRadius: 26,
+        padding: UIConstants.compactCardPadding,
+        borderRadius: UIConstants.cardRadius,
         tintColor: color,
         borderColor: color.withAlpha(77),
-        shadowColor: color.withAlpha(62),
+        shadowColor: color,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            _LedgerIcon(icon: icon, color: color, size: 43),
+            _LedgerIcon(icon: icon, color: color, size: 46),
             const Spacer(),
             Text(
               label.toUpperCase(),
@@ -2656,12 +2735,12 @@ class _MetricCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: systemGray,
-                fontSize: 9.5,
+                fontSize: 10,
                 fontWeight: FontWeight.w900,
-                letterSpacing: .6,
+                letterSpacing: .65,
               ),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 4),
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
@@ -2669,12 +2748,10 @@ class _MetricCard extends StatelessWidget {
                 value,
                 style: TextStyle(
                   color: color,
-                  fontSize: 23,
+                  fontSize: 24,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -.7,
-                  shadows: <Shadow>[
-                    Shadow(color: color.withAlpha(88), blurRadius: 14),
-                  ],
+                  shadows: AppStyles.inkGlow(color, strong: true),
                 ),
               ),
             ),
@@ -2699,24 +2776,18 @@ class _LedgerIcon extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: color.withAlpha(30),
+          color: color.withAlpha(28),
           borderRadius: BorderRadius.circular(size * .32),
-          border: Border.all(color: color.withAlpha(76)),
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: color.withAlpha(62),
-              blurRadius: 22,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          border: Border.fromBorderSide(
+            AppStyles.hairline(context, accent: color, active: true),
+          ),
+          boxShadow: AppStyles.glow(context, color),
         ),
         child: Icon(
           icon,
-          size: size * .44,
+          size: size * .45,
           color: color,
-          shadows: <Shadow>[
-            Shadow(color: color.withAlpha(76), blurRadius: 10),
-          ],
+          shadows: AppStyles.inkGlow(color, strong: true),
         ),
       );
 }
@@ -3351,38 +3422,41 @@ class _MiniAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _Pressable(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(UIConstants.compactRadius),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          constraints:
+              const BoxConstraints(minHeight: UIConstants.minTapTarget),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: <Color>[color.withAlpha(35), color.withAlpha(17)],
             ),
-            borderRadius: BorderRadius.circular(13),
-            border: Border.all(color: color.withAlpha(55)),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: color.withAlpha(34),
-                blurRadius: 18,
-                offset: const Offset(0, 7),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(UIConstants.compactRadius),
+            border: Border.fromBorderSide(
+              AppStyles.hairline(context, accent: color, active: true),
+            ),
+            boxShadow: AppStyles.glow(context, color),
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Icon(icon, size: 15, color: color),
-              const SizedBox(width: 5),
+              Icon(
+                icon,
+                size: 17,
+                color: color,
+                shadows: AppStyles.inkGlow(color),
+              ),
+              const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
                   color: color,
-                  fontSize: 11.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
-                  shadows: <Shadow>[
-                    Shadow(color: color.withAlpha(70), blurRadius: 9),
-                  ],
+                  shadows: AppStyles.inkGlow(color),
                 ),
               ),
             ],
@@ -3399,7 +3473,7 @@ class _RecordsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _GlassCard(
         padding: EdgeInsets.zero,
-        borderRadius: 22,
+        borderRadius: UIConstants.cardRadius,
         child: Column(children: children),
       );
 }
@@ -3420,100 +3494,103 @@ class _RecordTile extends StatelessWidget {
   final VoidCallback? onDelete;
 
   @override
-  Widget build(BuildContext context) {
-    final Widget content = Container(
-      padding: const EdgeInsets.fromLTRB(15, 13, 8, 13),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom:
-              BorderSide(color: Theme.of(context).dividerColor.withAlpha(80)),
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(15, 13, 10, 13),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom:
+                BorderSide(color: Theme.of(context).dividerColor.withAlpha(80)),
+          ),
         ),
-      ),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 8,
-            height: 36,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: <BoxShadow>[
-                BoxShadow(color: color.withAlpha(78), blurRadius: 13),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w900,
-                    shadows: <Shadow>[
-                      Shadow(color: color.withAlpha(58), blurRadius: 9),
-                    ],
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 6,
+              height: 42,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(99),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: color.withAlpha(78),
+                    blurRadius: 13,
+                    offset: Offset.zero,
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: systemGray,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            amount,
-            style: TextStyle(
-              color: color,
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-              shadows: <Shadow>[
-                Shadow(color: color.withAlpha(62), blurRadius: 9),
-              ],
-            ),
-          ),
-          if (onDelete != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 7),
-              child: _Pressable(
-                onTap: onDelete,
-                semanticLabel: 'Delete $title record',
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: appleRed.withAlpha(24),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: appleRed.withAlpha(46)),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(color: appleRed.withAlpha(31), blurRadius: 14),
-                    ],
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w900,
+                      shadows: AppStyles.inkGlow(color),
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.delete_rounded,
-                    color: appleRed,
-                    size: 18,
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: systemGray,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              amount,
+              style: TextStyle(
+                color: color,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                shadows: AppStyles.inkGlow(color),
+              ),
+            ),
+            if (onDelete != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: _Pressable(
+                  onTap: onDelete,
+                  semanticLabel: 'Delete $title record',
+                  borderRadius:
+                      BorderRadius.circular(UIConstants.compactRadius),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: appleRed.withAlpha(24),
+                      borderRadius:
+                          BorderRadius.circular(UIConstants.compactRadius),
+                      border: Border.fromBorderSide(
+                        AppStyles.hairline(
+                          context,
+                          accent: appleRed,
+                          active: true,
+                        ),
+                      ),
+                      boxShadow: AppStyles.glow(context, appleRed),
+                    ),
+                    child: const Icon(
+                      Icons.delete_rounded,
+                      color: appleRed,
+                      size: 18,
+                    ),
                   ),
                 ),
               ),
-            )
-        ],
-      ),
-    );
-    return content;
-  }
+          ],
+        ),
+      );
 }
 
 class SalaryScreen extends StatefulWidget {
