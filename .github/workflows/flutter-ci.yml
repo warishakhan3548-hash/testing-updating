@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
@@ -23,6 +23,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Apply curved accent strip migration
+        run: python3 .github/curved_accent_patch.py
 
       - name: Java 17
         uses: actions/setup-java@v4
@@ -40,11 +43,20 @@ jobs:
       - name: Resolve packages
         run: flutter pub get
 
+      - name: Format
+        run: dart format lib/main.dart
+
       - name: Analyze
         run: flutter analyze
 
       - name: Test ledger invariants
         run: flutter test
+
+      - name: Commit verified curved card accents
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Curve module card accent strips
+          file_pattern: lib/main.dart
 
       - name: Build Android debug APK
         run: flutter build apk --debug
