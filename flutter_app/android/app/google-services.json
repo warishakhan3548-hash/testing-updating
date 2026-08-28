@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1012787958774",
+    "firebase_url": "https://diary-book-21a91-default-rtdb.firebaseio.com",
+    "project_id": "diary-book-21a91",
+    "storage_bucket": "diary-book-21a91.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1012787958774:android:522a3ce70e4f8107362dd7",
+        "android_client_info": {
+          "package_name": "com.aaris.diary.financial"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1012787958774-tdrn4qf0hgq1si2l4fob77se3k3p566c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAqg3-MifNwVM80CuMhlqHMIzB2j43EaW8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1012787958774-tdrn4qf0hgq1si2l4fob77se3k3p566c.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1012787958774-frh249ph1dve0da79ehki8sqhdsdrfmm.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "Aaris-diary"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

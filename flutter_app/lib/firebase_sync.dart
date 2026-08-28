@@ -1,0 +1,1283 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
+
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:uuid/uuid.dart';
+
+const List<String> ledgerRoots = <String>[
+  'milkDB',
+  'udharDB',
+  'expenseDB',
+  'salaryDB',
+  'diaryDB',
+  'projectDB',
+];
+
+const Set<String> _listRoots = <String>{
+  'udharDB',
+  'expenseDB',
+  'diaryDB',
+};
+
+const Set<String> _groupedRoots = <String>{
+  'milkDB',
+  'salaryDB',
+  'projectDB',
+};
+
+class LedgerSyncException implements Exception {
+  const LedgerSyncException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class PendingWritesException extends LedgerSyncException {
+  const PendingWritesException(super.message);
+}
+
+class PendingWrite {
+  const PendingWrite({
+    required this.id,
+    required this.path,
+    required this.value,
+    required this.createdAt,
+    required this.reason,
+  });
+
+  final String id;
+  final String path;
+  final dynamic value;
+  final int createdAt;
+  final String reason;
+
+  factory PendingWrite.fromJson(Map<String, dynamic> json) => PendingWrite(
+        id: '${json['id'] ?? ''}',
+        path: '${json['path'] ?? ''}',
+        value: json['value'],
+        createdAt: _asInt(json['createdAt']),
+        reason: '${json['reason'] ?? 'local-mutation'}',
+      );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'id': id,
+        'path': path,
+        'value': value,
+        'createdAt': createdAt,
+        'reason': reason,
+      };
+}
+
+class SyncEnvelope {
+  const SyncEnvelope({
+    required this.state,
+    required this.outbox,
+    required this.changeToken,
+    required this.revision,
+    required this.tableRevisions,
+    required this.lastFullAuditAt,
+  });
+
+  factory SyncEnvelope.empty() => SyncEnvelope(
+        state: LedgerCodec.emptyState(),
+        outbox: const <PendingWrite>[],
+        changeToken: '',
+        revision: 0,
+        tableRevisions: const <String, int>{},
+        lastFullAuditAt: 0,
+      );
+
+  factory SyncEnvelope.fromJson(Map<String, dynamic> json) {
+    final List<PendingWrite> writes = <PendingWrite>[];
+    final dynamic rawOutbox = json['outbox'];
+    if (rawOutbox is List) {
+      for (final dynamic item in rawOutbox) {
+        if (item is Map) {
+          final PendingWrite write = PendingWrite.fromJson(
+            LedgerCodec.objectMap(item),
+          );
+          if (write.id.isNotEmpty && write.path.isNotEmpty) {
+            writes.add(write);
+          }
+        }
+      }
+    }
+    final Map<String, int> tableRevisions = <String, int>{};
+    for (final MapEntry<String, dynamic> entry
+        in LedgerCodec.objectMap(json['tableRevisions']).entries) {
+      final int value = _asInt(entry.value);
+      if (value > 0) tableRevisions[entry.key] = value;
+    }
+    return SyncEnvelope(
+      state: LedgerCodec.normalizeState(json['state']),
+      outbox: writes,
+      changeToken: '${json['changeToken'] ?? ''}',
+      revision: _asInt(json['revision']),
+      tableRevisions: tableRevisions,
+      lastFullAuditAt: _asInt(json['lastFullAuditAt']),
+    );
+  }
+
+  final Map<String, dynamic> state;
+  final List<PendingWrite> outbox;
+  final String changeToken;
+  final int revision;
+  final Map<String, int> tableRevisions;
+  final int lastFullAuditAt;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'version': 1,
+        'state': state,
+        'outbox': outbox.map((PendingWrite write) => write.toJson()).toList(),
+        'changeToken': changeToken,
+        'revision': revision,
+        'tableRevisions': tableRevisions,
+        'lastFullAuditAt': lastFullAuditAt,
+      };
+}
+
+class LedgerCodec {
+  LedgerCodec._();
+
+  static Map<String, dynamic> emptyState() => <String, dynamic>{
+        'milkDB': <String, dynamic>{},
+        'udharDB': <Map<String, dynamic>>[],
+        'expenseDB': <Map<String, dynamic>>[],
+        'salaryDB': <String, dynamic>{},
+        'diaryDB': <Map<String, dynamic>>[],
+        'projectDB': <String, dynamic>{},
+      };
+
+  static Map<String, dynamic> objectMap(dynamic value) {
+    if (value is! Map) return <String, dynamic>{};
+    return value.map<String, dynamic>(
+      (dynamic key, dynamic item) => MapEntry<String, dynamic>('$key', item),
+    );
+  }
+
+  static dynamic clone(dynamic value) {
+    if (value == null || value is String || value is bool || value is num) {
+      return value;
+    }
+    return jsonDecode(jsonEncode(value));
+  }
+
+  static List<Map<String, dynamic>> canonicalList(dynamic value) {
+    final List<Map<String, dynamic>> result = <Map<String, dynamic>>[];
+    if (value is List) {
+      for (int index = 0; index < value.length; index++) {
+        final dynamic item = value[index];
+        if (item is! Map) continue;
+        final Map<String, dynamic> row = objectMap(clone(item));
+        final String id = '${row['id'] ?? row['key'] ?? index}';
+        row['id'] = id;
+        row.putIfAbsent('key', () => id);
+        result.add(row);
+      }
+      return result;
+    }
+    if (value is Map) {
+      for (final MapEntry<String, dynamic> entry in objectMap(value).entries) {
+        if (entry.value is! Map) continue;
+        final Map<String, dynamic> row = objectMap(clone(entry.value));
+        final String id = '${row['id'] ?? row['key'] ?? entry.key}';
+        row['id'] = id;
+        row.putIfAbsent('key', () => id);
+        result.add(row);
+      }
+    }
+    return result;
+  }
+
+  static Map<String, dynamic> normalizeState(dynamic value) {
+    final Map<String, dynamic> source = objectMap(value);
+    final Map<String, dynamic> state = emptyState();
+    for (final String root in _listRoots) {
+      state[root] = canonicalList(source[root]);
+    }
+    for (final String root in _groupedRoots) {
+      final Map<String, dynamic> profiles = <String, dynamic>{};
+      for (final MapEntry<String, dynamic> entry
+          in objectMap(source[root]).entries) {
+        if (entry.value is! Map) continue;
+        final Map<String, dynamic> profile = objectMap(clone(entry.value));
+        profile['records'] = canonicalList(profile['records']);
+        profiles[entry.key] = profile;
+      }
+      state[root] = profiles;
+    }
+    return state;
+  }
+
+  static bool applyPath(
+    Map<String, dynamic> state,
+    String path,
+    dynamic value,
+  ) {
+    final List<String> parts = path.split('/');
+    if (parts.isEmpty || !ledgerRoots.contains(parts.first)) return false;
+    final String root = parts.first;
+
+    if (_listRoots.contains(root)) {
+      if (parts.length == 1) {
+        state[root] = canonicalList(value);
+        return true;
+      }
+      if (parts.length != 2) return false;
+      final String id = parts[1];
+      final List<Map<String, dynamic>> rows = canonicalList(state[root]);
+      final int index = rows.indexWhere(
+        (Map<String, dynamic> row) => '${row['id'] ?? row['key']}' == id,
+      );
+      if (value == null) {
+        if (index >= 0) rows.removeAt(index);
+      } else {
+        if (value is! Map) return false;
+        final Map<String, dynamic> row = objectMap(clone(value));
+        row['id'] = id;
+        row.putIfAbsent('key', () => id);
+        if (index >= 0) {
+          rows[index] = row;
+        } else {
+          rows.insert(0, row);
+        }
+      }
+      state[root] = rows;
+      return true;
+    }
+
+    final Map<String, dynamic> profiles = objectMap(state[root]);
+    if (parts.length == 1) {
+      state[root] = normalizeState(<String, dynamic>{root: value})[root];
+      return true;
+    }
+    final String name = parts[1];
+    if (parts.length == 2) {
+      if (value == null) {
+        profiles.remove(name);
+      } else {
+        if (value is! Map) return false;
+        final Map<String, dynamic> profile = objectMap(clone(value));
+        profile['records'] = canonicalList(profile['records']);
+        profiles[name] = profile;
+      }
+      state[root] = profiles;
+      return true;
+    }
+
+    final dynamic rawProfile = profiles[name];
+    if (rawProfile is! Map) return false;
+    final Map<String, dynamic> profile = objectMap(rawProfile);
+    if (parts.length == 3) {
+      if (parts[2] == 'records') {
+        profile['records'] = canonicalList(value);
+      } else if (value == null) {
+        profile.remove(parts[2]);
+      } else {
+        profile[parts[2]] = clone(value);
+      }
+      profiles[name] = profile;
+      state[root] = profiles;
+      return true;
+    }
+    if (parts.length != 4 || parts[2] != 'records') return false;
+
+    final String id = parts[3];
+    final List<Map<String, dynamic>> records = canonicalList(profile['records']);
+    final int index = records.indexWhere(
+      (Map<String, dynamic> row) => '${row['id'] ?? row['key']}' == id,
+    );
+    if (value == null) {
+      if (index >= 0) records.removeAt(index);
+    } else {
+      if (value is! Map) return false;
+      final Map<String, dynamic> row = objectMap(clone(value));
+      row['id'] = id;
+      row.putIfAbsent('key', () => id);
+      if (index >= 0) {
+        records[index] = row;
+      } else {
+        records.insert(0, row);
+      }
+    }
+    profile['records'] = records;
+    profiles[name] = profile;
+    state[root] = profiles;
+    return true;
+  }
+}
+
+class OutboxPlanner {
+  OutboxPlanner._();
+
+  static bool overlaps(String left, String right) =>
+      left == right ||
+      left.startsWith('$right/') ||
+      right.startsWith('$left/');
+
+  static List<PendingWrite> nextCompatibleBatch(
+    List<PendingWrite> queue, {
+    int limit = 75,
+  }) {
+    final List<PendingWrite> batch = <PendingWrite>[];
+    for (final PendingWrite write in queue) {
+      if (batch.length >= limit) break;
+      if (batch.any(
+        (PendingWrite existing) => overlaps(existing.path, write.path),
+      )) {
+        break;
+      }
+      batch.add(write);
+    }
+    return batch;
+  }
+}
+
+class MilkTotals {
+  const MilkTotals({
+    required this.givenKg,
+    required this.takenKg,
+    required this.givenAmount,
+    required this.takenAmount,
+  });
+
+  final double givenKg;
+  final double takenKg;
+  final double givenAmount;
+  final double takenAmount;
+
+  double get netKg => _cleanZero(givenKg - takenKg);
+  double get netAmount => _cleanZero(givenAmount - takenAmount);
+}
+
+class DashboardTotals {
+  const DashboardTotals({
+    required this.toReceive,
+    required this.toPay,
+    required this.monthExpense,
+    required this.monthProfit,
+    required this.creditReceive,
+    required this.creditPay,
+  });
+
+  final double toReceive;
+  final double toPay;
+  final double monthExpense;
+  final double monthProfit;
+  final double creditReceive;
+  final double creditPay;
+}
+
+class PartyBalance {
+  const PartyBalance({
+    required this.name,
+    required this.milk,
+    required this.credit,
+  });
+
+  final String name;
+  final double milk;
+  final double credit;
+
+  double get net => _cleanZero(milk + credit);
+}
+
+class LedgerMath {
+  LedgerMath._();
+
+  static double number(dynamic value) {
+    if (value is num) return value.isFinite ? value.toDouble() : 0;
+    return double.tryParse('$value') ?? 0;
+  }
+
+  static DateTime? date(dynamic value) {
+    final String raw = '${value ?? ''}'.trim();
+    if (raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
+  }
+
+  static bool inMonth(dynamic record, int month, int year) {
+    final Map<String, dynamic> row = LedgerCodec.objectMap(record);
+    final DateTime? parsed = date(row['date']);
+    return parsed != null && parsed.month == month && parsed.year == year;
+  }
+
+  static String milkFlow(dynamic record, dynamic customer) {
+    final Map<String, dynamic> row = LedgerCodec.objectMap(record);
+    final Map<String, dynamic> profile = LedgerCodec.objectMap(customer);
+    final String raw = '${row['flow'] ?? row['milkFlow'] ?? row['direction'] ?? row['entryType'] ?? row['type'] ?? row['mode'] ?? ''}'
+        .toLowerCase();
+    const List<String> taken = <String>[
+      'taken',
+      'take',
+      'minus',
+      'debit',
+      'pay',
+      'paid',
+      'dene_wala',
+      'buyer',
+      'negative',
+      'out',
+    ];
+    const List<String> given = <String>[
+      'given',
+      'give',
+      'plus',
+      'credit',
+      'receive',
+      'received',
+      'lene_wala',
+      'seller',
+      'positive',
+      'in',
+    ];
+    if (taken.contains(raw)) return 'taken';
+    if (given.contains(raw)) return 'given';
+    return profile['type'] == 'dene_wala' ? 'taken' : 'given';
+  }
+
+  static double milkQuantity(dynamic record) {
+    final Map<String, dynamic> row = LedgerCodec.objectMap(record);
+    final double morning = number(row['morning']);
+    final double evening = number(row['evening']);
+    if (morning != 0 || evening != 0) return (morning + evening).abs();
+    return number(
+      row['kg'] ?? row['qty'] ?? row['quantity'] ?? row['totalKg'] ?? row['total'],
+    ).abs();
+  }
+
+  static MilkTotals milkTotals(
+    dynamic customer, {
+    int? month,
+    int? year,
+  }) {
+    final Map<String, dynamic> profile = LedgerCodec.objectMap(customer);
+    final List<Map<String, dynamic>> rows =
+        LedgerCodec.canonicalList(profile['records']);
+    double givenKg = 0;
+    double takenKg = 0;
+    double givenAmount = 0;
+    double takenAmount = 0;
+    for (final Map<String, dynamic> row in rows) {
+      if (month != null && year != null && !inMonth(row, month, year)) {
+        continue;
+      }
+      final double quantity = milkQuantity(row);
+      if (quantity == 0) continue;
+      final double recordRate = number(row['rate']);
+      final double profileRate = number(profile['rate']);
+      final double rate = recordRate > 0
+          ? recordRate
+          : profileRate > 0
+              ? profileRate
+              : 60;
+      if (milkFlow(row, profile) == 'taken') {
+        takenKg += quantity;
+        takenAmount += quantity * rate;
+      } else {
+        givenKg += quantity;
+        givenAmount += quantity * rate;
+      }
+    }
+    return MilkTotals(
+      givenKg: givenKg,
+      takenKg: takenKg,
+      givenAmount: givenAmount,
+      takenAmount: takenAmount,
+    );
+  }
+
+  static double creditSigned(dynamic entry) {
+    final Map<String, dynamic> row = LedgerCodec.objectMap(entry);
+    final double amount = number(
+      row['amount'] ?? row['amt'] ?? row['total'] ?? row['price'] ?? row['value'],
+    ).abs();
+    final String raw = '${row['type'] ?? row['entryType'] ?? row['flow'] ?? row['direction'] ?? row['status'] ?? row['mode'] ?? ''}'
+        .toLowerCase();
+    if (raw.contains('debit') ||
+        raw.contains('dena') ||
+        raw.contains('pay') ||
+        raw.contains('paid') ||
+        raw.contains('minus') ||
+        raw.contains('negative') ||
+        raw.contains('taken') ||
+        raw == 'out') {
+      return -amount;
+    }
+    return amount;
+  }
+
+  static double salaryNet(dynamic person, int month, int year) {
+    final Map<String, dynamic> profile = LedgerCodec.objectMap(person);
+    double total = 0;
+    for (final Map<String, dynamic> row
+        in LedgerCodec.canonicalList(profile['records'])) {
+      if (inMonth(row, month, year)) total += number(row['amount']);
+    }
+    return profile['type'] == 'lene_wala' ? total : -total;
+  }
+
+  static DashboardTotals dashboard(
+    Map<String, dynamic> state, {
+    required int month,
+    required int year,
+  }) {
+    double revenue = 0;
+    double expense = 0;
+    double receive = 0;
+    double pay = 0;
+    double creditReceive = 0;
+    double creditPay = 0;
+
+    for (final dynamic customer
+        in LedgerCodec.objectMap(state['milkDB']).values) {
+      final MilkTotals monthly = milkTotals(customer, month: month, year: year);
+      final MilkTotals lifetime = milkTotals(customer);
+      if (monthly.netAmount >= 0) {
+        revenue += monthly.netAmount;
+      } else {
+        expense += monthly.netAmount.abs();
+      }
+      if (lifetime.netAmount >= 0) {
+        receive += lifetime.netAmount;
+      } else {
+        pay += lifetime.netAmount.abs();
+      }
+    }
+
+    for (final Map<String, dynamic> row
+        in LedgerCodec.canonicalList(state['expenseDB'])) {
+      if (inMonth(row, month, year)) expense += number(row['amount']).abs();
+    }
+
+    final Map<String, double> creditByParty = <String, double>{};
+    for (final Map<String, dynamic> row
+        in LedgerCodec.canonicalList(state['udharDB'])) {
+      final String name = cleanName(row['name']);
+      if (name.isEmpty) continue;
+      creditByParty[name] = (creditByParty[name] ?? 0) + creditSigned(row);
+    }
+    for (final double raw in creditByParty.values) {
+      final double net = _cleanZero(raw);
+      if (net > 0) {
+        receive += net;
+        creditReceive += net;
+      } else if (net < 0) {
+        pay += net.abs();
+        creditPay += net.abs();
+      }
+    }
+
+    for (final dynamic person
+        in LedgerCodec.objectMap(state['salaryDB']).values) {
+      final double net = salaryNet(person, month, year);
+      if (net >= 0) {
+        revenue += net;
+      } else {
+        expense += net.abs();
+      }
+    }
+
+    return DashboardTotals(
+      toReceive: receive,
+      toPay: pay,
+      monthExpense: expense,
+      monthProfit: revenue - expense,
+      creditReceive: creditReceive,
+      creditPay: creditPay,
+    );
+  }
+
+  static List<PartyBalance> partyBalances(Map<String, dynamic> state) {
+    final Map<String, double> milk = <String, double>{};
+    final Map<String, double> credit = <String, double>{};
+    for (final MapEntry<String, dynamic> entry
+        in LedgerCodec.objectMap(state['milkDB']).entries) {
+      final String name = cleanName(entry.key);
+      if (name.isEmpty) continue;
+      milk[name] = (milk[name] ?? 0) + milkTotals(entry.value).netAmount;
+    }
+    for (final Map<String, dynamic> row
+        in LedgerCodec.canonicalList(state['udharDB'])) {
+      final String name = cleanName(row['name']);
+      if (name.isEmpty) continue;
+      credit[name] = (credit[name] ?? 0) + creditSigned(row);
+    }
+    final Set<String> names = <String>{...milk.keys, ...credit.keys};
+    final List<PartyBalance> result = names
+        .map(
+          (String name) => PartyBalance(
+            name: name,
+            milk: milk[name] ?? 0,
+            credit: credit[name] ?? 0,
+          ),
+        )
+        .toList();
+    result.sort((PartyBalance a, PartyBalance b) {
+      final int byAbsolute = b.net.abs().compareTo(a.net.abs());
+      return byAbsolute != 0 ? byAbsolute : a.name.compareTo(b.name);
+    });
+    return result;
+  }
+
+  static String cleanName(dynamic value) => '${value ?? ''}'
+      .replaceAll(RegExp(r'[\u0000-\u001F\u007F]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+}
+
+class LedgerSyncService extends ChangeNotifier {
+  LedgerSyncService({
+    FirebaseAuth? auth,
+    FirebaseDatabase? database,
+  })  : auth = auth ?? FirebaseAuth.instance,
+        database = database ?? FirebaseDatabase.instance;
+
+  final FirebaseAuth auth;
+  final FirebaseDatabase database;
+  final Uuid _uuid = const Uuid();
+
+  late Box<String> _box;
+  Map<String, dynamic> _state = LedgerCodec.emptyState();
+  List<PendingWrite> _outbox = <PendingWrite>[];
+  Map<String, int> _tableRevisions = <String, int>{};
+  String _changeToken = '';
+  int _revision = 0;
+  int _lastFullAuditAt = 0;
+  String _writerId = '';
+  String? _activeUid;
+  DatabaseReference? _appDataRef;
+  StreamSubscription<User?>? _authSubscription;
+  StreamSubscription<DatabaseEvent>? _connectionSubscription;
+  StreamSubscription<DatabaseEvent>? _tokenSubscription;
+  Timer? _flushTimer;
+  Timer? _reconcileTimer;
+  Timer? _retryTimer;
+  Future<void> _gate = Future<void>.value();
+  int _retryAttempt = 0;
+  bool _booting = true;
+  bool _syncing = false;
+  bool _darkMode = false;
+  bool? _connected;
+  Object? _lastError;
+
+  User? get user => auth.currentUser;
+  bool get booting => _booting;
+  bool get syncing => _syncing;
+  bool get darkMode => _darkMode;
+  bool get isConnected => _connected != false;
+  int get pendingWrites => _outbox.length;
+  Object? get lastError => _lastError;
+  Map<String, dynamic> get state => _state;
+
+  Future<void> initialize() async {
+    await Hive.initFlutter();
+    _box = await Hive.openBox<String>('aarish_sync_v1');
+    _darkMode = _box.get('setting.darkMode') == 'true';
+    _writerId = _box.get('setting.writerId') ?? '';
+    if (_writerId.isEmpty) {
+      _writerId = 'flt-${_uuid.v4().replaceAll('-', '').substring(0, 16)}';
+      await _box.put('setting.writerId', _writerId);
+    }
+    if (!kIsWeb) {
+      try {
+        database.setPersistenceEnabled(true);
+      } catch (_) {
+        // Firebase allows this only before the first database use. A hot restart
+        // can legitimately reach this branch after persistence is already set.
+      }
+    }
+    await _activateUser(auth.currentUser);
+    _authSubscription = auth.userChanges().listen(
+      (User? nextUser) => unawaited(_activateUser(nextUser)),
+    );
+  }
+
+  Future<T> _locked<T>(Future<T> Function() operation) async {
+    final Future<void> previous = _gate;
+    final Completer<void> release = Completer<void>();
+    _gate = release.future;
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      if (!release.isCompleted) release.complete();
+    }
+  }
+
+  Future<void> _activateUser(User? nextUser) async {
+    bool shouldReconcile = false;
+    await _locked<void>(() async {
+      final String? nextUid = nextUser?.uid;
+      if (!_booting && nextUid == _activeUid) return;
+      await _detachUserStreams();
+      _flushTimer?.cancel();
+      _reconcileTimer?.cancel();
+      _retryTimer?.cancel();
+      _activeUid = nextUid;
+      _lastError = null;
+      _retryAttempt = 0;
+
+      if (nextUid == null || nextUid.isEmpty) {
+        _state = LedgerCodec.emptyState();
+        _outbox = <PendingWrite>[];
+        _tableRevisions = <String, int>{};
+        _changeToken = '';
+        _revision = 0;
+        _lastFullAuditAt = 0;
+        _appDataRef = null;
+        _connected = null;
+        _booting = false;
+        notifyListeners();
+        return;
+      }
+
+      final SyncEnvelope envelope = _readEnvelope(nextUid);
+      _state = envelope.state;
+      _outbox = List<PendingWrite>.from(envelope.outbox);
+      _tableRevisions = Map<String, int>.from(envelope.tableRevisions);
+      _changeToken = envelope.changeToken;
+      _revision = envelope.revision;
+      _lastFullAuditAt = envelope.lastFullAuditAt;
+      _appDataRef = database.ref('users/$nextUid/appData');
+      _booting = false;
+      _attachUserStreams(nextUid);
+      notifyListeners();
+      shouldReconcile = true;
+    });
+    if (shouldReconcile) {
+      unawaited(reconcile(reason: 'auth-ready', force: _lastFullAuditAt == 0));
+    }
+  }
+
+  SyncEnvelope _readEnvelope(String uid) {
+    final String? raw = _box.get('ledger.$uid');
+    if (raw == null || raw.isEmpty) return SyncEnvelope.empty();
+    try {
+      final dynamic decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return SyncEnvelope.fromJson(LedgerCodec.objectMap(decoded));
+      }
+    } catch (_) {
+      // A corrupt local cache is ignored; Firebase remains the source of truth.
+    }
+    return SyncEnvelope.empty();
+  }
+
+  SyncEnvelope _currentEnvelope({
+    Map<String, dynamic>? state,
+    List<PendingWrite>? outbox,
+    String? changeToken,
+    int? revision,
+    Map<String, int>? tableRevisions,
+    int? lastFullAuditAt,
+  }) =>
+      SyncEnvelope(
+        state: state ?? _state,
+        outbox: outbox ?? _outbox,
+        changeToken: changeToken ?? _changeToken,
+        revision: revision ?? _revision,
+        tableRevisions: tableRevisions ?? _tableRevisions,
+        lastFullAuditAt: lastFullAuditAt ?? _lastFullAuditAt,
+      );
+
+  Future<void> _persistEnvelope(String uid, SyncEnvelope envelope) async {
+    await _box.put('ledger.$uid', jsonEncode(envelope.toJson()));
+  }
+
+  void _attachUserStreams(String uid) {
+    _connectionSubscription = database.ref('.info/connected').onValue.listen(
+      (DatabaseEvent event) {
+        if (uid != _activeUid) return;
+        _connected = event.snapshot.value == true;
+        notifyListeners();
+        if (_connected == true) {
+          _scheduleReconcile(const Duration(milliseconds: 120), 'connection');
+        }
+      },
+      onError: (Object error) {
+        _lastError = error;
+        notifyListeners();
+      },
+    );
+    _tokenSubscription = _appDataRef!
+        .child('_syncMeta/changeToken')
+        .onValue
+        .listen((DatabaseEvent event) {
+      if (uid != _activeUid) return;
+      final String remoteToken = '${event.snapshot.value ?? ''}';
+      if (remoteToken.isNotEmpty && remoteToken != _changeToken) {
+        _scheduleReconcile(const Duration(milliseconds: 180), 'remote-token');
+      }
+    }, onError: (Object error) {
+      _lastError = error;
+      notifyListeners();
+    });
+  }
+
+  Future<void> _detachUserStreams() async {
+    await _connectionSubscription?.cancel();
+    await _tokenSubscription?.cancel();
+    _connectionSubscription = null;
+    _tokenSubscription = null;
+  }
+
+  Future<void> setDarkMode(bool value) async {
+    _darkMode = value;
+    await _box.put('setting.darkMode', '$value');
+    notifyListeners();
+  }
+
+  String? readSetting(String key) => _box.get('setting.$key');
+
+  Future<void> writeSetting(String key, String? value) async {
+    if (value == null) {
+      await _box.delete('setting.$key');
+    } else {
+      await _box.put('setting.$key', value);
+    }
+  }
+
+  Future<void> write(
+    String path,
+    dynamic value, {
+    String reason = 'user-mutation',
+  }) =>
+      writeBatch(<String, dynamic>{path: value}, reason: reason);
+
+  Future<void> writeBatch(
+    Map<String, dynamic> writes, {
+    String reason = 'user-batch',
+  }) async {
+    if (writes.isEmpty) return;
+    await _locked<void>(() async {
+      final String? uid = _activeUid;
+      if (uid == null || uid.isEmpty || auth.currentUser?.uid != uid) {
+        throw const LedgerSyncException('Please sign in before saving data.');
+      }
+      final Map<String, dynamic> nextState = LedgerCodec.normalizeState(_state);
+      final List<PendingWrite> nextOutbox = List<PendingWrite>.from(_outbox);
+      int sequence = 0;
+      for (final MapEntry<String, dynamic> entry in writes.entries) {
+        final String path = _validatePath(entry.key);
+        final dynamic safeValue = _sanitizeValue(entry.value, path);
+        if (!LedgerCodec.applyPath(nextState, path, safeValue)) {
+          throw LedgerSyncException('Unsupported data path: $path');
+        }
+        nextOutbox.add(
+          PendingWrite(
+            id: '${DateTime.now().microsecondsSinceEpoch}-${sequence++}-${_uuid.v4().substring(0, 8)}',
+            path: path,
+            value: safeValue,
+            createdAt: DateTime.now().millisecondsSinceEpoch,
+            reason: reason,
+          ),
+        );
+      }
+
+      final SyncEnvelope nextEnvelope = _currentEnvelope(
+        state: nextState,
+        outbox: nextOutbox,
+      );
+      // State and outbox are written as one Hive value. The UI is notified only
+      // after this durable commit, eliminating the crash gap between both.
+      await _persistEnvelope(uid, nextEnvelope);
+      if (uid != _activeUid) {
+        throw const LedgerSyncException('Account changed while saving.');
+      }
+      _state = nextState;
+      _outbox = nextOutbox;
+      _lastError = null;
+      notifyListeners();
+      _scheduleFlush(const Duration(milliseconds: 180));
+    });
+  }
+
+  String _validatePath(String rawPath) {
+    final String path = rawPath
+        .trim()
+        .replaceAll(RegExp(r'^/+|/+$'), '')
+        .replaceAll(RegExp(r'/+'), '/');
+    final List<String> parts = path.split('/');
+    if (path.isEmpty || !ledgerRoots.contains(parts.first)) {
+      throw LedgerSyncException('Unsafe Firebase path: $rawPath');
+    }
+    final RegExp forbidden = RegExp(r'[.#$\[\]\u0000-\u001F\u007F]');
+    if (parts.any(
+      (String part) =>
+          part.isEmpty ||
+          part == '.' ||
+          part == '..' ||
+          part == '_syncMeta' ||
+          part.length > 180 ||
+          forbidden.hasMatch(part),
+    )) {
+      throw LedgerSyncException('Unsafe Firebase path: $rawPath');
+    }
+    if (_listRoots.contains(parts.first) && parts.length > 2) {
+      throw LedgerSyncException('Unsupported list path: $rawPath');
+    }
+    if (_groupedRoots.contains(parts.first)) {
+      final bool valid = parts.length <= 2 ||
+          (parts.length == 3 && parts[2] == 'records') ||
+          (parts.length == 4 && parts[2] == 'records');
+      if (!valid) throw LedgerSyncException('Unsupported profile path: $rawPath');
+    }
+    return path;
+  }
+
+  dynamic _sanitizeValue(dynamic value, String path) {
+    if (value == null || value is bool || value is String) return value;
+    if (value is num) {
+      if (!value.isFinite) {
+        throw LedgerSyncException('Invalid number at $path');
+      }
+      return value;
+    }
+    if (value is List) {
+      return value
+          .map((dynamic item) => _sanitizeValue(item, path))
+          .toList(growable: false);
+    }
+    if (value is Map) {
+      final Map<String, dynamic> result = <String, dynamic>{};
+      for (final MapEntry<String, dynamic> entry
+          in LedgerCodec.objectMap(value).entries) {
+        if (RegExp(r'[.#$\[\]/\u0000-\u001F\u007F]').hasMatch(entry.key)) {
+          throw LedgerSyncException('Invalid field name at $path');
+        }
+        result[entry.key] = _sanitizeValue(entry.value, '$path/${entry.key}');
+      }
+      return result;
+    }
+    throw LedgerSyncException('Unsupported value at $path');
+  }
+
+  void _scheduleFlush(Duration delay) {
+    _flushTimer?.cancel();
+    _flushTimer = Timer(delay, () => unawaited(flush()));
+  }
+
+  void _scheduleReconcile(Duration delay, String reason) {
+    _reconcileTimer?.cancel();
+    _reconcileTimer = Timer(
+      delay,
+      () => unawaited(reconcile(reason: reason)),
+    );
+  }
+
+  Future<bool> flush({bool throwOnFailure = false}) =>
+      _locked<bool>(() => _flushLocked(throwOnFailure: throwOnFailure));
+
+  Future<bool> _flushLocked({bool throwOnFailure = false}) async {
+    final String? uid = _activeUid;
+    final DatabaseReference? reference = _appDataRef;
+    if (uid == null || reference == null || _outbox.isEmpty) return true;
+    if (_connected == false) return false;
+    _syncing = true;
+    notifyListeners();
+
+    try {
+      int batches = 0;
+      while (_outbox.isNotEmpty && batches < 8) {
+        if (uid != _activeUid || auth.currentUser?.uid != uid) return false;
+        final List<PendingWrite> batch =
+            OutboxPlanner.nextCompatibleBatch(_outbox);
+        if (batch.isEmpty) break;
+        final Map<String, Object?> payload = <String, Object?>{};
+        final Map<String, dynamic> delta = <String, dynamic>{};
+        final Set<String> touchedRoots = <String>{};
+        for (final PendingWrite write in batch) {
+          payload[write.path] = write.value;
+          delta[write.path] = write.value;
+          touchedRoots.add(write.path.split('/').first);
+        }
+
+        final int previousRevision = _revision;
+        final int revision = math.max(
+          DateTime.now().millisecondsSinceEpoch,
+          previousRevision + 1,
+        );
+        final String previousToken = _changeToken;
+        final String token =
+            '$_writerId:$revision:${_uuid.v4().replaceAll('-', '').substring(0, 10)}';
+        payload['_syncMeta/rev'] = revision;
+        payload['_syncMeta/prevRev'] = previousRevision;
+        payload['_syncMeta/changeToken'] = token;
+        payload['_syncMeta/prevToken'] =
+            previousToken.isEmpty ? null : previousToken;
+        payload['_syncMeta/writerId'] = _writerId;
+        payload['_syncMeta/mode'] = 'AARISH_FIREBASE_COST_CORE_V12_VECTOR';
+        payload['_syncMeta/updatedAt'] = ServerValue.timestamp;
+        for (final String root in touchedRoots) {
+          payload['_syncMeta/tables/$root'] = revision;
+          payload['_syncMeta/tableClocks/$root/$_writerId'] = token;
+        }
+        final String deltaJson = jsonEncode(delta);
+        payload['_syncMeta/deltaWrites'] =
+            deltaJson.length < 2500 ? deltaJson : null;
+
+        await reference.update(payload);
+
+        final Set<String> acknowledged =
+            batch.map((PendingWrite write) => write.id).toSet();
+        final List<PendingWrite> remaining = _outbox
+            .where((PendingWrite write) => !acknowledged.contains(write.id))
+            .toList();
+        final Map<String, int> nextTableRevisions =
+            Map<String, int>.from(_tableRevisions);
+        for (final String root in touchedRoots) {
+          nextTableRevisions[root] = revision;
+        }
+        final SyncEnvelope acknowledgedEnvelope = _currentEnvelope(
+          outbox: remaining,
+          changeToken: token,
+          revision: revision,
+          tableRevisions: nextTableRevisions,
+        );
+        // If this local acknowledgement fails, the already-sent writes remain
+        // queued on disk and are safely replayed after restart (idempotently).
+        await _persistEnvelope(uid, acknowledgedEnvelope);
+        _outbox = remaining;
+        _changeToken = token;
+        _revision = revision;
+        _tableRevisions = nextTableRevisions;
+        _retryAttempt = 0;
+        _lastError = null;
+        batches++;
+        notifyListeners();
+      }
+      if (_outbox.isNotEmpty) {
+        _scheduleFlush(const Duration(milliseconds: 250));
+      }
+      return _outbox.isEmpty;
+    } catch (error) {
+      _lastError = error;
+      _scheduleRetry();
+      if (throwOnFailure) rethrow;
+      return false;
+    } finally {
+      _syncing = false;
+      notifyListeners();
+    }
+  }
+
+  void _scheduleRetry() {
+    _retryTimer?.cancel();
+    final int seconds = math.min(60, 2 << math.min(_retryAttempt, 4));
+    _retryAttempt++;
+    _retryTimer = Timer(
+      Duration(seconds: seconds),
+      () => unawaited(reconcile(reason: 'retry')),
+    );
+  }
+
+  Future<bool> reconcile({
+    String reason = 'manual',
+    bool force = false,
+  }) =>
+      _locked<bool>(() => _reconcileLocked(reason: reason, force: force));
+
+  Future<bool> _reconcileLocked({
+    required String reason,
+    required bool force,
+  }) async {
+    final String? uid = _activeUid;
+    final DatabaseReference? reference = _appDataRef;
+    if (uid == null || reference == null || auth.currentUser?.uid != uid) {
+      return false;
+    }
+    if (_connected == false) return false;
+    _syncing = true;
+    notifyListeners();
+    try {
+      final DataSnapshot metaSnapshot = await reference.child('_syncMeta').get();
+      if (uid != _activeUid || auth.currentUser?.uid != uid) return false;
+      final Map<String, dynamic> meta =
+          LedgerCodec.objectMap(metaSnapshot.value);
+      final String remoteToken = '${meta['changeToken'] ?? ''}';
+      final int remoteRevision = _asInt(meta['rev']);
+      final Map<String, dynamic> rawRemoteTables =
+          LedgerCodec.objectMap(meta['tables']);
+      final Map<String, int> remoteTables = <String, int>{};
+      for (final MapEntry<String, dynamic> entry in rawRemoteTables.entries) {
+        remoteTables[entry.key] = _asInt(entry.value);
+      }
+
+      final int now = DateTime.now().millisecondsSinceEpoch;
+      final bool fullAuditDue = now - _lastFullAuditAt >= 86400000;
+      final bool noKnownCloudState =
+          _changeToken.isEmpty && _tableRevisions.isEmpty;
+      final bool tokenChanged = remoteToken != _changeToken ||
+          (remoteToken.isEmpty && remoteRevision != _revision);
+      final bool requireFull = force || fullAuditDue || noKnownCloudState;
+
+      if (!requireFull && !tokenChanged) {
+        final bool flushed = await _flushLocked();
+        _lastError = null;
+        return flushed || _outbox.isNotEmpty;
+      }
+
+      Map<String, dynamic> base = LedgerCodec.normalizeState(_state);
+      bool usedDelta = false;
+      final String? rawDelta = meta['deltaWrites'] is String
+          ? meta['deltaWrites'] as String
+          : null;
+      final String predecessor = '${meta['prevToken'] ?? ''}';
+      if (!requireFull &&
+          tokenChanged &&
+          predecessor == _changeToken &&
+          rawDelta != null &&
+          rawDelta.isNotEmpty &&
+          rawDelta.length <= 2500) {
+        try {
+          final dynamic decoded = jsonDecode(rawDelta);
+          if (decoded is Map) {
+            final Map<String, dynamic> deltas = LedgerCodec.objectMap(decoded);
+            final Set<String> deltaRoots = <String>{};
+            bool valid = deltas.isNotEmpty;
+            for (final MapEntry<String, dynamic> entry in deltas.entries) {
+              final String safePath = _validatePath(entry.key);
+              deltaRoots.add(safePath.split('/').first);
+              valid = valid &&
+                  LedgerCodec.applyPath(base, safePath, entry.value);
+            }
+            final Set<String> changedRoots = remoteTables.entries
+                .where(
+                  (MapEntry<String, int> entry) =>
+                      entry.value != (_tableRevisions[entry.key] ?? 0),
+                )
+                .map((MapEntry<String, int> entry) => entry.key)
+                .where(ledgerRoots.contains)
+                .toSet();
+            if (valid && changedRoots.every(deltaRoots.contains)) {
+              usedDelta = true;
+            }
+          }
+        } catch (_) {
+          usedDelta = false;
+          base = LedgerCodec.normalizeState(_state);
+        }
+        if (!usedDelta) base = LedgerCodec.normalizeState(_state);
+      }
+
+      int nextFullAuditAt = _lastFullAuditAt;
+      if (!usedDelta) {
+        if (requireFull || remoteTables.isEmpty) {
+          final DataSnapshot fullSnapshot = await reference.get();
+          if (uid != _activeUid || auth.currentUser?.uid != uid) return false;
+          base = LedgerCodec.normalizeState(fullSnapshot.value);
+          nextFullAuditAt = now;
+        } else {
+          final Set<String> changedRoots = remoteTables.entries
+              .where(
+                (MapEntry<String, int> entry) =>
+                    entry.value != (_tableRevisions[entry.key] ?? 0),
+              )
+              .map((MapEntry<String, int> entry) => entry.key)
+              .where(ledgerRoots.contains)
+              .toSet();
+          if (changedRoots.isEmpty && tokenChanged) {
+            changedRoots.addAll(ledgerRoots);
+          }
+          final List<Future<MapEntry<String, dynamic>>> reads = changedRoots
+              .map(
+                (String root) async => MapEntry<String, dynamic>(
+                  root,
+                  (await reference.child(root).get()).value,
+                ),
+              )
+              .toList();
+          for (final MapEntry<String, dynamic> entry in await Future.wait(reads)) {
+            final Map<String, dynamic> oneRoot = LedgerCodec.normalizeState(
+              <String, dynamic>{entry.key: entry.value},
+            );
+            base[entry.key] = oneRoot[entry.key];
+          }
+        }
+      }
+
+      // Local writes, including deletes, always replay over the cloud snapshot.
+      // This is the key invariant that prevents a stale login from resurrecting
+      // something the user deleted while offline.
+      for (final PendingWrite write in _outbox) {
+        LedgerCodec.applyPath(base, write.path, write.value);
+      }
+      base = LedgerCodec.normalizeState(base);
+
+      final SyncEnvelope reconciled = _currentEnvelope(
+        state: base,
+        changeToken: remoteToken,
+        revision: remoteRevision,
+        tableRevisions: remoteTables,
+        lastFullAuditAt: nextFullAuditAt,
+      );
+      await _persistEnvelope(uid, reconciled);
+      if (uid != _activeUid) return false;
+      _state = base;
+      _changeToken = remoteToken;
+      _revision = remoteRevision;
+      _tableRevisions = remoteTables;
+      _lastFullAuditAt = nextFullAuditAt;
+      _lastError = null;
+      notifyListeners();
+      await _flushLocked();
+      return true;
+    } catch (error) {
+      _lastError = error;
+      _scheduleRetry();
+      return false;
+    } finally {
+      _syncing = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> drainBeforeLogout() async {
+    if (_outbox.isEmpty) return true;
+    try {
+      await flush(throwOnFailure: true);
+    } catch (_) {
+      return false;
+    }
+    return _outbox.isEmpty;
+  }
+
+  Future<void> integrityCheck() async {
+    final bool due = DateTime.now().millisecondsSinceEpoch - _lastFullAuditAt >=
+        86400000;
+    await reconcile(reason: 'lifecycle-resume', force: due);
+  }
+
+  @override
+  void dispose() {
+    _flushTimer?.cancel();
+    _reconcileTimer?.cancel();
+    _retryTimer?.cancel();
+    final StreamSubscription<User?>? authSubscription = _authSubscription;
+    final StreamSubscription<DatabaseEvent>? connectionSubscription =
+        _connectionSubscription;
+    final StreamSubscription<DatabaseEvent>? tokenSubscription =
+        _tokenSubscription;
+    if (authSubscription != null) unawaited(authSubscription.cancel());
+    if (connectionSubscription != null) {
+      unawaited(connectionSubscription.cancel());
+    }
+    if (tokenSubscription != null) unawaited(tokenSubscription.cancel());
+    super.dispose();
+  }
+}
+
+double _cleanZero(double value) => value.abs() < 0.000001 ? 0 : value;
+
+int _asInt(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse('$value') ?? 0;
+}
