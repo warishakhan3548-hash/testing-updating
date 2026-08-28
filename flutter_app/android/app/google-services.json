@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "1012787958774-9qcel7q5p3a76nfetfenqrm199vb8t8a.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aaris.diary.financial",
+            "certificate_hash": "24457bf0e3ce60bdd0554fc0c6516b9b7a6060e6"
+          }
+        },
+        {
           "client_id": "1012787958774-tdrn4qf0hgq1si2l4fob77se3k3p566c.apps.googleusercontent.com",
           "client_type": 3
         }

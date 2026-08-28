@@ -52,8 +52,10 @@ Before testing Google Sign-In or publishing:
 3. Download the refreshed `google-services.json` and replace
    `android/app/google-services.json` if Firebase adds an Android OAuth client.
 
-The supplied JSON currently contains the web OAuth client but no Android
-`client_type: 1` entry, so registering the signing fingerprint is essential.
+The checked-in JSON includes the Android OAuth client for the current upload
+certificate. After enrolling in Play App Signing, also register the SHA-1 and
+SHA-256 shown under Play Console > App integrity, then refresh this JSON before
+the production rollout so Play-installed builds can use Google Sign-In.
 
 Recommended Realtime Database rule boundary:
 
@@ -72,9 +74,10 @@ Recommended Realtime Database rule boundary:
 
 ## Release bundle
 
-Replace the temporary debug signing fallback in
-`android/app/build.gradle.kts` with your Play upload signing configuration,
-then run:
+Codemagic signing (`CM_KEYSTORE_*`) and Flutter's local
+`android/key.properties` format are supported. The keystore and passwords must
+remain private and must never be committed. Once either signing source is
+configured, run:
 
 ```bash
 flutter build appbundle --release
