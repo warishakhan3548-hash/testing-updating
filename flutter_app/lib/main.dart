@@ -138,7 +138,7 @@ ThemeData _theme(Brightness brightness) {
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: <TargetPlatform, PageTransitionsBuilder>{
         TargetPlatform.android: _PremiumTransitionsBuilder(),
-        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: _PremiumTransitionsBuilder(),
         TargetPlatform.macOS: _PremiumTransitionsBuilder(),
         TargetPlatform.windows: _PremiumTransitionsBuilder(),
         TargetPlatform.linux: _PremiumTransitionsBuilder(),
@@ -663,7 +663,6 @@ class _GlassCard extends StatelessWidget {
   const _GlassCard({
     required this.child,
     this.padding = const EdgeInsets.all(18),
-    this.color,
     this.borderColor,
     this.shadowColor,
     this.borderRadius = 24,
@@ -671,7 +670,6 @@ class _GlassCard extends StatelessWidget {
 
   final Widget child;
   final EdgeInsets padding;
-  final Color? color;
   final Color? borderColor;
   final Color? shadowColor;
   final double borderRadius;
@@ -682,7 +680,7 @@ class _GlassCard extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: color ?? (dark ? const Color(0xFF19191B) : Colors.white),
+        color: dark ? const Color(0xFF19191B) : Colors.white,
         borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(
           color: borderColor ?? (dark ? Colors.white10 : Colors.white),
@@ -1162,7 +1160,8 @@ class _MonthYearPicker extends StatelessWidget {
       children: <Widget>[
         Expanded(
           child: DropdownButtonFormField<int>(
-            value: month,
+            key: ValueKey<String>('month-$month'),
+            initialValue: month,
             decoration: const InputDecoration(contentPadding: EdgeInsets.all(14)),
             items: List<DropdownMenuItem<int>>.generate(
               12,
@@ -1183,7 +1182,8 @@ class _MonthYearPicker extends StatelessWidget {
         SizedBox(
           width: 112,
           child: DropdownButtonFormField<int>(
-            value: year,
+            key: ValueKey<String>('year-$year'),
+            initialValue: year,
             decoration: const InputDecoration(contentPadding: EdgeInsets.all(14)),
             items: List<DropdownMenuItem<int>>.generate(
               12,
@@ -1850,7 +1850,7 @@ class _MilkScreenState extends State<MilkScreen> {
             ),
             const SizedBox(height: 13),
             DropdownButtonFormField<String>(
-              value: type,
+              initialValue: type,
               decoration: const InputDecoration(labelText: 'Default direction'),
               items: const <DropdownMenuItem<String>>[
                 DropdownMenuItem(
@@ -2121,10 +2121,12 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
       flow == 'taken' ? 'Taken milk saved!' : 'Given milk saved!',
     );
     final DateTime parsed = LedgerMath.date(entryDate)!;
-    if (mounted) setState(() {
-      _month = parsed.month;
-      _year = parsed.year;
-    });
+    if (mounted) {
+      setState(() {
+        _month = parsed.month;
+        _year = parsed.year;
+      });
+    }
   }
 
   Future<void> _deleteEntry(String id) async {
@@ -2357,7 +2359,6 @@ class _RecordTile extends StatelessWidget {
     required this.amount,
     required this.color,
     this.onDelete,
-    this.onTap,
   });
 
   final String title;
@@ -2365,7 +2366,6 @@ class _RecordTile extends StatelessWidget {
   final String amount;
   final Color color;
   final VoidCallback? onDelete;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -2420,16 +2420,10 @@ class _RecordTile extends StatelessWidget {
               onPressed: onDelete,
               icon: const Icon(Icons.delete_rounded, color: appleRed, size: 18),
             )
-          else if (onTap != null)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 9),
-              child: Icon(Icons.chevron_right_rounded, color: systemGray),
-            ),
         ],
       ),
     );
-    if (onTap == null) return content;
-    return _Pressable(onTap: onTap, child: content);
+    return content;
   }
 }
 
@@ -2476,7 +2470,7 @@ class _SalaryScreenState extends State<SalaryScreen> {
             ),
             const SizedBox(height: 13),
             DropdownButtonFormField<String>(
-              value: type,
+              initialValue: type,
               decoration: const InputDecoration(labelText: 'Salary direction'),
               items: const <DropdownMenuItem<String>>[
                 DropdownMenuItem(
@@ -2688,10 +2682,12 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
       'Salary saved safely!',
     );
     final DateTime parsed = LedgerMath.date(entryDate)!;
-    if (mounted) setState(() {
-      _month = parsed.month;
-      _year = parsed.year;
-    });
+    if (mounted) {
+      setState(() {
+        _month = parsed.month;
+        _year = parsed.year;
+      });
+    }
   }
 
   Future<void> _deleteEntry(String id) async {
@@ -3563,10 +3559,12 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
       'Expense saved safely!',
     );
     final DateTime parsed = LedgerMath.date(entryDate)!;
-    if (mounted) setState(() {
-      _month = parsed.month;
-      _year = parsed.year;
-    });
+    if (mounted) {
+      setState(() {
+        _month = parsed.month;
+        _year = parsed.year;
+      });
+    }
   }
 
   Future<void> _deleteEntry(String id) async {
@@ -4608,10 +4606,12 @@ class _AiHubScreenState extends State<AiHubScreen> {
   Future<void> _loadSettings() async {
     final String key = await _secureStorage.read(key: 'gemini.apiKey') ?? '';
     final String model = widget.sync.readSetting('gemini.model') ?? 'gemini-2.5-flash';
-    if (mounted) setState(() {
-      _apiKey = key;
-      _model = model;
-    });
+    if (mounted) {
+      setState(() {
+        _apiKey = key;
+        _model = model;
+      });
+    }
   }
 
   @override
@@ -4648,7 +4648,7 @@ class _AiHubScreenState extends State<AiHubScreen> {
             ),
             const SizedBox(height: 13),
             DropdownButtonFormField<String>(
-              value: model,
+              initialValue: model,
               decoration: const InputDecoration(labelText: 'Model'),
               items: const <DropdownMenuItem<String>>[
                 DropdownMenuItem(
@@ -4689,11 +4689,15 @@ class _AiHubScreenState extends State<AiHubScreen> {
       final String cleanKey = key.text.trim();
       await _secureStorage.write(key: 'gemini.apiKey', value: cleanKey);
       await widget.sync.writeSetting('gemini.model', model);
-      if (mounted) setState(() {
-        _apiKey = cleanKey;
-        _model = model;
-      });
-      if (mounted) _toast(context, 'AI setup saved securely.');
+      if (mounted) {
+        setState(() {
+          _apiKey = cleanKey;
+          _model = model;
+        });
+      }
+      if (mounted) {
+        _toast(context, 'AI setup saved securely.');
+      }
     }
     key.dispose();
   }
@@ -5319,15 +5323,17 @@ class _ExportService {
         .join('\r\n');
     final String filename =
         'Aarish_Diary_Export_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.csv';
-    await Share.shareXFiles(
-      <XFile>[
-        XFile.fromData(
-          Uint8List.fromList(utf8.encode('\uFEFF$csv')),
-          mimeType: 'text/csv',
-          name: filename,
-        ),
-      ],
-      subject: 'Aarish Diary Pro Export',
+    await SharePlus.instance.share(
+      ShareParams(
+        files: <XFile>[
+          XFile.fromData(
+            Uint8List.fromList(utf8.encode('\uFEFF$csv')),
+            mimeType: 'text/csv',
+            name: filename,
+          ),
+        ],
+        subject: 'Aarish Diary Pro Export',
+      ),
     );
   }
 
