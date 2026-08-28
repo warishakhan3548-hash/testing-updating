@@ -1050,14 +1050,12 @@ class _Pressable extends StatefulWidget {
   const _Pressable({
     required this.child,
     required this.onTap,
-    this.onLongPress,
     this.borderRadius,
     this.semanticLabel,
   });
 
   final Widget child;
   final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
   final BorderRadius? borderRadius;
   final String? semanticLabel;
 
@@ -1100,7 +1098,6 @@ class _PressableState extends State<_Pressable>
   void _handleLongPress() {
     _press();
     HapticFeedback.mediumImpact();
-    widget.onLongPress?.call();
   }
 
   @override
