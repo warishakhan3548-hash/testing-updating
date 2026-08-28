@@ -1,0 +1,75 @@
+name: Premium UI System Migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/premium-ui-system.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply centralized premium UI migration
+        run: python3 .github/premium_ui_patch.py
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format
+        run: dart format lib/main.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test ledger invariants
+        run: flutter test
+
+      - name: Verify diff
+        run: git diff --check
+
+      - name: Commit verified premium UI and remove migration scaffolding
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/main.dart
+          git rm -f .github/premium_ui_patch.py .github/workflows/premium-ui-system.yml || true
+          git rm -f .github/curved_accent_patch.py .github/workflows/curved-accent-strip.yml || true
+          git add -A
+          git commit -m "Unify premium Flutter UI system"
+          git push origin HEAD:main
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Upload Android debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarish-diary-premium-ui-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
