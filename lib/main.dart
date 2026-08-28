@@ -2087,10 +2087,15 @@ InputDecoration _pickerDecoration() => InputDecoration(
     );
 
 class _SheetFrame extends StatelessWidget {
-  const _SheetFrame({required this.title, required this.children});
+  const _SheetFrame({
+    required this.title,
+    required this.children,
+    this.centerTitle = false,
+  });
 
   final String title;
   final List<Widget> children;
+  final bool centerTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -2146,6 +2151,7 @@ class _SheetFrame extends StatelessWidget {
               const SizedBox(height: 26),
               Text(
                 title,
+                textAlign: centerTitle ? TextAlign.center : TextAlign.start,
                 style: const TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.w900,
@@ -6360,13 +6366,13 @@ const List<_ExportScopeSpec> _exportScopes = <_ExportScopeSpec>[
     scope: _ExportScope.all,
     label: 'All Data',
     icon: Icons.layers_rounded,
-    color: Color(0xFF5E5CE6),
+    color: Color(0xFF111111),
   ),
   _ExportScopeSpec(
     scope: _ExportScope.milk,
     label: 'Milk Records',
-    icon: Icons.water_drop_rounded,
-    color: appleGreen,
+    icon: Icons.local_drink_rounded,
+    color: appleBlue,
   ),
   _ExportScopeSpec(
     scope: _ExportScope.expenses,
@@ -6377,13 +6383,13 @@ const List<_ExportScopeSpec> _exportScopes = <_ExportScopeSpec>[
   _ExportScopeSpec(
     scope: _ExportScope.credit,
     label: 'Credit Ledger',
-    icon: Icons.account_balance_wallet_rounded,
+    icon: Icons.handshake_rounded,
     color: appleOrange,
   ),
   _ExportScopeSpec(
     scope: _ExportScope.salary,
     label: 'Salary',
-    icon: Icons.currency_rupee_rounded,
+    icon: Icons.savings_rounded,
     color: salaryGreen,
   ),
   _ExportScopeSpec(
@@ -6429,127 +6435,278 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
   _ExportFormat _format = _ExportFormat.pdf;
 
   @override
-  Widget build(BuildContext context) => _SheetFrame(
-        title: 'Export Center',
-        children: <Widget>[
-          const Text(
-            'Choose a format, then select exactly what you want to export.',
-            style: TextStyle(color: systemGray, fontWeight: FontWeight.w700),
+  Widget build(BuildContext context) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    return _SheetFrame(
+      title: 'Export Center',
+      centerTitle: true,
+      children: <Widget>[
+        Text(
+          'CHOOSE FORMAT, THEN SELECT REPORT',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: dark ? Colors.white.withAlpha(145) : const Color(0xFF6B7280),
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.05,
           ),
-          const SizedBox(height: 16),
-          Row(
+        ),
+        const SizedBox(height: 18),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color:
+                dark ? Colors.white.withAlpha(14) : Colors.black.withAlpha(10),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: dark
+                  ? Colors.white.withAlpha(24)
+                  : Colors.black.withAlpha(18),
+            ),
+          ),
+          child: Column(
             children: <Widget>[
-              _formatButton(
-                _ExportFormat.pdf,
-                'PDF',
-                Icons.picture_as_pdf_rounded,
-                appleRed,
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _formatButton(
+                      _ExportFormat.pdf,
+                      'Premium PDF',
+                      Icons.picture_as_pdf_rounded,
+                      const <Color>[
+                        Color(0xFF0787FF),
+                        Color(0xFF5856D6),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _formatButton(
+                      _ExportFormat.csv,
+                      'CSV Backup',
+                      Icons.table_view_rounded,
+                      const <Color>[
+                        Color(0xFF34C759),
+                        Color(0xFF20B85A),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 9),
-              _formatButton(
-                _ExportFormat.csv,
-                'CSV',
-                Icons.table_view_rounded,
-                appleGreen,
-              ),
-              const SizedBox(width: 9),
-              _formatButton(
-                _ExportFormat.aiLedger,
-                'AI Ledger',
-                Icons.auto_awesome_rounded,
-                const Color(0xFF8E62D9),
+              const SizedBox(height: 10),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _formatButton(
+                      _ExportFormat.aiLedger,
+                      'AI Ledger',
+                      Icons.smart_toy_rounded,
+                      const <Color>[
+                        Color(0xFF9A67EA),
+                        Color(0xFF7057D9),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(child: SizedBox(height: 72)),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 22),
-          const _SectionTitle('Data Scope'),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _exportScopes.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 2.25,
+        ),
+        const SizedBox(height: 14),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          child: Text(
+            _formatHint(),
+            key: ValueKey<_ExportFormat>(_format),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: dark
+                  ? Colors.white.withAlpha(135)
+                  : systemGray.withAlpha(220),
+              fontSize: 12.5,
+              height: 1.35,
+              fontWeight: FontWeight.w800,
             ),
-            itemBuilder: (BuildContext context, int index) {
-              final _ExportScopeSpec spec = _exportScopes[index];
-              return _Pressable(
-                semanticLabel: 'Export ${spec.label}',
-                onTap: () => Navigator.pop(
-                  context,
-                  _ExportChoice(_format, spec.scope),
-                ),
-                borderRadius: BorderRadius.circular(18),
-                child: _GlassCard(
-                  borderRadius: 18,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  borderColor: spec.color.withAlpha(45),
-                  shadowColor: spec.color.withAlpha(18),
-                  child: Row(
-                    children: <Widget>[
-                      Icon(spec.icon, size: 20, color: spec.color),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: Text(
-                          spec.label,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
           ),
-        ],
-      );
+        ),
+        const SizedBox(height: 22),
+        _scopePair(_exportScopes[0], _exportScopes[1]),
+        const SizedBox(height: 12),
+        _scopePair(_exportScopes[2], _exportScopes[3]),
+        const SizedBox(height: 12),
+        _scopePair(_exportScopes[4], _exportScopes[5]),
+        const SizedBox(height: 12),
+        _scopeButton(_exportScopes[6], wide: true),
+      ],
+    );
+  }
 
   Widget _formatButton(
     _ExportFormat format,
     String label,
     IconData icon,
-    Color color,
+    List<Color> activeColors,
   ) {
     final bool selected = _format == format;
-    return Expanded(
-      child: _Pressable(
-        onTap: () => setState(() => _format = format),
-        borderRadius: BorderRadius.circular(16),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          curve: const Cubic(0.2, 0.8, 0.2, 1),
-          height: 76,
-          decoration: BoxDecoration(
-            color: selected ? color : color.withAlpha(18),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withAlpha(selected ? 255 : 55)),
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final Color idleColor =
+        dark ? Colors.white.withAlpha(175) : systemGray.withAlpha(235);
+    return _Pressable(
+      semanticLabel: 'Select $label export format',
+      onTap: () {
+        HapticFeedback.selectionClick();
+        if (_format != format) setState(() => _format = format);
+      },
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: const Cubic(0.2, 0.8, 0.2, 1),
+        height: 72,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected ? null : Colors.transparent,
+          gradient: selected
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: activeColors,
+                )
+              : null,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected
+                ? Colors.white.withAlpha(dark ? 42 : 92)
+                : Colors.transparent,
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Icon(icon, color: selected ? Colors.white : color, size: 22),
-              const SizedBox(height: 5),
-              Text(
+          boxShadow: selected
+              ? <BoxShadow>[
+                  BoxShadow(
+                    color: activeColors.last.withAlpha(dark ? 62 : 82),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : const <BoxShadow>[],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Icon(
+              icon,
+              color: selected ? Colors.white : idleColor,
+              size: 23,
+            ),
+            const SizedBox(width: 9),
+            Flexible(
+              child: Text(
                 label,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.fade,
                 style: TextStyle(
-                  color: selected ? Colors.white : color,
-                  fontSize: 12,
+                  color: selected ? Colors.white : idleColor,
+                  fontSize: 15.5,
                   fontWeight: FontWeight.w900,
+                  letterSpacing: -.15,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
+
+  Widget _scopePair(_ExportScopeSpec left, _ExportScopeSpec right) => Row(
+        children: <Widget>[
+          Expanded(child: _scopeButton(left)),
+          const SizedBox(width: 12),
+          Expanded(child: _scopeButton(right)),
+        ],
+      );
+
+  Widget _scopeButton(_ExportScopeSpec spec, {bool wide = false}) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final List<Color> colors = _scopeGradient(spec, dark);
+    return _Pressable(
+      semanticLabel: 'Export ${spec.label}',
+      onTap: () => Navigator.pop(
+        context,
+        _ExportChoice(_format, spec.scope),
+      ),
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        width: double.infinity,
+        height: wide ? 76 : 72,
+        padding: EdgeInsets.symmetric(horizontal: wide ? 22 : 14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: colors,
+          ),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: Colors.white.withAlpha(dark ? 24 : 78),
+          ),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: spec.color.withAlpha(dark ? 34 : 58),
+              blurRadius: 22,
+              offset: const Offset(0, 9),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Icon(spec.icon, size: wide ? 25 : 23, color: Colors.white),
+            const SizedBox(width: 9),
+            Flexible(
+              child: Text(
+                spec.label,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.fade,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: wide ? 19 : 16,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -.2,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatHint() => switch (_format) {
+        _ExportFormat.pdf =>
+          'Premium PDF app ke current colors, borders, cards aur dark/light mode se banegi.',
+        _ExportFormat.csv =>
+          'CSV Backup clean spreadsheet-ready data ke saath banega.',
+        _ExportFormat.aiLedger =>
+          'AI Ledger AI-readable structured format me complete ledger banayega.',
+      };
+
+  List<Color> _scopeGradient(_ExportScopeSpec spec, bool dark) =>
+      switch (spec.scope) {
+        _ExportScope.all => dark
+            ? const <Color>[Color(0xFF3A3A3C), Color(0xFF111111)]
+            : <Color>[spec.color, const Color(0xFF000000)],
+        _ExportScope.milk => <Color>[const Color(0xFF2BA8FF), spec.color],
+        _ExportScope.expenses => <Color>[const Color(0xFFFF554C), spec.color],
+        _ExportScope.credit => <Color>[const Color(0xFFFFBC45), spec.color],
+        _ExportScope.salary => <Color>[const Color(0xFF35D46D), spec.color],
+        _ExportScope.diary => <Color>[const Color(0xFFA1A1A6), spec.color],
+        _ExportScope.business => <Color>[spec.color, const Color(0xFF8E62D9)],
+      };
 }
 
 class _ExportDataset {
