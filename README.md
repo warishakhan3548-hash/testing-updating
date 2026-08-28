@@ -1,8 +1,8 @@
 # Aarish Diary Pro — Flutter
 
-Native Flutter conversion of the existing Aarish Diary web app. The original
-`index.html` and `style.css` remain untouched; this project lives entirely in
-`flutter_app/` and targets Android / Google Play first.
+Native Flutter conversion of the Aarish Diary web app, targeting Android /
+Google Play first. The real Flutter project now lives at the repository root,
+so Codemagic project path `.` resolves this `pubspec.yaml` directly.
 
 ## What is included
 
@@ -27,7 +27,6 @@ Only two production Dart files are authored:
 Install current Flutter stable and Java 17, then:
 
 ```bash
-cd flutter_app
 flutter pub get
 flutter analyze
 flutter test

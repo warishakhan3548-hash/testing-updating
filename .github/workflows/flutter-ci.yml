@@ -4,7 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - "flutter_app/**"
+      - "android/**"
+      - "firebase/**"
+      - "lib/**"
+      - "test/**"
+      - "analysis_options.yaml"
+      - "pubspec.yaml"
       - ".github/workflows/flutter-ci.yml"
   workflow_dispatch:
 
@@ -15,9 +20,6 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: flutter_app
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,6 +53,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: aarish-diary-debug-apk
-          path: flutter_app/build/app/outputs/flutter-apk/app-debug.apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14
