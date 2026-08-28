@@ -29,6 +29,9 @@ const Set<String> _groupedRoots = <String>{
   'projectDB',
 };
 
+final RegExp ledgerWriterIdPattern =
+    RegExp(r'^writer_[A-Za-z0-9_-]{10,40}$');
+
 class LedgerSyncException implements Exception {
   const LedgerSyncException(this.message);
 
@@ -81,6 +84,7 @@ class SyncEnvelope {
     required this.changeToken,
     required this.revision,
     required this.tableRevisions,
+    required this.tableClocks,
     required this.lastFullAuditAt,
   });
 
@@ -90,6 +94,7 @@ class SyncEnvelope {
         changeToken: '',
         revision: 0,
         tableRevisions: const <String, int>{},
+        tableClocks: const <String, Map<String, String>>{},
         lastFullAuditAt: 0,
       );
 
@@ -120,6 +125,7 @@ class SyncEnvelope {
       changeToken: '${json['changeToken'] ?? ''}',
       revision: _asInt(json['revision']),
       tableRevisions: tableRevisions,
+      tableClocks: LedgerCodec.canonicalTableClocks(json['tableClocks']),
       lastFullAuditAt: _asInt(json['lastFullAuditAt']),
     );
   }
@@ -129,6 +135,7 @@ class SyncEnvelope {
   final String changeToken;
   final int revision;
   final Map<String, int> tableRevisions;
+  final Map<String, Map<String, String>> tableClocks;
   final int lastFullAuditAt;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -138,6 +145,7 @@ class SyncEnvelope {
         'changeToken': changeToken,
         'revision': revision,
         'tableRevisions': tableRevisions,
+        'tableClocks': tableClocks,
         'lastFullAuditAt': lastFullAuditAt,
       };
 }
@@ -159,6 +167,25 @@ class LedgerCodec {
     return value.map<String, dynamic>(
       (dynamic key, dynamic item) => MapEntry<String, dynamic>('$key', item),
     );
+  }
+
+  static Map<String, Map<String, String>> canonicalTableClocks(dynamic value) {
+    final Map<String, Map<String, String>> result =
+        <String, Map<String, String>>{};
+    final Map<String, dynamic> tables = objectMap(value);
+    for (final String root in ledgerRoots) {
+      final Map<String, dynamic> rawWriters = objectMap(tables[root]);
+      final Map<String, String> writers = <String, String>{};
+      for (final String writer in rawWriters.keys.toList()..sort()) {
+        if (!ledgerWriterIdPattern.hasMatch(writer)) continue;
+        final String token = '${rawWriters[writer] ?? ''}';
+        if (token.isNotEmpty && token.length <= 120) {
+          writers[writer] = token;
+        }
+      }
+      if (writers.isNotEmpty) result[root] = writers;
+    }
+    return result;
   }
 
   static dynamic clone(dynamic value) {
@@ -336,6 +363,77 @@ class OutboxPlanner {
       batch.add(write);
     }
     return batch;
+  }
+}
+
+class LedgerDeltaPolicy {
+  LedgerDeltaPolicy._();
+
+  static Set<String> changedRoots({
+    required Map<String, int> remoteRevisions,
+    required Map<String, int> localRevisions,
+    required Map<String, Map<String, String>> remoteClocks,
+    required Map<String, Map<String, String>> localClocks,
+  }) {
+    final Set<String> changed = <String>{};
+    for (final String root in ledgerRoots) {
+      final Map<String, String> remote = remoteClocks[root] ??
+          const <String, String>{};
+      final Map<String, String> local = localClocks[root] ??
+          const <String, String>{};
+      if (remote.isNotEmpty || local.isNotEmpty) {
+        if (!_sameWriterClocks(remote, local)) changed.add(root);
+      } else {
+        final int remoteRevision = remoteRevisions[root] ?? 0;
+        if (remoteRevision > 0 &&
+            remoteRevision != (localRevisions[root] ?? 0)) {
+          changed.add(root);
+        }
+      }
+    }
+    return changed;
+  }
+
+  static bool canApplyDelta({
+    required String remoteWriterId,
+    required String predecessorToken,
+    required String localToken,
+    required Set<String> changedRoots,
+    required Set<String> deltaRoots,
+    required Map<String, Map<String, String>> remoteClocks,
+    required Map<String, Map<String, String>> localClocks,
+  }) {
+    if (localToken.isEmpty || predecessorToken != localToken) return false;
+    if (!ledgerWriterIdPattern.hasMatch(remoteWriterId)) return false;
+    if (changedRoots.isEmpty || !changedRoots.every(deltaRoots.contains)) {
+      return false;
+    }
+    for (final String root in changedRoots) {
+      final Map<String, String> remote = remoteClocks[root] ??
+          const <String, String>{};
+      final Map<String, String> local = localClocks[root] ??
+          const <String, String>{};
+      final Set<String> writers = <String>{...remote.keys, ...local.keys};
+      final List<String> changedWriters = writers
+          .where((String writer) => remote[writer] != local[writer])
+          .toList(growable: false);
+      if (changedWriters.length != 1 ||
+          changedWriters.single != remoteWriterId) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static bool _sameWriterClocks(
+    Map<String, String> left,
+    Map<String, String> right,
+  ) {
+    if (left.length != right.length) return false;
+    for (final MapEntry<String, String> entry in left.entries) {
+      if (right[entry.key] != entry.value) return false;
+    }
+    return true;
   }
 }
 
@@ -647,6 +745,8 @@ class LedgerSyncService extends ChangeNotifier {
   Map<String, dynamic> _state = LedgerCodec.emptyState();
   List<PendingWrite> _outbox = <PendingWrite>[];
   Map<String, int> _tableRevisions = <String, int>{};
+  Map<String, Map<String, String>> _tableClocks =
+      <String, Map<String, String>>{};
   String _changeToken = '';
   int _revision = 0;
   int _lastFullAuditAt = 0;
@@ -681,8 +781,9 @@ class LedgerSyncService extends ChangeNotifier {
     _box = await Hive.openBox<String>('aarish_sync_v1');
     _darkMode = _box.get('setting.darkMode') == 'true';
     _writerId = _box.get('setting.writerId') ?? '';
-    if (_writerId.isEmpty) {
-      _writerId = 'flt-${_uuid.v4().replaceAll('-', '').substring(0, 16)}';
+    if (!ledgerWriterIdPattern.hasMatch(_writerId)) {
+      _writerId =
+          'writer_flt_${_uuid.v4().replaceAll('-', '').substring(0, 20)}';
       await _box.put('setting.writerId', _writerId);
     }
     if (!kIsWeb) {
@@ -728,6 +829,7 @@ class LedgerSyncService extends ChangeNotifier {
         _state = LedgerCodec.emptyState();
         _outbox = <PendingWrite>[];
         _tableRevisions = <String, int>{};
+        _tableClocks = <String, Map<String, String>>{};
         _changeToken = '';
         _revision = 0;
         _lastFullAuditAt = 0;
@@ -742,6 +844,7 @@ class LedgerSyncService extends ChangeNotifier {
       _state = envelope.state;
       _outbox = List<PendingWrite>.from(envelope.outbox);
       _tableRevisions = Map<String, int>.from(envelope.tableRevisions);
+      _tableClocks = LedgerCodec.canonicalTableClocks(envelope.tableClocks);
       _changeToken = envelope.changeToken;
       _revision = envelope.revision;
       _lastFullAuditAt = envelope.lastFullAuditAt;
@@ -776,6 +879,7 @@ class LedgerSyncService extends ChangeNotifier {
     String? changeToken,
     int? revision,
     Map<String, int>? tableRevisions,
+    Map<String, Map<String, String>>? tableClocks,
     int? lastFullAuditAt,
   }) =>
       SyncEnvelope(
@@ -784,6 +888,7 @@ class LedgerSyncService extends ChangeNotifier {
         changeToken: changeToken ?? _changeToken,
         revision: revision ?? _revision,
         tableRevisions: tableRevisions ?? _tableRevisions,
+        tableClocks: tableClocks ?? _tableClocks,
         lastFullAuditAt: lastFullAuditAt ?? _lastFullAuditAt,
       );
 
@@ -1032,14 +1137,19 @@ class LedgerSyncService extends ChangeNotifier {
             .toList();
         final Map<String, int> nextTableRevisions =
             Map<String, int>.from(_tableRevisions);
+        final Map<String, Map<String, String>> nextTableClocks =
+            LedgerCodec.canonicalTableClocks(_tableClocks);
         for (final String root in touchedRoots) {
           nextTableRevisions[root] = revision;
+          nextTableClocks.putIfAbsent(root, () => <String, String>{})[_writerId] =
+              token;
         }
         final SyncEnvelope acknowledgedEnvelope = _currentEnvelope(
           outbox: remaining,
           changeToken: token,
           revision: revision,
           tableRevisions: nextTableRevisions,
+          tableClocks: nextTableClocks,
         );
         // If this local acknowledgement fails, the already-sent writes remain
         // queued on disk and are safely replayed after restart (idempotently).
@@ -1048,6 +1158,7 @@ class LedgerSyncService extends ChangeNotifier {
         _changeToken = token;
         _revision = revision;
         _tableRevisions = nextTableRevisions;
+        _tableClocks = nextTableClocks;
         _retryAttempt = 0;
         _lastError = null;
         batches++;
@@ -1109,16 +1220,27 @@ class LedgerSyncService extends ChangeNotifier {
       for (final MapEntry<String, dynamic> entry in rawRemoteTables.entries) {
         remoteTables[entry.key] = _asInt(entry.value);
       }
+      final Map<String, Map<String, String>> remoteTableClocks =
+          LedgerCodec.canonicalTableClocks(meta['tableClocks']);
+      final String remoteWriterId = '${meta['writerId'] ?? ''}';
+      final Set<String> changedRoots = LedgerDeltaPolicy.changedRoots(
+        remoteRevisions: remoteTables,
+        localRevisions: _tableRevisions,
+        remoteClocks: remoteTableClocks,
+        localClocks: _tableClocks,
+      );
 
       final int now = DateTime.now().millisecondsSinceEpoch;
       final bool fullAuditDue = now - _lastFullAuditAt >= 86400000;
-      final bool noKnownCloudState =
-          _changeToken.isEmpty && _tableRevisions.isEmpty;
+      final bool noKnownCloudState = _changeToken.isEmpty &&
+          _tableRevisions.isEmpty &&
+          _tableClocks.isEmpty;
       final bool tokenChanged = remoteToken != _changeToken ||
           (remoteToken.isEmpty && remoteRevision != _revision);
+      final bool cloudChanged = tokenChanged || changedRoots.isNotEmpty;
       final bool requireFull = force || fullAuditDue || noKnownCloudState;
 
-      if (!requireFull && !tokenChanged) {
+      if (!requireFull && !cloudChanged) {
         final bool flushed = await _flushLocked();
         _lastError = null;
         return flushed || _outbox.isNotEmpty;
@@ -1131,8 +1253,7 @@ class LedgerSyncService extends ChangeNotifier {
           : null;
       final String predecessor = '${meta['prevToken'] ?? ''}';
       if (!requireFull &&
-          tokenChanged &&
-          predecessor == _changeToken &&
+          cloudChanged &&
           rawDelta != null &&
           rawDelta.isNotEmpty &&
           rawDelta.length <= 2500) {
@@ -1148,15 +1269,16 @@ class LedgerSyncService extends ChangeNotifier {
               valid = valid &&
                   LedgerCodec.applyPath(base, safePath, entry.value);
             }
-            final Set<String> changedRoots = remoteTables.entries
-                .where(
-                  (MapEntry<String, int> entry) =>
-                      entry.value != (_tableRevisions[entry.key] ?? 0),
-                )
-                .map((MapEntry<String, int> entry) => entry.key)
-                .where(ledgerRoots.contains)
-                .toSet();
-            if (valid && changedRoots.every(deltaRoots.contains)) {
+            if (valid &&
+                LedgerDeltaPolicy.canApplyDelta(
+                  remoteWriterId: remoteWriterId,
+                  predecessorToken: predecessor,
+                  localToken: _changeToken,
+                  changedRoots: changedRoots,
+                  deltaRoots: deltaRoots,
+                  remoteClocks: remoteTableClocks,
+                  localClocks: _tableClocks,
+                )) {
               usedDelta = true;
             }
           }
@@ -1175,15 +1297,7 @@ class LedgerSyncService extends ChangeNotifier {
           base = LedgerCodec.normalizeState(fullSnapshot.value);
           nextFullAuditAt = now;
         } else {
-          final Set<String> changedRoots = remoteTables.entries
-              .where(
-                (MapEntry<String, int> entry) =>
-                    entry.value != (_tableRevisions[entry.key] ?? 0),
-              )
-              .map((MapEntry<String, int> entry) => entry.key)
-              .where(ledgerRoots.contains)
-              .toSet();
-          if (changedRoots.isEmpty && tokenChanged) {
+          if (changedRoots.isEmpty && cloudChanged) {
             changedRoots.addAll(ledgerRoots);
           }
           final List<Future<MapEntry<String, dynamic>>> reads = changedRoots
@@ -1216,6 +1330,7 @@ class LedgerSyncService extends ChangeNotifier {
         changeToken: remoteToken,
         revision: remoteRevision,
         tableRevisions: remoteTables,
+        tableClocks: remoteTableClocks,
         lastFullAuditAt: nextFullAuditAt,
       );
       await _persistEnvelope(uid, reconciled);
@@ -1224,6 +1339,7 @@ class LedgerSyncService extends ChangeNotifier {
       _changeToken = remoteToken;
       _revision = remoteRevision;
       _tableRevisions = remoteTables;
+      _tableClocks = remoteTableClocks;
       _lastFullAuditAt = nextFullAuditAt;
       _lastError = null;
       notifyListeners();

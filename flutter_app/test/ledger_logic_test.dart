@@ -106,6 +106,72 @@ void main() {
         isTrue,
       );
     });
+
+    test('vector clocks detect a same-revision multi-device race', () {
+      const String writerA = 'writer_device_alpha';
+      const String writerB = 'writer_device_bravo';
+      final Map<String, Map<String, String>> localClocks =
+          <String, Map<String, String>>{
+        'diaryDB': <String, String>{writerA: 'a0', writerB: 'b0'},
+      };
+      final Map<String, Map<String, String>> remoteClocks =
+          <String, Map<String, String>>{
+        'diaryDB': <String, String>{writerA: 'a1', writerB: 'b1'},
+      };
+
+      final Set<String> changed = LedgerDeltaPolicy.changedRoots(
+        remoteRevisions: const <String, int>{'diaryDB': 10},
+        localRevisions: const <String, int>{'diaryDB': 10},
+        remoteClocks: remoteClocks,
+        localClocks: localClocks,
+      );
+
+      expect(changed, <String>{'diaryDB'});
+      expect(
+        LedgerDeltaPolicy.canApplyDelta(
+          remoteWriterId: writerB,
+          predecessorToken: 'global-0',
+          localToken: 'global-0',
+          changedRoots: changed,
+          deltaRoots: <String>{'diaryDB'},
+          remoteClocks: remoteClocks,
+          localClocks: localClocks,
+        ),
+        isFalse,
+        reason: 'two changed writers require a changed-root fetch',
+      );
+    });
+
+    test('vector delta is accepted only for one proven writer', () {
+      const String writer = 'writer_device_alpha';
+      final Map<String, Map<String, String>> localClocks =
+          <String, Map<String, String>>{
+        'expenseDB': <String, String>{writer: 'a0'},
+      };
+      final Map<String, Map<String, String>> remoteClocks =
+          <String, Map<String, String>>{
+        'expenseDB': <String, String>{writer: 'a1'},
+      };
+      final Set<String> changed = LedgerDeltaPolicy.changedRoots(
+        remoteRevisions: const <String, int>{'expenseDB': 11},
+        localRevisions: const <String, int>{'expenseDB': 10},
+        remoteClocks: remoteClocks,
+        localClocks: localClocks,
+      );
+
+      expect(
+        LedgerDeltaPolicy.canApplyDelta(
+          remoteWriterId: writer,
+          predecessorToken: 'global-0',
+          localToken: 'global-0',
+          changedRoots: changed,
+          deltaRoots: <String>{'expenseDB'},
+          remoteClocks: remoteClocks,
+          localClocks: localClocks,
+        ),
+        isTrue,
+      );
+    });
   });
 
   group('Ledger calculations', () {
