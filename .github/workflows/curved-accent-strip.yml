@@ -1,37 +1,25 @@
 name: Curved Accent Strip UI
-
 on:
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/curved-accent-strip.yml"
-  workflow_dispatch:
-
+    paths: ['.github/workflows/curved-accent-strip.yml']
 permissions:
   contents: write
-
 jobs:
   patch:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Patch shared premium card accent
-        shell: bash
+      - uses: actions/checkout@v4
+      - name: Patch curved accent strip
         run: |
-          python3 <<'PY'
+          python3 - <<'PY'
           from pathlib import Path
-          import re
-
-          path = Path('lib/main.dart')
-          text = path.read_text(encoding='utf-8')
-
-          start = text.index('class _GlassCard extends StatelessWidget {')
-          segment = text[start:]
-          end_rel = segment.index('\n}\n', segment.index('Widget build(BuildContext context)')) + 3
-          card = segment[:end_rel]
+          p = Path('lib/main.dart')
+          s = p.read_text()
+          start = s.index('class _GlassCard extends StatelessWidget {')
+          tail = s[start:]
+          end = tail.index('\n}\n', tail.index('Widget build(BuildContext context)')) + 3
+          block = tail[:end]
 
           old_border = '''    final Border border = accentColor == null
         ? Border.all(color: borderColor ?? surfaceBorder)
@@ -52,22 +40,35 @@ jobs:
           new_border = '''    final Border border = Border.all(
       color: borderColor ?? surfaceBorder,
     );'''
-          if card.count(old_border) != 1:
-              raise SystemExit(f'Expected old accent border once, got {card.count(old_border)}')
-          card = card.replace(old_border, new_border)
+          if old_border not in block:
+              raise SystemExit('old accent border not found')
+          block = block.replace(old_border, new_border, 1)
 
-          pattern = re.compile(
-              r'''    return Container\(\n      padding: padding,\n      decoration: BoxDecoration\((.*?)\n      \),\n      child: child,\n    \);''',
-              re.S,
-          )
-          match = pattern.search(card)
-          if not match:
-              raise SystemExit('Could not locate _GlassCard return Container')
-
-          decoration_body = match.group(1)
-          replacement = f'''    return Container(
+          old_return = '''    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: surfaceColors,
+        ),
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: border,
+        boxShadow: shadows,
+      ),
+      child: child,
+    );'''
+          new_return = '''    return Container(
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration({decoration_body}
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: surfaceColors,
+        ),
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: border,
+        boxShadow: shadows,
       ),
       child: Stack(
         children: <Widget>[
@@ -97,39 +98,22 @@ jobs:
         ],
       ),
     );'''
-          card = pattern.sub(replacement, card, count=1)
-
-          # The shared primitive is used by all list cards that opt into accentColor.
-          # This preserves their data/color logic and changes only the stripe geometry.
-          text = text[:start] + card + segment[end_rel:]
-          path.write_text(text, encoding='utf-8')
+          if old_return not in block:
+              raise SystemExit('old glass card return not found')
+          block = block.replace(old_return, new_return, 1)
+          s = s[:start] + block + tail[end:]
+          p.write_text(s)
           PY
-
-      - name: Flutter stable
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.47.2"
+          flutter-version: '3.47.2'
           channel: stable
           cache: true
-
-      - name: Resolve packages
-        run: flutter pub get
-
-      - name: Format
-        run: dart format lib/main.dart
-
-      - name: Analyze
-        run: flutter analyze
-
-      - name: Test ledger invariants
-        run: flutter test
-
-      - name: Commit and push verified UI
-        shell: bash
-        run: |
-          git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add lib/main.dart
-          git commit -m "Curve module card accent strips"
-          git push origin HEAD:main
+      - run: flutter pub get
+      - run: dart format lib/main.dart
+      - run: flutter analyze
+      - run: flutter test
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Curve module card accent strips
+          file_pattern: lib/main.dart
