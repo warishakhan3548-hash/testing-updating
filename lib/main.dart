@@ -973,9 +973,23 @@ class _BottomLedgerNav extends StatelessWidget {
                         margin: const EdgeInsets.symmetric(horizontal: 2),
                         decoration: BoxDecoration(
                           color: active
-                              ? color.withAlpha(dark ? 23 : 14)
+                              ? color.withAlpha(dark ? 44 : 24)
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: active
+                                ? color.withAlpha(dark ? 54 : 38)
+                                : Colors.transparent,
+                          ),
+                          boxShadow: active
+                              ? <BoxShadow>[
+                                  BoxShadow(
+                                    color: color.withAlpha(dark ? 42 : 26),
+                                    blurRadius: 22,
+                                    offset: const Offset(0, 7),
+                                  ),
+                                ]
+                              : const <BoxShadow>[],
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
