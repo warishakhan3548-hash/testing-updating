@@ -12,8 +12,9 @@ Native Flutter conversion of the existing Aarish Diary web app. The original
 - Milk, Credit, Expenses, Salary, Personal Diary and Business Hub
 - Create, search, filter, detail, export and permanent delete flows
 - Direct Gemini AI Hub with explicit user confirmation before every mutation
-- PDF share and complete CSV export
+- Export Center with PDF, complete CSV and AI-readable ledger for all seven scopes
 - Light/dark themes and native haptics
+- Native date picker, debounced search and active-tab-only Firebase repainting
 - Durable offline state + outbox, reconnect replay and cross-device reconciliation
 
 Only two production Dart files are authored:
@@ -84,6 +85,8 @@ flutter build appbundle --release
 ```
 
 The output is `build/app/outputs/bundle/release/app-release.aab`.
+Release builds fail closed when neither signing source exists; the build never
+silently falls back to Android's debug certificate.
 
 ## Data safety design
 

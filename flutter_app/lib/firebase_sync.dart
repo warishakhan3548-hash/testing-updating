@@ -489,6 +489,8 @@ class PartyBalance {
 class LedgerMath {
   LedgerMath._();
 
+  static const double defaultMilkRate = 55;
+
   static double number(dynamic value) {
     if (value is num) return value.isFinite ? value.toDouble() : 0;
     return double.tryParse('$value') ?? 0;
@@ -498,6 +500,23 @@ class LedgerMath {
     final String raw = '${value ?? ''}'.trim();
     if (raw.isEmpty) return null;
     return DateTime.tryParse(raw);
+  }
+
+  static DateTime? strictDate(dynamic value) {
+    final String raw = '${value ?? ''}'.trim();
+    final RegExpMatch? match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(raw);
+    if (match == null) return null;
+    final int year = int.parse(match.group(1)!);
+    final int month = int.parse(match.group(2)!);
+    final int day = int.parse(match.group(3)!);
+    final DateTime? parsed = DateTime.tryParse(raw);
+    if (parsed == null ||
+        parsed.year != year ||
+        parsed.month != month ||
+        parsed.day != day) {
+      return null;
+    }
+    return parsed;
   }
 
   static bool inMonth(dynamic record, int month, int year) {
@@ -550,6 +569,15 @@ class LedgerMath {
     ).abs();
   }
 
+  static double milkRate(dynamic record, dynamic customer) {
+    final Map<String, dynamic> row = LedgerCodec.objectMap(record);
+    final Map<String, dynamic> profile = LedgerCodec.objectMap(customer);
+    final double recordRate = number(row['rate']);
+    if (recordRate > 0) return recordRate;
+    final double profileRate = number(profile['rate']);
+    return profileRate > 0 ? profileRate : defaultMilkRate;
+  }
+
   static MilkTotals milkTotals(
     dynamic customer, {
     int? month,
@@ -568,13 +596,7 @@ class LedgerMath {
       }
       final double quantity = milkQuantity(row);
       if (quantity == 0) continue;
-      final double recordRate = number(row['rate']);
-      final double profileRate = number(profile['rate']);
-      final double rate = recordRate > 0
-          ? recordRate
-          : profileRate > 0
-              ? profileRate
-              : 60;
+      final double rate = milkRate(row, profile);
       if (milkFlow(row, profile) == 'taken') {
         takenKg += quantity;
         takenAmount += quantity * rate;

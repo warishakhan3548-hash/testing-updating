@@ -29,6 +29,17 @@ val hasLocalSigning = keystorePropertiesFile.exists() &&
         !keystoreProperties.getProperty(it).isNullOrBlank()
     }
 val hasReleaseSigning = hasCodemagicSigning || hasLocalSigning
+val releaseTaskRequested = gradle.startParameter.taskNames.any {
+    val taskName = it.substringAfterLast(':').lowercase()
+    taskName.contains("release") &&
+        (taskName.contains("assemble") || taskName.contains("bundle"))
+}
+if (releaseTaskRequested && !hasReleaseSigning) {
+    throw GradleException(
+        "Release signing is required. Configure Codemagic Android code signing " +
+            "or android/key.properties before building a release artifact.",
+    )
+}
 
 android {
     namespace = "com.aaris.diary.financial"
@@ -74,11 +85,9 @@ android {
     buildTypes {
         release {
             // Codemagic supplies CM_* values; local builds use android/key.properties.
-            // The debug fallback keeps unsigned developer checkouts buildable.
-            signingConfig = if (hasReleaseSigning) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
+            // A release artifact must never be signed with the debug certificate.
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
             }
             isMinifyEnabled = true
             isShrinkResources = true

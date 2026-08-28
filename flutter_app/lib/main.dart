@@ -48,26 +48,75 @@ Future<void> main() async {
   runApp(AarishDiaryApp(sync: sync));
 }
 
-class AarishDiaryApp extends StatelessWidget {
+class AarishDiaryApp extends StatefulWidget {
   const AarishDiaryApp({required this.sync, super.key});
 
   final LedgerSyncService sync;
 
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        animation: sync,
-        builder: (BuildContext context, Widget? child) => MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: 'Aarish Diary Pro',
-          themeMode: sync.darkMode ? ThemeMode.dark : ThemeMode.light,
-          theme: _theme(Brightness.light),
-          darkTheme: _theme(Brightness.dark),
-          home: sync.booting
-              ? const _LaunchScreen()
-              : sync.user == null
-                  ? _LoginScreen(sync: sync)
-                  : AppShell(sync: sync),
-        ),
+  State<AarishDiaryApp> createState() => _AarishDiaryAppState();
+}
+
+class _AarishDiaryAppState extends State<AarishDiaryApp> {
+  late bool _booting;
+  late bool _darkMode;
+  String? _userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _readRootState();
+    widget.sync.addListener(_handleSyncChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant AarishDiaryApp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sync == widget.sync) return;
+    oldWidget.sync.removeListener(_handleSyncChange);
+    _readRootState();
+    widget.sync.addListener(_handleSyncChange);
+  }
+
+  void _readRootState() {
+    _booting = widget.sync.booting;
+    _darkMode = widget.sync.darkMode;
+    _userId = widget.sync.user?.uid;
+  }
+
+  void _handleSyncChange() {
+    final bool booting = widget.sync.booting;
+    final bool darkMode = widget.sync.darkMode;
+    final String? userId = widget.sync.user?.uid;
+    if (booting == _booting && darkMode == _darkMode && userId == _userId) {
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _booting = booting;
+      _darkMode = darkMode;
+      _userId = userId;
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.sync.removeListener(_handleSyncChange);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Aarish Diary Pro',
+        themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
+        theme: _theme(Brightness.light),
+        darkTheme: _theme(Brightness.dark),
+        home: _booting
+            ? const _LaunchScreen()
+            : _userId == null
+                ? _LoginScreen(sync: widget.sync)
+                : AppShell(sync: widget.sync),
       );
 }
 
@@ -481,18 +530,53 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final List<Widget> screens = <Widget>[
-      DashboardScreen(sync: widget.sync, onOpenTab: _selectTab),
-      MilkScreen(sync: widget.sync),
-      CreditScreen(sync: widget.sync),
-      ExpenseScreen(sync: widget.sync),
-      SalaryScreen(sync: widget.sync),
-      DiaryScreen(sync: widget.sync),
-      BusinessScreen(sync: widget.sync),
+      _ActiveSyncView(
+        sync: widget.sync,
+        active: _tab == 0,
+        builder: (BuildContext context) =>
+            DashboardScreen(sync: widget.sync, onOpenTab: _selectTab),
+      ),
+      _ActiveSyncView(
+        sync: widget.sync,
+        active: _tab == 1,
+        builder: (BuildContext context) => MilkScreen(sync: widget.sync),
+      ),
+      _ActiveSyncView(
+        sync: widget.sync,
+        active: _tab == 2,
+        builder: (BuildContext context) => CreditScreen(sync: widget.sync),
+      ),
+      _ActiveSyncView(
+        sync: widget.sync,
+        active: _tab == 3,
+        builder: (BuildContext context) => ExpenseScreen(sync: widget.sync),
+      ),
+      _ActiveSyncView(
+        sync: widget.sync,
+        active: _tab == 4,
+        builder: (BuildContext context) => SalaryScreen(sync: widget.sync),
+      ),
+      _ActiveSyncView(
+        sync: widget.sync,
+        active: _tab == 5,
+        builder: (BuildContext context) => DiaryScreen(sync: widget.sync),
+      ),
+      _ActiveSyncView(
+        sync: widget.sync,
+        active: _tab == 6,
+        builder: (BuildContext context) => BusinessScreen(sync: widget.sync),
+      ),
     ];
     return Scaffold(
       body: Column(
         children: <Widget>[
-          if (!widget.sync.isConnected) const _OfflineBanner(),
+          AnimatedBuilder(
+            animation: widget.sync,
+            builder: (BuildContext context, Widget? child) =>
+                widget.sync.isConnected
+                    ? const SizedBox.shrink()
+                    : const _OfflineBanner(),
+          ),
           Expanded(
             child: RepaintBoundary(
               child: IndexedStack(index: _tab, children: screens),
@@ -507,6 +591,53 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       ),
     );
   }
+}
+
+class _ActiveSyncView extends StatefulWidget {
+  const _ActiveSyncView({
+    required this.sync,
+    required this.active,
+    required this.builder,
+  });
+
+  final LedgerSyncService sync;
+  final bool active;
+  final WidgetBuilder builder;
+
+  @override
+  State<_ActiveSyncView> createState() => _ActiveSyncViewState();
+}
+
+class _ActiveSyncViewState extends State<_ActiveSyncView> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active) widget.sync.addListener(_handleSyncChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ActiveSyncView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sync == widget.sync && oldWidget.active == widget.active) {
+      return;
+    }
+    if (oldWidget.active) oldWidget.sync.removeListener(_handleSyncChange);
+    if (widget.active) widget.sync.addListener(_handleSyncChange);
+  }
+
+  void _handleSyncChange() {
+    if (mounted && widget.active) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    if (widget.active) widget.sync.removeListener(_handleSyncChange);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      RepaintBoundary(child: widget.builder(context));
 }
 
 class _OfflineBanner extends StatelessWidget {
@@ -821,7 +952,7 @@ class _BackCircle extends StatelessWidget {
       );
 }
 
-class _SearchBox extends StatelessWidget {
+class _SearchBox extends StatefulWidget {
   const _SearchBox({
     required this.hint,
     required this.onChanged,
@@ -833,12 +964,74 @@ class _SearchBox extends StatelessWidget {
   final Color color;
 
   @override
+  State<_SearchBox> createState() => _SearchBoxState();
+}
+
+class _SearchBoxState extends State<_SearchBox> {
+  Timer? _debounce;
+
+  void _onChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(
+      const Duration(milliseconds: 140),
+      () => widget.onChanged(value),
+    );
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => TextField(
-        onChanged: onChanged,
+        onChanged: _onChanged,
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
-          hintText: hint,
-          prefixIcon: Icon(Icons.search_rounded, color: color),
+          hintText: widget.hint,
+          prefixIcon: Icon(Icons.search_rounded, color: widget.color),
+        ),
+      );
+}
+
+class _DateField extends StatelessWidget {
+  const _DateField({required this.controller});
+
+  final TextEditingController controller;
+
+  Future<void> _pickDate(BuildContext context) async {
+    FocusScope.of(context).unfocus();
+    final DateTime now = DateTime.now();
+    final DateTime firstDate = DateTime(1900);
+    final DateTime lastDate = DateTime(now.year + 100, 12, 31);
+    final DateTime parsed = LedgerMath.strictDate(controller.text) ?? now;
+    final DateTime initial = parsed.isBefore(firstDate)
+        ? firstDate
+        : parsed.isAfter(lastDate)
+            ? lastDate
+            : parsed;
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      helpText: 'SELECT DATE',
+    );
+    if (picked != null) {
+      controller.text = DateFormat('yyyy-MM-dd').format(picked);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => TextField(
+        controller: controller,
+        readOnly: true,
+        enableInteractiveSelection: false,
+        onTap: () => unawaited(_pickDate(context)),
+        decoration: const InputDecoration(
+          labelText: 'Date (YYYY-MM-DD)',
+          prefixIcon: Icon(Icons.calendar_today_rounded),
         ),
       );
 }
@@ -1431,8 +1624,8 @@ class DashboardScreen extends StatelessWidget {
             _CircleAction(
               icon: Icons.file_download_rounded,
               color: appleGreen,
-              semanticLabel: 'Export CSV',
-              onTap: () => unawaited(_ExportService.shareAllCsv(sync.state)),
+              semanticLabel: 'Export Center',
+              onTap: () => unawaited(_showExportCenter(context, sync)),
             ),
             _CircleAction(
               icon: sync.darkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
@@ -1816,7 +2009,9 @@ class _MilkScreenState extends State<MilkScreen> {
 
   Future<void> _addCustomer() async {
     final TextEditingController name = TextEditingController();
-    final TextEditingController rate = TextEditingController(text: '60');
+    final TextEditingController rate = TextEditingController(
+      text: LedgerMath.defaultMilkRate.toStringAsFixed(0),
+    );
     String type = 'lene_wala';
     final bool? save = await _openSheet<bool>(
       context,
@@ -1880,7 +2075,8 @@ class _MilkScreenState extends State<MilkScreen> {
       return;
     }
     final String customerName = _cleanKey(name.text);
-    final double customerRate = double.tryParse(rate.text) ?? 60;
+    final double customerRate =
+        double.tryParse(rate.text) ?? LedgerMath.defaultMilkRate;
     name.dispose();
     rate.dispose();
     if (customerName.isEmpty || customerRate <= 0) {
@@ -1955,7 +2151,7 @@ class _MilkScreenState extends State<MilkScreen> {
                   return _ListCard(
                     title: name,
                     subtitle:
-                        '${totals.netKg >= 0 ? 'Given' : 'Taken'} ${totals.netKg.abs().toStringAsFixed(2)} KG • ${profile['rate'] ?? 60}/KG',
+                        '${totals.netKg >= 0 ? 'Given' : 'Taken'} ${totals.netKg.abs().toStringAsFixed(2)} KG • ${profile['rate'] ?? LedgerMath.defaultMilkRate}/KG',
                     icon: Icons.water_drop_rounded,
                     color: color,
                     trailing: _signedMoney(totals.netAmount),
@@ -2004,14 +2200,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
             _SheetFrame(
           title: 'Daily Milk Entry',
           children: <Widget>[
-            TextField(
-              controller: date,
-              keyboardType: TextInputType.datetime,
-              decoration: const InputDecoration(
-                labelText: 'Date (YYYY-MM-DD)',
-                prefixIcon: Icon(Icons.calendar_today_rounded),
-              ),
-            ),
+            _DateField(controller: date),
             const SizedBox(height: 13),
             Row(
               children: <Widget>[
@@ -2081,7 +2270,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
     date.dispose();
     morning.dispose();
     evening.dispose();
-    if (LedgerMath.date(entryDate) == null ||
+    if (LedgerMath.strictDate(entryDate) == null ||
         morningKg < 0 ||
         eveningKg < 0 ||
         morningKg + eveningKg <= 0) {
@@ -2118,7 +2307,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
       ),
       flow == 'taken' ? 'Taken milk saved!' : 'Given milk saved!',
     );
-    final DateTime parsed = LedgerMath.date(entryDate)!;
+    final DateTime parsed = LedgerMath.strictDate(entryDate)!;
     if (mounted) {
       setState(() {
         _month = parsed.month;
@@ -2620,14 +2809,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
       _SheetFrame(
         title: 'Salary Entry',
         children: <Widget>[
-          TextField(
-            controller: date,
-            keyboardType: TextInputType.datetime,
-            decoration: const InputDecoration(
-              labelText: 'Date (YYYY-MM-DD)',
-              prefixIcon: Icon(Icons.calendar_today_rounded),
-            ),
-          ),
+          _DateField(controller: date),
           const SizedBox(height: 13),
           TextField(
             controller: amount,
@@ -2659,7 +2841,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
     final double entryAmount = double.tryParse(amount.text) ?? 0;
     date.dispose();
     amount.dispose();
-    if (LedgerMath.date(entryDate) == null || entryAmount <= 0) {
+    if (LedgerMath.strictDate(entryDate) == null || entryAmount <= 0) {
       _toast(context, 'Enter a valid date and positive amount.', error: true);
       return;
     }
@@ -2679,7 +2861,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
       ),
       'Salary saved safely!',
     );
-    final DateTime parsed = LedgerMath.date(entryDate)!;
+    final DateTime parsed = LedgerMath.strictDate(entryDate)!;
     if (mounted) {
       setState(() {
         _month = parsed.month;
@@ -2903,14 +3085,7 @@ class _CreditScreenState extends State<CreditScreen> {
             _SheetFrame(
           title: 'Credit Entry',
           children: <Widget>[
-            TextField(
-              controller: date,
-              keyboardType: TextInputType.datetime,
-              decoration: const InputDecoration(
-                labelText: 'Date (YYYY-MM-DD)',
-                prefixIcon: Icon(Icons.calendar_today_rounded),
-              ),
-            ),
+            _DateField(controller: date),
             const SizedBox(height: 13),
             TextField(
               controller: name,
@@ -2975,7 +3150,9 @@ class _CreditScreenState extends State<CreditScreen> {
     date.dispose();
     name.dispose();
     amount.dispose();
-    if (LedgerMath.date(entryDate) == null || person.isEmpty || entryAmount <= 0) {
+    if (LedgerMath.strictDate(entryDate) == null ||
+        person.isEmpty ||
+        entryAmount <= 0) {
       _toast(context, 'Fill the complete form with a valid amount.', error: true);
       return;
     }
@@ -3094,11 +3271,7 @@ class CreditDetailScreen extends StatelessWidget {
             _SheetFrame(
           title: '$personName Credit Entry',
           children: <Widget>[
-            TextField(
-              controller: date,
-              keyboardType: TextInputType.datetime,
-              decoration: const InputDecoration(labelText: 'Date (YYYY-MM-DD)'),
-            ),
+            _DateField(controller: date),
             const SizedBox(height: 13),
             TextField(
               controller: amount,
@@ -3139,7 +3312,7 @@ class CreditDetailScreen extends StatelessWidget {
     final double entryAmount = double.tryParse(amount.text) ?? 0;
     date.dispose();
     amount.dispose();
-    if (LedgerMath.date(entryDate) == null || entryAmount <= 0) {
+    if (LedgerMath.strictDate(entryDate) == null || entryAmount <= 0) {
       _toast(context, 'Enter a valid date and positive amount.', error: true);
       return;
     }
@@ -3320,6 +3493,34 @@ class ExpenseScreen extends StatefulWidget {
 }
 
 class _ExpenseScreenState extends State<ExpenseScreen> {
+  Future<void> _shareCurrentMonthExpenses() async {
+    final DateTime now = DateTime.now();
+    final List<Map<String, dynamic>> records = _rows(
+      widget.sync.state['expenseDB'],
+    ).where((Map<String, dynamic> row) {
+      return LedgerMath.inMonth(row, now.month, now.year);
+    }).toList()
+      ..sort(
+        (Map<String, dynamic> a, Map<String, dynamic> b) =>
+            '${b['date'] ?? ''}'.compareTo('${a['date'] ?? ''}'),
+      );
+    await _ExportService.sharePdf(
+      'Monthly Expenses - ${DateFormat('MMMM yyyy').format(now)}',
+      <String>['Date', 'Category', 'Amount'],
+      records
+          .map(
+            (Map<String, dynamic> row) => <String>[
+              _displayDate(row['date']),
+              _cleanKey(row['category']).isEmpty
+                  ? 'Other'
+                  : _cleanKey(row['category']),
+              _plainMoney(-LedgerMath.number(row['amount']).abs()),
+            ],
+          )
+          .toList(),
+    );
+  }
+
   Future<void> _addExpense({String? fixedCategory}) async {
     final TextEditingController date = TextEditingController(text: _today());
     final TextEditingController category =
@@ -3330,14 +3531,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       _SheetFrame(
         title: 'Add Expense',
         children: <Widget>[
-          TextField(
-            controller: date,
-            keyboardType: TextInputType.datetime,
-            decoration: const InputDecoration(
-              labelText: 'Date (YYYY-MM-DD)',
-              prefixIcon: Icon(Icons.calendar_today_rounded),
-            ),
-          ),
+          _DateField(controller: date),
           const SizedBox(height: 13),
           TextField(
             controller: category,
@@ -3381,7 +3575,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     date.dispose();
     category.dispose();
     amount.dispose();
-    if (LedgerMath.date(entryDate) == null || entryAmount <= 0) {
+    if (LedgerMath.strictDate(entryDate) == null || entryAmount <= 0) {
       _toast(context, 'Enter a valid date and positive amount.', error: true);
       return;
     }
@@ -3418,7 +3612,10 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       if (rowDate.compareTo(group.lastDate) > 0) group.lastDate = rowDate;
     }
     final List<_ExpenseGroup> groups = grouped.values.toList()
-      ..sort((_ExpenseGroup a, _ExpenseGroup b) => b.total.compareTo(a.total));
+      ..sort((_ExpenseGroup a, _ExpenseGroup b) {
+        final int byLatest = b.lastDate.compareTo(a.lastDate);
+        return byLatest != 0 ? byLatest : a.category.compareTo(b.category);
+      });
     final double total = groups.fold<double>(
       0,
       (double sum, _ExpenseGroup group) => sum + group.total,
@@ -3429,6 +3626,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           title: 'Expenses',
           color: appleRed,
           actions: <Widget>[
+            _CircleAction(
+              icon: Icons.ios_share_rounded,
+              color: appleRed,
+              semanticLabel: 'Share this month expenses',
+              onTap: () => unawaited(_shareCurrentMonthExpenses()),
+            ),
             _PrimaryButton(
               label: 'Add',
               color: appleRed,
@@ -3504,11 +3707,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
       _SheetFrame(
         title: '${widget.category} Expense',
         children: <Widget>[
-          TextField(
-            controller: date,
-            keyboardType: TextInputType.datetime,
-            decoration: const InputDecoration(labelText: 'Date (YYYY-MM-DD)'),
-          ),
+          _DateField(controller: date),
           const SizedBox(height: 13),
           TextField(
             controller: amount,
@@ -3537,7 +3736,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     final double entryAmount = double.tryParse(amount.text) ?? 0;
     date.dispose();
     amount.dispose();
-    if (LedgerMath.date(entryDate) == null || entryAmount <= 0) {
+    if (LedgerMath.strictDate(entryDate) == null || entryAmount <= 0) {
       _toast(context, 'Enter a valid date and positive amount.', error: true);
       return;
     }
@@ -3556,7 +3755,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
       ),
       'Expense saved safely!',
     );
-    final DateTime parsed = LedgerMath.date(entryDate)!;
+    final DateTime parsed = LedgerMath.strictDate(entryDate)!;
     if (mounted) {
       setState(() {
         _month = parsed.month;
@@ -3739,14 +3938,7 @@ Future<void> _saveDiarySheet(
     _SheetFrame(
       title: existing == null ? 'New Diary Page' : 'Edit Page',
       children: <Widget>[
-        TextField(
-          controller: date,
-          keyboardType: TextInputType.datetime,
-          decoration: const InputDecoration(
-            labelText: 'Date (YYYY-MM-DD)',
-            prefixIcon: Icon(Icons.calendar_today_rounded),
-          ),
-        ),
+        _DateField(controller: date),
         const SizedBox(height: 13),
         TextField(
           controller: title,
@@ -3790,7 +3982,7 @@ Future<void> _saveDiarySheet(
   date.dispose();
   title.dispose();
   content.dispose();
-  if (LedgerMath.date(entryDate) == null || entryContent.isEmpty) {
+  if (LedgerMath.strictDate(entryDate) == null || entryContent.isEmpty) {
     _toast(context, 'Please enter a valid date and write something.', error: true);
     return;
   }
@@ -4279,11 +4471,7 @@ class BusinessDetailScreen extends StatelessWidget {
             _SheetFrame(
           title: 'Business Entry',
           children: <Widget>[
-            TextField(
-              controller: date,
-              keyboardType: TextInputType.datetime,
-              decoration: const InputDecoration(labelText: 'Date (YYYY-MM-DD)'),
-            ),
+            _DateField(controller: date),
             const SizedBox(height: 13),
             TextField(
               controller: title,
@@ -4340,7 +4528,7 @@ class BusinessDetailScreen extends StatelessWidget {
     date.dispose();
     title.dispose();
     amount.dispose();
-    if (LedgerMath.date(entryDate) == null || entryAmount <= 0) {
+    if (LedgerMath.strictDate(entryDate) == null || entryAmount <= 0) {
       _toast(context, 'Enter details and a valid positive amount.', error: true);
       return;
     }
@@ -5149,6 +5337,240 @@ String _plainMoney(dynamic value) {
   return '${sign}Rs ${NumberFormat('#,##,##0.##', 'en_IN').format(number.abs())}';
 }
 
+enum _ExportFormat { pdf, csv, aiLedger }
+
+enum _ExportScope { all, milk, expenses, credit, salary, diary, business }
+
+class _ExportChoice {
+  const _ExportChoice(this.format, this.scope);
+
+  final _ExportFormat format;
+  final _ExportScope scope;
+}
+
+class _ExportScopeSpec {
+  const _ExportScopeSpec({
+    required this.scope,
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  final _ExportScope scope;
+  final String label;
+  final IconData icon;
+  final Color color;
+}
+
+const List<_ExportScopeSpec> _exportScopes = <_ExportScopeSpec>[
+  _ExportScopeSpec(
+    scope: _ExportScope.all,
+    label: 'All Data',
+    icon: Icons.layers_rounded,
+    color: Color(0xFF5E5CE6),
+  ),
+  _ExportScopeSpec(
+    scope: _ExportScope.milk,
+    label: 'Milk Records',
+    icon: Icons.water_drop_rounded,
+    color: appleGreen,
+  ),
+  _ExportScopeSpec(
+    scope: _ExportScope.expenses,
+    label: 'Expenses',
+    icon: Icons.receipt_long_rounded,
+    color: appleRed,
+  ),
+  _ExportScopeSpec(
+    scope: _ExportScope.credit,
+    label: 'Credit Ledger',
+    icon: Icons.account_balance_wallet_rounded,
+    color: appleOrange,
+  ),
+  _ExportScopeSpec(
+    scope: _ExportScope.salary,
+    label: 'Salary',
+    icon: Icons.currency_rupee_rounded,
+    color: salaryGreen,
+  ),
+  _ExportScopeSpec(
+    scope: _ExportScope.diary,
+    label: 'Personal Diary',
+    icon: Icons.auto_stories_rounded,
+    color: systemGray,
+  ),
+  _ExportScopeSpec(
+    scope: _ExportScope.business,
+    label: 'Business Hub',
+    icon: Icons.business_center_rounded,
+    color: appleBlue,
+  ),
+];
+
+Future<void> _showExportCenter(
+  BuildContext context,
+  LedgerSyncService sync,
+) async {
+  final _ExportChoice? choice = await _openSheet<_ExportChoice>(
+    context,
+    const _ExportCenterSheet(),
+  );
+  if (choice == null || !context.mounted) return;
+  try {
+    await _ExportService.share(sync.state, choice);
+  } catch (_) {
+    if (context.mounted) {
+      _toast(context, 'Export failed. Please try again.', error: true);
+    }
+  }
+}
+
+class _ExportCenterSheet extends StatefulWidget {
+  const _ExportCenterSheet();
+
+  @override
+  State<_ExportCenterSheet> createState() => _ExportCenterSheetState();
+}
+
+class _ExportCenterSheetState extends State<_ExportCenterSheet> {
+  _ExportFormat _format = _ExportFormat.pdf;
+
+  @override
+  Widget build(BuildContext context) => _SheetFrame(
+        title: 'Export Center',
+        children: <Widget>[
+          const Text(
+            'Choose a format, then select exactly what you want to export.',
+            style: TextStyle(color: systemGray, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: <Widget>[
+              _formatButton(
+                _ExportFormat.pdf,
+                'PDF',
+                Icons.picture_as_pdf_rounded,
+                appleRed,
+              ),
+              const SizedBox(width: 9),
+              _formatButton(
+                _ExportFormat.csv,
+                'CSV',
+                Icons.table_view_rounded,
+                appleGreen,
+              ),
+              const SizedBox(width: 9),
+              _formatButton(
+                _ExportFormat.aiLedger,
+                'AI Ledger',
+                Icons.auto_awesome_rounded,
+                const Color(0xFF8E62D9),
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          const _SectionTitle('Data Scope'),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _exportScopes.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 2.25,
+            ),
+            itemBuilder: (BuildContext context, int index) {
+              final _ExportScopeSpec spec = _exportScopes[index];
+              return _Pressable(
+                semanticLabel: 'Export ${spec.label}',
+                onTap: () => Navigator.pop(
+                  context,
+                  _ExportChoice(_format, spec.scope),
+                ),
+                borderRadius: BorderRadius.circular(18),
+                child: _GlassCard(
+                  borderRadius: 18,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  borderColor: spec.color.withAlpha(45),
+                  shadowColor: spec.color.withAlpha(18),
+                  child: Row(
+                    children: <Widget>[
+                      Icon(spec.icon, size: 20, color: spec.color),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          spec.label,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      );
+
+  Widget _formatButton(
+    _ExportFormat format,
+    String label,
+    IconData icon,
+    Color color,
+  ) {
+    final bool selected = _format == format;
+    return Expanded(
+      child: _Pressable(
+        onTap: () => setState(() => _format = format),
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: const Cubic(0.2, 0.8, 0.2, 1),
+          height: 76,
+          decoration: BoxDecoration(
+            color: selected ? color : color.withAlpha(18),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withAlpha(selected ? 255 : 55)),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Icon(icon, color: selected ? Colors.white : color, size: 22),
+              const SizedBox(height: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExportDataset {
+  const _ExportDataset({
+    required this.title,
+    required this.headers,
+    required this.rows,
+  });
+
+  final String title;
+  final List<String> headers;
+  final List<List<String>> rows;
+}
+
 class _ExportService {
   _ExportService._();
 
@@ -5230,45 +5652,88 @@ class _ExportService {
     );
   }
 
-  static Future<void> shareAllCsv(Map<String, dynamic> state) async {
-    final List<List<dynamic>> rows = <List<dynamic>>[
-      <dynamic>['Module', 'Profile/Category', 'Date', 'Detail', 'Type', 'Amount', 'Extra'],
-    ];
+  static Future<void> share(
+    Map<String, dynamic> state,
+    _ExportChoice choice,
+  ) async {
+    final _ExportDataset dataset = _buildDataset(state, choice.scope);
+    switch (choice.format) {
+      case _ExportFormat.pdf:
+        await sharePdf(dataset.title, dataset.headers, dataset.rows);
+        return;
+      case _ExportFormat.csv:
+        await _shareCsv(dataset);
+        return;
+      case _ExportFormat.aiLedger:
+        await _shareAiLedger(dataset);
+        return;
+    }
+  }
+
+  static _ExportDataset _buildDataset(
+    Map<String, dynamic> state,
+    _ExportScope scope,
+  ) {
+    switch (scope) {
+      case _ExportScope.all:
+        return _allDataset(state);
+      case _ExportScope.milk:
+        return _milkDataset(state);
+      case _ExportScope.expenses:
+        return _expenseDataset(state);
+      case _ExportScope.credit:
+        return _creditDataset(state);
+      case _ExportScope.salary:
+        return _salaryDataset(state);
+      case _ExportScope.diary:
+        return _diaryDataset(state);
+      case _ExportScope.business:
+        return _businessDataset(state);
+    }
+  }
+
+  static _ExportDataset _allDataset(Map<String, dynamic> state) {
+    final List<List<String>> rows = <List<String>>[];
     for (final MapEntry<String, dynamic> entry in _map(state['milkDB']).entries) {
       final Map<String, dynamic> profile = _map(entry.value);
       for (final Map<String, dynamic> row in _rows(profile['records'])) {
         final double quantity = LedgerMath.milkQuantity(row);
         final String flow = LedgerMath.milkFlow(row, profile);
-        rows.add(<dynamic>[
+        final double rate = LedgerMath.milkRate(row, profile);
+        final double signedAmount =
+            quantity * rate * (flow == 'taken' ? -1 : 1);
+        rows.add(<String>[
           'Milk',
           entry.key,
-          row['date'],
-          '$quantity KG',
-          flow,
-          quantity * LedgerMath.number(profile['rate'] ?? 60) * (flow == 'taken' ? -1 : 1),
-          'Morning ${row['morning'] ?? 0}; Evening ${row['evening'] ?? 0}',
+          '${row['date'] ?? ''}',
+          'Morning ${_decimal(LedgerMath.number(row['morning']).abs())} KG; '
+              'Evening ${_decimal(LedgerMath.number(row['evening']).abs())} KG',
+          flow == 'taken' ? 'Taken / To Pay' : 'Given / To Receive',
+          _decimal(signedAmount),
+          '${_decimal(quantity)} KG @ Rs ${_decimal(rate)}',
         ]);
       }
     }
     for (final Map<String, dynamic> row in _rows(state['udharDB'])) {
-      rows.add(<dynamic>[
+      final double signed = LedgerMath.creditSigned(row);
+      rows.add(<String>[
         'Credit',
-        row['name'],
-        row['date'],
-        '',
-        row['type'],
-        LedgerMath.creditSigned(row),
+        '${row['name'] ?? ''}',
+        '${row['date'] ?? ''}',
+        '${row['detail'] ?? row['note'] ?? row['description'] ?? ''}',
+        signed >= 0 ? 'Given / To Receive' : 'Taken / To Pay',
+        _decimal(signed),
         '',
       ]);
     }
     for (final Map<String, dynamic> row in _rows(state['expenseDB'])) {
-      rows.add(<dynamic>[
+      rows.add(<String>[
         'Expense',
-        row['category'],
-        row['date'],
-        '',
-        'expense',
-        -LedgerMath.number(row['amount']).abs(),
+        '${row['category'] ?? 'Other'}',
+        '${row['date'] ?? ''}',
+        '${row['note'] ?? row['description'] ?? ''}',
+        'Paid / Outflow',
+        _decimal(-LedgerMath.number(row['amount']).abs()),
         '',
       ]);
     }
@@ -5276,51 +5741,251 @@ class _ExportService {
       final Map<String, dynamic> profile = _map(entry.value);
       final double sign = profile['type'] == 'lene_wala' ? 1 : -1;
       for (final Map<String, dynamic> row in _rows(profile['records'])) {
-        rows.add(<dynamic>[
+        rows.add(<String>[
           'Salary',
           entry.key,
-          row['date'],
-          profile['company'],
-          profile['type'],
-          sign * LedgerMath.number(row['amount']),
+          '${row['date'] ?? ''}',
+          '${profile['company'] ?? ''}',
+          sign > 0 ? 'Salary Taken / Inflow' : 'Salary Given / Outflow',
+          _decimal(sign * LedgerMath.number(row['amount']).abs()),
           '',
         ]);
       }
     }
     for (final Map<String, dynamic> row in _rows(state['diaryDB'])) {
-      rows.add(<dynamic>[
+      rows.add(<String>[
         'Diary',
-        row['title'],
-        row['date'],
-        row['content'],
-        '',
-        '',
+        '${row['title'] ?? ''}',
+        '${row['date'] ?? ''}',
+        '${row['content'] ?? ''}',
+        'Informational',
+        '0',
         '',
       ]);
     }
     for (final MapEntry<String, dynamic> entry in _map(state['projectDB']).entries) {
       final Map<String, dynamic> project = _map(entry.value);
       for (final Map<String, dynamic> row in _rows(project['records'])) {
-        rows.add(<dynamic>[
+        final String color = '${row['color'] ?? 'blue'}'.toLowerCase();
+        final double amount = LedgerMath.number(row['amount']).abs();
+        final double signed = color == 'green'
+            ? amount
+            : color == 'red'
+                ? -amount
+                : 0;
+        rows.add(<String>[
           'Business',
           entry.key,
-          row['date'],
-          row['title'],
-          row['color'],
-          row['amount'],
-          '',
+          '${row['date'] ?? ''}',
+          '${row['title'] ?? row['detail'] ?? ''}',
+          color == 'green'
+              ? 'Receive / Inflow'
+              : color == 'red'
+                  ? 'Pay / Outflow'
+                  : 'Neutral / Informational',
+          _decimal(signed),
+          'Original amount ${_decimal(amount)}; color $color',
         ]);
       }
     }
+    return _ExportDataset(
+      title: 'All Data',
+      headers: const <String>[
+        'Module',
+        'Profile/Category',
+        'Date',
+        'Detail',
+        'Type',
+        'Signed Amount',
+        'Extra',
+      ],
+      rows: rows,
+    );
+  }
+
+  static _ExportDataset _milkDataset(Map<String, dynamic> state) {
+    final List<List<String>> rows = <List<String>>[];
+    for (final MapEntry<String, dynamic> entry in _map(state['milkDB']).entries) {
+      final Map<String, dynamic> profile = _map(entry.value);
+      for (final Map<String, dynamic> row in _rows(profile['records'])) {
+        final double morning = LedgerMath.number(row['morning']).abs();
+        final double evening = LedgerMath.number(row['evening']).abs();
+        final double quantity = LedgerMath.milkQuantity(row);
+        final double rate = LedgerMath.milkRate(row, profile);
+        final String flow = LedgerMath.milkFlow(row, profile);
+        final double signed = quantity * rate * (flow == 'taken' ? -1 : 1);
+        rows.add(<String>[
+          entry.key,
+          '${row['date'] ?? ''}',
+          _decimal(morning),
+          _decimal(evening),
+          _decimal(quantity),
+          _decimal(rate),
+          flow == 'taken' ? 'Taken / To Pay' : 'Given / To Receive',
+          _decimal(signed),
+        ]);
+      }
+    }
+    return _ExportDataset(
+      title: 'Milk Records',
+      headers: const <String>[
+        'Customer',
+        'Date',
+        'Morning KG',
+        'Evening KG',
+        'Total KG',
+        'Rate',
+        'Flow',
+        'Signed Amount',
+      ],
+      rows: rows,
+    );
+  }
+
+  static _ExportDataset _expenseDataset(Map<String, dynamic> state) {
+    final List<List<String>> rows = _rows(state['expenseDB'])
+        .map(
+          (Map<String, dynamic> row) => <String>[
+            '${row['date'] ?? ''}',
+            '${row['category'] ?? 'Other'}',
+            '${row['note'] ?? row['description'] ?? ''}',
+            _decimal(-LedgerMath.number(row['amount']).abs()),
+          ],
+        )
+        .toList();
+    return _ExportDataset(
+      title: 'Expenses',
+      headers: const <String>['Date', 'Category', 'Detail', 'Signed Amount'],
+      rows: rows,
+    );
+  }
+
+  static _ExportDataset _creditDataset(Map<String, dynamic> state) {
+    final List<List<String>> rows = _rows(state['udharDB']).map(
+      (Map<String, dynamic> row) {
+        final double signed = LedgerMath.creditSigned(row);
+        return <String>[
+          signed >= 0 ? 'Given / To Receive' : 'Taken / To Pay',
+          '${row['name'] ?? ''}',
+          '${row['date'] ?? ''}',
+          '${row['detail'] ?? row['note'] ?? row['description'] ?? ''}',
+          _decimal(signed),
+        ];
+      },
+    ).toList();
+    return _ExportDataset(
+      title: 'Credit Ledger',
+      headers: const <String>[
+        'Type',
+        'Party Name',
+        'Date',
+        'Detail',
+        'Signed Amount',
+      ],
+      rows: rows,
+    );
+  }
+
+  static _ExportDataset _salaryDataset(Map<String, dynamic> state) {
+    final List<List<String>> rows = <List<String>>[];
+    for (final MapEntry<String, dynamic> entry
+        in _map(state['salaryDB']).entries) {
+      final Map<String, dynamic> profile = _map(entry.value);
+      final bool receives = profile['type'] == 'lene_wala';
+      for (final Map<String, dynamic> row in _rows(profile['records'])) {
+        final double amount = LedgerMath.number(row['amount']).abs();
+        rows.add(<String>[
+          receives ? 'Salary Taken / Inflow' : 'Salary Given / Outflow',
+          entry.key,
+          '${profile['company'] ?? ''}',
+          '${row['date'] ?? ''}',
+          _decimal(receives ? amount : -amount),
+        ]);
+      }
+    }
+    return _ExportDataset(
+      title: 'Salary',
+      headers: const <String>[
+        'Type',
+        'Employee Name',
+        'Company',
+        'Date',
+        'Signed Amount',
+      ],
+      rows: rows,
+    );
+  }
+
+  static _ExportDataset _diaryDataset(Map<String, dynamic> state) {
+    final List<List<String>> rows = _rows(state['diaryDB'])
+        .map(
+          (Map<String, dynamic> row) => <String>[
+            '${row['date'] ?? ''}',
+            '${row['title'] ?? ''}',
+            '${row['content'] ?? ''}',
+          ],
+        )
+        .toList();
+    return _ExportDataset(
+      title: 'Personal Diary',
+      headers: const <String>['Date', 'Title', 'Content'],
+      rows: rows,
+    );
+  }
+
+  static _ExportDataset _businessDataset(Map<String, dynamic> state) {
+    final List<List<String>> rows = <List<String>>[];
+    for (final MapEntry<String, dynamic> entry
+        in _map(state['projectDB']).entries) {
+      final Map<String, dynamic> project = _map(entry.value);
+      for (final Map<String, dynamic> row in _rows(project['records'])) {
+        final String color = '${row['color'] ?? 'blue'}'.toLowerCase();
+        final double amount = LedgerMath.number(row['amount']).abs();
+        final double signed = color == 'green'
+            ? amount
+            : color == 'red'
+                ? -amount
+                : 0;
+        rows.add(<String>[
+          entry.key,
+          '${row['date'] ?? ''}',
+          '${row['title'] ?? row['detail'] ?? ''}',
+          color == 'green'
+              ? 'Receive / Inflow'
+              : color == 'red'
+                  ? 'Pay / Outflow'
+                  : 'Neutral / Informational',
+          _decimal(amount),
+          _decimal(signed),
+        ]);
+      }
+    }
+    return _ExportDataset(
+      title: 'Business Hub',
+      headers: const <String>[
+        'Khata Name',
+        'Date',
+        'Entry Detail',
+        'Type',
+        'Original Amount',
+        'Signed Amount',
+      ],
+      rows: rows,
+    );
+  }
+
+  static Future<void> _shareCsv(_ExportDataset dataset) async {
+    final List<List<String>> rows = <List<String>>[
+      dataset.headers,
+      ...dataset.rows,
+    ];
     final String csv = rows
         .map(
-          (List<dynamic> row) => row
-              .map((dynamic value) => _csvCell('${value ?? ''}'))
-              .join(','),
+          (List<String> row) => row.map(_csvCell).join(','),
         )
         .join('\r\n');
     final String filename =
-        'Aarish_Diary_Export_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.csv';
+        '${_safeFilename(dataset.title)}_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.csv';
     await SharePlus.instance.share(
       ShareParams(
         files: <XFile>[
@@ -5330,13 +5995,63 @@ class _ExportService {
             name: filename,
           ),
         ],
-        subject: 'Aarish Diary Pro Export',
+        subject: 'Aarish Diary Pro - ${dataset.title}',
       ),
     );
   }
 
+  static Future<void> _shareAiLedger(_ExportDataset dataset) async {
+    final StringBuffer output = StringBuffer()
+      ..writeln('AARISH DIARY PRO — AI MASTER LEDGER')
+      ..writeln('SCOPE :: ${dataset.title}')
+      ..writeln(
+        'GENERATED_AT :: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())}',
+      )
+      ..writeln('RECORD_COUNT :: ${dataset.rows.length}')
+      ..writeln()
+      ..writeln('OWNER-CENTRIC ACCOUNTING RULES')
+      ..writeln('1. Positive signed amount = owner receives / money inflow.')
+      ..writeln('2. Negative signed amount = owner pays / money outflow.')
+      ..writeln('3. Zero signed amount = informational; do not count as finance.')
+      ..writeln('4. Diary rows are notes, never financial transactions.')
+      ..writeln();
+    for (int rowIndex = 0; rowIndex < dataset.rows.length; rowIndex++) {
+      final List<String> row = dataset.rows[rowIndex];
+      output.writeln('BEGIN_RECORD ${(rowIndex + 1).toString().padLeft(6, '0')}');
+      for (int column = 0; column < dataset.headers.length; column++) {
+        final String value = column < row.length ? row[column] : '';
+        output.writeln(
+          '${dataset.headers[column].toUpperCase().replaceAll(' ', '_')} :: '
+          '${jsonEncode(value)}',
+        );
+      }
+      output.writeln('END_RECORD ${(rowIndex + 1).toString().padLeft(6, '0')}');
+      output.writeln();
+    }
+    final String filename =
+        '${_safeFilename(dataset.title)}_AI_Ledger_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.txt';
+    await SharePlus.instance.share(
+      ShareParams(
+        files: <XFile>[
+          XFile.fromData(
+            Uint8List.fromList(utf8.encode(output.toString())),
+            mimeType: 'text/plain',
+            name: filename,
+          ),
+        ],
+        subject: 'Aarish Diary Pro AI Ledger - ${dataset.title}',
+      ),
+    );
+  }
+
+  static String _decimal(double value) {
+    if (!value.isFinite || value == 0) return '0';
+    if (value == value.roundToDouble()) return value.toInt().toString();
+    return value.toStringAsFixed(2);
+  }
+
   static String _csvCell(String value) =>
-      '"${value.replaceAll('"', '""').replaceAll('\r', ' ').replaceAll('\n', ' ')}"';
+      '"${value.replaceAll('"', '""').replaceAll('\r\n', '\n').replaceAll('\r', '\n')}"';
 
   static String _safeFilename(String value) => value
       .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')

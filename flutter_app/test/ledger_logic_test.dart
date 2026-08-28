@@ -175,6 +175,41 @@ void main() {
   });
 
   group('Ledger calculations', () {
+    test('strict input dates reject normalized impossible dates', () {
+      expect(LedgerMath.strictDate('2024-02-29'), DateTime(2024, 2, 29));
+      expect(LedgerMath.strictDate('2026-02-29'), isNull);
+      expect(LedgerMath.strictDate('2026-02-30'), isNull);
+      expect(LedgerMath.strictDate('2026-2-03'), isNull);
+      expect(LedgerMath.strictDate('not-a-date'), isNull);
+    });
+
+    test('milk entry rate overrides profile rate consistently', () {
+      final MilkTotals totals = LedgerMath.milkTotals(
+        <String, dynamic>{
+          'rate': 50,
+          'records': <String, dynamic>{
+            'new_rate': <String, dynamic>{
+              'morning': 2,
+              'rate': 70,
+              'flow': 'given',
+            },
+            'profile_rate': <String, dynamic>{
+              'evening': 1,
+              'flow': 'taken',
+            },
+          },
+        },
+      );
+
+      expect(totals.givenAmount, 140);
+      expect(totals.takenAmount, 50);
+      expect(totals.netAmount, 90);
+      expect(
+        LedgerMath.milkRate(<String, dynamic>{}, <String, dynamic>{}),
+        55,
+      );
+    });
+
     test('dashboard matches web receive, expense and profit rules', () {
       final Map<String, dynamic> state = LedgerCodec.normalizeState(
         <String, dynamic>{
