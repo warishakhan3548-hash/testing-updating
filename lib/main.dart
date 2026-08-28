@@ -20,12 +20,20 @@ import 'package:uuid/uuid.dart';
 import 'firebase_sync.dart';
 
 const Color appleBlue = Color(0xFF007AFF);
+const Color appleBlue2 = Color(0xFF0A84FF);
 const Color appleGreen = Color(0xFF34C759);
+const Color appleGreen2 = Color(0xFF30D158);
 const Color salaryGreen = Color(0xFF10B981);
 const Color appleRed = Color(0xFFFF3B30);
+const Color semanticRed = Color(0xFFFF453A);
+const Color appleRed2 = Color(0xFFFF2D55);
 const Color appleOrange = Color(0xFFFF9500);
 const Color diaryOrange = Color(0xFFF5A623);
+const Color diaryOrange2 = Color(0xFFFFB340);
 const Color systemGray = Color(0xFF8E8E93);
+const Color lightCanvas = Color(0xFFF5F5F7);
+const Color darkGlassTop = Color(0xFF121826);
+const Color darkGlassBottom = Color(0xFF080C18);
 const Uuid _ids = Uuid();
 
 const FirebaseOptions _webFirebaseOptions = FirebaseOptions(
@@ -108,10 +116,15 @@ class _AarishDiaryAppState extends State<AarishDiaryApp> {
   @override
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'Aarish Diary Pro',
+        title: 'Aarish Dairy Pro',
         themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
         theme: _theme(Brightness.light),
         darkTheme: _theme(Brightness.dark),
+        themeAnimationDuration: const Duration(milliseconds: 420),
+        themeAnimationCurve: const Cubic(0.25, 1, 0.5, 1),
+        builder: (BuildContext context, Widget? child) => _AmbientBackground(
+          child: child ?? const SizedBox.shrink(),
+        ),
         home: _booting
             ? const _LaunchScreen()
             : _userId == null
@@ -122,39 +135,58 @@ class _AarishDiaryAppState extends State<AarishDiaryApp> {
 
 ThemeData _theme(Brightness brightness) {
   final bool dark = brightness == Brightness.dark;
-  final Color background = dark ? Colors.black : const Color(0xFFF2F2F7);
-  final Color surface = dark ? const Color(0xFF161618) : Colors.white;
-  final Color text = dark ? Colors.white : const Color(0xFF111827);
+  final Color surface = dark ? darkGlassTop : Colors.white;
+  final Color text = dark ? Colors.white : const Color(0xFF1C1C1E);
+  final Color outline = dark
+      ? Colors.white.withAlpha(35)
+      : Colors.black.withAlpha(11);
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
-    scaffoldBackgroundColor: background,
+    scaffoldBackgroundColor: Colors.transparent,
+    canvasColor: dark ? const Color(0xFF1C2230) : Colors.white,
     colorScheme: ColorScheme.fromSeed(
       seedColor: appleBlue,
       brightness: brightness,
       surface: surface,
       error: appleRed,
+    ).copyWith(
+      primary: appleBlue,
+      secondary: appleGreen,
+      surface: surface,
+      error: appleRed,
+      outline: outline,
     ),
     textTheme: ThemeData(brightness: brightness)
         .textTheme
         .apply(bodyColor: text, displayColor: text),
+    iconTheme: IconThemeData(color: text),
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
-    dividerColor: dark ? Colors.white12 : Colors.black12,
+    dividerColor: dark
+        ? Colors.white.withAlpha(23)
+        : Colors.black.withAlpha(11),
+    textSelectionTheme: TextSelectionThemeData(
+      cursorColor: appleBlue,
+      selectionColor: appleBlue.withAlpha(54),
+      selectionHandleColor: appleBlue,
+    ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: dark ? const Color(0xFF1C1C1E) : Colors.white,
+      fillColor: dark
+          ? const Color(0x2E767680)
+          : const Color(0x17767680),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       hintStyle: const TextStyle(color: systemGray, fontWeight: FontWeight.w500),
+      labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+      prefixIconColor: appleBlue,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(color: outline),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(
-          color: dark ? Colors.white12 : Colors.black.withAlpha(14),
-        ),
+        borderSide: BorderSide(color: outline),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
@@ -171,15 +203,17 @@ ThemeData _theme(Brightness brightness) {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
     bottomSheetTheme: BottomSheetThemeData(
-      backgroundColor: surface,
-      modalBackgroundColor: surface,
-      showDragHandle: true,
+      backgroundColor: Colors.transparent,
+      modalBackgroundColor: Colors.transparent,
+      elevation: 0,
+      showDragHandle: false,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: surface,
+      backgroundColor: dark ? const Color(0xFF1C2230) : Colors.white,
+      elevation: 24,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     ),
     pageTransitionsTheme: const PageTransitionsTheme(
@@ -193,6 +227,97 @@ ThemeData _theme(Brightness brightness) {
       },
     ),
   );
+}
+
+class _AmbientBackground extends StatelessWidget {
+  const _AmbientBackground({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final SystemUiOverlayStyle overlay = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness:
+          dark ? Brightness.light : Brightness.dark,
+      systemNavigationBarDividerColor: Colors.transparent,
+    );
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlay,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          RepaintBoundary(
+            child: CustomPaint(painter: _AmbientPainter(dark: dark)),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _AmbientPainter extends CustomPainter {
+  const _AmbientPainter({required this.dark});
+
+  final bool dark;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Rect bounds = Offset.zero & size;
+    canvas.drawRect(
+      bounds,
+      Paint()..color = dark ? Colors.black : lightCanvas,
+    );
+    _paintGlow(
+      canvas,
+      bounds,
+      center: const Alignment(-1.15, -1.2),
+      radius: .88,
+      color: appleGreen.withAlpha(dark ? 47 : 28),
+    );
+    _paintGlow(
+      canvas,
+      bounds,
+      center: const Alignment(1.15, 1.18),
+      radius: .96,
+      color: appleBlue2.withAlpha(dark ? 48 : 24),
+    );
+    _paintGlow(
+      canvas,
+      bounds,
+      center: const Alignment(.08, 1.24),
+      radius: .68,
+      color: diaryOrange.withAlpha(dark ? 17 : 10),
+    );
+  }
+
+  void _paintGlow(
+    Canvas canvas,
+    Rect bounds, {
+    required Alignment center,
+    required double radius,
+    required Color color,
+  }) {
+    canvas.drawRect(
+      bounds,
+      Paint()
+        ..shader = RadialGradient(
+          center: center,
+          radius: radius,
+          colors: <Color>[color, Colors.transparent],
+          stops: const <double>[0, 1],
+        ).createShader(bounds),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _AmbientPainter oldDelegate) =>
+      oldDelegate.dark != dark;
 }
 
 class _PremiumTransitionsBuilder extends PageTransitionsBuilder {
@@ -256,21 +381,24 @@ class _AppMark extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: <Color>[Color(0xFF0A84FF), Color(0xFF0056B3)],
+            colors: <Color>[
+              appleBlue.withAlpha(48),
+              appleBlue2.withAlpha(22),
+            ],
           ),
           borderRadius: BorderRadius.circular(size * .27),
+          border: Border.all(color: appleBlue.withAlpha(58)),
           boxShadow: <BoxShadow>[
             BoxShadow(
-              color: appleBlue.withAlpha(75),
-              blurRadius: 28,
-              offset: const Offset(0, 12),
+              color: appleBlue.withAlpha(76),
+              blurRadius: 22,
             ),
           ],
         ),
-        child: Icon(Icons.menu_book_rounded, color: Colors.white, size: size * .55),
+        child: Icon(Icons.eco_rounded, color: appleBlue2, size: size * .52),
       );
 }
 
@@ -325,7 +453,7 @@ class _LoginScreenState extends State<_LoginScreen> {
         children: <Widget>[
           Positioned(
             top: -120,
-            right: -100,
+            left: -100,
             child: Container(
               width: 320,
               height: 320,
@@ -342,46 +470,59 @@ class _LoginScreenState extends State<_LoginScreen> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 380),
-                  padding: const EdgeInsets.fromLTRB(26, 30, 26, 26),
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
-                    color: const Color(0xE6121214),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[
+                        Color(0xF01C2230),
+                        Color(0xE6121214),
+                      ],
+                    ),
                     borderRadius: BorderRadius.circular(28),
-                    border: Border.all(color: Colors.white.withAlpha(28)),
-                    boxShadow: const <BoxShadow>[
+                    border: Border.all(color: Colors.white.withAlpha(29)),
+                    boxShadow: <BoxShadow>[
                       BoxShadow(
-                        color: Colors.black54,
+                        color: Colors.black.withAlpha(174),
                         blurRadius: 58,
                         offset: Offset(0, 18),
+                      ),
+                      BoxShadow(
+                        color: appleBlue.withAlpha(20),
+                        blurRadius: 34,
                       ),
                     ],
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      const _AppMark(size: 76),
-                      const SizedBox(height: 26),
+                      const _AppMark(size: 80),
+                      const SizedBox(height: 24),
                       const Text(
-                        'Aarish Diary Pro',
+                        'Aarish Dairy Pro',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 27,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -.6,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -.5,
                         ),
                       ),
-                      const SizedBox(height: 9),
+                      const SizedBox(height: 5),
                       const Text(
-                        'Your private financial record book',
+                        'DOODH HISAB • UDHAR KHATA BOOK • BUSINESS KIT',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: systemGray,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          height: 1.55,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.15,
                         ),
                       ),
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 36),
                       _Pressable(
                         onTap: _signIn,
                         borderRadius: BorderRadius.circular(17),
@@ -394,12 +535,24 @@ class _LoginScreenState extends State<_LoginScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: <Widget>[
-                              const Text(
-                                'G',
-                                style: TextStyle(
-                                  color: Color(0xFF4285F4),
-                                  fontSize: 21,
-                                  fontWeight: FontWeight.w900,
+                              ShaderMask(
+                                blendMode: BlendMode.srcIn,
+                                shaderCallback: (Rect bounds) =>
+                                    const LinearGradient(
+                                  colors: <Color>[
+                                    Color(0xFF4285F4),
+                                    Color(0xFFEA4335),
+                                    Color(0xFFFBBC05),
+                                    Color(0xFF34A853),
+                                  ],
+                                ).createShader(bounds),
+                                child: const Text(
+                                  'G',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 21,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -434,21 +587,34 @@ class _LoginScreenState extends State<_LoginScreen> {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 18),
-                      const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          Icon(Icons.lock_rounded, size: 13, color: systemGray),
-                          SizedBox(width: 6),
-                          Text(
-                            'Secure Firebase sync',
+                      const SizedBox(height: 12),
+                      _Pressable(
+                        onTap: () => showAboutDialog(
+                          context: context,
+                          applicationName: 'Aarish Dairy Pro',
+                          applicationVersion: '1.0.0',
+                          applicationIcon: const _AppMark(size: 48),
+                          children: const <Widget>[
+                            Text(
+                              'Milk, credit, expenses, salary, diary and business ledger.',
+                            ),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 7,
+                          ),
+                          child: Text(
+                            'About features',
                             style: TextStyle(
-                              color: systemGray,
+                              color: Colors.white.withAlpha(138),
                               fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -472,12 +638,12 @@ class _TabSpec {
 
 const List<_TabSpec> _tabs = <_TabSpec>[
   _TabSpec('Home', Icons.home_rounded, appleBlue),
-  _TabSpec('Milk', Icons.water_drop_rounded, appleGreen),
-  _TabSpec('Credit', Icons.account_balance_wallet_rounded, appleBlue),
-  _TabSpec('Expenses', Icons.receipt_long_rounded, appleRed),
-  _TabSpec('Salary', Icons.currency_rupee_rounded, salaryGreen),
-  _TabSpec('Diary', Icons.auto_stories_rounded, diaryOrange),
-  _TabSpec('Business', Icons.business_center_rounded, Colors.black),
+  _TabSpec('Milk', Icons.local_drink_rounded, appleBlue),
+  _TabSpec('Credit', Icons.volunteer_activism_rounded, appleBlue),
+  _TabSpec('Expenses', Icons.receipt_long_rounded, semanticRed),
+  _TabSpec('Salary', Icons.payments_rounded, appleBlue),
+  _TabSpec('Diary', Icons.menu_book_rounded, diaryOrange),
+  _TabSpec('Business', Icons.work_rounded, appleBlue),
 ];
 
 class AppShell extends StatefulWidget {
@@ -492,6 +658,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _tab = 0;
   final ScrollController _navController = ScrollController();
+  final PageController _pageController = PageController();
 
   @override
   void initState() {
@@ -503,6 +670,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _navController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -515,14 +683,31 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _selectTab(int index) {
     if (_tab == index) return;
+    setState(() => _tab = index);
+    _scrollNavigation(index);
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 300),
+        curve: const Cubic(0.32, 0.72, 0, 1),
+      );
+    }
+  }
+
+  void _handlePageChanged(int index) {
+    if (_tab == index) return;
     HapticFeedback.selectionClick();
     setState(() => _tab = index);
-    final double target = math.max(0, index * 73 - 120).toDouble();
+    _scrollNavigation(index);
+  }
+
+  void _scrollNavigation(int index) {
+    final double target = math.max(0, index * 74 - 120).toDouble();
     if (_navController.hasClients) {
       _navController.animateTo(
         math.min(target, _navController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 210),
-        curve: const Cubic(0.2, 0.8, 0.2, 1),
+        duration: const Duration(milliseconds: 280),
+        curve: const Cubic(0.32, 0.72, 0, 1),
       );
     }
   }
@@ -530,41 +715,54 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final List<Widget> screens = <Widget>[
-      _ActiveSyncView(
-        sync: widget.sync,
-        active: _tab == 0,
-        builder: (BuildContext context) =>
-            DashboardScreen(sync: widget.sync, onOpenTab: _selectTab),
+      _KeepAlivePage(
+        child: _ActiveSyncView(
+          sync: widget.sync,
+          active: _tab == 0,
+          builder: (BuildContext context) => DashboardScreen(sync: widget.sync),
+        ),
       ),
-      _ActiveSyncView(
-        sync: widget.sync,
-        active: _tab == 1,
-        builder: (BuildContext context) => MilkScreen(sync: widget.sync),
+      _KeepAlivePage(
+        child: _ActiveSyncView(
+          sync: widget.sync,
+          active: _tab == 1,
+          builder: (BuildContext context) => MilkScreen(sync: widget.sync),
+        ),
       ),
-      _ActiveSyncView(
-        sync: widget.sync,
-        active: _tab == 2,
-        builder: (BuildContext context) => CreditScreen(sync: widget.sync),
+      _KeepAlivePage(
+        child: _ActiveSyncView(
+          sync: widget.sync,
+          active: _tab == 2,
+          builder: (BuildContext context) => CreditScreen(sync: widget.sync),
+        ),
       ),
-      _ActiveSyncView(
-        sync: widget.sync,
-        active: _tab == 3,
-        builder: (BuildContext context) => ExpenseScreen(sync: widget.sync),
+      _KeepAlivePage(
+        child: _ActiveSyncView(
+          sync: widget.sync,
+          active: _tab == 3,
+          builder: (BuildContext context) => ExpenseScreen(sync: widget.sync),
+        ),
       ),
-      _ActiveSyncView(
-        sync: widget.sync,
-        active: _tab == 4,
-        builder: (BuildContext context) => SalaryScreen(sync: widget.sync),
+      _KeepAlivePage(
+        child: _ActiveSyncView(
+          sync: widget.sync,
+          active: _tab == 4,
+          builder: (BuildContext context) => SalaryScreen(sync: widget.sync),
+        ),
       ),
-      _ActiveSyncView(
-        sync: widget.sync,
-        active: _tab == 5,
-        builder: (BuildContext context) => DiaryScreen(sync: widget.sync),
+      _KeepAlivePage(
+        child: _ActiveSyncView(
+          sync: widget.sync,
+          active: _tab == 5,
+          builder: (BuildContext context) => DiaryScreen(sync: widget.sync),
+        ),
       ),
-      _ActiveSyncView(
-        sync: widget.sync,
-        active: _tab == 6,
-        builder: (BuildContext context) => BusinessScreen(sync: widget.sync),
+      _KeepAlivePage(
+        child: _ActiveSyncView(
+          sync: widget.sync,
+          active: _tab == 6,
+          builder: (BuildContext context) => BusinessScreen(sync: widget.sync),
+        ),
       ),
     ];
     return Scaffold(
@@ -579,17 +777,47 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ),
           Expanded(
             child: RepaintBoundary(
-              child: IndexedStack(index: _tab, children: screens),
+              child: PageView(
+                controller: _pageController,
+                physics: const PageScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                allowImplicitScrolling: true,
+                onPageChanged: _handlePageChanged,
+                children: screens,
+              ),
             ),
           ),
         ],
       ),
       bottomNavigationBar: _BottomLedgerNav(
+        sync: widget.sync,
         selected: _tab,
         controller: _navController,
         onSelected: _selectTab,
       ),
     );
+  }
+}
+
+class _KeepAlivePage extends StatefulWidget {
+  const _KeepAlivePage({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin<_KeepAlivePage> {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
 
@@ -666,68 +894,150 @@ class _OfflineBanner extends StatelessWidget {
 
 class _BottomLedgerNav extends StatelessWidget {
   const _BottomLedgerNav({
+    required this.sync,
     required this.selected,
     required this.controller,
     required this.onSelected,
   });
 
+  final LedgerSyncService sync;
   final int selected;
   final ScrollController controller;
   final ValueChanged<int> onSelected;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: sync,
+        builder: (BuildContext context, Widget? child) =>
+            _buildNavigation(context),
+      );
+
+  Widget _buildNavigation(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-    return Material(
-      color: dark ? const Color(0xFA111113) : const Color(0xFAFFFFFF),
-      elevation: 18,
+    final List<Color> colors = _moduleTabColors(sync.state);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xD10E1422) : const Color(0xD1FFFFFF),
+        border: Border(
+          top: BorderSide(
+            color: dark
+                ? Colors.white.withAlpha(23)
+                : Colors.black.withAlpha(11),
+          ),
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withAlpha(dark ? 96 : 10),
+            blurRadius: dark ? 18 : 10,
+            offset: const Offset(0, -4),
+          ),
+          BoxShadow(
+            color: Colors.black.withAlpha(dark ? 153 : 20),
+            blurRadius: dark ? 62 : 44,
+            offset: const Offset(0, -18),
+          ),
+        ],
+      ),
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 68,
+          height: 70,
           child: SingleChildScrollView(
             controller: controller,
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
-            child: Row(
-              children: List<Widget>.generate(_tabs.length, (int index) {
-                final _TabSpec spec = _tabs[index];
-                final bool active = index == selected;
-                final Color color = index == 6 && dark ? Colors.white : spec.color;
-                return _Pressable(
-                  onTap: () => onSelected(index),
-                  borderRadius: BorderRadius.circular(18),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    curve: const Cubic(0.2, 0.8, 0.2, 1),
-                    width: 76,
-                    margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: active ? color.withAlpha(22) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        Icon(
-                          spec.icon,
-                          size: 22,
-                          color: active ? color : systemGray,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                children: List<Widget>.generate(_tabs.length, (int index) {
+                  final _TabSpec spec = _tabs[index];
+                  final bool active = index == selected;
+                  final Color color = colors[index];
+                  return _Pressable(
+                    onTap: () => onSelected(index),
+                    semanticLabel: '${spec.label} tab',
+                    borderRadius: BorderRadius.circular(16),
+                    child: AnimatedSlide(
+                      offset: active ? const Offset(0, -.045) : Offset.zero,
+                      duration: const Duration(milliseconds: 280),
+                      curve: const Cubic(0.32, 0.72, 0, 1),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 280),
+                        curve: const Cubic(0.32, 0.72, 0, 1),
+                        width: 70,
+                        height: 58,
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        decoration: BoxDecoration(
+                          color: active
+                              ? color.withAlpha(dark ? 23 : 14)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          spec.label,
-                          style: TextStyle(
-                            color: active ? color : systemGray,
-                            fontSize: 9.5,
-                            fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-                          ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            AnimatedScale(
+                              scale: active ? 1.15 : 1,
+                              duration: const Duration(milliseconds: 320),
+                              curve: const Cubic(0.34, 1.18, 0.64, 1),
+                              child: Icon(
+                                spec.icon,
+                                size: 20,
+                                color: active ? color : systemGray,
+                                shadows: active
+                                    ? <Shadow>[
+                                        Shadow(
+                                          color: color.withAlpha(92),
+                                          blurRadius: 10,
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              spec.label,
+                              style: TextStyle(
+                                color: active ? color : systemGray,
+                                fontSize: 9.5,
+                                fontWeight:
+                                    active ? FontWeight.w900 : FontWeight.w700,
+                                shadows: active
+                                    ? <Shadow>[
+                                        Shadow(
+                                          color: color.withAlpha(88),
+                                          blurRadius: 10,
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 280),
+                              curve: const Cubic(0.32, 0.72, 0, 1),
+                              width: active ? 34 : 0,
+                              height: 3,
+                              decoration: BoxDecoration(
+                                color: color.withAlpha(active ? 135 : 0),
+                                borderRadius: BorderRadius.circular(99),
+                                boxShadow: active
+                                    ? <BoxShadow>[
+                                        BoxShadow(
+                                          color: color.withAlpha(72),
+                                          blurRadius: 12,
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                );
-              }),
+                  );
+                }),
+              ),
             ),
           ),
         ),
@@ -740,12 +1050,14 @@ class _Pressable extends StatefulWidget {
   const _Pressable({
     required this.child,
     required this.onTap,
+    this.onLongPress,
     this.borderRadius,
     this.semanticLabel,
   });
 
   final Widget child;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final BorderRadius? borderRadius;
   final String? semanticLabel;
 
@@ -753,35 +1065,92 @@ class _Pressable extends StatefulWidget {
   State<_Pressable> createState() => _PressableState();
 }
 
-class _PressableState extends State<_Pressable> {
-  bool _pressed = false;
+class _PressableState extends State<_Pressable>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pressController;
 
-  void _setPressed(bool value) {
-    if (_pressed != value && mounted) setState(() => _pressed = value);
+  @override
+  void initState() {
+    super.initState();
+    _pressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 70),
+      reverseDuration: const Duration(milliseconds: 220),
+    );
+  }
+
+  void _press() {
+    if (widget.onTap == null) return;
+    _pressController.animateTo(
+      1,
+      duration: const Duration(milliseconds: 70),
+      curve: const Cubic(0.2, 0, 0, 1),
+    );
+  }
+
+  void _release() {
+    if (widget.onTap == null) return;
+    _pressController.animateBack(
+      0,
+      duration: const Duration(milliseconds: 220),
+      curve: const Cubic(0.34, 1.18, 0.64, 1),
+    );
+  }
+
+  void _handleLongPress() {
+    _press();
+    HapticFeedback.mediumImpact();
+    widget.onLongPress?.call();
+  }
+
+  @override
+  void dispose() {
+    _pressController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => Semantics(
         button: true,
         label: widget.semanticLabel,
+        onLongPress: widget.onTap == null ? null : _handleLongPress,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
-          onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
-          onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
+          onTapDown: widget.onTap == null ? null : (_) => _press(),
+          onTapCancel: widget.onTap == null ? null : _release,
+          onTapUp: widget.onTap == null ? null : (_) => _release(),
+          onLongPress: widget.onTap == null ? null : _handleLongPress,
+          onLongPressEnd: widget.onTap == null ? null : (_) => _release(),
           onTap: widget.onTap == null
               ? null
               : () {
                   HapticFeedback.selectionClick();
                   widget.onTap!();
                 },
-          child: AnimatedScale(
-            scale: _pressed ? .965 : 1,
-            duration: const Duration(milliseconds: 70),
-            curve: const Cubic(0.2, 0.8, 0.2, 1),
-            child: ClipRRect(
-              borderRadius: widget.borderRadius ?? BorderRadius.zero,
-              child: widget.child,
+          child: AnimatedBuilder(
+            animation: _pressController,
+            child: widget.child,
+            builder: (BuildContext context, Widget? child) => Transform.scale(
+              scale: 1 - (_pressController.value * .025),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  child!,
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: ClipRRect(
+                        borderRadius:
+                            widget.borderRadius ?? BorderRadius.zero,
+                        child: ColoredBox(
+                          color: Colors.white.withAlpha(
+                            (_pressController.value * 18).round(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -792,35 +1161,88 @@ class _GlassCard extends StatelessWidget {
   const _GlassCard({
     required this.child,
     this.padding = const EdgeInsets.all(18),
+    this.accentColor,
     this.borderColor,
     this.shadowColor,
+    this.tintColor,
     this.borderRadius = 24,
   });
 
   final Widget child;
   final EdgeInsets padding;
+  final Color? accentColor;
   final Color? borderColor;
   final Color? shadowColor;
+  final Color? tintColor;
   final double borderRadius;
 
   @override
   Widget build(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final Color surfaceBorder = dark
+        ? Colors.white.withAlpha(35)
+        : Colors.white.withAlpha(173);
+    final List<Color> surfaceColors;
+    if (tintColor == null) {
+      surfaceColors = dark
+          ? const <Color>[Color(0xDB121826), Color(0xB3080C18)]
+          : const <Color>[Color(0xD6FFFFFF), Color(0x99FFFFFF)];
+    } else {
+      surfaceColors = dark
+          ? <Color>[
+              Color.lerp(darkGlassTop, tintColor, .15)!.withAlpha(224),
+              Color.lerp(darkGlassBottom, tintColor, .075)!.withAlpha(194),
+            ]
+          : <Color>[
+              Color.lerp(Colors.white, tintColor, .08)!.withAlpha(230),
+              Color.lerp(Colors.white, tintColor, .045)!.withAlpha(174),
+            ];
+    }
+    final Border border = accentColor == null
+        ? Border.all(color: borderColor ?? surfaceBorder)
+        : Border(
+            left: BorderSide(color: accentColor!, width: 4),
+            top: BorderSide(color: surfaceBorder),
+            right: BorderSide(
+              color: dark
+                  ? Colors.white.withAlpha(20)
+                  : Colors.white.withAlpha(92),
+            ),
+            bottom: BorderSide(
+              color: dark
+                  ? Colors.black.withAlpha(97)
+                  : Colors.white.withAlpha(66),
+            ),
+          );
+    final List<BoxShadow> shadows = <BoxShadow>[
+      if (shadowColor != null)
+        BoxShadow(
+          color: shadowColor!,
+          blurRadius: dark ? 28 : 22,
+          offset: accentColor == null ? const Offset(0, 8) : const Offset(-4, 0),
+        ),
+      BoxShadow(
+        color: Colors.black.withAlpha(dark ? 87 : 10),
+        blurRadius: dark ? 14 : 8,
+        offset: const Offset(0, 4),
+      ),
+      BoxShadow(
+        color: Colors.black.withAlpha(dark ? 163 : 22),
+        blurRadius: dark ? 64 : 48,
+        offset: Offset(0, dark ? 22 : 16),
+      ),
+    ];
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: dark ? const Color(0xFF19191B) : Colors.white,
-        borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(
-          color: borderColor ?? (dark ? Colors.white10 : Colors.white),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: surfaceColors,
         ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: shadowColor ?? Colors.black.withAlpha(dark ? 58 : 13),
-            blurRadius: 22,
-            offset: const Offset(0, 9),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: border,
+        boxShadow: shadows,
       ),
       child: child,
     );
@@ -831,6 +1253,7 @@ class _ScreenHeader extends StatelessWidget {
   const _ScreenHeader({
     required this.title,
     this.subtitle,
+    this.subtitleTrailing,
     this.leading,
     this.actions = const <Widget>[],
     this.color,
@@ -838,6 +1261,7 @@ class _ScreenHeader extends StatelessWidget {
 
   final String title;
   final String? subtitle;
+  final Widget? subtitleTrailing;
   final Widget? leading;
   final List<Widget> actions;
   final Color? color;
@@ -845,12 +1269,28 @@ class _ScreenHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-    return Material(
-      color: dark ? Colors.black.withAlpha(245) : const Color(0xFFF2F2F7),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xC7000000) : const Color(0xD1F5F5F7),
+        border: Border(
+          bottom: BorderSide(
+            color: dark
+                ? Colors.white.withAlpha(23)
+                : Colors.black.withAlpha(11),
+          ),
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withAlpha(dark ? 133 : 13),
+            blurRadius: dark ? 36 : 28,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 11, 16, 12),
+          padding: const EdgeInsets.fromLTRB(20, 11, 16, 12),
           child: Row(
             children: <Widget>[
               if (leading != null) ...<Widget>[leading!, const SizedBox(width: 11)],
@@ -867,20 +1307,38 @@ class _ScreenHeader extends StatelessWidget {
                         fontSize: leading == null ? 25 : 20,
                         fontWeight: FontWeight.w900,
                         letterSpacing: -.5,
+                        shadows: color == null
+                            ? null
+                            : <Shadow>[
+                                Shadow(
+                                  color: color!.withAlpha(76),
+                                  blurRadius: 12,
+                                ),
+                              ],
                       ),
                     ),
                     if (subtitle != null) ...<Widget>[
                       const SizedBox(height: 2),
-                      Text(
-                        subtitle!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: appleBlue,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.1,
-                        ),
+                      Row(
+                        children: <Widget>[
+                          Flexible(
+                            child: Text(
+                              subtitle!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: appleBlue,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                          ),
+                          if (subtitleTrailing != null) ...<Widget>[
+                            const SizedBox(width: 9),
+                            subtitleTrailing!,
+                          ],
+                        ],
                       ),
                     ],
                   ],
@@ -924,6 +1382,14 @@ class _CircleAction extends StatelessWidget {
             decoration: BoxDecoration(
               color: color.withAlpha(23),
               shape: BoxShape.circle,
+              border: Border.all(color: color.withAlpha(38)),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: color.withAlpha(31),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ],
             ),
             child: Icon(icon, size: 18, color: color),
           ),
@@ -946,6 +1412,11 @@ class _BackCircle extends StatelessWidget {
             color: Theme.of(context).brightness == Brightness.dark
                 ? Colors.white10
                 : Colors.black.withAlpha(13),
+            border: Border.all(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white.withAlpha(20)
+                  : Colors.black.withAlpha(8),
+            ),
           ),
           child: const Icon(Icons.chevron_left_rounded),
         ),
@@ -985,14 +1456,31 @@ class _SearchBoxState extends State<_SearchBox> {
   }
 
   @override
-  Widget build(BuildContext context) => TextField(
-        onChanged: _onChanged,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: widget.hint,
-          prefixIcon: Icon(Icons.search_rounded, color: widget.color),
+  Widget build(BuildContext context) {
+    final OutlineInputBorder idleBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(color: widget.color.withAlpha(55)),
+    );
+    return TextField(
+      onChanged: _onChanged,
+      cursorColor: widget.color,
+      textInputAction: TextInputAction.search,
+      style: TextStyle(color: widget.color, fontWeight: FontWeight.w800),
+      decoration: InputDecoration(
+        hintText: widget.hint,
+        hintStyle: TextStyle(
+          color: widget.color.withAlpha(160),
+          fontWeight: FontWeight.w800,
         ),
-      );
+        prefixIcon: Icon(Icons.search_rounded, color: widget.color),
+        enabledBorder: idleBorder,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: widget.color, width: 1.4),
+        ),
+      ),
+    );
+  }
 }
 
 class _DateField extends StatelessWidget {
@@ -1037,10 +1525,17 @@ class _DateField extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState(this.icon, this.message);
+  const _EmptyState(
+    this.icon,
+    this.message, {
+    this.color = systemGray,
+    this.prominent = false,
+  });
 
   final IconData icon;
   final String message;
+  final Color color;
+  final bool prominent;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -1048,14 +1543,40 @@ class _EmptyState extends StatelessWidget {
         child: Center(
           child: Column(
             children: <Widget>[
-              Icon(icon, size: 42, color: systemGray.withAlpha(120)),
+              Container(
+                width: prominent ? 92 : 68,
+                height: prominent ? 92 : 68,
+                decoration: BoxDecoration(
+                  color: color.withAlpha(prominent ? 24 : 14),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: color.withAlpha(prominent ? 50 : 25)),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: color.withAlpha(prominent ? 46 : 20),
+                      blurRadius: prominent ? 32 : 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  icon,
+                  size: prominent ? 42 : 31,
+                  color: color.withAlpha(prominent ? 235 : 145),
+                ),
+              ),
               const SizedBox(height: 14),
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: systemGray,
-                  fontWeight: FontWeight.w700,
+                style: TextStyle(
+                  color: prominent ? color : systemGray,
+                  fontSize: prominent ? 17 : 14,
+                  fontWeight: prominent ? FontWeight.w900 : FontWeight.w700,
+                  shadows: prominent
+                      ? <Shadow>[
+                          Shadow(color: color.withAlpha(64), blurRadius: 12),
+                        ]
+                      : null,
                 ),
               ),
             ],
@@ -1072,6 +1593,7 @@ class _PrimaryButton extends StatelessWidget {
     this.color = appleBlue,
     this.foregroundColor = Colors.white,
     this.compact = false,
+    this.tonal = false,
   });
 
   final String label;
@@ -1080,6 +1602,7 @@ class _PrimaryButton extends StatelessWidget {
   final Color color;
   final Color foregroundColor;
   final bool compact;
+  final bool tonal;
 
   @override
   Widget build(BuildContext context) => _Pressable(
@@ -1089,13 +1612,22 @@ class _PrimaryButton extends StatelessWidget {
           height: compact ? 40 : 54,
           padding: EdgeInsets.symmetric(horizontal: compact ? 15 : 20),
           decoration: BoxDecoration(
-            color: color,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: tonal
+                  ? <Color>[color.withAlpha(40), color.withAlpha(22)]
+                  : <Color>[color, _toneCompanion(color)],
+            ),
             borderRadius: BorderRadius.circular(compact ? 14 : 17),
+            border: Border.all(
+              color: tonal ? color.withAlpha(55) : Colors.white.withAlpha(28),
+            ),
             boxShadow: <BoxShadow>[
               BoxShadow(
-                color: color.withAlpha(65),
-                blurRadius: 14,
-                offset: const Offset(0, 5),
+                color: color.withAlpha(tonal ? 40 : 72),
+                blurRadius: tonal ? 20 : 16,
+                offset: const Offset(0, 7),
               ),
             ],
           ),
@@ -1111,6 +1643,14 @@ class _PrimaryButton extends StatelessWidget {
                   color: foregroundColor,
                   fontSize: compact ? 13 : 15,
                   fontWeight: FontWeight.w900,
+                  shadows: <Shadow>[
+                    Shadow(
+                      color: tonal
+                          ? color.withAlpha(72)
+                          : Colors.black.withAlpha(34),
+                      blurRadius: 8,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1135,49 +1675,96 @@ class _AmountHero extends StatelessWidget {
   final String? trailingValue;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: <Color>[color, Color.lerp(color, Colors.black, .22)!],
+  Widget build(BuildContext context) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = dark
+        ? Color.lerp(Colors.white, color, .72)!
+        : Color.lerp(const Color(0xFF06111F), color, .60)!;
+    final List<Color> background = dark
+        ? <Color>[
+            Color.lerp(darkGlassTop, color, .21)!.withAlpha(230),
+            Color.lerp(darkGlassBottom, _toneCompanion(color), .16)!
+                .withAlpha(215),
+            Color.lerp(Colors.black, color, .18)!.withAlpha(200),
+          ]
+        : <Color>[
+            Color.lerp(Colors.white, color, .11)!.withAlpha(235),
+            Color.lerp(Colors.white, _toneCompanion(color), .08)!
+                .withAlpha(210),
+            Color.lerp(Colors.white, color, .13)!.withAlpha(184),
+          ];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: background,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: dark
+              ? Colors.white.withAlpha(38)
+              : Colors.white.withAlpha(125),
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withAlpha(dark ? 110 : 15),
+            blurRadius: dark ? 24 : 10,
+            offset: const Offset(0, 6),
           ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: color.withAlpha(75),
-              blurRadius: 24,
-              offset: const Offset(0, 9),
+          BoxShadow(
+            color: color.withAlpha(dark ? 73 : 62),
+            blurRadius: dark ? 34 : 24,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: color.withAlpha(dark ? 56 : 39),
+            blurRadius: dark ? 76 : 58,
+            offset: const Offset(0, 30),
+          ),
+        ],
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: _HeroValue(
+              label: label,
+              value: value,
+              color: textColor,
+              glow: color,
             ),
-          ],
-        ),
-        child: Row(
-          children: <Widget>[
-            Expanded(child: _HeroValue(label: label, value: value)),
-            if (trailingLabel != null && trailingValue != null)
-              _HeroValue(
-                label: trailingLabel!,
-                value: trailingValue!,
-                alignEnd: true,
-                small: true,
-              ),
-          ],
-        ),
-      );
+          ),
+          if (trailingLabel != null && trailingValue != null)
+            _HeroValue(
+              label: trailingLabel!,
+              value: trailingValue!,
+              color: textColor,
+              glow: color,
+              alignEnd: true,
+              small: true,
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _HeroValue extends StatelessWidget {
   const _HeroValue({
     required this.label,
     required this.value,
+    required this.color,
+    required this.glow,
     this.alignEnd = false,
     this.small = false,
   });
 
   final String label;
   final String value;
+  final Color color;
+  final Color glow;
   final bool alignEnd;
   final bool small;
 
@@ -1188,11 +1775,14 @@ class _HeroValue extends StatelessWidget {
         children: <Widget>[
           Text(
             label.toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: color,
               fontSize: 10,
               fontWeight: FontWeight.w900,
               letterSpacing: .8,
+              shadows: <Shadow>[
+                Shadow(color: glow.withAlpha(78), blurRadius: 12),
+              ],
             ),
           ),
           const SizedBox(height: 5),
@@ -1201,10 +1791,13 @@ class _HeroValue extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: Colors.white,
+              color: color,
               fontSize: small ? 20 : 31,
               fontWeight: FontWeight.w900,
               letterSpacing: -.8,
+              shadows: <Shadow>[
+                Shadow(color: glow.withAlpha(94), blurRadius: 16),
+              ],
             ),
           ),
         ],
@@ -1220,6 +1813,7 @@ class _ListCard extends StatelessWidget {
     required this.onTap,
     this.trailing,
     this.onDelete,
+    this.avatarText,
   });
 
   final String title;
@@ -1229,28 +1823,54 @@ class _ListCard extends StatelessWidget {
   final VoidCallback onTap;
   final String? trailing;
   final VoidCallback? onDelete;
+  final String? avatarText;
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 13),
         child: _Pressable(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(24),
           child: _GlassCard(
-            borderRadius: 22,
+            borderRadius: 24,
             padding: const EdgeInsets.all(15),
-            borderColor: color.withAlpha(55),
-            shadowColor: color.withAlpha(24),
+            accentColor: color,
+            shadowColor: color.withAlpha(58),
             child: Row(
               children: <Widget>[
                 Container(
-                  width: 49,
-                  height: 49,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: color.withAlpha(24),
-                    borderRadius: BorderRadius.circular(16),
+                    color: color.withAlpha(29),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: color.withAlpha(72)),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: color.withAlpha(62),
+                        blurRadius: 22,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
-                  child: Icon(icon, color: color, size: 22),
+                  child: avatarText == null
+                      ? Icon(icon, color: color, size: 21)
+                      : Center(
+                          child: Text(
+                            avatarText!,
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              shadows: <Shadow>[
+                                Shadow(
+                                  color: color.withAlpha(78),
+                                  blurRadius: 10,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -1263,8 +1883,11 @@ class _ListCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: color,
-                          fontSize: 17,
+                          fontSize: 16,
                           fontWeight: FontWeight.w900,
+                          shadows: <Shadow>[
+                            Shadow(color: color.withAlpha(70), blurRadius: 10),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1274,8 +1897,8 @@ class _ListCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: color.withAlpha(190),
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ],
@@ -1289,13 +1912,41 @@ class _ListCard extends StatelessWidget {
                       color: color,
                       fontSize: 15,
                       fontWeight: FontWeight.w900,
+                      shadows: <Shadow>[
+                        Shadow(color: color.withAlpha(70), blurRadius: 10),
+                      ],
                     ),
                   ),
                 ],
                 if (onDelete != null)
-                  IconButton(
-                    onPressed: onDelete,
-                    icon: const Icon(Icons.delete_rounded, color: appleRed, size: 19),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 9),
+                    child: _Pressable(
+                      onTap: onDelete,
+                      semanticLabel: 'Delete $title',
+                      borderRadius: BorderRadius.circular(13),
+                      child: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: appleRed.withAlpha(24),
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(color: appleRed.withAlpha(46)),
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: appleRed.withAlpha(33),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.delete_rounded,
+                          color: appleRed,
+                          size: 19,
+                        ),
+                      ),
+                    ),
                   )
                 else
                   Icon(Icons.chevron_right_rounded, color: color.withAlpha(130)),
@@ -1307,10 +1958,15 @@ class _ListCard extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.title, {this.actions = const <Widget>[]});
+  const _SectionTitle(
+    this.title, {
+    this.actions = const <Widget>[],
+    this.color,
+  });
 
   final String title;
   final List<Widget> actions;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -1320,10 +1976,16 @@ class _SectionTitle extends StatelessWidget {
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
+                  color: color,
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -.2,
+                  shadows: color == null
+                      ? null
+                      : <Shadow>[
+                          Shadow(color: color!.withAlpha(68), blurRadius: 10),
+                        ],
                 ),
               ),
             ),
@@ -1353,7 +2015,12 @@ class _MonthYearPicker extends StatelessWidget {
           child: DropdownButtonFormField<int>(
             key: ValueKey<String>('month-$month'),
             initialValue: month,
-            decoration: const InputDecoration(contentPadding: EdgeInsets.all(14)),
+            style: const TextStyle(
+              color: appleBlue,
+              fontWeight: FontWeight.w800,
+            ),
+            iconEnabledColor: appleBlue,
+            decoration: _pickerDecoration(),
             items: List<DropdownMenuItem<int>>.generate(
               12,
               (int index) => DropdownMenuItem<int>(
@@ -1365,7 +2032,10 @@ class _MonthYearPicker extends StatelessWidget {
               ),
             ),
             onChanged: (int? value) {
-              if (value != null) onChanged(value, year);
+              if (value != null) {
+                HapticFeedback.selectionClick();
+                onChanged(value, year);
+              }
             },
           ),
         ),
@@ -1375,7 +2045,12 @@ class _MonthYearPicker extends StatelessWidget {
           child: DropdownButtonFormField<int>(
             key: ValueKey<String>('year-$year'),
             initialValue: year,
-            decoration: const InputDecoration(contentPadding: EdgeInsets.all(14)),
+            style: const TextStyle(
+              color: appleBlue,
+              fontWeight: FontWeight.w800,
+            ),
+            iconEnabledColor: appleBlue,
+            decoration: _pickerDecoration(),
             items: List<DropdownMenuItem<int>>.generate(
               12,
               (int index) {
@@ -1384,7 +2059,10 @@ class _MonthYearPicker extends StatelessWidget {
               },
             ),
             onChanged: (int? value) {
-              if (value != null) onChanged(month, value);
+              if (value != null) {
+                HapticFeedback.selectionClick();
+                onChanged(month, value);
+              }
             },
           ),
         ),
@@ -1393,6 +2071,18 @@ class _MonthYearPicker extends StatelessWidget {
   }
 }
 
+InputDecoration _pickerDecoration() => InputDecoration(
+      contentPadding: const EdgeInsets.all(14),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: appleBlue.withAlpha(55)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: appleBlue, width: 1.4),
+      ),
+    );
+
 class _SheetFrame extends StatelessWidget {
   const _SheetFrame({required this.title, required this.children});
 
@@ -1400,18 +2090,58 @@ class _SheetFrame extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => SafeArea(
+  Widget build(BuildContext context) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: dark
+              ? const <Color>[Color(0xF01C2230), Color(0xE60A0F1C)]
+              : const <Color>[Color(0xF7FFFFFF), Color(0xEFFFFFFF)],
+        ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border(
+          top: BorderSide(
+            color: dark
+                ? Colors.white.withAlpha(27)
+                : Colors.white.withAlpha(210),
+          ),
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withAlpha(dark ? 168 : 40),
+            blurRadius: dark ? 72 : 62,
+            offset: const Offset(0, -20),
+          ),
+        ],
+      ),
+      child: SafeArea(
         top: false,
         child: SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
             20,
-            5,
+            10,
             20,
             MediaQuery.viewInsetsOf(context).bottom + 24,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
+              Align(
+                child: Container(
+                  width: 48,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: dark
+                        ? Colors.white.withAlpha(55)
+                        : Colors.black.withAlpha(34),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 22),
               Text(
                 title,
                 style: const TextStyle(
@@ -1425,7 +2155,9 @@ class _SheetFrame extends StatelessWidget {
             ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 Future<T?> _openSheet<T>(BuildContext context, Widget child) =>
@@ -1433,6 +2165,9 @@ Future<T?> _openSheet<T>(BuildContext context, Widget child) =>
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withAlpha(105),
+      elevation: 0,
       builder: (BuildContext context) => child,
     );
 
@@ -1537,24 +2272,68 @@ List<Map<String, dynamic>> _rows(dynamic value) =>
 
 Color _tone(double value, {Color neutral = appleBlue}) {
   if (value > .000001) return appleGreen;
-  if (value < -.000001) return appleRed;
+  if (value < -.000001) return semanticRed;
   return neutral;
 }
 
+Color _toneCompanion(Color color) {
+  if (color == appleBlue) return appleBlue2;
+  if (color == appleGreen) return appleGreen2;
+  if (color == salaryGreen) return const Color(0xFF059669);
+  if (color == appleRed || color == semanticRed) return appleRed2;
+  if (color == diaryOrange || color == appleOrange) return diaryOrange2;
+  return Color.lerp(color, Colors.black, .22)!;
+}
+
+double _milkGlobalNet(Map<String, dynamic> state) {
+  double net = 0;
+  for (final dynamic profile in _map(state['milkDB']).values) {
+    net += LedgerMath.milkTotals(_map(profile)).netAmount;
+  }
+  return net;
+}
+
+double _creditGlobalNet(Map<String, dynamic> state) =>
+    _rows(state['udharDB']).fold<double>(
+      0,
+      (double sum, Map<String, dynamic> row) =>
+          sum + LedgerMath.creditSigned(row),
+    );
+
+double _salaryGlobalNet(Map<String, dynamic> state) {
+  final DateTime now = DateTime.now();
+  double net = 0;
+  for (final dynamic profile in _map(state['salaryDB']).values) {
+    net += LedgerMath.salaryNet(_map(profile), now.month, now.year);
+  }
+  return net;
+}
+
+List<Color> _moduleTabColors(Map<String, dynamic> state) => <Color>[
+      appleBlue,
+      _tone(_milkGlobalNet(state)),
+      _tone(_creditGlobalNet(state)),
+      semanticRed,
+      _tone(_salaryGlobalNet(state)),
+      diaryOrange,
+      appleBlue,
+    ];
+
 PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
-      transitionDuration: const Duration(milliseconds: 190),
-      reverseTransitionDuration: const Duration(milliseconds: 160),
+      transitionDuration: const Duration(milliseconds: 260),
+      reverseTransitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (_, __, ___) => child,
       transitionsBuilder: (_, Animation<double> animation, __, Widget child) {
         final Animation<double> curved = CurvedAnimation(
           parent: animation,
-          curve: const Cubic(0.2, 0.8, 0.2, 1),
+          curve: const Cubic(0.32, 0.72, 0, 1),
+          reverseCurve: const Cubic(0.25, 1, 0.5, 1),
         );
         return FadeTransition(
           opacity: curved,
           child: SlideTransition(
             position: Tween<Offset>(
-              begin: const Offset(.018, 0),
+              begin: const Offset(.045, 0),
               end: Offset.zero,
             ).animate(curved),
             child: child,
@@ -1566,12 +2345,10 @@ PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({
     required this.sync,
-    required this.onOpenTab,
     super.key,
   });
 
   final LedgerSyncService sync;
-  final ValueChanged<int> onOpenTab;
 
   Future<void> _logout(BuildContext context) async {
     if (sync.pendingWrites > 0) {
@@ -1612,15 +2389,35 @@ class DashboardScreen extends StatelessWidget {
         _ScreenHeader(
           title: 'Dashboard',
           subtitle: 'AARISH DAIRY',
-          actions: <Widget>[
-            _CircleAction(
-              icon: Icons.auto_awesome_rounded,
-              color: const Color(0xFF8E62D9),
-              semanticLabel: 'AI Hub',
-              onTap: () => Navigator.of(context).push(
-                _premiumRoute<void>(AiHubScreen(sync: sync)),
+          subtitleTrailing: _Pressable(
+            onTap: () => Navigator.of(context).push(
+              _premiumRoute<void>(AiHubScreen(sync: sync)),
+            ),
+            semanticLabel: 'AI Hub',
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 34,
+              height: 28,
+              child: ShaderMask(
+                blendMode: BlendMode.srcIn,
+                shaderCallback: (Rect bounds) => const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[
+                    Color(0xFF4285F4),
+                    Color(0xFF9B72CB),
+                    Color(0xFFD96570),
+                  ],
+                ).createShader(bounds),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.white,
+                  size: 27,
+                ),
               ),
             ),
+          ),
+          actions: <Widget>[
             _CircleAction(
               icon: Icons.file_download_rounded,
               color: appleGreen,
@@ -1651,7 +2448,7 @@ class DashboardScreen extends StatelessWidget {
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
-              padding: const EdgeInsets.fromLTRB(18, 9, 18, 28),
+              padding: const EdgeInsets.fromLTRB(20, 9, 20, 30),
               children: <Widget>[
                 if (sync.pendingWrites > 0 || sync.syncing)
                   Padding(
@@ -1682,13 +2479,13 @@ class DashboardScreen extends StatelessWidget {
                       icon: Icons.receipt_long_rounded,
                       label: 'Month Expense',
                       value: _money(totals.monthExpense),
-                      color: appleOrange,
+                      color: diaryOrange,
                     ),
                     _MetricCard(
                       icon: Icons.trending_up_rounded,
                       label: 'Month Profit',
                       value: _signedMoney(totals.monthProfit),
-                      color: _tone(totals.monthProfit),
+                      color: appleBlue,
                     ),
                   ],
                 ),
@@ -1735,9 +2532,6 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 18),
-                const _SectionTitle('Quick Access'),
-                _QuickModules(onOpenTab: onOpenTab),
               ],
             ),
           ),
@@ -1806,7 +2600,10 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _GlassCard(
         padding: const EdgeInsets.all(15),
-        borderRadius: 23,
+        borderRadius: 26,
+        tintColor: color,
+        borderColor: color.withAlpha(77),
+        shadowColor: color.withAlpha(62),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1835,6 +2632,9 @@ class _MetricCard extends StatelessWidget {
                   fontSize: 23,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -.7,
+                  shadows: <Shadow>[
+                    Shadow(color: color.withAlpha(88), blurRadius: 14),
+                  ],
                 ),
               ),
             ),
@@ -1859,55 +2659,25 @@ class _LedgerIcon extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: color.withAlpha(24),
+          color: color.withAlpha(30),
           borderRadius: BorderRadius.circular(size * .32),
-        ),
-        child: Icon(icon, size: size * .44, color: color),
-      );
-}
-
-class _QuickModules extends StatelessWidget {
-  const _QuickModules({required this.onOpenTab});
-
-  final ValueChanged<int> onOpenTab;
-
-  @override
-  Widget build(BuildContext context) => Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: List<Widget>.generate(_tabs.length - 1, (int offset) {
-          final int index = offset + 1;
-          final _TabSpec tab = _tabs[index];
-          final bool dark = Theme.of(context).brightness == Brightness.dark;
-          final Color color = index == 6 && dark ? Colors.white : tab.color;
-          return _Pressable(
-            onTap: () => onOpenTab(index),
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-              decoration: BoxDecoration(
-                color: color.withAlpha(18),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: color.withAlpha(37)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Icon(tab.icon, color: color, size: 17),
-                  const SizedBox(width: 7),
-                  Text(
-                    tab.label,
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
+          border: Border.all(color: color.withAlpha(76)),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: color.withAlpha(62),
+              blurRadius: 22,
+              offset: const Offset(0, 8),
             ),
-          );
-        }),
+          ],
+        ),
+        child: Icon(
+          icon,
+          size: size * .44,
+          color: color,
+          shadows: <Shadow>[
+            Shadow(color: color.withAlpha(76), blurRadius: 10),
+          ],
+        ),
       );
 }
 
@@ -1963,7 +2733,7 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
           Expanded(
             child: ListView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
               children: <Widget>[
                 _SearchBox(
                   hint: 'Search party name…',
@@ -1982,6 +2752,9 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
                           '$label • Milk ${_signedMoney(item.milk)} • Credit ${_signedMoney(item.credit)}',
                       icon: Icons.person_rounded,
                       color: color,
+                      avatarText: item.name.trim().isEmpty
+                          ? 'P'
+                          : item.name.trim()[0].toUpperCase(),
                       trailing: _signedMoney(item.net),
                       onTap: () {},
                     );
@@ -2056,7 +2829,10 @@ class _MilkScreenState extends State<MilkScreen> {
                 ),
               ],
               onChanged: (String? value) {
-                if (value != null) setSheetState(() => type = value);
+                if (value != null) {
+                  HapticFeedback.selectionClick();
+                  setSheetState(() => type = value);
+                }
               },
             ),
             const SizedBox(height: 20),
@@ -2111,6 +2887,7 @@ class _MilkScreenState extends State<MilkScreen> {
   @override
   Widget build(BuildContext context) {
     final Map<String, dynamic> database = _map(widget.sync.state['milkDB']);
+    final Color moduleColor = _tone(_milkGlobalNet(widget.sync.state));
     final List<String> names = database.keys
         .where((String name) => name.toLowerCase().contains(_query.toLowerCase()))
         .toList()
@@ -2119,12 +2896,12 @@ class _MilkScreenState extends State<MilkScreen> {
       children: <Widget>[
         _ScreenHeader(
           title: 'Milk Record',
-          color: appleGreen,
+          color: moduleColor,
           actions: <Widget>[
             _PrimaryButton(
               label: 'New',
               compact: true,
-              color: appleGreen,
+              color: moduleColor,
               onTap: () => unawaited(_addCustomer()),
             ),
           ],
@@ -2133,16 +2910,21 @@ class _MilkScreenState extends State<MilkScreen> {
           child: ListView(
             key: const PageStorageKey<String>('milk-scroll'),
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
             children: <Widget>[
               _SearchBox(
                 hint: 'Search customer…',
-                color: appleGreen,
+                color: appleBlue,
                 onChanged: (String value) => setState(() => _query = value),
               ),
               const SizedBox(height: 18),
               if (names.isEmpty)
-                const _EmptyState(Icons.water_drop_rounded, 'No milk customers found')
+                const _EmptyState(
+                  Icons.local_drink_rounded,
+                  'No customers found',
+                  color: appleBlue,
+                  prominent: true,
+                )
               else
                 ...names.map((String name) {
                   final Map<String, dynamic> profile = _map(database[name]);
@@ -2154,6 +2936,9 @@ class _MilkScreenState extends State<MilkScreen> {
                         '${totals.netKg >= 0 ? 'Given' : 'Taken'} ${totals.netKg.abs().toStringAsFixed(2)} KG • ${profile['rate'] ?? LedgerMath.defaultMilkRate}/KG',
                     icon: Icons.water_drop_rounded,
                     color: color,
+                    avatarText: name.trim().isEmpty
+                        ? 'M'
+                        : name.trim()[0].toUpperCase(),
                     trailing: _signedMoney(totals.netAmount),
                     onTap: () => Navigator.of(context).push(
                       _premiumRoute<void>(
@@ -2245,6 +3030,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
               ],
               selected: <String>{flow},
               onSelectionChanged: (Set<String> values) {
+                HapticFeedback.selectionClick();
                 setSheetState(() => flow = values.first);
               },
             ),
@@ -2401,7 +3187,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                 Expanded(
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
                     children: <Widget>[
                       _MonthYearPicker(
                         month: _month,
@@ -2423,6 +3209,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                       const SizedBox(height: 23),
                       _SectionTitle(
                         'Daily Entries',
+                        color: appleBlue,
                         actions: <Widget>[
                           _MiniAction(
                             label: 'Share',
@@ -2462,7 +3249,8 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                           children: records.map((Map<String, dynamic> row) {
                             final String flow = LedgerMath.milkFlow(row, profile);
                             final double quantity = LedgerMath.milkQuantity(row);
-                            final Color rowColor = flow == 'taken' ? appleRed : appleGreen;
+                            final Color rowColor =
+                                flow == 'taken' ? semanticRed : appleGreen;
                             return _RecordTile(
                               title: _displayDate(row['date']),
                               subtitle:
@@ -2504,9 +3292,20 @@ class _MiniAction extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
           decoration: BoxDecoration(
-            color: color.withAlpha(22),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[color.withAlpha(35), color.withAlpha(17)],
+            ),
             borderRadius: BorderRadius.circular(13),
-            border: Border.all(color: color.withAlpha(47)),
+            border: Border.all(color: color.withAlpha(55)),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: color.withAlpha(34),
+                blurRadius: 18,
+                offset: const Offset(0, 7),
+              ),
+            ],
           ),
           child: Row(
             children: <Widget>[
@@ -2518,6 +3317,9 @@ class _MiniAction extends StatelessWidget {
                   color: color,
                   fontSize: 11.5,
                   fontWeight: FontWeight.w900,
+                  shadows: <Shadow>[
+                    Shadow(color: color.withAlpha(70), blurRadius: 9),
+                  ],
                 ),
               ),
             ],
@@ -2571,6 +3373,9 @@ class _RecordTile extends StatelessWidget {
             decoration: BoxDecoration(
               color: color,
               borderRadius: BorderRadius.circular(8),
+              boxShadow: <BoxShadow>[
+                BoxShadow(color: color.withAlpha(78), blurRadius: 13),
+              ],
             ),
           ),
           const SizedBox(width: 12),
@@ -2578,7 +3383,16 @@ class _RecordTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w900,
+                    shadows: <Shadow>[
+                      Shadow(color: color.withAlpha(58), blurRadius: 9),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
@@ -2600,12 +3414,36 @@ class _RecordTile extends StatelessWidget {
               color: color,
               fontSize: 15,
               fontWeight: FontWeight.w900,
+              shadows: <Shadow>[
+                Shadow(color: color.withAlpha(62), blurRadius: 9),
+              ],
             ),
           ),
           if (onDelete != null)
-            IconButton(
-              onPressed: onDelete,
-              icon: const Icon(Icons.delete_rounded, color: appleRed, size: 18),
+            Padding(
+              padding: const EdgeInsets.only(left: 7),
+              child: _Pressable(
+                onTap: onDelete,
+                semanticLabel: 'Delete $title record',
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: appleRed.withAlpha(24),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: appleRed.withAlpha(46)),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(color: appleRed.withAlpha(31), blurRadius: 14),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.delete_rounded,
+                    color: appleRed,
+                    size: 18,
+                  ),
+                ),
+              ),
             )
         ],
       ),
@@ -2670,7 +3508,10 @@ class _SalaryScreenState extends State<SalaryScreen> {
                 ),
               ],
               onChanged: (String? value) {
-                if (value != null) setSheetState(() => type = value);
+                if (value != null) {
+                  HapticFeedback.selectionClick();
+                  setSheetState(() => type = value);
+                }
               },
             ),
             const SizedBox(height: 20),
@@ -2720,6 +3561,7 @@ class _SalaryScreenState extends State<SalaryScreen> {
   Widget build(BuildContext context) {
     final DateTime now = DateTime.now();
     final Map<String, dynamic> database = _map(widget.sync.state['salaryDB']);
+    final Color moduleColor = _tone(_salaryGlobalNet(widget.sync.state));
     final List<String> names = database.keys
         .where((String name) => name.toLowerCase().contains(_query.toLowerCase()))
         .toList()
@@ -2728,11 +3570,11 @@ class _SalaryScreenState extends State<SalaryScreen> {
       children: <Widget>[
         _ScreenHeader(
           title: 'Salary Record',
-          color: salaryGreen,
+          color: moduleColor,
           actions: <Widget>[
             _PrimaryButton(
               label: 'New',
-              color: salaryGreen,
+              color: moduleColor,
               compact: true,
               onTap: () => unawaited(_addPerson()),
             ),
@@ -2742,11 +3584,11 @@ class _SalaryScreenState extends State<SalaryScreen> {
           child: ListView(
             key: const PageStorageKey<String>('salary-scroll'),
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
             children: <Widget>[
               _SearchBox(
                 hint: 'Search name…',
-                color: salaryGreen,
+                color: appleBlue,
                 onChanged: (String value) => setState(() => _query = value),
               ),
               const SizedBox(height: 18),
@@ -2767,6 +3609,9 @@ class _SalaryScreenState extends State<SalaryScreen> {
                         '${profile['company'] ?? '—'} • ${net >= 0 ? 'To Receive' : 'To Pay'}',
                     icon: Icons.currency_rupee_rounded,
                     color: color,
+                    avatarText: name.trim().isEmpty
+                        ? 'S'
+                        : name.trim()[0].toUpperCase(),
                     trailing: _signedMoney(net),
                     onTap: () => Navigator.of(context).push(
                       _premiumRoute<void>(
@@ -2801,7 +3646,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
   int _month = DateTime.now().month;
   int _year = DateTime.now().year;
 
-  Future<void> _addEntry(Map<String, dynamic> profile) async {
+  Future<void> _addEntry(Map<String, dynamic> profile, Color tone) async {
     final TextEditingController date = TextEditingController(text: _today());
     final TextEditingController amount = TextEditingController();
     final bool? save = await _openSheet<bool>(
@@ -2826,7 +3671,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
           const SizedBox(height: 20),
           _PrimaryButton(
             label: 'Save Salary',
-            color: salaryGreen,
+            color: tone,
             onTap: () => Navigator.pop(context, true),
           ),
         ],
@@ -2954,7 +3799,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                 Expanded(
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
                     children: <Widget>[
                       _MonthYearPicker(
                         month: _month,
@@ -2973,6 +3818,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                       const SizedBox(height: 23),
                       _SectionTitle(
                         'Daily Entries',
+                        color: appleBlue,
                         actions: <Widget>[
                           _MiniAction(
                             label: 'Share',
@@ -3000,8 +3846,8 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                           _MiniAction(
                             label: 'Add',
                             icon: Icons.add_rounded,
-                            color: salaryGreen,
-                            onTap: () => unawaited(_addEntry(profile)),
+                            color: color,
+                            onTap: () => unawaited(_addEntry(profile, color)),
                           ),
                         ],
                       ),
@@ -3125,6 +3971,7 @@ class _CreditScreenState extends State<CreditScreen> {
               ],
               selected: <String>{type},
               onSelectionChanged: (Set<String> values) {
+                HapticFeedback.selectionClick();
                 setSheetState(() => type = values.first);
               },
             ),
@@ -3176,12 +4023,8 @@ class _CreditScreenState extends State<CreditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final DateTime now = DateTime.now();
-    final DashboardTotals dashboard = LedgerMath.dashboard(
-      widget.sync.state,
-      month: now.month,
-      year: now.year,
-    );
+    final double net = _creditGlobalNet(widget.sync.state);
+    final Color moduleColor = _tone(net);
     final List<_CreditGroup> groups = _creditGroups(widget.sync.state['udharDB'])
         .where(
           (_CreditGroup group) =>
@@ -3192,10 +4035,11 @@ class _CreditScreenState extends State<CreditScreen> {
       children: <Widget>[
         _ScreenHeader(
           title: 'Credit Book',
-          color: appleBlue,
+          color: moduleColor,
           actions: <Widget>[
             _PrimaryButton(
               label: 'Entry',
+              color: moduleColor,
               compact: true,
               onTap: () => unawaited(_addEntry()),
             ),
@@ -3205,14 +4049,16 @@ class _CreditScreenState extends State<CreditScreen> {
           child: ListView(
             key: const PageStorageKey<String>('credit-scroll'),
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
             children: <Widget>[
               _AmountHero(
-                label: 'To Receive (+)',
-                value: _money(dashboard.creditReceive),
-                color: appleBlue,
-                trailingLabel: 'To Pay (-)',
-                trailingValue: _money(dashboard.creditPay),
+                label: net > 0
+                    ? 'Net Balance / Profit'
+                    : net < 0
+                        ? 'Net Balance / Loss'
+                        : 'Net Balance',
+                value: _signedMoney(net),
+                color: moduleColor,
               ),
               const SizedBox(height: 18),
               _SearchBox(
@@ -3231,6 +4077,9 @@ class _CreditScreenState extends State<CreditScreen> {
                         '${group.net > 0 ? 'To Receive' : group.net < 0 ? 'To Pay' : 'Settled'} • Last ${_displayDate(group.lastDate)}',
                     icon: Icons.person_rounded,
                     color: color,
+                    avatarText: group.name.trim().isEmpty
+                        ? 'C'
+                        : group.name.trim()[0].toUpperCase(),
                     trailing: _signedMoney(group.net),
                     onTap: () => Navigator.of(context).push(
                       _premiumRoute<void>(
@@ -3290,6 +4139,7 @@ class CreditDetailScreen extends StatelessWidget {
               ],
               selected: <String>{type},
               onSelectionChanged: (Set<String> values) {
+                HapticFeedback.selectionClick();
                 setSheetState(() => type = values.first);
               },
             ),
@@ -3409,7 +4259,7 @@ class CreditDetailScreen extends StatelessWidget {
                 Expanded(
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
                     children: <Widget>[
                       _AmountHero(
                         label: net > 0 ? 'To Receive' : net < 0 ? 'To Pay' : 'Net Balance',
@@ -3419,6 +4269,7 @@ class CreditDetailScreen extends StatelessWidget {
                       const SizedBox(height: 23),
                       _SectionTitle(
                         'All Entries',
+                        color: appleBlue,
                         actions: <Widget>[
                           _MiniAction(
                             label: 'Share',
@@ -3444,7 +4295,7 @@ class CreditDetailScreen extends StatelessWidget {
                           _MiniAction(
                             label: 'Add',
                             icon: Icons.add_rounded,
-                            color: color,
+                            color: appleGreen,
                             onTap: () => unawaited(_addEntry(context)),
                           ),
                         ],
@@ -3624,17 +4475,17 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       children: <Widget>[
         _ScreenHeader(
           title: 'Expenses',
-          color: appleRed,
+          color: semanticRed,
           actions: <Widget>[
             _CircleAction(
               icon: Icons.ios_share_rounded,
-              color: appleRed,
+              color: appleBlue,
               semanticLabel: 'Share this month expenses',
               onTap: () => unawaited(_shareCurrentMonthExpenses()),
             ),
             _PrimaryButton(
               label: 'Add',
-              color: appleRed,
+              color: semanticRed,
               compact: true,
               onTap: () => unawaited(_addExpense()),
             ),
@@ -3644,12 +4495,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           child: ListView(
             key: const PageStorageKey<String>('expense-scroll'),
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
             children: <Widget>[
               _AmountHero(
                 label: 'Month Expense',
                 value: _money(total),
-                color: appleRed,
+                color: semanticRed,
               ),
               const SizedBox(height: 22),
               const _SectionTitle('Categories'),
@@ -3661,7 +4512,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     title: group.category,
                     subtitle: 'Last entry ${_displayDate(group.lastDate)}',
                     icon: Icons.receipt_long_rounded,
-                    color: appleRed,
+                    color: semanticRed,
                     trailing: '-${_money(group.total)}',
                     onTap: () => Navigator.of(context).push(
                       _premiumRoute<void>(
@@ -3832,7 +4683,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                 _ScreenHeader(
                   leading: const _BackCircle(),
                   title: widget.category,
-                  color: appleRed,
+                  color: semanticRed,
                   actions: <Widget>[
                     _CircleAction(
                       icon: Icons.delete_rounded,
@@ -3844,7 +4695,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                 Expanded(
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
                     children: <Widget>[
                       _MonthYearPicker(
                         month: _month,
@@ -3858,11 +4709,12 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                       _AmountHero(
                         label: 'Category Total',
                         value: '-${_money(total)}',
-                        color: appleRed,
+                        color: semanticRed,
                       ),
                       const SizedBox(height: 23),
                       _SectionTitle(
                         'Expense Entries',
+                        color: appleBlue,
                         actions: <Widget>[
                           _MiniAction(
                             label: 'Share',
@@ -3887,7 +4739,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                           _MiniAction(
                             label: 'Add',
                             icon: Icons.add_rounded,
-                            color: appleRed,
+                            color: semanticRed,
                             onTap: () => unawaited(_addExpense()),
                           ),
                         ],
@@ -3902,7 +4754,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                                   title: _displayDate(row['date']),
                                   subtitle: widget.category,
                                   amount: '-${_money(row['amount'])}',
-                                  color: appleRed,
+                                  color: semanticRed,
                                   onDelete: () =>
                                       unawaited(_deleteEntry('${row['id']}')),
                                 ),
@@ -4057,7 +4909,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
           child: ListView(
             key: const PageStorageKey<String>('diary-scroll'),
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
             children: <Widget>[
               _SearchBox(
                 hint: 'Search diary…',
@@ -4066,7 +4918,11 @@ class _DiaryScreenState extends State<DiaryScreen> {
               ),
               const SizedBox(height: 18),
               if (entries.isEmpty)
-                const _EmptyState(Icons.auto_stories_rounded, 'No diary pages found')
+                const _EmptyState(
+                  Icons.auto_stories_rounded,
+                  'No diary pages found',
+                  color: diaryOrange,
+                )
               else
                 ...entries.map((Map<String, dynamic> entry) {
                   final String preview = '${entry['content'] ?? ''}'
@@ -4086,8 +4942,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
                       borderRadius: BorderRadius.circular(23),
                       child: _GlassCard(
                         borderRadius: 23,
-                        borderColor: diaryOrange.withAlpha(70),
-                        shadowColor: diaryOrange.withAlpha(22),
+                        accentColor: diaryOrange,
+                        shadowColor: diaryOrange.withAlpha(72),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
@@ -4099,6 +4955,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
+                                      color: diaryOrange,
                                       fontSize: 20,
                                       fontWeight: FontWeight.w900,
                                     ),
@@ -4117,7 +4974,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  color: systemGray,
+                                  color: diaryOrange,
                                   fontSize: 14,
                                   fontStyle: FontStyle.italic,
                                   height: 1.35,
@@ -4205,6 +5062,7 @@ class DiaryDetailScreen extends StatelessWidget {
                     ),
                     _CircleAction(
                       icon: Icons.ios_share_rounded,
+                      color: appleBlue,
                       onTap: () => unawaited(
                         _ExportService.sharePdf(
                           '${current['title'] ?? 'Diary'}',
@@ -4228,10 +5086,11 @@ class DiaryDetailScreen extends StatelessWidget {
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(18, 10, 18, 34),
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 34),
                     child: _GlassCard(
                       borderColor: diaryOrange.withAlpha(65),
-                      shadowColor: diaryOrange.withAlpha(18),
+                      shadowColor: diaryOrange.withAlpha(35),
+                      tintColor: diaryOrange,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
@@ -4248,8 +5107,10 @@ class DiaryDetailScreen extends StatelessWidget {
                           SelectableText(
                             '${current['content'] ?? ''}',
                             style: const TextStyle(
+                              color: diaryOrange,
                               fontSize: 17,
-                              height: 1.62,
+                              height: 1.9,
+                              fontStyle: FontStyle.italic,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -4282,7 +5143,7 @@ const Map<String, _BusinessTone> _businessTones = <String, _BusinessTone>{
     Icons.south_west_rounded,
   ),
   'red': _BusinessTone(
-    appleRed,
+    semanticRed,
     'EXPENSE (SENT)',
     'EXPENSE',
     Icons.north_east_rounded,
@@ -4390,8 +5251,6 @@ class _BusinessScreenState extends State<BusinessScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool dark = Theme.of(context).brightness == Brightness.dark;
-    final Color titleColor = dark ? Colors.white : Colors.black;
     final Map<String, dynamic> database = _map(widget.sync.state['projectDB']);
     final List<String> names = database.keys
         .where((String name) => name.toLowerCase().contains(_query.toLowerCase()))
@@ -4401,13 +5260,14 @@ class _BusinessScreenState extends State<BusinessScreen> {
       children: <Widget>[
         _ScreenHeader(
           title: 'Business Hub',
-          color: titleColor,
+          color: appleBlue,
           actions: <Widget>[
             _PrimaryButton(
               label: 'New',
-              color: titleColor,
-              foregroundColor: dark ? Colors.black : Colors.white,
+              color: appleBlue,
+              foregroundColor: appleBlue,
               compact: true,
+              tonal: true,
               onTap: () => unawaited(_addProject()),
             ),
           ],
@@ -4416,7 +5276,7 @@ class _BusinessScreenState extends State<BusinessScreen> {
           child: ListView(
             key: const PageStorageKey<String>('business-scroll'),
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
             children: <Widget>[
               _SearchBox(
                 hint: 'Search account…',
@@ -4502,7 +5362,10 @@ class BusinessDetailScreen extends StatelessWidget {
                   avatar: Icon(entry.value.icon, size: 16, color: entry.value.color),
                   selectedColor: entry.value.color.withAlpha(45),
                   side: BorderSide(color: entry.value.color.withAlpha(70)),
-                  onSelected: (_) => setSheetState(() => tone = entry.key),
+                  onSelected: (_) {
+                    HapticFeedback.selectionClick();
+                    setSheetState(() => tone = entry.key);
+                  },
                 ),
               ).toList(),
             ),
@@ -4634,7 +5497,7 @@ class BusinessDetailScreen extends StatelessWidget {
                 Expanded(
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
                     children: <Widget>[
                       if (totals.values.any((double value) => value > 0))
                         GridView.count(
@@ -4685,6 +5548,7 @@ class BusinessDetailScreen extends StatelessWidget {
                       const SizedBox(height: 23),
                       _SectionTitle(
                         'All Entries',
+                        color: appleBlue,
                         actions: <Widget>[
                           _MiniAction(
                             label: 'Share',
@@ -4827,7 +5691,10 @@ class _AiHubScreenState extends State<AiHubScreen> {
                 labelText: 'Gemini API key',
                 prefixIcon: const Icon(Icons.key_rounded),
                 suffixIcon: IconButton(
-                  onPressed: () => setSheetState(() => obscure = !obscure),
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    setSheetState(() => obscure = !obscure);
+                  },
                   icon: Icon(obscure ? Icons.visibility_rounded : Icons.visibility_off_rounded),
                 ),
               ),
@@ -4847,7 +5714,10 @@ class _AiHubScreenState extends State<AiHubScreen> {
                 ),
               ],
               onChanged: (String? value) {
-                if (value != null) setSheetState(() => model = value);
+                if (value != null) {
+                  HapticFeedback.selectionClick();
+                  setSheetState(() => model = value);
+                }
               },
             ),
             const SizedBox(height: 12),
@@ -5216,7 +6086,7 @@ class _GeminiLedgerClient {
     );
     final String snapshot = jsonEncode(_compactState(state));
     final String instruction = '''
-You are Aarish Diary Pro's financial ledger assistant. Return exactly one JSON object:
+You are Aarish Dairy Pro's financial ledger assistant. Return exactly one JSON object:
 {"reply":"short friendly Hinglish reply","actions":[{"path":"allowed/path","data":object_or_null}]}
 
 Allowed roots: milkDB, udharDB, expenseDB, salaryDB, diaryDB, projectDB.
@@ -5595,7 +6465,7 @@ class _ExportService {
           ),
           pw.SizedBox(height: 5),
           pw.Text(
-            'Generated by Aarish Diary Pro • ${DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now())}',
+            'Generated by Aarish Dairy Pro • ${DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now())}',
             style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
           ),
           pw.SizedBox(height: 18),
@@ -5995,7 +6865,7 @@ class _ExportService {
             name: filename,
           ),
         ],
-        subject: 'Aarish Diary Pro - ${dataset.title}',
+        subject: 'Aarish Dairy Pro - ${dataset.title}',
       ),
     );
   }
@@ -6039,7 +6909,7 @@ class _ExportService {
             name: filename,
           ),
         ],
-        subject: 'Aarish Diary Pro AI Ledger - ${dataset.title}',
+        subject: 'Aarish Dairy Pro AI Ledger - ${dataset.title}',
       ),
     );
   }

@@ -1,6 +1,6 @@
-# Aarish Diary Pro — Flutter
+# Aarish Dairy Pro — Flutter
 
-Native Flutter conversion of the Aarish Diary web app, targeting Android /
+Native Flutter conversion of the Aarish Dairy web app, targeting Android /
 Google Play first. The real Flutter project now lives at the repository root,
 so Codemagic project path `.` resolves this `pubspec.yaml` directly.
 

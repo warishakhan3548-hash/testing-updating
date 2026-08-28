@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
-        android:label="Aarish Diary Pro"
+        android:label="Aarish Dairy Pro"
         android:name="${applicationName}"
         android:icon="@drawable/app_icon"
         android:allowBackup="false"
