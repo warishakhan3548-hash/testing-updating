@@ -1211,22 +1211,9 @@ class _GlassCard extends StatelessWidget {
               Color.lerp(Colors.white, tintColor, .045)!.withAlpha(174),
             ];
     }
-    final Border border = accentColor == null
-        ? Border.all(color: borderColor ?? surfaceBorder)
-        : Border(
-            left: BorderSide(color: accentColor!, width: 4),
-            top: BorderSide(color: surfaceBorder),
-            right: BorderSide(
-              color: dark
-                  ? Colors.white.withAlpha(20)
-                  : Colors.white.withAlpha(92),
-            ),
-            bottom: BorderSide(
-              color: dark
-                  ? Colors.black.withAlpha(97)
-                  : Colors.white.withAlpha(66),
-            ),
-          );
+    final Border border = Border.all(
+      color: borderColor ?? surfaceBorder,
+    );
     final List<BoxShadow> shadows = <BoxShadow>[
       if (shadowColor != null)
         BoxShadow(
@@ -1247,7 +1234,7 @@ class _GlassCard extends StatelessWidget {
       ),
     ];
     return Container(
-      padding: padding,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -1258,7 +1245,33 @@ class _GlassCard extends StatelessWidget {
         border: border,
         boxShadow: shadows,
       ),
-      child: child,
+      child: Stack(
+        children: <Widget>[
+          if (accentColor != null)
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 6,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: accentColor,
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: accentColor!.withAlpha(dark ? 92 : 72),
+                      blurRadius: 16,
+                      offset: const Offset(3, 0),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Padding(
+            padding: padding,
+            child: child,
+          ),
+        ],
+      ),
     );
   }
 }
