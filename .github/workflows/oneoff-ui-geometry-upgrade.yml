@@ -1,0 +1,90 @@
+name: One-off UI Geometry Upgrade
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/oneoff-ui-geometry-upgrade.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade-verify-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify patch applies cleanly
+        run: patch --dry-run -p1 -F 0 < .github/ui_geometry_upgrade.patch
+
+      - name: Apply surgical UI geometry patch
+        run: patch -p1 -F 0 < .github/ui_geometry_upgrade.patch
+
+      - name: Verify scope lock before formatting
+        run: |
+          git diff --check
+          if git diff --unified=0 -- lib/main.dart | grep -E '^[+-].*(Color\(|appleBlue|appleGreen|semanticRed|appleRed|gradient:|Firebase|LedgerMath|sync\.write|_businessTones)'; then
+            echo "Scope violation: color/theme/backend logic changed."
+            exit 1
+          fi
+          grep -q "static const double compactButtonHeight = 48;" lib/main.dart
+          grep -q "static const double standardButtonHeight = 56;" lib/main.dart
+          grep -q "padding: const EdgeInsets.fromLTRB(20, 16, 20, 16)" lib/main.dart
+          grep -q "const double size = UIConstants.minTapTarget;" lib/main.dart
+          ! grep -q "height: compact ? 52 : 58" lib/main.dart
+          ! grep -q "fromLTRB(20, 12, 20, 112)" lib/main.dart
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format source
+        run: dart format lib/main.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test ledger invariants
+        run: flutter test
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Verify scope after formatting
+        run: |
+          git diff --check
+          if git diff --unified=0 -- lib/main.dart | grep -E '^[+-].*(Color\(|appleBlue|appleGreen|semanticRed|appleRed|gradient:|Firebase|LedgerMath|sync\.write|_businessTones)'; then
+            echo "Scope violation after format: color/theme/backend logic changed."
+            exit 1
+          fi
+
+      - name: Remove one-off migration files
+        run: |
+          rm -f .github/ui_geometry_upgrade.patch
+          rm -f .github/workflows/oneoff-ui-geometry-upgrade.yml
+
+      - name: Commit verified UI geometry upgrade
+        run: |
+          git config user.name "Aarish UI Geometry Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Refine UI geometry and typography hierarchy [skip ci]"
+          git push origin HEAD:main
