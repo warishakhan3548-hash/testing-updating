@@ -2401,12 +2401,29 @@ double _salaryGlobalNet(Map<String, dynamic> state) {
   return net;
 }
 
-List<Color> _moduleTabColors(Map<String, dynamic> state) => const <Color>[
+double _expenseCurrentMonthTotal(Map<String, dynamic> state) {
+  final DateTime now = DateTime.now();
+  return _rows(state['expenseDB'])
+      .where(
+        (Map<String, dynamic> row) =>
+            LedgerMath.inMonth(row, now.month, now.year),
+      )
+      .fold<double>(
+        0,
+        (double sum, Map<String, dynamic> row) =>
+            sum + LedgerMath.number(row['amount']).abs(),
+      );
+}
+
+Color _expenseToneForTotal(double total) =>
+    total > .000001 ? semanticRed : appleBlue;
+
+List<Color> _moduleTabColors(Map<String, dynamic> state) => <Color>[
       appleBlue,
-      appleGreen,
-      appleGreen,
-      appleBlue,
-      salaryGreen,
+      _tone(_milkGlobalNet(state)),
+      _tone(_creditGlobalNet(state)),
+      _expenseToneForTotal(_expenseCurrentMonthTotal(state)),
+      _tone(_salaryGlobalNet(state)),
       diaryOrange,
       appleBlue,
     ];
@@ -5011,8 +5028,8 @@ class _CreditScreenState extends State<CreditScreen> {
   @override
   Widget build(BuildContext context) {
     final double net = _creditGlobalNet(widget.sync.state);
-    final Color moduleColor = appleGreen;
-    final Color balanceColor = _tone(net, neutral: appleGreen);
+    final Color moduleColor = _tone(net);
+    final Color balanceColor = moduleColor;
     final List<_CreditGroup> groups =
         _creditGroups(widget.sync.state['udharDB'])
             .where(
@@ -5500,11 +5517,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       0,
       (double sum, _ExpenseGroup group) => sum + group.total,
     );
+    final Color moduleColor = _expenseToneForTotal(total);
     return Column(
       children: <Widget>[
         _ScreenHeader(
           title: 'Expenses',
-          color: appleBlue,
+          color: moduleColor,
           actions: <Widget>[
             _CircleAction(
               icon: Icons.ios_share_rounded,
@@ -5529,7 +5547,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               _AmountHero(
                 label: 'Month Expense',
                 value: _money(total),
-                color: appleBlue,
+                color: moduleColor,
               ),
               const SizedBox(height: 22),
               const _SectionTitle('Categories'),
@@ -5711,13 +5729,14 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
             (double sum, Map<String, dynamic> row) =>
                 sum + LedgerMath.number(row['amount']).abs(),
           );
+          final Color detailColor = _expenseToneForTotal(total);
           return Scaffold(
             body: Column(
               children: <Widget>[
                 _ScreenHeader(
                   leading: const _BackCircle(),
                   title: widget.category,
-                  color: semanticRed,
+                  color: detailColor,
                   actions: <Widget>[
                     _CircleAction(
                       icon: Icons.delete_rounded,
@@ -5743,7 +5762,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                       _AmountHero(
                         label: 'Category Total',
                         value: '-${_money(total)}',
-                        color: semanticRed,
+                        color: detailColor,
                       ),
                       const SizedBox(height: 23),
                       _SectionTitle(
