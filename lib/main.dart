@@ -82,17 +82,19 @@ abstract final class AppStyles {
   static List<BoxShadow> surfaceDepth(BuildContext context) {
     final bool dark = isDark(context);
     return <BoxShadow>[
+      // Small contact shadow keeps the card grounded without a visible box.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 82 : 10),
-        blurRadius: dark ? 12 : 8,
+        color: Colors.black.withAlpha(dark ? 64 : 10),
+        blurRadius: dark ? 10 : 8,
         spreadRadius: -2,
         offset: const Offset(0, 2),
       ),
+      // Moderate falloff avoids large raster-filter bounds on mobile GPUs.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 112 : 22),
-        blurRadius: dark ? 62 : 48,
-        spreadRadius: dark ? -12 : -10,
-        offset: const Offset(0, 16),
+        color: Colors.black.withAlpha(dark ? 76 : 16),
+        blurRadius: dark ? 34 : 28,
+        spreadRadius: -7,
+        offset: const Offset(0, 10),
       ),
     ];
   }
@@ -104,20 +106,21 @@ abstract final class AppStyles {
   }) {
     final bool dark = isDark(context);
     return <BoxShadow>[
+      // Semantic lift: the card casts a soft shadow in its own module color.
       BoxShadow(
         color: color.withAlpha(
-          strong ? (dark ? 76 : 58) : (dark ? 50 : 38),
+          strong ? (dark ? 66 : 48) : (dark ? 48 : 34),
         ),
-        blurRadius: strong ? 30 : 22,
-        spreadRadius: strong ? -1 : -2,
-        offset: const Offset(0, 8),
+        blurRadius: strong ? 34 : 26,
+        spreadRadius: strong ? -4 : -5,
+        offset: const Offset(0, 12),
       ),
       if (strong)
         BoxShadow(
-          color: color.withAlpha(dark ? 42 : 32),
-          blurRadius: 68,
-          spreadRadius: -8,
-          offset: const Offset(0, 24),
+          color: color.withAlpha(dark ? 32 : 22),
+          blurRadius: 44,
+          spreadRadius: -10,
+          offset: const Offset(0, 18),
         ),
       ...surfaceDepth(context),
     ];
@@ -126,11 +129,18 @@ abstract final class AppStyles {
   static List<BoxShadow> railDepth(BuildContext context, Color color) {
     final bool dark = isDark(context);
     return <BoxShadow>[
+      // A narrow side aura reinforces the semantic rail without drawing a box.
       BoxShadow(
-        color: color.withAlpha(dark ? 72 : 56),
-        blurRadius: dark ? 28 : 22,
-        spreadRadius: -5,
-        offset: const Offset(-4, 0),
+        color: color.withAlpha(dark ? 62 : 44),
+        blurRadius: 18,
+        spreadRadius: -4,
+        offset: const Offset(-3, 0),
+      ),
+      BoxShadow(
+        color: color.withAlpha(dark ? 34 : 24),
+        blurRadius: 30,
+        spreadRadius: -8,
+        offset: const Offset(0, 12),
       ),
       ...surfaceDepth(context),
     ];
@@ -140,15 +150,15 @@ abstract final class AppStyles {
     final bool dark = isDark(context);
     return <BoxShadow>[
       BoxShadow(
-        color: color.withAlpha(dark ? 68 : 48),
-        blurRadius: 22,
-        spreadRadius: -3,
-        offset: const Offset(0, 8),
+        color: color.withAlpha(dark ? 56 : 40),
+        blurRadius: 18,
+        spreadRadius: -4,
+        offset: const Offset(0, 6),
       ),
       BoxShadow(
-        color: color.withAlpha(dark ? 34 : 24),
-        blurRadius: 34,
-        spreadRadius: -7,
+        color: color.withAlpha(dark ? 28 : 20),
+        blurRadius: 26,
+        spreadRadius: -8,
         offset: Offset.zero,
       ),
     ];
@@ -156,29 +166,12 @@ abstract final class AppStyles {
 
   static Border glassBorder(BuildContext context, {Color? accent}) {
     final bool dark = isDark(context);
-    return Border(
-      top: BorderSide(
-        color: Colors.white.withAlpha(dark ? 31 : 174),
-        width: UIConstants.borderWidth,
-      ),
-      right: BorderSide(
-        color: Colors.white.withAlpha(dark ? 20 : 92),
-        width: UIConstants.borderWidth,
-      ),
-      bottom: BorderSide(
-        color: dark ? Colors.black.withAlpha(96) : Colors.white.withAlpha(66),
-        width: UIConstants.borderWidth,
-      ),
-      left: accent == null
-          ? BorderSide(
-              color: Colors.white.withAlpha(dark ? 20 : 92),
-              width: UIConstants.borderWidth,
-            )
-          : BorderSide(
-              color: accent.withAlpha(dark ? 82 : 72),
-              width: UIConstants.borderWidth,
-            ),
-    );
+    final Color edge = accent == null
+        ? Colors.white.withAlpha(dark ? 30 : 132)
+        : Color.lerp(Colors.white, accent, dark ? .22 : .14)!
+            .withAlpha(dark ? 64 : 86);
+    // Keep all four sides identical so BoxDecoration paints one rounded RRect.
+    return Border.all(color: edge, width: UIConstants.borderWidth);
   }
 
   static List<Shadow> inkGlow(Color color, {bool strong = false}) => <Shadow>[
@@ -1404,79 +1397,83 @@ class _GlassCard extends StatelessWidget {
                 strong: tintColor != null,
               )
         : AppStyles.surfaceDepth(context);
-    return Container(
-      clipBehavior: Clip.antiAlias,
+    final BorderRadius radius = BorderRadius.circular(borderRadius);
+    return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: surfaceColors,
         ),
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: radius,
         border: border,
         boxShadow: shadows,
       ),
-      child: Stack(
-        children: <Widget>[
-          // Specular highlight: strongest near the top-center and feathered
-          // toward the rounded corners so the card reads as a physical layer.
-          Positioned(
-            left: math.max(10, borderRadius * .48),
-            right: math.max(10, borderRadius * .48),
-            top: 0,
-            height: 1,
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: <Color>[
-                      Colors.transparent,
-                      Colors.white.withAlpha(dark ? 76 : 210),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // Opposing lowlight gives the surface a thin optical thickness
-          // without changing its base color or layout.
-          Positioned(
-            left: math.max(12, borderRadius * .55),
-            right: math.max(12, borderRadius * .55),
-            bottom: 0,
-            height: 1,
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: <Color>[
-                      Colors.transparent,
-                      Colors.black.withAlpha(dark ? 64 : 16),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          if (accentColor != null)
-            Positioned.fill(
+      child: ClipRRect(
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: <Widget>[
+            // Specular highlight: strongest near the top-center and feathered
+            // toward the rounded corners so the card reads as a physical layer.
+            Positioned(
+              left: math.max(10, borderRadius * .48),
+              right: math.max(10, borderRadius * .48),
+              top: 0,
+              height: 1,
               child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _CardAccentPainter(
-                    color: accentColor!,
-                    radius: borderRadius,
-                    dark: dark,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: <Color>[
+                        Colors.transparent,
+                        Colors.white.withAlpha(dark ? 76 : 210),
+                        Colors.transparent,
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          Padding(
-            padding: padding,
-            child: child,
-          ),
-        ],
+            // Opposing lowlight gives the surface a thin optical thickness
+            // without changing its base color or layout.
+            Positioned(
+              left: math.max(12, borderRadius * .55),
+              right: math.max(12, borderRadius * .55),
+              bottom: 0,
+              height: 1,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: <Color>[
+                        Colors.transparent,
+                        Colors.black.withAlpha(dark ? 64 : 16),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (accentColor != null)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _CardAccentPainter(
+                      color: accentColor!,
+                      radius: borderRadius,
+                      dark: dark,
+                    ),
+                  ),
+                ),
+              ),
+            Padding(
+              padding: padding,
+              child: child,
+            ),
+          ],
+        ),
       ),
     );
   }
