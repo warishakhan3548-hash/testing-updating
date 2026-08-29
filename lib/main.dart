@@ -3054,39 +3054,48 @@ class DashboardScreen extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _SyncPill(sync: sync),
                   ),
-                GridView.count(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 13,
-                  mainAxisSpacing: 13,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: 1.0,
-                  children: <Widget>[
-                    _MetricCard(
-                      icon: Icons.volunteer_activism_rounded,
-                      label: 'To Receive (+)',
-                      value: _money(totals.toReceive),
-                      color: appleGreen,
-                    ),
-                    _MetricCard(
-                      icon: Icons.request_quote_rounded,
-                      label: 'To Pay (-)',
-                      value: _money(totals.toPay),
-                      color: appleRed,
-                    ),
-                    _MetricCard(
-                      icon: Icons.receipt_long_rounded,
-                      label: 'Month Expense',
-                      value: _money(totals.monthExpense),
-                      color: diaryOrange,
-                    ),
-                    _MetricCard(
-                      icon: Icons.trending_up_rounded,
-                      label: 'Month Profit',
-                      value: _signedMoney(totals.monthProfit),
-                      color: appleBlue,
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (BuildContext context, BoxConstraints constraints) {
+                    const double gap = 13;
+                    const double minimumCardHeight = 156;
+                    final double cardWidth = (constraints.maxWidth - gap) / 2;
+                    final double ratio =
+                        math.min(1.0, cardWidth / minimumCardHeight);
+                    return GridView.count(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: gap,
+                      mainAxisSpacing: gap,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      childAspectRatio: ratio,
+                      children: <Widget>[
+                        _MetricCard(
+                          icon: Icons.volunteer_activism_rounded,
+                          label: 'To Receive (+)',
+                          value: _money(totals.toReceive),
+                          color: appleGreen,
+                        ),
+                        _MetricCard(
+                          icon: Icons.request_quote_rounded,
+                          label: 'To Pay (-)',
+                          value: _money(totals.toPay),
+                          color: appleRed,
+                        ),
+                        _MetricCard(
+                          icon: Icons.receipt_long_rounded,
+                          label: 'Month Expense',
+                          value: _money(totals.monthExpense),
+                          color: diaryOrange,
+                        ),
+                        _MetricCard(
+                          icon: Icons.trending_up_rounded,
+                          label: 'Month Profit',
+                          value: _signedMoney(totals.monthProfit),
+                          color: appleBlue,
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
                 _Pressable(
@@ -7151,49 +7160,64 @@ class BusinessDetailScreen extends StatelessWidget {
                     physics: const BouncingScrollPhysics(),
                     padding: UIConstants.screenPadding,
                     children: <Widget>[
-                      GridView.count(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 11,
-                        mainAxisSpacing: 11,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        childAspectRatio: 1.55,
-                        children:
-                            totals.entries.map((MapEntry<String, double> item) {
-                          final _BusinessTone tone = _businessTones[item.key]!;
-                          return _GlassCard(
-                            padding: const EdgeInsets.all(13),
-                            borderRadius: 19,
-                            borderColor: tone.color.withAlpha(60),
-                            shadowColor: tone.color.withAlpha(20),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  tone.label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: tone.color,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  _money(item.value),
-                                  style: TextStyle(
-                                    color: tone.color,
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w900,
-                                    fontFeatures: AppStyles.tabularFigures,
-                                  ),
-                                ),
-                              ],
-                            ),
+                      LayoutBuilder(
+                        builder:
+                            (BuildContext context, BoxConstraints constraints) {
+                          const double gap = 11;
+                          const double preferredRatio = 1.55;
+                          const double minimumCardHeight = 86;
+                          final double cardWidth =
+                              (constraints.maxWidth - gap) / 2;
+                          final double ratio = math.min(
+                            preferredRatio,
+                            cardWidth / minimumCardHeight,
                           );
-                        }).toList(),
+                          return GridView.count(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: gap,
+                            mainAxisSpacing: gap,
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            childAspectRatio: ratio,
+                            children: totals.entries
+                                .map((MapEntry<String, double> item) {
+                              final _BusinessTone tone =
+                                  _businessTones[item.key]!;
+                              return _GlassCard(
+                                padding: const EdgeInsets.all(13),
+                                borderRadius: 19,
+                                borderColor: tone.color.withAlpha(60),
+                                shadowColor: tone.color.withAlpha(20),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      tone.label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: tone.color,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      _money(item.value),
+                                      style: TextStyle(
+                                        color: tone.color,
+                                        fontSize: 19,
+                                        fontWeight: FontWeight.w900,
+                                        fontFeatures: AppStyles.tabularFigures,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
                       ),
                       const SizedBox(height: 24),
                       _SectionTitle(
