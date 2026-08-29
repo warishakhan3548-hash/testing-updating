@@ -3160,12 +3160,10 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
     final TextEditingController date = TextEditingController(text: _today());
     final TextEditingController morning = TextEditingController();
     final TextEditingController evening = TextEditingController();
-    String flow = 'given';
-    final bool? save = await _openSheet<bool>(
+    final String? flow = await _openSheet<String>(
       context,
-      StatefulBuilder(
-        builder: (BuildContext sheetContext, StateSetter setSheetState) =>
-            _SheetFrame(
+      Builder(
+        builder: (BuildContext sheetContext) => _SheetFrame(
           title: 'Daily Milk Entry',
           children: <Widget>[
             _DateField(controller: date),
@@ -3197,37 +3195,41 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 13),
-            SegmentedButton<String>(
-              segments: const <ButtonSegment<String>>[
-                ButtonSegment<String>(
-                  value: 'given',
-                  label: Text('Given'),
-                  icon: Icon(Icons.add_rounded),
+            const SizedBox(height: 22),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: _MilkCustomerRoleButton(
+                    label: 'Given',
+                    icon: Icons.add_rounded,
+                    color: appleGreen,
+                    semanticLabel: 'Save milk as given',
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      Navigator.pop(sheetContext, 'given');
+                    },
+                  ),
                 ),
-                ButtonSegment<String>(
-                  value: 'taken',
-                  label: Text('Taken'),
-                  icon: Icon(Icons.remove_rounded),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _MilkCustomerRoleButton(
+                    label: 'Taken',
+                    icon: Icons.remove_rounded,
+                    color: appleRed,
+                    semanticLabel: 'Save milk as taken',
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      Navigator.pop(sheetContext, 'taken');
+                    },
+                  ),
                 ),
               ],
-              selected: <String>{flow},
-              onSelectionChanged: (Set<String> values) {
-                HapticFeedback.selectionClick();
-                setSheetState(() => flow = values.first);
-              },
-            ),
-            const SizedBox(height: 20),
-            _PrimaryButton(
-              label: 'Save Entry',
-              color: flow == 'given' ? appleGreen : appleRed,
-              onTap: () => Navigator.pop(sheetContext, true),
             ),
           ],
         ),
       ),
     );
-    if (save != true || !mounted) {
+    if (flow == null || !mounted) {
       date.dispose();
       morning.dispose();
       evening.dispose();
