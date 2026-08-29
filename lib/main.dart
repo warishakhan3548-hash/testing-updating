@@ -82,19 +82,17 @@ abstract final class AppStyles {
   static List<BoxShadow> surfaceDepth(BuildContext context) {
     final bool dark = isDark(context);
     return <BoxShadow>[
-      // Small contact shadow keeps the card grounded without a visible box.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 64 : 10),
-        blurRadius: dark ? 10 : 8,
+        color: Colors.black.withAlpha(dark ? 56 : 12),
+        blurRadius: 7,
         spreadRadius: -2,
         offset: const Offset(0, 2),
       ),
-      // Moderate falloff avoids large raster-filter bounds on mobile GPUs.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 76 : 16),
-        blurRadius: dark ? 34 : 28,
+        color: Colors.black.withAlpha(dark ? 66 : 15),
+        blurRadius: dark ? 28 : 24,
         spreadRadius: -7,
-        offset: const Offset(0, 10),
+        offset: const Offset(0, 9),
       ),
     ];
   }
@@ -106,21 +104,20 @@ abstract final class AppStyles {
   }) {
     final bool dark = isDark(context);
     return <BoxShadow>[
-      // Semantic lift: the card casts a soft shadow in its own module color.
       BoxShadow(
         color: color.withAlpha(
-          strong ? (dark ? 66 : 48) : (dark ? 48 : 34),
+          strong ? (dark ? 60 : 42) : (dark ? 44 : 30),
         ),
-        blurRadius: strong ? 34 : 26,
-        spreadRadius: strong ? -4 : -5,
-        offset: const Offset(0, 12),
+        blurRadius: strong ? 28 : 22,
+        spreadRadius: -5,
+        offset: const Offset(0, 8),
       ),
       if (strong)
         BoxShadow(
-          color: color.withAlpha(dark ? 32 : 22),
-          blurRadius: 44,
+          color: color.withAlpha(dark ? 28 : 20),
+          blurRadius: 40,
           spreadRadius: -10,
-          offset: const Offset(0, 18),
+          offset: const Offset(0, 16),
         ),
       ...surfaceDepth(context),
     ];
@@ -166,18 +163,16 @@ abstract final class AppStyles {
 
   static Border glassBorder(BuildContext context, {Color? accent}) {
     final bool dark = isDark(context);
-    final Color edge = accent == null
-        ? Colors.white.withAlpha(dark ? 30 : 132)
-        : Color.lerp(Colors.white, accent, dark ? .22 : .14)!
-            .withAlpha(dark ? 64 : 86);
-    // Keep all four sides identical so BoxDecoration paints one rounded RRect.
-    return Border.all(color: edge, width: UIConstants.borderWidth);
+    return Border.all(
+      color: Colors.white.withAlpha(dark ? 24 : 96),
+      width: UIConstants.borderWidth,
+    );
   }
 
   static List<Shadow> inkGlow(Color color, {bool strong = false}) => <Shadow>[
         Shadow(
-          color: color.withAlpha(strong ? 104 : 72),
-          blurRadius: strong ? 12 : 8,
+          color: color.withAlpha(strong ? 58 : 34),
+          blurRadius: strong ? 7 : 4,
           offset: Offset.zero,
         ),
       ];
@@ -1107,14 +1102,7 @@ class _BottomLedgerNav extends StatelessWidget {
                     ? const <Color>[Color(0xD9121928), Color(0xC9080D18)]
                     : const <Color>[Color(0xE9FFFFFF), Color(0xD8FFFFFF)],
               ),
-              border: Border(top: AppStyles.hairline(context)),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: Colors.white.withAlpha(dark ? 16 : 90),
-                  blurRadius: 1,
-                  offset: const Offset(0, -1),
-                ),
-              ],
+              boxShadow: const <BoxShadow>[],
             ),
             child: SafeArea(
               top: false,
@@ -1155,15 +1143,15 @@ class _BottomLedgerNav extends StatelessWidget {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: <Widget>[
                                   AnimatedScale(
-                                    scale: active ? 1.13 : 1,
+                                    scale: active ? 1.08 : 1,
                                     duration: UIConstants.motion,
                                     curve: const Cubic(0.34, 1.18, 0.64, 1),
                                     child: Icon(
                                       spec.icon,
-                                      size: active ? 25 : 23,
+                                      size: active ? 24 : 22,
                                       color: active
                                           ? color
-                                          : color.withAlpha(dark ? 176 : 188),
+                                          : color.withAlpha(dark ? 148 : 145),
                                       shadows: active
                                           ? AppStyles.inkGlow(color,
                                               strong: true)
@@ -1196,8 +1184,8 @@ class _BottomLedgerNav extends StatelessWidget {
                                   AnimatedContainer(
                                     duration: UIConstants.motion,
                                     curve: const Cubic(0.32, 0.72, 0, 1),
-                                    width: active ? 40 : 0,
-                                    height: 4,
+                                    width: active ? 34 : 0,
+                                    height: 3,
                                     decoration: BoxDecoration(
                                       color:
                                           appleBlue.withAlpha(active ? 96 : 0),
@@ -1206,7 +1194,7 @@ class _BottomLedgerNav extends StatelessWidget {
                                           ? <BoxShadow>[
                                               BoxShadow(
                                                 color: appleBlue.withAlpha(72),
-                                                blurRadius: 18,
+                                                blurRadius: 12,
                                                 offset: Offset.zero,
                                               ),
                                             ]
@@ -1372,17 +1360,17 @@ class _GlassCard extends StatelessWidget {
     final List<Color> surfaceColors;
     if (tintColor == null) {
       surfaceColors = dark
-          ? const <Color>[Color(0xDC121826), Color(0xBC080C18)]
-          : const <Color>[Color(0xE0FFFFFF), Color(0xAEFFFFFF)];
+          ? const <Color>[Color(0xF0121826), Color(0xE3080C18)]
+          : const <Color>[Color(0xFAFFFFFF), Color(0xF2FFFFFF)];
     } else {
       surfaceColors = dark
           ? <Color>[
-              Color.lerp(darkGlassTop, tintColor, .15)!.withAlpha(220),
-              Color.lerp(darkGlassBottom, tintColor, .075)!.withAlpha(188),
+              Color.lerp(darkGlassTop, tintColor, .12)!.withAlpha(240),
+              Color.lerp(darkGlassBottom, tintColor, .06)!.withAlpha(224),
             ]
           : <Color>[
-              Color.lerp(Colors.white, tintColor, .08)!.withAlpha(224),
-              Color.lerp(Colors.white, tintColor, .045)!.withAlpha(174),
+              Color.lerp(Colors.white, tintColor, .055)!.withAlpha(248),
+              Color.lerp(Colors.white, tintColor, .028)!.withAlpha(236),
             ];
     }
     final Border border = borderColor != null
@@ -1507,9 +1495,9 @@ class _CardAccentPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = color.withAlpha(dark ? 64 : 50)
+        ..color = color.withAlpha(dark ? 48 : 32)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = UIConstants.accentStroke + 8
+        ..strokeWidth = UIConstants.accentStroke + 4
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round,
     );
@@ -1574,7 +1562,7 @@ class _ScreenHeader extends StatelessWidget {
                     ? const <Color>[Color(0xD8101726), Color(0xCC060A12)]
                     : const <Color>[Color(0xE8FFFFFF), Color(0xD5FFFFFF)],
               ),
-              border: Border(bottom: AppStyles.hairline(context)),
+              // Soft elevation replaces a hard separator line.
             ),
             child: SafeArea(
               bottom: false,
