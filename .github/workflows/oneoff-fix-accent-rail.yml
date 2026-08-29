@@ -1,0 +1,56 @@
+name: One-off Accent Rail Continuity Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/oneoff-fix-accent-rail.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply guarded accent rail fix
+        run: python3 .github/fix_accent_rail.py
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format
+        run: dart format lib/main.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test ledger invariants
+        run: flutter test
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Commit verified accent rail fix
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Fix continuous curved card accent rails [skip ci]
+          file_pattern: lib/main.dart
