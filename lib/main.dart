@@ -37,20 +37,23 @@ const Color darkGlassBottom = Color(0xFF080C18);
 
 abstract final class UIConstants {
   static const double minTapTarget = 48;
-  static const double inputRadius = 20;
-  static const double compactRadius = 18;
-  static const double actionRadius = 22;
-  static const double cardRadius = 26;
-  static const double heroRadius = 28;
-  static const double sheetRadius = 36;
+  static const double compactButtonHeight = 48;
+  static const double standardButtonHeight = 56;
+  static const double inputRadius = 16;
+  static const double compactRadius = 16;
+  static const double actionRadius = 20;
+  static const double cardRadius = 24;
+  static const double heroRadius = 24;
+  static const double sheetRadius = 32;
   static const double accentStroke = 6;
   static const double borderWidth = 1;
 
-  static const EdgeInsets cardPadding = EdgeInsets.all(18);
-  static const EdgeInsets compactCardPadding = EdgeInsets.all(15);
+  static const EdgeInsets cardPadding = EdgeInsets.all(20);
+  static const EdgeInsets compactCardPadding = EdgeInsets.all(16);
   static const EdgeInsets inputPadding =
-      EdgeInsets.symmetric(horizontal: 20, vertical: 18);
-  static const EdgeInsets actionPadding = EdgeInsets.symmetric(horizontal: 22);
+      EdgeInsets.symmetric(horizontal: 20, vertical: 16);
+  static const EdgeInsets actionPadding = EdgeInsets.symmetric(horizontal: 20);
+  static const EdgeInsets screenPadding = EdgeInsets.fromLTRB(20, 8, 20, 32);
 
   static const Duration motion = Duration(milliseconds: 280);
 }
@@ -792,7 +795,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   void _scrollNavigation(int index) {
-    final double target = math.max(0, index * 82 - 120).toDouble();
+    final double target = math.max(0, index * 88 - 120).toDouble();
     if (_navController.hasClients) {
       _navController.animateTo(
         math.min(target, _navController.position.maxScrollExtent),
@@ -1014,7 +1017,7 @@ class _BottomLedgerNav extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 88,
+          height: 80,
           child: SingleChildScrollView(
             controller: controller,
             scrollDirection: Axis.horizontal,
@@ -1038,9 +1041,9 @@ class _BottomLedgerNav extends StatelessWidget {
                       child: AnimatedContainer(
                         duration: UIConstants.motion,
                         curve: const Cubic(0.32, 0.72, 0, 1),
-                        width: 82,
-                        height: 74,
-                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        width: 80,
+                        height: 64,
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
                         decoration: BoxDecoration(
                           color: active
                               ? color.withAlpha(dark ? 42 : 22)
@@ -1069,7 +1072,7 @@ class _BottomLedgerNav extends StatelessWidget {
                               curve: const Cubic(0.34, 1.18, 0.64, 1),
                               child: Icon(
                                 spec.icon,
-                                size: 27,
+                                size: 24,
                                 color: active ? color : systemGray,
                                 shadows:
                                     active ? AppStyles.inkGlow(color) : null,
@@ -1082,7 +1085,7 @@ class _BottomLedgerNav extends StatelessWidget {
                                 color: active ? color : systemGray,
                                 fontSize: 12,
                                 fontWeight:
-                                    active ? FontWeight.w900 : FontWeight.w700,
+                                    active ? FontWeight.w800 : FontWeight.w600,
                                 shadows:
                                     active ? AppStyles.inkGlow(color) : null,
                               ),
@@ -1091,7 +1094,7 @@ class _BottomLedgerNav extends StatelessWidget {
                             AnimatedContainer(
                               duration: UIConstants.motion,
                               curve: const Cubic(0.32, 0.72, 0, 1),
-                              width: active ? 38 : 0,
+                              width: active ? 40 : 0,
                               height: 4,
                               decoration: BoxDecoration(
                                 color: color.withAlpha(active ? 145 : 0),
@@ -1401,12 +1404,12 @@ class _ScreenHeader extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 14, 20, 16),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           child: Row(
             children: <Widget>[
               if (leading != null) ...<Widget>[
                 leading!,
-                const SizedBox(width: 11),
+                const SizedBox(width: 12),
               ],
               Expanded(
                 child: Column(
@@ -1418,9 +1421,9 @@ class _ScreenHeader extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: color,
-                        fontSize: leading == null ? 30 : 26,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -.5,
+                        fontSize: leading == null ? 28 : 24,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -.4,
                         shadows:
                             color == null ? null : AppStyles.inkGlow(color!),
                       ),
@@ -1437,8 +1440,8 @@ class _ScreenHeader extends StatelessWidget {
                               style: const TextStyle(
                                 color: appleBlue,
                                 fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.1,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.0,
                               ),
                             ),
                           ),
@@ -1485,8 +1488,8 @@ class _CircleAction extends StatelessWidget {
           semanticLabel: semanticLabel,
           borderRadius: BorderRadius.circular(UIConstants.compactRadius),
           child: Container(
-            width: 50,
-            height: 50,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               color: color.withAlpha(23),
               borderRadius: BorderRadius.circular(UIConstants.compactRadius),
@@ -1512,10 +1515,10 @@ class _BackCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _Pressable(
         onTap: () => Navigator.of(context).maybePop(),
-        borderRadius: BorderRadius.circular(25),
+        borderRadius: BorderRadius.circular(24),
         child: Container(
-          width: 50,
-          height: 50,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Theme.of(context).brightness == Brightness.dark
@@ -1578,7 +1581,7 @@ class _SearchBoxState extends State<_SearchBox> {
       style: TextStyle(
         color: widget.color,
         fontSize: 16,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w700,
         shadows: AppStyles.inkGlow(widget.color),
       ),
       decoration: InputDecoration(
@@ -1586,18 +1589,18 @@ class _SearchBoxState extends State<_SearchBox> {
         filled: true,
         fillColor: widget.color.withAlpha(dark ? 12 : 8),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 19),
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         hintStyle: TextStyle(
           color: widget.color.withAlpha(160),
           fontSize: 16,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w600,
         ),
         prefixIcon: Icon(
           Icons.search_rounded,
           color: widget.color,
           shadows: AppStyles.inkGlow(widget.color),
         ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 54),
+        prefixIconConstraints: const BoxConstraints(minWidth: 48),
         enabledBorder: idleBorder,
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(UIConstants.inputRadius),
@@ -1738,7 +1741,9 @@ class _PrimaryButton extends StatelessWidget {
         child: Container(
           constraints:
               const BoxConstraints(minHeight: UIConstants.minTapTarget),
-          height: compact ? 52 : 58,
+          height: compact
+              ? UIConstants.compactButtonHeight
+              : UIConstants.standardButtonHeight,
           padding: UIConstants.actionPadding,
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -1773,8 +1778,8 @@ class _PrimaryButton extends StatelessWidget {
                 label,
                 style: TextStyle(
                   color: foregroundColor,
-                  fontSize: compact ? 15.5 : 17,
-                  fontWeight: FontWeight.w900,
+                  fontSize: compact ? 15 : 16.5,
+                  fontWeight: FontWeight.w800,
                   shadows: AppStyles.inkGlow(foregroundColor),
                 ),
               ),
@@ -1816,7 +1821,7 @@ class _AmountHero extends StatelessWidget {
           ];
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -1860,23 +1865,23 @@ class _HeroValue extends StatelessWidget {
             label.toUpperCase(),
             style: TextStyle(
               color: color,
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
               letterSpacing: .8,
               shadows: <Shadow>[
                 Shadow(color: glow.withAlpha(78), blurRadius: 12),
               ],
             ),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 4),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: color,
-              fontSize: 31,
-              fontWeight: FontWeight.w900,
+              fontSize: 32,
+              fontWeight: FontWeight.w700,
               letterSpacing: -.8,
               shadows: <Shadow>[
                 Shadow(color: glow.withAlpha(94), blurRadius: 16),
@@ -1910,7 +1915,7 @@ class _ListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.only(bottom: 12),
         child: _Pressable(
           onTap: onTap,
           borderRadius: BorderRadius.circular(UIConstants.cardRadius),
@@ -1922,8 +1927,8 @@ class _ListCard extends StatelessWidget {
             child: Row(
               children: <Widget>[
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: color.withAlpha(29),
                     borderRadius:
@@ -1937,7 +1942,7 @@ class _ListCard extends StatelessWidget {
                       ? Icon(
                           icon,
                           color: color,
-                          size: 22,
+                          size: 20,
                           shadows: AppStyles.inkGlow(color),
                         )
                       : Center(
@@ -1946,13 +1951,13 @@ class _ListCard extends StatelessWidget {
                             style: TextStyle(
                               color: color,
                               fontSize: 18,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w700,
                               shadows: AppStyles.inkGlow(color),
                             ),
                           ),
                         ),
                 ),
-                const SizedBox(width: 15),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1963,8 +1968,8 @@ class _ListCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: color,
-                          fontSize: 16.5,
-                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
                           shadows: AppStyles.inkGlow(color),
                         ),
                       ),
@@ -1976,7 +1981,7 @@ class _ListCard extends StatelessWidget {
                         style: TextStyle(
                           color: color.withAlpha(190),
                           fontSize: 13,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -1988,8 +1993,8 @@ class _ListCard extends StatelessWidget {
                     trailing!,
                     style: TextStyle(
                       color: color,
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                       shadows: AppStyles.inkGlow(color),
                     ),
                   ),
@@ -2061,7 +2066,7 @@ class _SectionTitle extends StatelessWidget {
                 style: TextStyle(
                   color: color,
                   fontSize: 18,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                   letterSpacing: -.2,
                   shadows: color == null
                       ? null
@@ -2154,7 +2159,7 @@ class _MonthYearPicker extends StatelessWidget {
 }
 
 InputDecoration _pickerDecoration() => InputDecoration(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(UIConstants.inputRadius),
         borderSide: BorderSide(
@@ -2220,8 +2225,8 @@ class _SheetFrame extends StatelessWidget {
             children: <Widget>[
               Align(
                 child: Container(
-                  width: 54,
-                  height: 6,
+                  width: 40,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: dark
                         ? Colors.white.withAlpha(55)
@@ -2230,14 +2235,14 @@ class _SheetFrame extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 26),
+              const SizedBox(height: 24),
               Text(
                 title,
                 textAlign: centerTitle ? TextAlign.center : TextAlign.start,
                 style: const TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -.5,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.4,
                 ),
               ),
               const SizedBox(height: 24),
@@ -2559,7 +2564,7 @@ class DashboardScreen extends StatelessWidget {
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
-              padding: const EdgeInsets.fromLTRB(20, 9, 20, 30),
+              padding: UIConstants.screenPadding,
               children: <Widget>[
                 if (sync.pendingWrites > 0 || sync.syncing)
                   Padding(
@@ -2729,7 +2734,7 @@ class _MetricCard extends StatelessWidget {
               style: const TextStyle(
                 color: systemGray,
                 fontSize: 10,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
                 letterSpacing: .65,
               ),
             ),
@@ -2742,7 +2747,7 @@ class _MetricCard extends StatelessWidget {
                 style: TextStyle(
                   color: color,
                   fontSize: 24,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: -.7,
                   shadows: AppStyles.inkGlow(color, strong: true),
                 ),
@@ -2838,13 +2843,13 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
           Expanded(
             child: ListView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
+              padding: UIConstants.screenPadding,
               children: <Widget>[
                 _SearchBox(
                   hint: 'Search party name…',
                   onChanged: (String value) => setState(() => _query = value),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
                 if (balances.isEmpty)
                   const _EmptyState(
                       Icons.contact_page_rounded, 'No party balances found')
@@ -2919,7 +2924,7 @@ class _MilkScreenState extends State<MilkScreen> {
                 prefixIcon: Icon(Icons.currency_rupee_rounded),
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 24),
             Row(
               children: <Widget>[
                 Expanded(
@@ -3021,14 +3026,14 @@ class _MilkScreenState extends State<MilkScreen> {
           child: ListView(
             key: const PageStorageKey<String>('milk-scroll'),
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
+            padding: UIConstants.screenPadding,
             children: <Widget>[
               _SearchBox(
                 hint: 'Search customer…',
                 color: appleBlue,
                 onChanged: (String value) => setState(() => _query = value),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               if (names.isEmpty)
                 const _EmptyState(
                   Icons.local_drink_rounded,
@@ -3088,20 +3093,20 @@ class _MilkCustomerRoleButton extends StatelessWidget {
     return _Pressable(
       onTap: onTap,
       semanticLabel: semanticLabel,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(UIConstants.actionRadius),
       child: Container(
         constraints: const BoxConstraints(
-          minHeight: 62,
+          minHeight: 56,
           minWidth: UIConstants.minTapTarget,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: <Color>[color, companion],
           ),
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(UIConstants.actionRadius),
           border: Border.all(
             color: dark ? Colors.white.withAlpha(34) : color.withAlpha(95),
             width: .8,
@@ -3138,9 +3143,9 @@ class _MilkCustomerRoleButton extends StatelessWidget {
                   maxLines: 1,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -.25,
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -.2,
                     shadows: <Shadow>[
                       Shadow(color: Colors.black26, blurRadius: 8),
                     ],
@@ -3184,7 +3189,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
           title: 'Daily Milk Entry',
           children: <Widget>[
             _DateField(controller: date),
-            const SizedBox(height: 13),
+            const SizedBox(height: 12),
             Row(
               children: <Widget>[
                 Expanded(
@@ -3212,7 +3217,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 24),
             Row(
               children: <Widget>[
                 Expanded(
@@ -3393,7 +3398,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                 Expanded(
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                    padding: UIConstants.screenPadding,
                     children: <Widget>[
                       _MonthYearPicker(
                         month: _month,
@@ -3409,7 +3414,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                         totalKg: '${totals.netKg.abs().toStringAsFixed(2)} KG',
                         color: color,
                       ),
-                      const SizedBox(height: 23),
+                      const SizedBox(height: 24),
                       _SectionTitle(
                         'Daily Entries',
                         color: appleBlue,
@@ -3727,7 +3732,7 @@ class _MilkRecordsTable extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: dark ? const Color(0xFF12161D) : Colors.white,
-        borderRadius: BorderRadius.circular(25),
+        borderRadius: BorderRadius.circular(UIConstants.cardRadius),
         border: Border.all(
           color: dark ? Colors.white.withAlpha(18) : appleBlue.withAlpha(16),
         ),
@@ -3747,7 +3752,7 @@ class _MilkRecordsTable extends StatelessWidget {
           return Column(
             children: <Widget>[
               Container(
-                height: 58,
+                height: 48,
                 padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
                 color:
                     dark ? Colors.white.withAlpha(7) : const Color(0xFFF9FBFE),
@@ -3815,7 +3820,7 @@ class _MilkTableHeader extends StatelessWidget {
             color: appleBlue,
             fontSize: compact ? 9.2 : 10.5,
             height: 1,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w700,
             letterSpacing: compact ? .15 : .45,
           ),
         ),
@@ -3854,7 +3859,7 @@ class _MilkTableRow extends StatelessWidget {
         '${flow == 'taken' ? '-' : '+'}${quantity.toStringAsFixed(2)}';
 
     return Container(
-      constraints: const BoxConstraints(minHeight: 88),
+      constraints: const BoxConstraints(minHeight: 72),
       padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12, vertical: 10),
       decoration: BoxDecoration(
         border: showDivider
@@ -3944,8 +3949,8 @@ class _MilkTableRow extends StatelessWidget {
                 semanticLabel: 'Delete ${_displayDate(row['date'])} milk entry',
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
-                  width: compact ? 40 : 44,
-                  height: compact ? 40 : 44,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
@@ -4005,7 +4010,7 @@ class _MilkValueCell extends StatelessWidget {
             style: TextStyle(
               color: color,
               fontSize: compact ? 13 : (strong ? 16 : 15),
-              fontWeight: strong ? FontWeight.w900 : FontWeight.w800,
+              fontWeight: FontWeight.w700,
               letterSpacing: strong ? -.25 : 0,
             ),
           ),
@@ -4062,7 +4067,7 @@ class _MiniAction extends StatelessWidget {
                 style: TextStyle(
                   color: color,
                   fontSize: 12,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w700,
                   shadows: AppStyles.inkGlow(color),
                 ),
               ),
@@ -4106,7 +4111,7 @@ class _LedgerTableCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: dark ? const Color(0xFF12161D) : Colors.white,
-        borderRadius: BorderRadius.circular(25),
+        borderRadius: BorderRadius.circular(UIConstants.cardRadius),
         border: Border.all(
           color: dark ? Colors.white.withAlpha(18) : appleBlue.withAlpha(16),
         ),
@@ -4126,7 +4131,7 @@ class _LedgerTableCard extends StatelessWidget {
           return Column(
             children: <Widget>[
               Container(
-                constraints: const BoxConstraints(minHeight: 58),
+                constraints: const BoxConstraints(minHeight: 48),
                 padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14),
                 color:
                     dark ? Colors.white.withAlpha(7) : const Color(0xFFF9FBFE),
@@ -4145,7 +4150,7 @@ class _LedgerTableCard extends StatelessWidget {
                               color: appleBlue,
                               fontSize: compact ? 9.6 : 10.7,
                               height: 1,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w700,
                               letterSpacing: compact ? .15 : .55,
                             ),
                           ),
@@ -4157,7 +4162,7 @@ class _LedgerTableCard extends StatelessWidget {
               ),
               for (int rowIndex = 0; rowIndex < rows.length; rowIndex++)
                 Container(
-                  constraints: BoxConstraints(minHeight: compact ? 78 : 84),
+                  constraints: const BoxConstraints(minHeight: 72),
                   padding: EdgeInsets.symmetric(
                     horizontal: compact ? 10 : 14,
                     vertical: 10,
@@ -4181,7 +4186,6 @@ class _LedgerTableCard extends StatelessWidget {
                           child: _LedgerDeleteAction(
                             onTap: rows[rowIndex].onDelete,
                             semanticLabel: rows[rowIndex].semanticLabel,
-                            compact: compact,
                           ),
                         ),
                       ),
@@ -4200,17 +4204,15 @@ class _LedgerDeleteAction extends StatelessWidget {
   const _LedgerDeleteAction({
     required this.onTap,
     required this.semanticLabel,
-    required this.compact,
   });
 
   final VoidCallback onTap;
   final String semanticLabel;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-    final double size = compact ? 40 : 44;
+    const double size = UIConstants.minTapTarget;
     return _Pressable(
       onTap: onTap,
       semanticLabel: semanticLabel,
@@ -4273,7 +4275,7 @@ class _LedgerDateCell extends StatelessWidget {
           style: TextStyle(
             color: color,
             fontSize: 14,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w700,
           ),
         ),
       );
@@ -4291,7 +4293,7 @@ class _LedgerDateCell extends StatelessWidget {
                 color: color,
                 fontSize: 15,
                 height: 1,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 5),
@@ -4301,7 +4303,7 @@ class _LedgerDateCell extends StatelessWidget {
                 color: color,
                 fontSize: 12.5,
                 height: 1,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -4319,7 +4321,7 @@ class _LedgerDateCell extends StatelessWidget {
           style: TextStyle(
             color: color,
             fontSize: 14.5,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w700,
             letterSpacing: -.15,
           ),
         ),
@@ -4349,7 +4351,7 @@ class _LedgerAmountCell extends StatelessWidget {
             style: TextStyle(
               color: color,
               fontSize: 15.5,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w700,
               letterSpacing: -.25,
             ),
           ),
@@ -4384,7 +4386,7 @@ class _LedgerBadgeCell extends StatelessWidget {
               color: color,
               fontSize: 9.8,
               height: 1,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w700,
               letterSpacing: .2,
             ),
           ),
@@ -4417,7 +4419,7 @@ class _LedgerDetailCell extends StatelessWidget {
               style: TextStyle(
                 color: color,
                 fontSize: 13.5,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 5),
@@ -4457,7 +4459,7 @@ class _SalaryScreenState extends State<SalaryScreen> {
                 prefixIcon: Icon(Icons.person_rounded),
               ),
             ),
-            const SizedBox(height: 13),
+            const SizedBox(height: 12),
             TextField(
               controller: company,
               textCapitalization: TextCapitalization.words,
@@ -4466,7 +4468,7 @@ class _SalaryScreenState extends State<SalaryScreen> {
                 prefixIcon: Icon(Icons.business_rounded),
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 24),
             Row(
               children: <Widget>[
                 Expanded(
@@ -4566,14 +4568,14 @@ class _SalaryScreenState extends State<SalaryScreen> {
           child: ListView(
             key: const PageStorageKey<String>('salary-scroll'),
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
+            padding: UIConstants.screenPadding,
             children: <Widget>[
               _SearchBox(
                 hint: 'Search name…',
                 color: appleBlue,
                 onChanged: (String value) => setState(() => _query = value),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               if (names.isEmpty)
                 const _EmptyState(Icons.groups_rounded, 'No employees found')
               else
@@ -4637,7 +4639,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
         title: 'Add Salary Entry',
         children: <Widget>[
           _DateField(controller: date),
-          const SizedBox(height: 13),
+          const SizedBox(height: 12),
           TextField(
             controller: amount,
             autofocus: true,
@@ -4785,7 +4787,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                 Expanded(
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                    padding: UIConstants.screenPadding,
                     children: <Widget>[
                       _MonthYearPicker(
                         month: _month,
@@ -4801,7 +4803,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                         value: _signedMoney(signed),
                         color: color,
                       ),
-                      const SizedBox(height: 23),
+                      const SizedBox(height: 24),
                       _SectionTitle(
                         'Daily Entries',
                         color: appleBlue,
@@ -4932,7 +4934,7 @@ class _CreditScreenState extends State<CreditScreen> {
           title: 'Credit / Loan Entry',
           children: <Widget>[
             _DateField(controller: date),
-            const SizedBox(height: 13),
+            const SizedBox(height: 12),
             TextField(
               controller: name,
               readOnly: fixedName != null,
@@ -4942,7 +4944,7 @@ class _CreditScreenState extends State<CreditScreen> {
                 prefixIcon: Icon(Icons.person_rounded),
               ),
             ),
-            const SizedBox(height: 13),
+            const SizedBox(height: 12),
             TextField(
               controller: amount,
               autofocus: fixedName != null,
@@ -4956,7 +4958,7 @@ class _CreditScreenState extends State<CreditScreen> {
                 prefixText: '₹ ',
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 24),
             Row(
               children: <Widget>[
                 Expanded(
@@ -5055,7 +5057,7 @@ class _CreditScreenState extends State<CreditScreen> {
           child: ListView(
             key: const PageStorageKey<String>('credit-scroll'),
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
+            padding: UIConstants.screenPadding,
             children: <Widget>[
               _AmountHero(
                 label: net > 0
@@ -5066,12 +5068,12 @@ class _CreditScreenState extends State<CreditScreen> {
                 value: _signedMoney(net),
                 color: balanceColor,
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               _SearchBox(
                 hint: 'Search name…',
                 onChanged: (String value) => setState(() => _query = value),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               if (groups.isEmpty)
                 const _EmptyState(Icons.account_balance_wallet_rounded,
                     'No credit records found')
@@ -5126,7 +5128,7 @@ class CreditDetailScreen extends StatelessWidget {
           title: '$personName Credit Entry',
           children: <Widget>[
             _DateField(controller: date),
-            const SizedBox(height: 13),
+            const SizedBox(height: 12),
             TextField(
               controller: amount,
               autofocus: true,
@@ -5138,7 +5140,7 @@ class CreditDetailScreen extends StatelessWidget {
               decoration:
                   const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 24),
             Row(
               children: <Widget>[
                 Expanded(
@@ -5281,7 +5283,7 @@ class CreditDetailScreen extends StatelessWidget {
                 Expanded(
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                    padding: UIConstants.screenPadding,
                     children: <Widget>[
                       _AmountHero(
                         label: net > 0
@@ -5292,7 +5294,7 @@ class CreditDetailScreen extends StatelessWidget {
                         value: _signedMoney(net),
                         color: color,
                       ),
-                      const SizedBox(height: 23),
+                      const SizedBox(height: 24),
                       _SectionTitle(
                         'All Entries',
                         color: appleBlue,
@@ -5428,7 +5430,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         title: 'Add Expense',
         children: <Widget>[
           _DateField(controller: date),
-          const SizedBox(height: 13),
+          const SizedBox(height: 12),
           TextField(
             controller: category,
             readOnly: fixedCategory != null,
@@ -5438,7 +5440,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               prefixIcon: Icon(Icons.category_rounded),
             ),
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 12),
           TextField(
             controller: amount,
             autofocus: fixedCategory != null,
@@ -5542,14 +5544,14 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           child: ListView(
             key: const PageStorageKey<String>('expense-scroll'),
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+            padding: UIConstants.screenPadding,
             children: <Widget>[
               _AmountHero(
                 label: 'Month Expense',
                 value: _money(total),
                 color: moduleColor,
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 24),
               const _SectionTitle('Categories'),
               if (groups.isEmpty)
                 const _EmptyState(
@@ -5607,7 +5609,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
         title: '${widget.category} Expense',
         children: <Widget>[
           _DateField(controller: date),
-          const SizedBox(height: 13),
+          const SizedBox(height: 12),
           TextField(
             controller: amount,
             autofocus: true,
@@ -5748,7 +5750,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                 Expanded(
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
+                    padding: UIConstants.screenPadding,
                     children: <Widget>[
                       _MonthYearPicker(
                         month: _month,
@@ -5764,7 +5766,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                         value: '-${_money(total)}',
                         color: detailColor,
                       ),
-                      const SizedBox(height: 23),
+                      const SizedBox(height: 24),
                       _SectionTitle(
                         'Expense Entries',
                         color: appleBlue,
@@ -5856,7 +5858,7 @@ Future<void> _saveDiarySheet(
       title: existing == null ? 'New Diary Page' : 'Edit Page',
       children: <Widget>[
         _DateField(controller: date),
-        const SizedBox(height: 13),
+        const SizedBox(height: 12),
         TextField(
           controller: title,
           textCapitalization: TextCapitalization.sentences,
@@ -5865,7 +5867,7 @@ Future<void> _saveDiarySheet(
             prefixIcon: Icon(Icons.title_rounded),
           ),
         ),
-        const SizedBox(height: 13),
+        const SizedBox(height: 12),
         TextField(
           controller: content,
           autofocus: existing == null,
@@ -5975,14 +5977,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
           child: ListView(
             key: const PageStorageKey<String>('diary-scroll'),
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+            padding: UIConstants.screenPadding,
             children: <Widget>[
               _SearchBox(
                 hint: 'Search diary…',
                 color: diaryOrange,
                 onChanged: (String value) => setState(() => _query = value),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               if (entries.isEmpty)
                 const _EmptyState(
                   Icons.auto_stories_rounded,
@@ -6155,7 +6157,7 @@ class DiaryDetailScreen extends StatelessWidget {
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 34),
+                    padding: UIConstants.screenPadding,
                     child: _GlassCard(
                       borderColor: diaryOrange.withAlpha(65),
                       shadowColor: diaryOrange.withAlpha(35),
@@ -6172,7 +6174,7 @@ class DiaryDetailScreen extends StatelessWidget {
                               letterSpacing: 1,
                             ),
                           ),
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 16),
                           SelectableText(
                             '${current['content'] ?? ''}',
                             style: const TextStyle(
@@ -6348,13 +6350,13 @@ class _BusinessScreenState extends State<BusinessScreen> {
           child: ListView(
             key: const PageStorageKey<String>('business-scroll'),
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+            padding: UIConstants.screenPadding,
             children: <Widget>[
               _SearchBox(
                 hint: 'Search account…',
                 onChanged: (String value) => setState(() => _query = value),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               if (names.isEmpty)
                 const _EmptyState(Icons.business_center_rounded,
                     'No business khatas added yet')
@@ -6407,7 +6409,7 @@ class BusinessDetailScreen extends StatelessWidget {
           title: 'Business Entry',
           children: <Widget>[
             _DateField(controller: date),
-            const SizedBox(height: 13),
+            const SizedBox(height: 12),
             TextField(
               controller: title,
               textCapitalization: TextCapitalization.sentences,
@@ -6416,7 +6418,7 @@ class BusinessDetailScreen extends StatelessWidget {
                 prefixIcon: Icon(Icons.notes_rounded),
               ),
             ),
-            const SizedBox(height: 13),
+            const SizedBox(height: 12),
             TextField(
               controller: amount,
               autofocus: true,
@@ -6583,7 +6585,7 @@ class BusinessDetailScreen extends StatelessWidget {
                 Expanded(
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
+                    padding: UIConstants.screenPadding,
                     children: <Widget>[
                       if (totals.values.any((double value) => value > 0))
                         GridView.count(
@@ -6632,7 +6634,7 @@ class BusinessDetailScreen extends StatelessWidget {
                             );
                           }).toList(),
                         ),
-                      const SizedBox(height: 23),
+                      const SizedBox(height: 24),
                       _SectionTitle(
                         'All Entries',
                         color: appleBlue,
@@ -6808,7 +6810,7 @@ class _AiHubScreenState extends State<AiHubScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 13),
+            const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: model,
               decoration: const InputDecoration(labelText: 'Model'),
@@ -7452,7 +7454,7 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
             letterSpacing: 1.05,
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
@@ -7534,7 +7536,7 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
             ),
           ),
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 24),
         _scopePair(_exportScopes[0], _exportScopes[1]),
         const SizedBox(height: 12),
         _scopePair(_exportScopes[2], _exportScopes[3]),
