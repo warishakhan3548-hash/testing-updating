@@ -1,0 +1,54 @@
+name: Apply bottom navigation icon upgrade
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/nav_icon_upgrade.py"
+      - ".github/workflows/nav-icon-upgrade.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Apply guarded icon patch
+        run: python3 .github/nav_icon_upgrade.py
+
+      - name: Format patched Flutter source
+        run: dart format lib/main.dart
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test ledger invariants
+        run: flutter test
+
+      - name: Remove one-time migration files
+        run: rm .github/nav_icon_upgrade.py .github/workflows/nav-icon-upgrade.yml
+
+      - name: Commit verified icon upgrade
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A lib/main.dart .github/nav_icon_upgrade.py .github/workflows/nav-icon-upgrade.yml
+          git diff --cached --check
+          git commit -m "Replace bottom navigation icon designs [skip ci]"
+          git push origin HEAD:main
