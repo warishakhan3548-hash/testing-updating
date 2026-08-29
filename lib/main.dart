@@ -58,7 +58,7 @@ abstract final class UIConstants {
   static const EdgeInsets actionPadding = EdgeInsets.symmetric(horizontal: 20);
   static const EdgeInsets screenPadding = EdgeInsets.fromLTRB(20, 8, 20, 32);
 
-  static const Duration motion = Duration(milliseconds: 280);
+  static const Duration motion = Duration(milliseconds: 240);
 }
 
 abstract final class AppStyles {
@@ -278,7 +278,7 @@ class _AarishDiaryAppState extends State<AarishDiaryApp> {
         themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
         theme: _theme(Brightness.light),
         darkTheme: _theme(Brightness.dark),
-        themeAnimationDuration: const Duration(milliseconds: 420),
+        themeAnimationDuration: const Duration(milliseconds: 300),
         themeAnimationCurve: const Cubic(0.25, 1, 0.5, 1),
         builder: (BuildContext context, Widget? child) =>
             _AmbientBackground(child: child ?? const SizedBox.shrink()),
@@ -851,8 +851,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (_pageController.hasClients) {
       _pageController.animateToPage(
         index,
-        duration: const Duration(milliseconds: 300),
-        curve: const Cubic(0.32, 0.72, 0, 1),
+        duration: const Duration(milliseconds: 250),
+        curve: const Cubic(0.2, 0.82, 0.2, 1),
       );
     }
   }
@@ -869,8 +869,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (_navController.hasClients) {
       _navController.animateTo(
         math.min(target, _navController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 280),
-        curve: const Cubic(0.32, 0.72, 0, 1),
+        duration: const Duration(milliseconds: 235),
+        curve: const Cubic(0.2, 0.82, 0.2, 1),
       );
     }
   }
@@ -1576,8 +1576,8 @@ class _PressableState extends State<_Pressable>
     super.initState();
     _pressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 70),
-      reverseDuration: const Duration(milliseconds: 220),
+      duration: const Duration(milliseconds: 55),
+      reverseDuration: const Duration(milliseconds: 180),
     );
   }
 
@@ -1585,8 +1585,8 @@ class _PressableState extends State<_Pressable>
     if (widget.onTap == null) return;
     _pressController.animateTo(
       1,
-      duration: const Duration(milliseconds: 70),
-      curve: const Cubic(0.2, 0, 0, 1),
+      duration: const Duration(milliseconds: 55),
+      curve: const Cubic(0.18, 0.72, 0.2, 1),
     );
   }
 
@@ -1594,8 +1594,8 @@ class _PressableState extends State<_Pressable>
     if (widget.onTap == null) return;
     _pressController.animateBack(
       0,
-      duration: const Duration(milliseconds: 220),
-      curve: const Cubic(0.34, 1.18, 0.64, 1),
+      duration: const Duration(milliseconds: 180),
+      curve: const Cubic(0.2, 1.08, 0.3, 1),
     );
   }
 
@@ -1631,36 +1631,51 @@ class _PressableState extends State<_Pressable>
           child: AnimatedBuilder(
             animation: _pressController,
             child: widget.child,
-            builder: (BuildContext context, Widget? child) => Transform.scale(
-              scale: 1 - (_pressController.value * .022),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: <Widget>[
-                  child!,
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: ClipRRect(
-                        borderRadius: widget.borderRadius ?? BorderRadius.zero,
-                        child: ColoredBox(
-                          color:
-                              (Theme.of(context).brightness == Brightness.dark
-                                      ? Colors.white
-                                      : Colors.black)
-                                  .withAlpha(
-                            (_pressController.value *
-                                    (Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? 14
-                                        : 9))
-                                .round(),
+            builder: (BuildContext context, Widget? child) {
+              final bool dark = Theme.of(context).brightness == Brightness.dark;
+              final bool reduceMotion =
+                  MediaQuery.of(context).disableAnimations;
+              final double feedback = Curves.easeOutCubic.transform(
+                _pressController.value,
+              );
+              final double motion = reduceMotion ? 0 : feedback;
+              return Transform.translate(
+                offset: Offset(0, motion * 1.1),
+                child: Transform.scale(
+                  scale: 1 - (motion * .017),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: <Widget>[
+                      child!,
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: ClipRRect(
+                            borderRadius:
+                                widget.borderRadius ?? BorderRadius.zero,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: <Color>[
+                                    Colors.white.withAlpha(
+                                      (feedback * (dark ? 12 : 20)).round(),
+                                    ),
+                                    Colors.black.withAlpha(
+                                      (feedback * (dark ? 7 : 10)).round(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ),
       );
@@ -2927,8 +2942,8 @@ List<Color> _moduleTabColors(Map<String, dynamic> state) => <Color>[
     ];
 
 PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
-      transitionDuration: const Duration(milliseconds: 260),
-      reverseTransitionDuration: const Duration(milliseconds: 220),
+      transitionDuration: const Duration(milliseconds: 235),
+      reverseTransitionDuration: const Duration(milliseconds: 195),
       pageBuilder: (_, __, ___) => child,
       transitionsBuilder: (_, Animation<double> animation, __, Widget child) {
         final Animation<double> curved = CurvedAnimation(
@@ -2940,7 +2955,7 @@ PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
           opacity: curved,
           child: SlideTransition(
             position: Tween<Offset>(
-              begin: const Offset(.045, 0),
+              begin: const Offset(.032, 0),
               end: Offset.zero,
             ).animate(curved),
             child: child,
@@ -3044,9 +3059,11 @@ class DashboardScreen extends StatelessWidget {
           ],
         ),
         Expanded(
-          child: RefreshIndicator(
+          child: RefreshIndicator.adaptive(
             onRefresh: () async {
+              HapticFeedback.lightImpact();
               await sync.reconcile(reason: 'pull-to-refresh');
+              if (context.mounted) HapticFeedback.selectionClick();
             },
             child: ListView(
               key: const PageStorageKey<String>('dashboard-scroll'),
