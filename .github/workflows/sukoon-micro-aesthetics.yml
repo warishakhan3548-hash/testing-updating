@@ -1,0 +1,400 @@
+name: Apply Sukoon micro-aesthetics upgrade
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/sukoon-micro-aesthetics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply exact guarded Dart edits
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const branch = 'main';
+            const mainPath = 'lib/main.dart';
+            const workflowPath = '.github/workflows/sukoon-micro-aesthetics.yml';
+
+            const ref = await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
+            const baseSha = ref.data.object.sha;
+            const baseCommit = await github.rest.git.getCommit({ owner, repo, commit_sha: baseSha });
+            const file = await github.rest.repos.getContent({ owner, repo, path: mainPath, ref: baseSha });
+            if (Array.isArray(file.data) || file.data.type !== 'file') {
+              throw new Error('lib/main.dart was not returned as a file.');
+            }
+            let text = Buffer.from(file.data.content, 'base64').toString('utf8');
+
+            function replaceOnce(label, from, to) {
+              const first = text.indexOf(from);
+              if (first < 0) throw new Error(`Guard failed: ${label} source block not found.`);
+              if (text.indexOf(from, first + from.length) >= 0) {
+                throw new Error(`Guard failed: ${label} source block is not unique.`);
+              }
+              text = text.slice(0, first) + to + text.slice(first + from.length);
+            }
+
+            const oldDepth = `  static List<BoxShadow> surfaceDepth(BuildContext context) {
+                final bool dark = isDark(context);
+                return <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withAlpha(dark ? 56 : 12),
+                    blurRadius: 7,
+                    spreadRadius: -2,
+                    offset: const Offset(0, 2),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withAlpha(dark ? 66 : 15),
+                    blurRadius: dark ? 28 : 24,
+                    spreadRadius: -7,
+                    offset: const Offset(0, 9),
+                  ),
+                ];
+              }
+
+              static List<BoxShadow> glow(
+                BuildContext context,
+                Color color, {
+                bool strong = false,
+              }) {
+                final bool dark = isDark(context);
+                return <BoxShadow>[
+                  BoxShadow(
+                    color: color.withAlpha(
+                      strong ? (dark ? 60 : 42) : (dark ? 44 : 30),
+                    ),
+                    blurRadius: strong ? 28 : 22,
+                    spreadRadius: -5,
+                    offset: const Offset(0, 8),
+                  ),
+                  if (strong)
+                    BoxShadow(
+                      color: color.withAlpha(dark ? 28 : 20),
+                      blurRadius: 40,
+                      spreadRadius: -10,
+                      offset: const Offset(0, 16),
+                    ),
+                  ...surfaceDepth(context),
+                ];
+              }
+
+              static List<BoxShadow> railDepth(BuildContext context, Color color) {
+                final bool dark = isDark(context);
+                return <BoxShadow>[
+                  // A narrow side aura reinforces the semantic rail without drawing a box.
+                  BoxShadow(
+                    color: color.withAlpha(dark ? 62 : 44),
+                    blurRadius: 18,
+                    spreadRadius: -4,
+                    offset: const Offset(-3, 0),
+                  ),
+                  BoxShadow(
+                    color: color.withAlpha(dark ? 34 : 24),
+                    blurRadius: 30,
+                    spreadRadius: -8,
+                    offset: const Offset(0, 12),
+                  ),
+                  ...surfaceDepth(context),
+                ];
+              }
+
+              static List<BoxShadow> jewelDepth(BuildContext context, Color color) {
+                final bool dark = isDark(context);
+                return <BoxShadow>[
+                  BoxShadow(
+                    color: color.withAlpha(dark ? 56 : 40),
+                    blurRadius: 18,
+                    spreadRadius: -4,
+                    offset: const Offset(0, 6),
+                  ),
+                  BoxShadow(
+                    color: color.withAlpha(dark ? 28 : 20),
+                    blurRadius: 26,
+                    spreadRadius: -8,
+                    offset: Offset.zero,
+                  ),
+                ];
+              }
+
+              static Border glassBorder(BuildContext context, {Color? accent}) {
+                final bool dark = isDark(context);
+                return Border.all(
+                  color: Colors.white.withAlpha(dark ? 24 : 96),
+                  width: UIConstants.borderWidth,
+                );
+              }
+
+              static List<Shadow> inkGlow(Color color, {bool strong = false}) => <Shadow>[
+                    Shadow(
+                      color: color.withAlpha(strong ? 58 : 34),
+                      blurRadius: strong ? 7 : 4,
+                      offset: Offset.zero,
+                    ),
+                  ];`;
+
+            const newDepth = `  static List<BoxShadow> surfaceDepth(BuildContext context) {
+                final bool dark = isDark(context);
+                return <BoxShadow>[
+                  // Contact shadow: tiny and close, like ambient occlusion at the edge.
+                  BoxShadow(
+                    color: Colors.black.withAlpha(dark ? 38 : 9),
+                    blurRadius: 4,
+                    spreadRadius: -2.2,
+                    offset: const Offset(0, 1.2),
+                  ),
+                  // Mid-frequency ambient shadow gives readable lift without a dark ring.
+                  BoxShadow(
+                    color: Colors.black.withAlpha(dark ? 44 : 11),
+                    blurRadius: 18,
+                    spreadRadius: -6,
+                    offset: const Offset(0, 6),
+                  ),
+                  // Long soft falloff keeps the surface floating while staying calm.
+                  BoxShadow(
+                    color: Colors.black.withAlpha(dark ? 34 : 9),
+                    blurRadius: 44,
+                    spreadRadius: -12,
+                    offset: const Offset(0, 18),
+                  ),
+                ];
+              }
+
+              static List<BoxShadow> glow(
+                BuildContext context,
+                Color color, {
+                bool strong = false,
+              }) {
+                final bool dark = isDark(context);
+                return <BoxShadow>[
+                  // Environmental color spill, deliberately softer than the neutral depth.
+                  BoxShadow(
+                    color: color.withAlpha(
+                      strong ? (dark ? 38 : 24) : (dark ? 28 : 17),
+                    ),
+                    blurRadius: strong ? 34 : 26,
+                    spreadRadius: strong ? -8 : -7,
+                    offset: Offset(0, strong ? 10 : 8),
+                  ),
+                  if (strong)
+                    BoxShadow(
+                      color: color.withAlpha(dark ? 17 : 10),
+                      blurRadius: 58,
+                      spreadRadius: -18,
+                      offset: const Offset(0, 22),
+                    ),
+                  ...surfaceDepth(context),
+                ];
+              }
+
+              static List<BoxShadow> railDepth(BuildContext context, Color color) {
+                final bool dark = isDark(context);
+                return <BoxShadow>[
+                  BoxShadow(
+                    color: color.withAlpha(dark ? 34 : 22),
+                    blurRadius: 22,
+                    spreadRadius: -6,
+                    offset: const Offset(-2, 1),
+                  ),
+                  BoxShadow(
+                    color: color.withAlpha(dark ? 19 : 12),
+                    blurRadius: 42,
+                    spreadRadius: -12,
+                    offset: const Offset(0, 14),
+                  ),
+                  ...surfaceDepth(context),
+                ];
+              }
+
+              static List<BoxShadow> jewelDepth(BuildContext context, Color color) {
+                final bool dark = isDark(context);
+                return <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withAlpha(dark ? 30 : 7),
+                    blurRadius: 4,
+                    spreadRadius: -2,
+                    offset: const Offset(0, 1),
+                  ),
+                  BoxShadow(
+                    color: color.withAlpha(dark ? 31 : 20),
+                    blurRadius: 18,
+                    spreadRadius: -6,
+                    offset: const Offset(0, 6),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withAlpha(dark ? 28 : 7),
+                    blurRadius: 30,
+                    spreadRadius: -10,
+                    offset: const Offset(0, 12),
+                  ),
+                ];
+              }
+
+              static Border glassBorder(BuildContext context, {Color? accent}) {
+                final bool dark = isDark(context);
+                final Color neutral =
+                    Colors.white.withAlpha(dark ? 28 : 92);
+                final Color resolved = accent == null
+                    ? neutral
+                    : Color.alphaBlend(
+                        accent.withAlpha(dark ? 18 : 12),
+                        neutral,
+                      );
+                return Border.all(
+                  color: resolved,
+                  width: UIConstants.borderWidth,
+                );
+              }
+
+              static List<Shadow> inkGlow(Color color, {bool strong = false}) => <Shadow>[
+                    Shadow(
+                      color: color.withAlpha(strong ? 46 : 24),
+                      blurRadius: strong ? 8 : 5,
+                      offset: Offset.zero,
+                    ),
+                  ];`;
+
+            replaceOnce('central depth physics', oldDepth, newDepth);
+
+            replaceOnce(
+              'share button shadow',
+              `          boxShadow: dark
+                          ? const <BoxShadow>[]
+                          : <BoxShadow>[
+                              BoxShadow(
+                                color: color.withAlpha(15),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],`,
+              `          boxShadow: AppStyles.jewelDepth(context, color),`
+            );
+
+            replaceOnce(
+              'share icon optical sizing',
+              `            Icon(
+                          icon,
+                          color: color,
+                          size: micro ? 18 : 20,
+                        ),`,
+              `            Icon(
+                          icon,
+                          color: color,
+                          size: micro ? 19 : 21.5,
+                          shadows: AppStyles.inkGlow(color),
+                        ),`
+            );
+
+            replaceOnce(
+              'primary button icon optical sizing',
+              `              Icon(
+                            icon,
+                            color: foregroundColor,
+                            size: compact ? 18 : 20,
+                            shadows: AppStyles.inkGlow(foregroundColor),
+                          ),`,
+              `              Icon(
+                            icon,
+                            color: foregroundColor,
+                            size: compact ? 19.5 : 21.5,
+                            shadows: AppStyles.inkGlow(foregroundColor),
+                          ),`
+            );
+
+            const oldDelete = 'Icons.delete_rounded';
+            const deleteCount = text.split(oldDelete).length - 1;
+            if (deleteCount < 5) {
+              throw new Error(`Guard failed: expected multiple delete icons, found ${deleteCount}.`);
+            }
+            text = text.split(oldDelete).join('Icons.delete_outline_rounded');
+
+            const redDeleteShadow = /boxShadow: dark\s*\? const <BoxShadow>\[\]\s*:\s*<BoxShadow>\[\s*BoxShadow\(\s*color: appleRed\.withAlpha\(22\),\s*blurRadius: 16,\s*offset: const Offset\(0, 7\),\s*\),\s*\],/g;
+            const redShadowMatches = text.match(redDeleteShadow) ?? [];
+            if (redShadowMatches.length < 2) {
+              throw new Error(`Guard failed: expected at least two compact destructive shadows, found ${redShadowMatches.length}.`);
+            }
+            text = text.replace(redDeleteShadow, 'boxShadow: AppStyles.jewelDepth(context, appleRed),');
+
+            text = text.replace(
+              /(Icons\.delete_outline_rounded,\n\s+color: appleRed,\n\s+size:) 17,/g,
+              '$1 18.5,'
+            );
+            text = text.replace(
+              /(Icons\.delete_outline_rounded,\n\s+color: appleRed,\n\s+size:) 19,/g,
+              '$1 20,'
+            );
+
+            replaceOnce(
+              'glass top specular highlight',
+              'Colors.white.withAlpha(dark ? 76 : 210)',
+              'Colors.white.withAlpha(dark ? 64 : 176)'
+            );
+            replaceOnce(
+              'glass bottom lowlight',
+              'Colors.black.withAlpha(dark ? 64 : 16)',
+              'Colors.black.withAlpha(dark ? 48 : 10)'
+            );
+
+            if (!text.includes("import 'firebase_sync.dart';")) {
+              throw new Error('Safety invariant failed: firebase_sync import changed.');
+            }
+            if (!text.includes('Firebase.initializeApp(')) {
+              throw new Error('Safety invariant failed: Firebase initialization changed.');
+            }
+            if (!text.includes('final List<Color> colors = _moduleTabColors(sync.state);')) {
+              throw new Error('Safety invariant failed: dynamic semantic navigation colors changed.');
+            }
+            if (!text.includes('Icons.ios_share_rounded')) {
+              throw new Error('Safety invariant failed: premium iOS-style share icon disappeared.');
+            }
+            if (text.includes('Icons.delete_rounded')) {
+              throw new Error('Safety invariant failed: old heavy delete glyph still exists.');
+            }
+
+            const blob = await github.rest.git.createBlob({
+              owner,
+              repo,
+              content: text,
+              encoding: 'utf-8',
+            });
+            const tree = await github.rest.git.createTree({
+              owner,
+              repo,
+              base_tree: baseCommit.data.tree.sha,
+              tree: [
+                {
+                  path: mainPath,
+                  mode: '100644',
+                  type: 'blob',
+                  sha: blob.data.sha,
+                },
+                {
+                  path: workflowPath,
+                  mode: '100644',
+                  type: 'blob',
+                  sha: null,
+                },
+              ],
+            });
+            const commit = await github.rest.git.createCommit({
+              owner,
+              repo,
+              message: 'Upgrade micro-aesthetics and 3D surface physics',
+              tree: tree.data.sha,
+              parents: [baseSha],
+            });
+            await github.rest.git.updateRef({
+              owner,
+              repo,
+              ref: `heads/${branch}`,
+              sha: commit.data.sha,
+            });
+            core.notice(`Applied premium UI micro-aesthetics commit ${commit.data.sha}`);
