@@ -26,14 +26,17 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Normalize Flutter text direction reference
+        run: sed -i 's/textDirection: TextDirection.ltr/textDirection: ui.TextDirection.ltr/' .github/nav_icon_upgrade.py
+
       - name: Apply guarded icon patch
         run: python3 .github/nav_icon_upgrade.py
 
-      - name: Format patched Flutter source
-        run: dart format lib/main.dart
-
       - name: Resolve packages
         run: flutter pub get
+
+      - name: Format patched Flutter source
+        run: dart format lib/main.dart
 
       - name: Analyze
         run: flutter analyze
