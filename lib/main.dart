@@ -2928,7 +2928,7 @@ class _MilkScreenState extends State<MilkScreen> {
             Row(
               children: <Widget>[
                 Expanded(
-                  child: _MilkCustomerRoleButton(
+                  child: _TransactionPairButton(
                     label: 'Seller',
                     icon: Icons.add_rounded,
                     color: appleGreen,
@@ -2941,7 +2941,7 @@ class _MilkScreenState extends State<MilkScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _MilkCustomerRoleButton(
+                  child: _TransactionPairButton(
                     label: 'Buyer',
                     icon: Icons.remove_rounded,
                     color: appleRed,
@@ -3071,90 +3071,140 @@ class _MilkScreenState extends State<MilkScreen> {
   }
 }
 
-class _MilkCustomerRoleButton extends StatelessWidget {
-  const _MilkCustomerRoleButton({
+class _TransactionPairButton extends StatelessWidget {
+  const _TransactionPairButton({
     required this.label,
     required this.icon,
     required this.color,
-    required this.semanticLabel,
     required this.onTap,
+    this.semanticLabel,
   });
 
   final String label;
   final IconData icon;
   final Color color;
-  final String semanticLabel;
   final VoidCallback onTap;
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     final Color companion = Color.lerp(color, Colors.black, .10)!;
+    final bool negative = icon == Icons.remove_rounded;
+
     return _Pressable(
       onTap: onTap,
-      semanticLabel: semanticLabel,
+      semanticLabel: semanticLabel ?? label,
       borderRadius: BorderRadius.circular(UIConstants.actionRadius),
-      child: Container(
-        constraints: const BoxConstraints(
-          minHeight: 56,
-          minWidth: UIConstants.minTapTarget,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: <Color>[color, companion],
-          ),
-          borderRadius: BorderRadius.circular(UIConstants.actionRadius),
-          border: Border.all(
-            color: dark ? Colors.white.withAlpha(34) : color.withAlpha(95),
-            width: .8,
-          ),
-          boxShadow: dark
-              ? const <BoxShadow>[]
-              : <BoxShadow>[
-                  BoxShadow(
-                    color: color.withAlpha(50),
-                    blurRadius: 28,
-                    spreadRadius: 1,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(
-              icon,
-              color: Colors.white,
-              size: 27,
-              shadows: const <Shadow>[
-                Shadow(color: Colors.black26, blurRadius: 8),
-              ],
+      child: SizedBox(
+        width: double.infinity,
+        height: UIConstants.standardButtonHeight,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[color, companion],
             ),
-            const SizedBox(width: 9),
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -.2,
-                    shadows: <Shadow>[
-                      Shadow(color: Colors.black26, blurRadius: 8),
-                    ],
+            borderRadius: BorderRadius.circular(UIConstants.actionRadius),
+            border: Border.all(
+              color: dark ? Colors.white.withAlpha(34) : color.withAlpha(95),
+              width: .8,
+            ),
+            boxShadow: dark
+                ? const <BoxShadow>[]
+                : <BoxShadow>[
+                    BoxShadow(
+                      color: color.withAlpha(50),
+                      blurRadius: 28,
+                      spreadRadius: 1,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.max,
+              children: <Widget>[
+                _TransactionPolarityGlyph(
+                  negative: negative,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16.5,
+                        height: 1,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -.2,
+                        shadows: <Shadow>[
+                          Shadow(color: Colors.black26, blurRadius: 8),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionPolarityGlyph extends StatelessWidget {
+  const _TransactionPolarityGlyph({
+    required this.negative,
+    required this.color,
+  });
+
+  final bool negative;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    const double lineLength = 20;
+    const double stroke = 2.6;
+    final BorderRadius round = BorderRadius.circular(99);
+
+    return SizedBox.square(
+      dimension: 26,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          Container(
+            width: lineLength,
+            height: stroke,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: round,
+              boxShadow: const <BoxShadow>[
+                BoxShadow(color: Colors.black26, blurRadius: 6),
+              ],
+            ),
+          ),
+          if (!negative)
+            Container(
+              width: stroke,
+              height: lineLength,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: round,
+                boxShadow: const <BoxShadow>[
+                  BoxShadow(color: Colors.black26, blurRadius: 6),
+                ],
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -3221,7 +3271,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
             Row(
               children: <Widget>[
                 Expanded(
-                  child: _MilkCustomerRoleButton(
+                  child: _TransactionPairButton(
                     label: 'Given',
                     icon: Icons.add_rounded,
                     color: appleGreen,
@@ -3234,7 +3284,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _MilkCustomerRoleButton(
+                  child: _TransactionPairButton(
                     label: 'Taken',
                     icon: Icons.remove_rounded,
                     color: appleRed,
@@ -4466,7 +4516,7 @@ class _SalaryScreenState extends State<SalaryScreen> {
             Row(
               children: <Widget>[
                 Expanded(
-                  child: _MilkCustomerRoleButton(
+                  child: _TransactionPairButton(
                     label: 'Receives',
                     icon: Icons.add_rounded,
                     color: salaryGreen,
@@ -4479,7 +4529,7 @@ class _SalaryScreenState extends State<SalaryScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _MilkCustomerRoleButton(
+                  child: _TransactionPairButton(
                     label: 'Pays',
                     icon: Icons.remove_rounded,
                     color: appleRed,
@@ -4956,7 +5006,7 @@ class _CreditScreenState extends State<CreditScreen> {
             Row(
               children: <Widget>[
                 Expanded(
-                  child: _PrimaryButton(
+                  child: _TransactionPairButton(
                     label: 'Given',
                     icon: Icons.add_rounded,
                     color: appleGreen,
@@ -4968,7 +5018,7 @@ class _CreditScreenState extends State<CreditScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _PrimaryButton(
+                  child: _TransactionPairButton(
                     label: 'Taken',
                     icon: Icons.remove_rounded,
                     color: appleRed,
@@ -5138,7 +5188,7 @@ class CreditDetailScreen extends StatelessWidget {
             Row(
               children: <Widget>[
                 Expanded(
-                  child: _MilkCustomerRoleButton(
+                  child: _TransactionPairButton(
                     label: 'Given',
                     icon: Icons.add_rounded,
                     color: appleGreen,
@@ -5151,7 +5201,7 @@ class CreditDetailScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _MilkCustomerRoleButton(
+                  child: _TransactionPairButton(
                     label: 'Taken',
                     icon: Icons.remove_rounded,
                     color: appleRed,
