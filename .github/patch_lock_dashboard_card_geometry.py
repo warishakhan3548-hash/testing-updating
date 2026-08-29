@@ -11,22 +11,5 @@ if src.count(old) != 1:
     raise SystemExit(f'Dashboard adaptive grid block count={src.count(old)}')
 src = src.replace(old, new, 1)
 
-old_metric = '''  @override\n  Widget build(BuildContext context) => _GlassCard(\n        padding: UIConstants.compactCardPadding,'''
-new_metric = '''  @override\n  Widget build(BuildContext context) => SizedBox.expand(\n        child: _GlassCard(\n          padding: UIConstants.compactCardPadding,'''
-if src.count(old_metric) != 1:
-    raise SystemExit(f'_MetricCard build start count={src.count(old_metric)}')
-src = src.replace(old_metric, new_metric, 1)
-
-old_end = '''          ],\n        ),\n      );\n}\n\nclass _LedgerIcon extends StatelessWidget {'''
-new_end = '''          ],\n        ),\n      ),\n    );\n}\n\nclass _LedgerIcon extends StatelessWidget {'''
-# Restrict replacement to the first exact block after class _MetricCard.
-metric_pos = src.index('class _MetricCard')
-ledger_pos = src.index('class _LedgerIcon', metric_pos)
-segment = src[metric_pos:ledger_pos]
-if old_end not in segment:
-    raise SystemExit('_MetricCard build end pattern not found')
-segment = segment.replace(old_end, new_end, 1)
-src = src[:metric_pos] + segment + src[ledger_pos:]
-
 path.write_text(src, encoding='utf-8')
 print('PATCH_OK dashboard cards now use explicit locked width/height independent of amount')
