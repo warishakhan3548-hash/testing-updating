@@ -75,3 +75,5 @@ jobs:
         with:
           commit_message: Replace bottom module icons only [skip ci]
           file_pattern: lib/main.dart
+
+# rerun after qualified TextDirection fix
