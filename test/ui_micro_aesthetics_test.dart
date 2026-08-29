@@ -33,3 +33,4 @@ void main() {
 
 // This source guard intentionally lives in test/ so every future UI edit rechecks
 // the premium depth/icon invariants together with the app's normal Flutter CI.
+// Final verification trigger after project-aware Dart formatting.
