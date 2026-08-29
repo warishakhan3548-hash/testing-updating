@@ -1,16 +1,8 @@
 diff --git a/lib/main.dart b/lib/main.dart
-index 690a766..2622053 100644
+index 690a766..6d2dab3 100644
 --- a/lib/main.dart
 +++ b/lib/main.dart
-@@ -1,6 +1,7 @@
- import 'dart:async';
- import 'dart:convert';
- import 'dart:math' as math;
-+import 'dart:ui' show FontFeature;
- 
- import 'package:firebase_auth/firebase_auth.dart';
- import 'package:firebase_core/firebase_core.dart';
-@@ -59,6 +60,10 @@ abstract final class UIConstants {
+@@ -59,6 +59,10 @@ abstract final class UIConstants {
  }
  
  abstract final class AppStyles {
@@ -21,7 +13,7 @@ index 690a766..2622053 100644
    static bool isDark(BuildContext context) =>
        Theme.of(context).brightness == Brightness.dark;
  
-@@ -1552,13 +1557,13 @@ class _CircleAction extends StatelessWidget {
+@@ -1552,13 +1556,13 @@ class _CircleAction extends StatelessWidget {
          child: _Pressable(
            onTap: onTap,
            semanticLabel: semanticLabel,
@@ -37,7 +29,7 @@ index 690a766..2622053 100644
                border: Border.fromBorderSide(
                  AppStyles.hairline(context, accent: color, active: true),
                ),
-@@ -1836,10 +1841,10 @@ class _PrimaryButton extends StatelessWidget {
+@@ -1836,10 +1840,10 @@ class _PrimaryButton extends StatelessWidget {
                Icon(
                  icon,
                  color: foregroundColor,
@@ -50,7 +42,7 @@ index 690a766..2622053 100644
                Text(
                  label,
                  style: TextStyle(
-@@ -1948,6 +1953,7 @@ class _HeroValue extends StatelessWidget {
+@@ -1948,6 +1952,7 @@ class _HeroValue extends StatelessWidget {
                color: color,
                fontSize: 32,
                fontWeight: FontWeight.w700,
@@ -58,7 +50,7 @@ index 690a766..2622053 100644
                letterSpacing: -.8,
                shadows: <Shadow>[
                  Shadow(color: glow.withAlpha(94), blurRadius: 16),
-@@ -2061,6 +2067,7 @@ class _ListCard extends StatelessWidget {
+@@ -2061,6 +2066,7 @@ class _ListCard extends StatelessWidget {
                        color: color,
                        fontSize: 16,
                        fontWeight: FontWeight.w700,
@@ -66,7 +58,7 @@ index 690a766..2622053 100644
                        shadows: AppStyles.inkGlow(color),
                      ),
                    ),
-@@ -2349,7 +2356,10 @@ Future<bool> _confirm(
+@@ -2349,7 +2355,10 @@ Future<bool> _confirm(
            child: const Text('Cancel'),
          ),
          TextButton(
@@ -78,23 +70,23 @@ index 690a766..2622053 100644
            child: Text(
              dangerous ? 'Delete' : 'Continue',
              style: TextStyle(color: dangerous ? appleRed : appleBlue),
-@@ -2362,6 +2372,7 @@ Future<bool> _confirm(
+@@ -2362,6 +2371,7 @@ Future<bool> _confirm(
  }
  
  void _toast(BuildContext context, String message, {bool error = false}) {
-+  if (error) HapticFeedback.vibrate();
++  if (error) HapticFeedback.errorNotification();
    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
    messenger.hideCurrentSnackBar();
    messenger.showSnackBar(
-@@ -2389,6 +2400,7 @@ Future<void> _runMutation(
+@@ -2389,6 +2399,7 @@ Future<void> _runMutation(
  ) async {
    try {
      await mutation();
-+    HapticFeedback.lightImpact();
++    HapticFeedback.successNotification();
      if (context.mounted) _toast(context, success);
    } catch (error) {
      if (context.mounted) _toast(context, '$error', error: true);
-@@ -2814,6 +2826,7 @@ class _MetricCard extends StatelessWidget {
+@@ -2814,6 +2825,7 @@ class _MetricCard extends StatelessWidget {
                    color: color,
                    fontSize: 24,
                    fontWeight: FontWeight.w700,
@@ -102,7 +94,7 @@ index 690a766..2622053 100644
                    letterSpacing: -.7,
                    shadows: AppStyles.inkGlow(color, strong: true),
                  ),
-@@ -3676,6 +3689,7 @@ class _MilkDetailHero extends StatelessWidget {
+@@ -3676,6 +3688,7 @@ class _MilkDetailHero extends StatelessWidget {
                            fontSize: compact ? 34 : 39,
                            height: 1,
                            fontWeight: FontWeight.w900,
@@ -110,7 +102,7 @@ index 690a766..2622053 100644
                            letterSpacing: -1.4,
                          ),
                        ),
-@@ -3717,6 +3731,7 @@ class _MilkDetailHero extends StatelessWidget {
+@@ -3717,6 +3730,7 @@ class _MilkDetailHero extends StatelessWidget {
                            color: color,
                            fontSize: compact ? 20 : 23,
                            fontWeight: FontWeight.w900,
@@ -118,7 +110,7 @@ index 690a766..2622053 100644
                            letterSpacing: -.45,
                          ),
                        ),
-@@ -3792,9 +3807,9 @@ class _SoftShareButton extends StatelessWidget {
+@@ -3792,9 +3806,9 @@ class _SoftShareButton extends StatelessWidget {
              Icon(
                icon,
                color: color,
@@ -130,7 +122,7 @@ index 690a766..2622053 100644
              Flexible(
                child: FittedBox(
                  fit: BoxFit.scaleDown,
-@@ -4121,6 +4136,7 @@ class _MilkValueCell extends StatelessWidget {
+@@ -4121,6 +4135,7 @@ class _MilkValueCell extends StatelessWidget {
                color: color,
                fontSize: compact ? 13 : (strong ? 16 : 15),
                fontWeight: FontWeight.w700,
@@ -138,7 +130,7 @@ index 690a766..2622053 100644
                letterSpacing: strong ? -.25 : 0,
              ),
            ),
-@@ -4462,6 +4478,7 @@ class _LedgerAmountCell extends StatelessWidget {
+@@ -4462,6 +4477,7 @@ class _LedgerAmountCell extends StatelessWidget {
                color: color,
                fontSize: 15.5,
                fontWeight: FontWeight.w700,
@@ -146,7 +138,7 @@ index 690a766..2622053 100644
                letterSpacing: -.25,
              ),
            ),
-@@ -6554,6 +6571,8 @@ class BusinessDetailScreen extends StatelessWidget {
+@@ -6554,6 +6570,8 @@ class BusinessDetailScreen extends StatelessWidget {
                        avatar: Icon(entry.value.icon,
                            size: 16, color: entry.value.color),
                        selectedColor: entry.value.color.withAlpha(45),
@@ -155,7 +147,7 @@ index 690a766..2622053 100644
                        side: BorderSide(color: entry.value.color.withAlpha(70)),
                        onSelected: (_) {
                          HapticFeedback.selectionClick();
-@@ -6739,6 +6758,7 @@ class BusinessDetailScreen extends StatelessWidget {
+@@ -6739,6 +6757,7 @@ class BusinessDetailScreen extends StatelessWidget {
                                        color: tone.color,
                                        fontSize: 19,
                                        fontWeight: FontWeight.w900,
@@ -163,7 +155,7 @@ index 690a766..2622053 100644
                                      ),
                                    ),
                                  ],
-@@ -7615,7 +7635,7 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
+@@ -7615,7 +7634,7 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
                      child: _formatButton(
                        _ExportFormat.aiLedger,
                        'AI Ledger',
@@ -172,7 +164,7 @@ index 690a766..2622053 100644
                        const <Color>[
                          Color(0xFF9A67EA),
                          Color(0xFF7057D9),
-@@ -7713,9 +7733,9 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
+@@ -7713,9 +7732,9 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
              Icon(
                icon,
                color: selected ? Colors.white : idleColor,
@@ -184,7 +176,7 @@ index 690a766..2622053 100644
              Flexible(
                child: Text(
                  label,
-@@ -7779,8 +7799,8 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
+@@ -7779,8 +7798,8 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
          child: Row(
            mainAxisAlignment: MainAxisAlignment.center,
            children: <Widget>[
