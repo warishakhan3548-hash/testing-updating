@@ -1083,8 +1083,8 @@ class _BottomLedgerNav extends StatelessWidget {
       decoration: BoxDecoration(
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Colors.black.withAlpha(dark ? 104 : 14),
-            blurRadius: dark ? 40 : 32,
+            color: Colors.black.withAlpha(dark ? 108 : 16),
+            blurRadius: dark ? 42 : 34,
             spreadRadius: -12,
             offset: const Offset(0, -10),
           ),
@@ -1092,22 +1092,29 @@ class _BottomLedgerNav extends StatelessWidget {
       ),
       child: ClipRect(
         child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          filter: ui.ImageFilter.blur(sigmaX: 22, sigmaY: 22),
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: dark
-                    ? const <Color>[Color(0xD9121928), Color(0xC9080D18)]
-                    : const <Color>[Color(0xE9FFFFFF), Color(0xD8FFFFFF)],
+                    ? const <Color>[Color(0xE0121928), Color(0xD0080D18)]
+                    : const <Color>[Color(0xF3FFFFFF), Color(0xE4FFFFFF)],
               ),
-              boxShadow: const <BoxShadow>[],
+              border: Border(
+                top: BorderSide(
+                  color: dark
+                      ? Colors.white.withAlpha(22)
+                      : Colors.white.withAlpha(210),
+                  width: .8,
+                ),
+              ),
             ),
             child: SafeArea(
               top: false,
               child: SizedBox(
-                height: 80,
+                height: 88,
                 child: SingleChildScrollView(
                   controller: controller,
                   scrollDirection: Axis.horizontal,
@@ -1127,14 +1134,14 @@ class _BottomLedgerNav extends StatelessWidget {
                               BorderRadius.circular(UIConstants.actionRadius),
                           child: AnimatedSlide(
                             offset:
-                                active ? const Offset(0, -.035) : Offset.zero,
+                                active ? const Offset(0, -.025) : Offset.zero,
                             duration: UIConstants.motion,
                             curve: const Cubic(0.32, 0.72, 0, 1),
                             child: AnimatedContainer(
                               duration: UIConstants.motion,
                               curve: const Cubic(0.32, 0.72, 0, 1),
-                              width: 80,
-                              height: 64,
+                              width: 84,
+                              height: 70,
                               margin: const EdgeInsets.symmetric(horizontal: 4),
                               decoration: const BoxDecoration(
                                 color: Colors.transparent,
@@ -1143,50 +1150,58 @@ class _BottomLedgerNav extends StatelessWidget {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: <Widget>[
                                   AnimatedScale(
-                                    scale: active ? 1.08 : 1,
+                                    scale: active ? 1.045 : 1,
                                     duration: UIConstants.motion,
                                     curve: const Cubic(0.34, 1.18, 0.64, 1),
-                                    child: _BottomNavGlyph(
-                                      label: spec.label,
-                                      size: active ? 24 : 22,
-                                      color: active
-                                          ? color
-                                          : color.withAlpha(dark ? 148 : 145),
+                                    child: _PremiumNavIconFrame(
+                                      color: color,
                                       active: active,
                                       dark: dark,
+                                      child: _BottomNavGlyph(
+                                        label: spec.label,
+                                        size: active ? 30 : 27.5,
+                                        color: active
+                                            ? color
+                                            : color.withAlpha(dark ? 164 : 160),
+                                        active: active,
+                                        dark: dark,
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    spec.label,
+                                  const SizedBox(height: 3),
+                                  AnimatedDefaultTextStyle(
+                                    duration: UIConstants.motion,
+                                    curve: const Cubic(0.32, 0.72, 0, 1),
                                     style: TextStyle(
                                       color: active
                                           ? color
-                                          : color.withAlpha(dark ? 170 : 182),
-                                      fontSize: 12,
+                                          : color.withAlpha(dark ? 176 : 188),
+                                      fontSize: active ? 12.5 : 12,
                                       fontWeight: active
                                           ? FontWeight.w800
                                           : FontWeight.w600,
+                                      letterSpacing: active ? -.12 : 0,
                                       shadows: active
                                           ? AppStyles.inkGlow(color)
                                           : null,
                                     ),
+                                    child: Text(spec.label),
                                   ),
                                   const SizedBox(height: 4),
                                   AnimatedContainer(
                                     duration: UIConstants.motion,
                                     curve: const Cubic(0.32, 0.72, 0, 1),
-                                    width: active ? 34 : 0,
-                                    height: 3,
+                                    width: active ? 24 : 0,
+                                    height: 2.5,
                                     decoration: BoxDecoration(
-                                      color:
-                                          appleBlue.withAlpha(active ? 96 : 0),
+                                      color: color.withAlpha(active ? 188 : 0),
                                       borderRadius: BorderRadius.circular(99),
                                       boxShadow: active
                                           ? <BoxShadow>[
                                               BoxShadow(
-                                                color: appleBlue.withAlpha(72),
-                                                blurRadius: 12,
+                                                color: color.withAlpha(82),
+                                                blurRadius: 11,
+                                                spreadRadius: -2,
                                                 offset: Offset.zero,
                                               ),
                                             ]
@@ -1211,6 +1226,62 @@ class _BottomLedgerNav extends StatelessWidget {
   }
 }
 
+// PREMIUM_NAV_V2
+class _PremiumNavIconFrame extends StatelessWidget {
+  const _PremiumNavIconFrame({
+    required this.color,
+    required this.active,
+    required this.dark,
+    required this.child,
+  });
+
+  final Color color;
+  final bool active;
+  final bool dark;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => AnimatedContainer(
+        duration: UIConstants.motion,
+        curve: const Cubic(0.32, 0.72, 0, 1),
+        width: active ? 46 : 39,
+        height: active ? 39 : 35,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(active ? 15 : 13),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[
+              color.withAlpha(active ? (dark ? 34 : 26) : (dark ? 16 : 11)),
+              color.withAlpha(active ? (dark ? 14 : 9) : 0),
+            ],
+          ),
+          border: Border.all(
+            color:
+                color.withAlpha(active ? (dark ? 70 : 54) : (dark ? 24 : 18)),
+            width: active ? .9 : .7,
+          ),
+          boxShadow: active
+              ? <BoxShadow>[
+                  BoxShadow(
+                    color: color.withAlpha(dark ? 48 : 34),
+                    blurRadius: 16,
+                    spreadRadius: -5,
+                    offset: const Offset(0, 5),
+                  ),
+                  BoxShadow(
+                    color: Colors.white.withAlpha(dark ? 12 : 88),
+                    blurRadius: 1,
+                    offset: const Offset(0, -1),
+                  ),
+                ]
+              : null,
+        ),
+        child: child,
+      );
+}
+
 enum _BottomNavGlyphKind { milk, credit, salary }
 
 class _BottomNavGlyph extends StatelessWidget {
@@ -1229,11 +1300,17 @@ class _BottomNavGlyph extends StatelessWidget {
   final bool dark;
 
   List<Shadow> get _shadows => active
-      ? AppStyles.inkGlow(color, strong: true)
+      ? <Shadow>[
+          Shadow(
+            color: color.withAlpha(dark ? 86 : 62),
+            blurRadius: 8,
+            offset: Offset.zero,
+          ),
+        ]
       : <Shadow>[
           Shadow(
-            color: color.withAlpha(dark ? 48 : 34),
-            blurRadius: 7,
+            color: color.withAlpha(dark ? 40 : 28),
+            blurRadius: 5,
           ),
         ];
 
@@ -1242,28 +1319,28 @@ class _BottomNavGlyph extends StatelessWidget {
     switch (label) {
       case 'Home':
         return Icon(
-          Icons.home_rounded,
+          active ? Icons.home_rounded : Icons.home_outlined,
           size: size,
           color: color,
           shadows: _shadows,
         );
       case 'Expenses':
         return Icon(
-          Icons.receipt_long_rounded,
+          active ? Icons.receipt_long_rounded : Icons.receipt_long_outlined,
           size: size,
           color: color,
           shadows: _shadows,
         );
       case 'Diary':
         return Icon(
-          Icons.book_rounded,
+          active ? Icons.menu_book_rounded : Icons.menu_book_outlined,
           size: size,
           color: color,
           shadows: _shadows,
         );
       case 'Business':
         return Icon(
-          Icons.business_center_rounded,
+          active ? Icons.work_rounded : Icons.work_outline_rounded,
           size: size,
           color: color,
           shadows: _shadows,
@@ -1308,132 +1385,161 @@ class _BottomNavGlyphPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final double scale = size.shortestSide / 24;
+    final double scale = size.shortestSide / 28;
     canvas.save();
     canvas.translate(
-        (size.width - 24 * scale) / 2, (size.height - 24 * scale) / 2);
+      (size.width - 28 * scale) / 2,
+      (size.height - 28 * scale) / 2,
+    );
     canvas.scale(scale);
 
-    final Paint glow = Paint()
-      ..color = color.withAlpha(active ? (dark ? 74 : 58) : (dark ? 38 : 28))
+    final Paint wash = Paint()
+      ..color = color.withAlpha(active ? (dark ? 34 : 24) : (dark ? 18 : 12))
+      ..style = PaintingStyle.fill;
+    final Paint aura = Paint()
+      ..color = color.withAlpha(active ? (dark ? 84 : 62) : (dark ? 42 : 30))
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.35
+      ..strokeWidth = active ? 2.35 : 2.15
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..maskFilter = ui.MaskFilter.blur(
         ui.BlurStyle.normal,
-        active ? 3.2 : 1.8,
+        active ? 3.7 : 2.1,
       );
     final Paint ink = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.15
+      ..strokeWidth = active ? 2.12 : 1.98
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
+    final Paint detail = Paint()
+      ..color = color.withAlpha(active ? 210 : 170)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.15
+      ..strokeCap = StrokeCap.round;
 
     switch (kind) {
       case _BottomNavGlyphKind.milk:
-        _paintMilk(canvas, glow);
-        _paintMilk(canvas, ink);
+        _paintMilk(canvas, wash, aura, ink, detail);
         break;
       case _BottomNavGlyphKind.credit:
-        _paintCredit(canvas, glow, glowPass: true);
-        _paintCredit(canvas, ink);
+        _paintCredit(canvas, wash, aura, ink, detail);
         break;
       case _BottomNavGlyphKind.salary:
-        _paintSalary(canvas, glow, glowPass: true);
-        _paintSalary(canvas, ink);
+        _paintSalary(canvas, wash, aura, ink, detail);
         break;
     }
     canvas.restore();
   }
 
-  void _paintMilk(Canvas canvas, Paint paint) {
-    final RRect body = RRect.fromRectAndRadius(
-      const Rect.fromLTWH(6.25, 6.7, 11.5, 14.1),
-      const Radius.circular(2.8),
-    );
-    canvas.drawRRect(body, paint);
-    canvas.drawLine(const Offset(9.1, 3.6), const Offset(14.9, 3.6), paint);
-    canvas.drawLine(const Offset(9.7, 3.6), const Offset(9.7, 6.5), paint);
-    canvas.drawLine(const Offset(14.3, 3.6), const Offset(14.3, 6.5), paint);
-    canvas.drawLine(const Offset(8.6, 10.1), const Offset(15.4, 10.1), paint);
-    canvas.drawPath(
-      Path()
-        ..moveTo(12, 12.1)
-        ..cubicTo(10.8, 13.7, 10.2, 14.5, 10.2, 15.5)
-        ..cubicTo(10.2, 16.7, 11, 17.5, 12, 17.5)
-        ..cubicTo(13, 17.5, 13.8, 16.7, 13.8, 15.5)
-        ..cubicTo(13.8, 14.5, 13.2, 13.7, 12, 12.1),
-      paint,
-    );
-  }
-
-  void _paintCredit(Canvas canvas, Paint paint, {bool glowPass = false}) {
-    canvas.drawPath(
-      Path()
-        ..moveTo(2.9, 16.1)
-        ..lineTo(7.1, 16.1)
-        ..cubicTo(8.7, 16.1, 9.5, 17.2, 11, 17.2)
-        ..lineTo(14.5, 17.2)
-        ..cubicTo(15.7, 17.2, 15.8, 15.5, 14.5, 15.5)
-        ..lineTo(11.7, 15.5)
-        ..cubicTo(10.4, 15.5, 9.7, 14.8, 8.7, 14.1)
-        ..lineTo(7.2, 13.1),
-      paint,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(14.4, 15.6)
-        ..lineTo(18.8, 13.3)
-        ..cubicTo(20.1, 12.6, 21.2, 13.2, 20.5, 14.3)
-        ..cubicTo(18.7, 16.8, 15.9, 19.8, 12.6, 20.3)
-        ..lineTo(7.4, 20.3)
-        ..lineTo(3.7, 18.7),
-      paint,
-    );
-    _paintDollar(canvas, const Offset(9.2, 1.25), 9.3, glowPass: glowPass);
-  }
-
-  void _paintSalary(Canvas canvas, Paint paint, {bool glowPass = false}) {
-    canvas.drawLine(const Offset(9.1, 4.1), const Offset(14.9, 4.1), paint);
-    canvas.drawLine(const Offset(10.1, 4.1), const Offset(9.1, 7), paint);
-    canvas.drawLine(const Offset(13.9, 4.1), const Offset(14.9, 7), paint);
-    canvas.drawPath(
-      Path()
-        ..moveTo(9.2, 7)
-        ..cubicTo(6.2, 9.1, 4.8, 12, 4.8, 15.5)
-        ..cubicTo(4.8, 19.3, 7.6, 21.1, 12, 21.1)
-        ..cubicTo(16.4, 21.1, 19.2, 19.3, 19.2, 15.5)
-        ..cubicTo(19.2, 12, 17.8, 9.1, 14.8, 7)
-        ..close(),
-      paint,
-    );
-    _paintDollar(canvas, const Offset(9.15, 10), 8.8, glowPass: glowPass);
-  }
-
-  void _paintDollar(
+  void _paintMilk(
     Canvas canvas,
-    Offset offset,
-    double fontSize, {
-    required bool glowPass,
-  }) {
+    Paint wash,
+    Paint aura,
+    Paint ink,
+    Paint detail,
+  ) {
+    final RRect body = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(6.2, 7.1, 15.6, 17.2),
+      const Radius.circular(3.5),
+    );
+    canvas.drawRRect(body, wash);
+    canvas.drawRRect(body, aura);
+    canvas.drawRRect(body, ink);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(10, 3.2, 8, 4.7),
+        const Radius.circular(1.45),
+      ),
+      ink,
+    );
+    canvas.drawLine(const Offset(8.7, 11), const Offset(19.3, 11), detail);
+    canvas.drawLine(const Offset(9.1, 21), const Offset(18.9, 21), detail);
+    final Path drop = Path()
+      ..moveTo(14, 13.05)
+      ..cubicTo(12.55, 14.95, 11.75, 16.05, 11.75, 17.3)
+      ..cubicTo(11.75, 18.8, 12.72, 19.85, 14, 19.85)
+      ..cubicTo(15.28, 19.85, 16.25, 18.8, 16.25, 17.3)
+      ..cubicTo(16.25, 16.05, 15.45, 14.95, 14, 13.05);
+    canvas.drawPath(drop, ink);
+  }
+
+  void _paintCredit(
+    Canvas canvas,
+    Paint wash,
+    Paint aura,
+    Paint ink,
+    Paint detail,
+  ) {
+    const Offset coinCenter = Offset(16.2, 7.1);
+    canvas.drawCircle(coinCenter, 5.05, wash);
+    canvas.drawCircle(coinCenter, 5.05, aura);
+    canvas.drawCircle(coinCenter, 5.05, ink);
+    _paintDollar(canvas, const Offset(13.25, 2.25), 9.5);
+
+    final Path palm = Path()
+      ..moveTo(2.4, 18.1)
+      ..lineTo(7.1, 18.1)
+      ..cubicTo(8.6, 18.1, 9.45, 19.35, 11.2, 19.35)
+      ..lineTo(15.6, 19.35)
+      ..cubicTo(17.05, 19.35, 17.2, 17.35, 15.6, 17.35)
+      ..lineTo(12.25, 17.35)
+      ..cubicTo(10.9, 17.35, 10.2, 16.6, 9.05, 15.8)
+      ..lineTo(7.3, 14.65);
+    canvas.drawPath(palm, aura);
+    canvas.drawPath(palm, ink);
+
+    final Path support = Path()
+      ..moveTo(15.5, 17.45)
+      ..lineTo(21.15, 14.55)
+      ..cubicTo(22.65, 13.8, 24.15, 14.55, 23.25, 16)
+      ..cubicTo(21.2, 19.05, 17.65, 22.75, 13.6, 23.3)
+      ..lineTo(7.2, 23.3)
+      ..lineTo(3.35, 21.55);
+    canvas.drawPath(support, aura);
+    canvas.drawPath(support, ink);
+    canvas.drawLine(const Offset(4.2, 20), const Offset(7.1, 20), detail);
+  }
+
+  void _paintSalary(
+    Canvas canvas,
+    Paint wash,
+    Paint aura,
+    Paint ink,
+    Paint detail,
+  ) {
+    final Path bag = Path()
+      ..moveTo(10.2, 7.4)
+      ..cubicTo(6.7, 9.8, 5.1, 13.05, 5.1, 17.25)
+      ..cubicTo(5.1, 21.7, 8.3, 24.1, 14, 24.1)
+      ..cubicTo(19.7, 24.1, 22.9, 21.7, 22.9, 17.25)
+      ..cubicTo(22.9, 13.05, 21.3, 9.8, 17.8, 7.4)
+      ..close();
+    canvas.drawPath(bag, wash);
+    canvas.drawPath(bag, aura);
+    canvas.drawPath(bag, ink);
+    canvas.drawLine(const Offset(10.15, 4.15), const Offset(17.85, 4.15), ink);
+    canvas.drawLine(const Offset(11.1, 4.15), const Offset(10.2, 7.35), ink);
+    canvas.drawLine(const Offset(16.9, 4.15), const Offset(17.8, 7.35), ink);
+    canvas.drawLine(const Offset(9.5, 9.8), const Offset(18.5, 9.8), detail);
+    _paintDollar(canvas, const Offset(10.35, 11.45), 11.25);
+  }
+
+  void _paintDollar(Canvas canvas, Offset offset, double fontSize) {
     final TextPainter painter = TextPainter(
       textDirection: ui.TextDirection.ltr,
       text: TextSpan(
         text: r'$',
         style: TextStyle(
-          color: glowPass
-              ? color.withAlpha(active ? (dark ? 90 : 72) : (dark ? 50 : 38))
-              : color,
+          color: color,
           fontSize: fontSize,
           fontWeight: FontWeight.w900,
           height: 1,
-          shadows: glowPass
+          shadows: active
               ? <Shadow>[
                   Shadow(
-                    color: color.withAlpha(active ? 80 : 38),
-                    blurRadius: active ? 5 : 3,
+                    color: color.withAlpha(dark ? 92 : 66),
+                    blurRadius: 5,
                   ),
                 ]
               : null,
