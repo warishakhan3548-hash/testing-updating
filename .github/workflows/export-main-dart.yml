@@ -1,0 +1,25 @@
+name: Export main.dart source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/export-main-dart.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload current main.dart
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarish-dairy-main-dart
+          path: lib/main.dart
+          if-no-files-found: error
+          retention-days: 1
