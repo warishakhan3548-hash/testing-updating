@@ -19,11 +19,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Normalize synthetic patch positions
+        run: |
+          cp .github/ui_geometry_upgrade.patch /tmp/ui_geometry_upgrade.patch
+          sed -E -i 's/^@@ -[0-9]+,/@@ -100,/' /tmp/ui_geometry_upgrade.patch
+          sed -E -i 's/ \+[0-9]+,/ +100,/' /tmp/ui_geometry_upgrade.patch
+
       - name: Verify patch applies cleanly
-        run: git apply --check --recount --ignore-space-change .github/ui_geometry_upgrade.patch
+        run: patch --dry-run -p1 -F 0 < /tmp/ui_geometry_upgrade.patch
 
       - name: Apply surgical UI geometry patch
-        run: git apply --recount --ignore-space-change .github/ui_geometry_upgrade.patch
+        run: patch -p1 -F 0 < /tmp/ui_geometry_upgrade.patch
 
       - name: Verify scope lock before formatting
         run: |
