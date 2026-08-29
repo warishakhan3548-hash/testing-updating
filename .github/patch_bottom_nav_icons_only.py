@@ -191,7 +191,7 @@ class _CreditMoneyHandPainter extends CustomPainter {
           fontWeight: FontWeight.w900,
         ),
       ),
-      textDirection: TextDirection.ltr,
+      textDirection: ui.TextDirection.ltr,
     )..layout();
     money.paint(
       canvas,
@@ -278,7 +278,7 @@ class _SalaryMoneyBagPainter extends CustomPainter {
           fontWeight: FontWeight.w900,
         ),
       ),
-      textDirection: TextDirection.ltr,
+      textDirection: ui.TextDirection.ltr,
     )..layout();
     money.paint(
       canvas,
