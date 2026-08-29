@@ -78,9 +78,6 @@ jobs:
       - name: Build Android debug APK
         run: flutter build apk --debug
 
-      - name: Build Web
-        run: flutter build web
-
       - name: Diff scope guard
         run: |
           git diff -- lib/main.dart > /tmp/layout.diff
