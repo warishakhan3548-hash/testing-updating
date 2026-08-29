@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -31,7 +32,7 @@ const Color appleOrange = Color(0xFFFF9500);
 const Color diaryOrange = Color(0xFFF5A623);
 const Color diaryOrange2 = Color(0xFFFFB340);
 const Color systemGray = Color(0xFF8E8E93);
-const Color lightCanvas = Color(0xFFF8FBFF);
+const Color lightCanvas = Color(0xFFF5F5F7);
 const Color darkGlassTop = Color(0xFF121826);
 const Color darkGlassBottom = Color(0xFF080C18);
 
@@ -43,9 +44,9 @@ abstract final class UIConstants {
   static const double compactRadius = 16;
   static const double actionRadius = 20;
   static const double cardRadius = 24;
-  static const double heroRadius = 24;
-  static const double sheetRadius = 32;
-  static const double accentStroke = 6;
+  static const double heroRadius = 28;
+  static const double sheetRadius = 36;
+  static const double accentStroke = 4;
   static const double borderWidth = 1;
 
   static const EdgeInsets cardPadding = EdgeInsets.all(20);
@@ -81,19 +82,17 @@ abstract final class AppStyles {
   static List<BoxShadow> surfaceDepth(BuildContext context) {
     final bool dark = isDark(context);
     return <BoxShadow>[
-      // Tight key shadow: grounds the surface without making it look stamped.
       BoxShadow(
         color: Colors.black.withAlpha(dark ? 82 : 10),
-        blurRadius: dark ? 6 : 5,
+        blurRadius: dark ? 12 : 8,
         spreadRadius: -2,
-        offset: const Offset(0, 1),
+        offset: const Offset(0, 2),
       ),
-      // Wide ambient shadow: creates the soft elevation falloff.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 90 : 13),
-        blurRadius: dark ? 38 : 28,
-        spreadRadius: dark ? -6 : -9,
-        offset: const Offset(0, 4),
+        color: Colors.black.withAlpha(dark ? 112 : 22),
+        blurRadius: dark ? 62 : 48,
+        spreadRadius: dark ? -12 : -10,
+        offset: const Offset(0, 16),
       ),
     ];
   }
@@ -107,14 +106,79 @@ abstract final class AppStyles {
     return <BoxShadow>[
       BoxShadow(
         color: color.withAlpha(
-          strong ? (dark ? 86 : 66) : (dark ? 58 : 44),
+          strong ? (dark ? 76 : 58) : (dark ? 50 : 38),
         ),
         blurRadius: strong ? 30 : 22,
-        spreadRadius: strong ? 1 : 0,
-        offset: Offset.zero,
+        spreadRadius: strong ? -1 : -2,
+        offset: const Offset(0, 8),
+      ),
+      if (strong)
+        BoxShadow(
+          color: color.withAlpha(dark ? 42 : 32),
+          blurRadius: 68,
+          spreadRadius: -8,
+          offset: const Offset(0, 24),
+        ),
+      ...surfaceDepth(context),
+    ];
+  }
+
+  static List<BoxShadow> railDepth(BuildContext context, Color color) {
+    final bool dark = isDark(context);
+    return <BoxShadow>[
+      BoxShadow(
+        color: color.withAlpha(dark ? 72 : 56),
+        blurRadius: dark ? 28 : 22,
+        spreadRadius: -5,
+        offset: const Offset(-4, 0),
       ),
       ...surfaceDepth(context),
     ];
+  }
+
+  static List<BoxShadow> jewelDepth(BuildContext context, Color color) {
+    final bool dark = isDark(context);
+    return <BoxShadow>[
+      BoxShadow(
+        color: color.withAlpha(dark ? 68 : 48),
+        blurRadius: 22,
+        spreadRadius: -3,
+        offset: const Offset(0, 8),
+      ),
+      BoxShadow(
+        color: color.withAlpha(dark ? 34 : 24),
+        blurRadius: 34,
+        spreadRadius: -7,
+        offset: Offset.zero,
+      ),
+    ];
+  }
+
+  static Border glassBorder(BuildContext context, {Color? accent}) {
+    final bool dark = isDark(context);
+    return Border(
+      top: BorderSide(
+        color: Colors.white.withAlpha(dark ? 31 : 174),
+        width: UIConstants.borderWidth,
+      ),
+      right: BorderSide(
+        color: Colors.white.withAlpha(dark ? 20 : 92),
+        width: UIConstants.borderWidth,
+      ),
+      bottom: BorderSide(
+        color: dark ? Colors.black.withAlpha(96) : Colors.white.withAlpha(66),
+        width: UIConstants.borderWidth,
+      ),
+      left: accent == null
+          ? BorderSide(
+              color: Colors.white.withAlpha(dark ? 20 : 92),
+              width: UIConstants.borderWidth,
+            )
+          : BorderSide(
+              color: accent.withAlpha(dark ? 82 : 72),
+              width: UIConstants.borderWidth,
+            ),
+    );
   }
 
   static List<Shadow> inkGlow(Color color, {bool strong = false}) => <Shadow>[
@@ -1029,112 +1093,142 @@ class _BottomLedgerNav extends StatelessWidget {
     final List<Color> colors = _moduleTabColors(sync.state);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: dark ? const Color(0xE60B1220) : const Color(0xF2FFFFFF),
-        border: Border(top: AppStyles.hairline(context)),
-        boxShadow: AppStyles.surfaceDepth(context),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withAlpha(dark ? 104 : 14),
+            blurRadius: dark ? 40 : 32,
+            spreadRadius: -12,
+            offset: const Offset(0, -10),
+          ),
+        ],
       ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 80,
-          child: SingleChildScrollView(
-            controller: controller,
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                children: List<Widget>.generate(_tabs.length, (int index) {
-                  final _TabSpec spec = _tabs[index];
-                  final bool active = index == selected;
-                  final Color color = colors[index];
-                  return _Pressable(
-                    onTap: () => onSelected(index),
-                    semanticLabel: '${spec.label} tab',
-                    borderRadius:
-                        BorderRadius.circular(UIConstants.actionRadius),
-                    child: AnimatedSlide(
-                      offset: active ? const Offset(0, -.035) : Offset.zero,
-                      duration: UIConstants.motion,
-                      curve: const Cubic(0.32, 0.72, 0, 1),
-                      child: AnimatedContainer(
-                        duration: UIConstants.motion,
-                        curve: const Cubic(0.32, 0.72, 0, 1),
-                        width: 80,
-                        height: 64,
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        decoration: BoxDecoration(
-                          color: active
-                              ? color.withAlpha(dark ? 42 : 22)
-                              : Colors.transparent,
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: dark
+                    ? const <Color>[Color(0xD9121928), Color(0xC9080D18)]
+                    : const <Color>[Color(0xE9FFFFFF), Color(0xD8FFFFFF)],
+              ),
+              border: Border(top: AppStyles.hairline(context)),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: Colors.white.withAlpha(dark ? 16 : 90),
+                  blurRadius: 1,
+                  offset: const Offset(0, -1),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: SizedBox(
+                height: 80,
+                child: SingleChildScrollView(
+                  controller: controller,
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Row(
+                      children:
+                          List<Widget>.generate(_tabs.length, (int index) {
+                        final _TabSpec spec = _tabs[index];
+                        final bool active = index == selected;
+                        final Color color = colors[index];
+                        return _Pressable(
+                          onTap: () => onSelected(index),
+                          semanticLabel: '${spec.label} tab',
                           borderRadius:
                               BorderRadius.circular(UIConstants.actionRadius),
-                          border: Border.fromBorderSide(
-                            active
-                                ? AppStyles.hairline(
-                                    context,
-                                    accent: color,
-                                    active: true,
-                                  )
-                                : const BorderSide(color: Colors.transparent),
-                          ),
-                          boxShadow: active
-                              ? AppStyles.glow(context, color)
-                              : const <BoxShadow>[],
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            AnimatedScale(
-                              scale: active ? 1.13 : 1,
-                              duration: UIConstants.motion,
-                              curve: const Cubic(0.34, 1.18, 0.64, 1),
-                              child: Icon(
-                                spec.icon,
-                                size: 24,
-                                color: active ? color : systemGray,
-                                shadows:
-                                    active ? AppStyles.inkGlow(color) : null,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              spec.label,
-                              style: TextStyle(
-                                color: active ? color : systemGray,
-                                fontSize: 12,
-                                fontWeight:
-                                    active ? FontWeight.w800 : FontWeight.w600,
-                                shadows:
-                                    active ? AppStyles.inkGlow(color) : null,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            AnimatedContainer(
+                          child: AnimatedSlide(
+                            offset:
+                                active ? const Offset(0, -.035) : Offset.zero,
+                            duration: UIConstants.motion,
+                            curve: const Cubic(0.32, 0.72, 0, 1),
+                            child: AnimatedContainer(
                               duration: UIConstants.motion,
                               curve: const Cubic(0.32, 0.72, 0, 1),
-                              width: active ? 40 : 0,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: color.withAlpha(active ? 145 : 0),
-                                borderRadius: BorderRadius.circular(99),
-                                boxShadow: active
-                                    ? <BoxShadow>[
-                                        BoxShadow(
-                                          color: color.withAlpha(76),
-                                          blurRadius: 12,
-                                          offset: Offset.zero,
-                                        ),
-                                      ]
-                                    : null,
+                              width: 80,
+                              height: 64,
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: const BoxDecoration(
+                                color: Colors.transparent,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: <Widget>[
+                                  AnimatedScale(
+                                    scale: active ? 1.13 : 1,
+                                    duration: UIConstants.motion,
+                                    curve: const Cubic(0.34, 1.18, 0.64, 1),
+                                    child: Icon(
+                                      spec.icon,
+                                      size: active ? 25 : 23,
+                                      color: active
+                                          ? color
+                                          : color.withAlpha(dark ? 176 : 188),
+                                      shadows: active
+                                          ? AppStyles.inkGlow(color,
+                                              strong: true)
+                                          : <Shadow>[
+                                              Shadow(
+                                                color: color
+                                                    .withAlpha(dark ? 48 : 34),
+                                                blurRadius: 7,
+                                              ),
+                                            ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    spec.label,
+                                    style: TextStyle(
+                                      color: active
+                                          ? color
+                                          : color.withAlpha(dark ? 170 : 182),
+                                      fontSize: 12,
+                                      fontWeight: active
+                                          ? FontWeight.w800
+                                          : FontWeight.w600,
+                                      shadows: active
+                                          ? AppStyles.inkGlow(color)
+                                          : null,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  AnimatedContainer(
+                                    duration: UIConstants.motion,
+                                    curve: const Cubic(0.32, 0.72, 0, 1),
+                                    width: active ? 40 : 0,
+                                    height: 4,
+                                    decoration: BoxDecoration(
+                                      color:
+                                          appleBlue.withAlpha(active ? 96 : 0),
+                                      borderRadius: BorderRadius.circular(99),
+                                      boxShadow: active
+                                          ? <BoxShadow>[
+                                              BoxShadow(
+                                                color: appleBlue.withAlpha(72),
+                                                blurRadius: 18,
+                                                offset: Offset.zero,
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
+                          ),
+                        );
+                      }),
                     ),
-                  );
-                }),
+                  ),
+                ),
               ),
             ),
           ),
@@ -1285,35 +1379,30 @@ class _GlassCard extends StatelessWidget {
     final List<Color> surfaceColors;
     if (tintColor == null) {
       surfaceColors = dark
-          ? const <Color>[Color(0xE0121826), Color(0xC4080C18)]
-          : const <Color>[Color(0xECFFFFFF), Color(0xBFFFFFFF)];
+          ? const <Color>[Color(0xDC121826), Color(0xBC080C18)]
+          : const <Color>[Color(0xE0FFFFFF), Color(0xAEFFFFFF)];
     } else {
       surfaceColors = dark
           ? <Color>[
-              Color.lerp(darkGlassTop, tintColor, .15)!.withAlpha(228),
-              Color.lerp(darkGlassBottom, tintColor, .075)!.withAlpha(202),
+              Color.lerp(darkGlassTop, tintColor, .15)!.withAlpha(220),
+              Color.lerp(darkGlassBottom, tintColor, .075)!.withAlpha(188),
             ]
           : <Color>[
-              Color.lerp(Colors.white, tintColor, .08)!.withAlpha(236),
-              Color.lerp(Colors.white, tintColor, .045)!.withAlpha(186),
+              Color.lerp(Colors.white, tintColor, .08)!.withAlpha(224),
+              Color.lerp(Colors.white, tintColor, .045)!.withAlpha(174),
             ];
     }
-    final BorderSide side = borderColor != null
-        ? BorderSide(
-            color: borderColor!,
-            width: UIConstants.borderWidth,
-          )
-        : AppStyles.hairline(
-            context,
-            accent: accentColor,
-            active: accentColor != null,
-          );
+    final Border border = borderColor != null
+        ? Border.all(color: borderColor!, width: UIConstants.borderWidth)
+        : AppStyles.glassBorder(context, accent: accentColor);
     final List<BoxShadow> shadows = shadowColor != null
-        ? AppStyles.glow(
-            context,
-            shadowColor!,
-            strong: accentColor != null,
-          )
+        ? accentColor != null
+            ? AppStyles.railDepth(context, shadowColor!)
+            : AppStyles.glow(
+                context,
+                shadowColor!,
+                strong: tintColor != null,
+              )
         : AppStyles.surfaceDepth(context);
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -1324,7 +1413,7 @@ class _GlassCard extends StatelessWidget {
           colors: surfaceColors,
         ),
         borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.fromBorderSide(side),
+        border: border,
         boxShadow: shadows,
       ),
       child: Stack(
@@ -1467,69 +1556,92 @@ class _ScreenHeader extends StatelessWidget {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: dark ? const Color(0xE6000000) : const Color(0xF7FFFFFF),
-        border: Border(bottom: AppStyles.hairline(context)),
-        boxShadow: AppStyles.surfaceDepth(context),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withAlpha(dark ? 82 : 9),
+            blurRadius: dark ? 30 : 24,
+            spreadRadius: -12,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-          child: Row(
-            children: <Widget>[
-              if (leading != null) ...<Widget>[
-                leading!,
-                const SizedBox(width: 12),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: dark
+                    ? const <Color>[Color(0xD8101726), Color(0xCC060A12)]
+                    : const <Color>[Color(0xE8FFFFFF), Color(0xD5FFFFFF)],
+              ),
+              border: Border(bottom: AppStyles.hairline(context)),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                child: Row(
                   children: <Widget>[
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: leading == null ? 28 : 24,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -.4,
-                        shadows:
-                            color == null ? null : AppStyles.inkGlow(color!),
-                      ),
-                    ),
-                    if (subtitle != null) ...<Widget>[
-                      const SizedBox(height: 2),
-                      Row(
+                    if (leading != null) ...<Widget>[
+                      leading!,
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Flexible(
-                            child: Text(
-                              subtitle!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: appleBlue,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.0,
-                              ),
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: color,
+                              fontSize: leading == null ? 28 : 24,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -.4,
+                              shadows: color == null
+                                  ? null
+                                  : AppStyles.inkGlow(color!),
                             ),
                           ),
-                          if (subtitleTrailing != null) ...<Widget>[
-                            const SizedBox(width: 9),
-                            subtitleTrailing!,
+                          if (subtitle != null) ...<Widget>[
+                            const SizedBox(height: 2),
+                            Row(
+                              children: <Widget>[
+                                Flexible(
+                                  child: Text(
+                                    subtitle!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: appleBlue,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                ),
+                                if (subtitleTrailing != null) ...<Widget>[
+                                  const SizedBox(width: 9),
+                                  subtitleTrailing!,
+                                ],
+                              ],
+                            ),
                           ],
                         ],
                       ),
+                    ),
+                    if (actions.isNotEmpty) ...<Widget>[
+                      const SizedBox(width: 8),
+                      ...actions,
                     ],
                   ],
                 ),
               ),
-              if (actions.isNotEmpty) ...<Widget>[
-                const SizedBox(width: 8),
-                ...actions,
-              ],
-            ],
+            ),
           ),
         ),
       ),
@@ -1566,7 +1678,7 @@ class _CircleAction extends StatelessWidget {
               border: Border.fromBorderSide(
                 AppStyles.hairline(context, accent: color, active: true),
               ),
-              boxShadow: AppStyles.glow(context, color),
+              boxShadow: AppStyles.jewelDepth(context, color),
             ),
             child: Icon(
               icon,
@@ -1899,9 +2011,7 @@ class _AmountHero extends StatelessWidget {
           colors: background,
         ),
         borderRadius: BorderRadius.circular(UIConstants.heroRadius),
-        border: Border.fromBorderSide(
-          AppStyles.hairline(context, accent: color, active: true),
-        ),
+        border: AppStyles.glassBorder(context),
         boxShadow: AppStyles.glow(context, color, strong: true),
       ),
       child: _HeroValue(
@@ -2001,13 +2111,20 @@ class _ListCard extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: color.withAlpha(29),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[
+                        color.withAlpha(34),
+                        color.withAlpha(16),
+                      ],
+                    ),
                     borderRadius:
                         BorderRadius.circular(UIConstants.compactRadius),
                     border: Border.fromBorderSide(
                       AppStyles.hairline(context, accent: color, active: true),
                     ),
-                    boxShadow: AppStyles.glow(context, color),
+                    boxShadow: AppStyles.jewelDepth(context, color),
                   ),
                   child: avatarText == null
                       ? Icon(
@@ -2796,7 +2913,6 @@ class _MetricCard extends StatelessWidget {
         padding: UIConstants.compactCardPadding,
         borderRadius: UIConstants.cardRadius,
         tintColor: color,
-        borderColor: color.withAlpha(77),
         shadowColor: color,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2848,24 +2964,61 @@ class _LedgerIcon extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: color.withAlpha(28),
-          borderRadius: BorderRadius.circular(size * .32),
-          border: Border.fromBorderSide(
-            AppStyles.hairline(context, accent: color, active: true),
+  Widget build(BuildContext context) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final double radius = size * .32;
+    return Container(
+      width: size,
+      height: size,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            color.withAlpha(dark ? 48 : 34),
+            color.withAlpha(dark ? 26 : 16),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: color.withAlpha(dark ? 88 : 72),
+          width: UIConstants.borderWidth,
+        ),
+        boxShadow: AppStyles.jewelDepth(context, color),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Positioned(
+            left: radius * .55,
+            right: radius * .55,
+            top: 0,
+            height: 1,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: <Color>[
+                    Colors.transparent,
+                    Colors.white.withAlpha(dark ? 68 : 178),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
           ),
-          boxShadow: AppStyles.glow(context, color),
-        ),
-        child: Icon(
-          icon,
-          size: size * .45,
-          color: color,
-          shadows: AppStyles.inkGlow(color, strong: true),
-        ),
-      );
+          Center(
+            child: Icon(
+              icon,
+              size: size * .43,
+              color: color,
+              shadows: AppStyles.inkGlow(color, strong: true),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class PartyLedgerScreen extends StatefulWidget {
@@ -3189,16 +3342,7 @@ class _TransactionPairButton extends StatelessWidget {
               color: dark ? Colors.white.withAlpha(34) : color.withAlpha(95),
               width: .8,
             ),
-            boxShadow: dark
-                ? const <BoxShadow>[]
-                : <BoxShadow>[
-                    BoxShadow(
-                      color: color.withAlpha(50),
-                      blurRadius: 28,
-                      spreadRadius: 1,
-                      offset: const Offset(0, 12),
-                    ),
-                  ],
+            boxShadow: AppStyles.glow(context, color, strong: true),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
