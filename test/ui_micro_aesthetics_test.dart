@@ -33,6 +33,25 @@ void main() {
     expect(source, contains('RefreshIndicator.adaptive('));
     expect(source, contains('HapticFeedback.lightImpact();'));
 
+    // Cross-system motion keeps auth handoffs calm and all route motion optional.
+    expect(source, contains('class _RootStage extends StatelessWidget'));
+    expect(source, contains('FadeTransition(opacity: animation, child: child)'));
+    expect(
+      source,
+      contains('MediaQuery.maybeOf(context)?.disableAnimations ?? false'),
+    );
+
+    // Sheets, dialogs and toasts use explicit native AnimationStyle timings.
+    expect(source, contains('sheetAnimationStyle: reduceMotion'));
+    expect(source, contains('animationStyle: reduceMotion'));
+    expect(source, contains('snackBarAnimationStyle: reduceMotion'));
+    expect(source, contains('duration: Duration(milliseconds: 240)'));
+    expect(source, contains('reverseDuration: Duration(milliseconds: 190)'));
+
+    // Destructive confirmation defaults keyboard focus to the safe action.
+    expect(source, contains('autofocus: dangerous'));
+    expect(source, contains('autofocus: !dangerous'));
+
     // Brand/state color logic and Firebase integration must stay untouched.
     expect(source, contains("import 'firebase_sync.dart';"));
     expect(source, contains('Firebase.initializeApp('));
@@ -44,4 +63,4 @@ void main() {
 }
 
 // This source guard intentionally lives in test/ so every future UI edit rechecks
-// the premium depth, icon and motion invariants with the app's normal Flutter CI.
+// the premium depth, icon, motion, accessibility and safety invariants together.
