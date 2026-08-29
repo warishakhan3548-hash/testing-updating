@@ -82,17 +82,26 @@ abstract final class AppStyles {
   static List<BoxShadow> surfaceDepth(BuildContext context) {
     final bool dark = isDark(context);
     return <BoxShadow>[
+      // Contact shadow: tiny and close, like ambient occlusion at the edge.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 56 : 12),
-        blurRadius: 7,
-        spreadRadius: -2,
-        offset: const Offset(0, 2),
+        color: Colors.black.withAlpha(dark ? 38 : 9),
+        blurRadius: 4,
+        spreadRadius: -2.2,
+        offset: const Offset(0, 1.2),
       ),
+      // Mid-frequency ambient shadow gives readable lift without a dark ring.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 66 : 15),
-        blurRadius: dark ? 28 : 24,
-        spreadRadius: -7,
-        offset: const Offset(0, 9),
+        color: Colors.black.withAlpha(dark ? 44 : 11),
+        blurRadius: 18,
+        spreadRadius: -6,
+        offset: const Offset(0, 6),
+      ),
+      // Long soft falloff keeps the surface floating while staying calm.
+      BoxShadow(
+        color: Colors.black.withAlpha(dark ? 34 : 9),
+        blurRadius: 44,
+        spreadRadius: -12,
+        offset: const Offset(0, 18),
       ),
     ];
   }
@@ -104,20 +113,21 @@ abstract final class AppStyles {
   }) {
     final bool dark = isDark(context);
     return <BoxShadow>[
+      // Environmental color spill, deliberately softer than the neutral depth.
       BoxShadow(
         color: color.withAlpha(
-          strong ? (dark ? 60 : 42) : (dark ? 44 : 30),
+          strong ? (dark ? 38 : 24) : (dark ? 28 : 17),
         ),
-        blurRadius: strong ? 28 : 22,
-        spreadRadius: -5,
-        offset: const Offset(0, 8),
+        blurRadius: strong ? 34 : 26,
+        spreadRadius: strong ? -8 : -7,
+        offset: Offset(0, strong ? 10 : 8),
       ),
       if (strong)
         BoxShadow(
-          color: color.withAlpha(dark ? 28 : 20),
-          blurRadius: 40,
-          spreadRadius: -10,
-          offset: const Offset(0, 16),
+          color: color.withAlpha(dark ? 17 : 10),
+          blurRadius: 58,
+          spreadRadius: -18,
+          offset: const Offset(0, 22),
         ),
       ...surfaceDepth(context),
     ];
@@ -126,18 +136,17 @@ abstract final class AppStyles {
   static List<BoxShadow> railDepth(BuildContext context, Color color) {
     final bool dark = isDark(context);
     return <BoxShadow>[
-      // A narrow side aura reinforces the semantic rail without drawing a box.
       BoxShadow(
-        color: color.withAlpha(dark ? 62 : 44),
-        blurRadius: 18,
-        spreadRadius: -4,
-        offset: const Offset(-3, 0),
+        color: color.withAlpha(dark ? 34 : 22),
+        blurRadius: 22,
+        spreadRadius: -6,
+        offset: const Offset(-2, 1),
       ),
       BoxShadow(
-        color: color.withAlpha(dark ? 34 : 24),
-        blurRadius: 30,
-        spreadRadius: -8,
-        offset: const Offset(0, 12),
+        color: color.withAlpha(dark ? 19 : 12),
+        blurRadius: 42,
+        spreadRadius: -12,
+        offset: const Offset(0, 14),
       ),
       ...surfaceDepth(context),
     ];
@@ -147,32 +156,46 @@ abstract final class AppStyles {
     final bool dark = isDark(context);
     return <BoxShadow>[
       BoxShadow(
-        color: color.withAlpha(dark ? 56 : 40),
+        color: Colors.black.withAlpha(dark ? 30 : 7),
+        blurRadius: 4,
+        spreadRadius: -2,
+        offset: const Offset(0, 1),
+      ),
+      BoxShadow(
+        color: color.withAlpha(dark ? 31 : 20),
         blurRadius: 18,
-        spreadRadius: -4,
+        spreadRadius: -6,
         offset: const Offset(0, 6),
       ),
       BoxShadow(
-        color: color.withAlpha(dark ? 28 : 20),
-        blurRadius: 26,
-        spreadRadius: -8,
-        offset: Offset.zero,
+        color: Colors.black.withAlpha(dark ? 28 : 7),
+        blurRadius: 30,
+        spreadRadius: -10,
+        offset: const Offset(0, 12),
       ),
     ];
   }
 
   static Border glassBorder(BuildContext context, {Color? accent}) {
     final bool dark = isDark(context);
+    final Color neutral =
+        Colors.white.withAlpha(dark ? 28 : 92);
+    final Color resolved = accent == null
+        ? neutral
+        : Color.alphaBlend(
+            accent.withAlpha(dark ? 18 : 12),
+            neutral,
+          );
     return Border.all(
-      color: Colors.white.withAlpha(dark ? 24 : 96),
+      color: resolved,
       width: UIConstants.borderWidth,
     );
   }
 
   static List<Shadow> inkGlow(Color color, {bool strong = false}) => <Shadow>[
         Shadow(
-          color: color.withAlpha(strong ? 58 : 34),
-          blurRadius: strong ? 7 : 4,
+          color: color.withAlpha(strong ? 46 : 24),
+          blurRadius: strong ? 8 : 5,
           offset: Offset.zero,
         ),
       ];
@@ -1753,7 +1776,7 @@ class _GlassCard extends StatelessWidget {
                     gradient: LinearGradient(
                       colors: <Color>[
                         Colors.transparent,
-                        Colors.white.withAlpha(dark ? 76 : 210),
+                        Colors.white.withAlpha(dark ? 64 : 176),
                         Colors.transparent,
                       ],
                     ),
@@ -1774,7 +1797,7 @@ class _GlassCard extends StatelessWidget {
                     gradient: LinearGradient(
                       colors: <Color>[
                         Colors.transparent,
-                        Colors.black.withAlpha(dark ? 64 : 16),
+                        Colors.black.withAlpha(dark ? 48 : 10),
                         Colors.transparent,
                       ],
                     ),
@@ -2275,7 +2298,7 @@ class _PrimaryButton extends StatelessWidget {
               Icon(
                 icon,
                 color: foregroundColor,
-                size: compact ? 18 : 20,
+                size: compact ? 19.5 : 21.5,
                 shadows: AppStyles.inkGlow(foregroundColor),
               ),
               const SizedBox(width: 7),
@@ -2536,9 +2559,9 @@ class _ListCard extends StatelessWidget {
                           boxShadow: AppStyles.glow(context, appleRed),
                         ),
                         child: const Icon(
-                          Icons.delete_rounded,
+                          Icons.delete_outline_rounded,
                           color: appleRed,
-                          size: 19,
+                          size: 20,
                         ),
                       ),
                     ),
@@ -3984,7 +4007,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                   color: color,
                   actions: <Widget>[
                     _CircleAction(
-                      icon: Icons.delete_rounded,
+                      icon: Icons.delete_outline_rounded,
                       color: appleRed,
                       onTap: () => unawaited(_deleteProfile()),
                     ),
@@ -4256,15 +4279,7 @@ class _SoftShareButton extends StatelessWidget {
           color: fill,
           borderRadius: BorderRadius.circular(radius),
           border: Border.all(color: border, width: 1),
-          boxShadow: dark
-              ? const <BoxShadow>[]
-              : <BoxShadow>[
-                  BoxShadow(
-                    color: color.withAlpha(15),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+          boxShadow: AppStyles.jewelDepth(context, color),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -4273,7 +4288,8 @@ class _SoftShareButton extends StatelessWidget {
             Icon(
               icon,
               color: color,
-              size: micro ? 18 : 20,
+              size: micro ? 19 : 21.5,
+              shadows: AppStyles.inkGlow(color),
             ),
             SizedBox(width: micro ? 5 : 7),
             Flexible(
@@ -4553,20 +4569,12 @@ class _MilkTableRow extends StatelessWidget {
                     ),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: appleRed.withAlpha(42)),
-                    boxShadow: dark
-                        ? const <BoxShadow>[]
-                        : <BoxShadow>[
-                            BoxShadow(
-                              color: appleRed.withAlpha(22),
-                              blurRadius: 16,
-                              offset: const Offset(0, 7),
-                            ),
-                          ],
+                    boxShadow: AppStyles.jewelDepth(context, appleRed),
                   ),
                   child: const Icon(
-                    Icons.delete_rounded,
+                    Icons.delete_outline_rounded,
                     color: appleRed,
-                    size: 17,
+                    size: 18.5,
                   ),
                 ),
               ),
@@ -4823,20 +4831,12 @@ class _LedgerDeleteAction extends StatelessWidget {
           ),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: appleRed.withAlpha(42)),
-          boxShadow: dark
-              ? const <BoxShadow>[]
-              : <BoxShadow>[
-                  BoxShadow(
-                    color: appleRed.withAlpha(22),
-                    blurRadius: 16,
-                    offset: const Offset(0, 7),
-                  ),
-                ],
+          boxShadow: AppStyles.jewelDepth(context, appleRed),
         ),
         child: const Icon(
-          Icons.delete_rounded,
+          Icons.delete_outline_rounded,
           color: appleRed,
-          size: 17,
+          size: 18.5,
         ),
       ),
     );
@@ -5371,7 +5371,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                   color: color,
                   actions: <Widget>[
                     _CircleAction(
-                      icon: Icons.delete_rounded,
+                      icon: Icons.delete_outline_rounded,
                       color: appleRed,
                       onTap: () => unawaited(_deleteProfile()),
                     ),
@@ -5867,7 +5867,7 @@ class CreditDetailScreen extends StatelessWidget {
                   color: color,
                   actions: <Widget>[
                     _CircleAction(
-                      icon: Icons.delete_rounded,
+                      icon: Icons.delete_outline_rounded,
                       color: appleRed,
                       onTap: () => unawaited(_deleteProfile(context, records)),
                     ),
@@ -6335,7 +6335,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                   color: detailColor,
                   actions: <Widget>[
                     _CircleAction(
-                      icon: Icons.delete_rounded,
+                      icon: Icons.delete_outline_rounded,
                       color: appleRed,
                       onTap: () => unawaited(_deleteCategory(allRecords)),
                     ),
@@ -6743,7 +6743,7 @@ class DiaryDetailScreen extends StatelessWidget {
                       ),
                     ),
                     _CircleAction(
-                      icon: Icons.delete_rounded,
+                      icon: Icons.delete_outline_rounded,
                       color: appleRed,
                       onTap: () => unawaited(_delete(context)),
                     ),
@@ -7173,7 +7173,7 @@ class BusinessDetailScreen extends StatelessWidget {
                       onTap: () => unawaited(_addEntry(context)),
                     ),
                     _CircleAction(
-                      icon: Icons.delete_rounded,
+                      icon: Icons.delete_outline_rounded,
                       color: appleRed,
                       onTap: () => unawaited(_deleteProject(context)),
                     ),
@@ -7618,7 +7618,7 @@ class _AiHubScreenState extends State<AiHubScreen> {
                       children: <Widget>[
                         Icon(
                           action['data'] == null
-                              ? Icons.delete_rounded
+                              ? Icons.delete_outline_rounded
                               : Icons.edit_note_rounded,
                           color: action['data'] == null ? appleRed : appleBlue,
                           size: 18,
