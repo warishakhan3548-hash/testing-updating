@@ -3054,8 +3054,13 @@ class DashboardScreen extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _SyncPill(sync: sync),
                   ),
-                _CompactTwoByTwoGrid(
-                  gap: 8,
+                GridView.count(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 13,
+                  mainAxisSpacing: 13,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  childAspectRatio: 1.0,
                   children: <Widget>[
                     _MetricCard(
                       icon: Icons.volunteer_activism_rounded,
@@ -3176,50 +3181,6 @@ class _SyncPill extends StatelessWidget {
             ],
           ),
         ),
-      );
-}
-
-class _CompactTwoByTwoGrid extends StatelessWidget {
-  const _CompactTwoByTwoGrid({
-    required this.children,
-    this.gap = 8,
-  }) : assert(children.length == 4);
-
-  final List<Widget> children;
-  final double gap;
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final double cardSize = (constraints.maxWidth - gap) / 2;
-
-          Widget row(Widget left, Widget right) => Row(
-                children: <Widget>[
-                  SizedBox(
-                    width: cardSize,
-                    height: cardSize,
-                    child: left,
-                  ),
-                  SizedBox(width: gap),
-                  SizedBox(
-                    width: cardSize,
-                    height: cardSize,
-                    child: right,
-                  ),
-                ],
-              );
-
-          return SizedBox(
-            height: (cardSize * 2) + gap,
-            child: Column(
-              children: <Widget>[
-                row(children[0], children[1]),
-                SizedBox(height: gap),
-                row(children[2], children[3]),
-              ],
-            ),
-          );
-        },
       );
 }
 
@@ -7190,8 +7151,13 @@ class BusinessDetailScreen extends StatelessWidget {
                     physics: const BouncingScrollPhysics(),
                     padding: UIConstants.screenPadding,
                     children: <Widget>[
-                      _CompactTwoByTwoGrid(
-                        gap: 8,
+                      GridView.count(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 11,
+                        mainAxisSpacing: 11,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        childAspectRatio: 1.55,
                         children:
                             totals.entries.map((MapEntry<String, double> item) {
                           final _BusinessTone tone = _businessTones[item.key]!;
