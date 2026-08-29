@@ -52,9 +52,8 @@ jobs:
           assert 'width: cardWidth' in dash
           assert 'height: cardHeight' in dash
           assert dash.count('lockedCard(') >= 5
-          metric = src[src.index('class _MetricCard'):src.index('class _LedgerIcon')]
-          assert 'Widget build(BuildContext context) => SizedBox.expand(' in metric
-          print('GEOMETRY_LOCK_OK outer dashboard cards are explicit width/height and fill their boxes')
+          assert 'GridView.count(' not in dash
+          print('GEOMETRY_LOCK_OK outer dashboard cards have explicit width/height independent of amount')
           PY
 
       - name: Analyze
@@ -75,7 +74,8 @@ jobs:
           required = [
               'cardHeight = math.max',
               'lockedCard',
-              'SizedBox.expand',
+              'width: cardWidth',
+              'height: cardHeight',
           ]
           for item in required:
               if item not in d:
@@ -89,7 +89,7 @@ jobs:
           for item in forbidden:
               if item in d:
                   raise SystemExit(f'Forbidden unrelated scope touched: {item}')
-          print('SCOPE_OK only Dashboard grid/_MetricCard geometry changed')
+          print('SCOPE_OK only Dashboard grid geometry changed')
           PY
 
       - name: Commit verified dashboard geometry lock
