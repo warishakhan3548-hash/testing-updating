@@ -3203,6 +3203,7 @@ class _MetricCard extends StatelessWidget {
         borderRadius: UIConstants.cardRadius,
         tintColor: color,
         shadowColor: color,
+        borderColor: color.withAlpha(60),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
@@ -7150,54 +7151,50 @@ class BusinessDetailScreen extends StatelessWidget {
                     physics: const BouncingScrollPhysics(),
                     padding: UIConstants.screenPadding,
                     children: <Widget>[
-                      if (totals.values.any((double value) => value > 0))
-                        GridView.count(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 11,
-                          mainAxisSpacing: 11,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          childAspectRatio: 1.55,
-                          children: totals.entries
-                              .where((MapEntry<String, double> item) =>
-                                  item.value > 0)
-                              .map((MapEntry<String, double> item) {
-                            final _BusinessTone tone =
-                                _businessTones[item.key]!;
-                            return _GlassCard(
-                              padding: const EdgeInsets.all(13),
-                              borderRadius: 19,
-                              borderColor: tone.color.withAlpha(60),
-                              shadowColor: tone.color.withAlpha(20),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Text(
-                                    tone.label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: tone.color,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w900,
-                                    ),
+                      GridView.count(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 11,
+                        mainAxisSpacing: 11,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        childAspectRatio: 1.55,
+                        children:
+                            totals.entries.map((MapEntry<String, double> item) {
+                          final _BusinessTone tone = _businessTones[item.key]!;
+                          return _GlassCard(
+                            padding: const EdgeInsets.all(13),
+                            borderRadius: 19,
+                            borderColor: tone.color.withAlpha(60),
+                            shadowColor: tone.color.withAlpha(20),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  tone.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: tone.color,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900,
                                   ),
-                                  const SizedBox(height: 5),
-                                  Text(
-                                    _money(item.value),
-                                    style: TextStyle(
-                                      color: tone.color,
-                                      fontSize: 19,
-                                      fontWeight: FontWeight.w900,
-                                      fontFeatures: AppStyles.tabularFigures,
-                                    ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  _money(item.value),
+                                  style: TextStyle(
+                                    color: tone.color,
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.w900,
+                                    fontFeatures: AppStyles.tabularFigures,
                                   ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
                       const SizedBox(height: 24),
                       _SectionTitle(
                         'All Entries',
