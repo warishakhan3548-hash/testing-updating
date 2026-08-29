@@ -22,6 +22,9 @@ jobs:
       - name: Apply surgical Milk detail migration
         run: python3 .github/milk_detail_ui_patch.py
 
+      - name: Remove dead shared hero API after specialization
+        run: python3 .github/milk_detail_cleanup_patch.py
+
       - name: Java 17
         uses: actions/setup-java@v4
         with:
@@ -53,6 +56,7 @@ jobs:
       - name: Remove one-off migration machinery
         run: |
           rm -f .github/milk_detail_ui_patch.py
+          rm -f .github/milk_detail_cleanup_patch.py
           rm -f .github/workflows/oneoff-milk-detail-ui.yml
 
       - name: Commit verified production UI
