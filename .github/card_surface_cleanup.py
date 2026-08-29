@@ -224,8 +224,7 @@ new_physics = '''  static List<BoxShadow> surfaceDepth(BuildContext context) {
         ? Colors.white.withAlpha(dark ? 30 : 132)
         : Color.lerp(Colors.white, accent, dark ? .22 : .14)!
             .withAlpha(dark ? 64 : 86);
-    // Keep all four sides identical so BoxDecoration can paint the border as
-    // one rounded RRect. Non-uniform Border sides can expose square seams.
+    // Keep all four sides identical so BoxDecoration paints one rounded RRect.
     return Border.all(color: edge, width: UIConstants.borderWidth);
   }
 '''
@@ -260,25 +259,6 @@ replace_in_section(
     '''          Padding(\n            padding: padding,\n            child: child,\n          ),\n        ],\n      ),\n    );''',
     '''            Padding(\n              padding: padding,\n              child: child,\n            ),\n          ],\n        ),\n      ),\n    );''',
     'glass inner clip end',
-)
-
-# Dashboard metric cards should read as tinted glass with colored shadow, not a
-# colored outline. The shared neutral rounded glass edge is cleaner.
-replace_in_section(
-    'class _MetricCard extends StatelessWidget {',
-    'class _LedgerIcon extends StatelessWidget {',
-    '        borderColor: color.withAlpha(77),\n',
-    '',
-    'metric card colored outline removal',
-)
-
-# Jewel icons get the compact shadow formula, avoiding oversized glow buffers.
-replace_in_section(
-    'class _LedgerIcon extends StatelessWidget {',
-    'class PartyLedgerScreen extends StatefulWidget {',
-    '          boxShadow: AppStyles.glow(context, color),',
-    '          boxShadow: AppStyles.jewelDepth(context, color),',
-    'ledger icon jewel shadow',
 )
 
 MAIN.write_text(text, encoding='utf-8')
