@@ -59,6 +59,10 @@ abstract final class UIConstants {
 }
 
 abstract final class AppStyles {
+  static const List<FontFeature> tabularFigures = <FontFeature>[
+    FontFeature.tabularFigures(),
+  ];
+
   static bool isDark(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark;
 
@@ -1552,13 +1556,13 @@ class _CircleAction extends StatelessWidget {
         child: _Pressable(
           onTap: onTap,
           semanticLabel: semanticLabel,
-          borderRadius: BorderRadius.circular(UIConstants.compactRadius),
+          borderRadius: BorderRadius.circular(24),
           child: Container(
             width: 48,
             height: 48,
             decoration: BoxDecoration(
+              shape: BoxShape.circle,
               color: color.withAlpha(23),
-              borderRadius: BorderRadius.circular(UIConstants.compactRadius),
               border: Border.fromBorderSide(
                 AppStyles.hairline(context, accent: color, active: true),
               ),
@@ -1836,10 +1840,10 @@ class _PrimaryButton extends StatelessWidget {
               Icon(
                 icon,
                 color: foregroundColor,
-                size: compact ? 20 : 22,
+                size: compact ? 18 : 20,
                 shadows: AppStyles.inkGlow(foregroundColor),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 7),
               Text(
                 label,
                 style: TextStyle(
@@ -1948,6 +1952,7 @@ class _HeroValue extends StatelessWidget {
               color: color,
               fontSize: 32,
               fontWeight: FontWeight.w700,
+              fontFeatures: AppStyles.tabularFigures,
               letterSpacing: -.8,
               shadows: <Shadow>[
                 Shadow(color: glow.withAlpha(94), blurRadius: 16),
@@ -2061,6 +2066,7 @@ class _ListCard extends StatelessWidget {
                       color: color,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
+                      fontFeatures: AppStyles.tabularFigures,
                       shadows: AppStyles.inkGlow(color),
                     ),
                   ),
@@ -2349,7 +2355,10 @@ Future<bool> _confirm(
           child: const Text('Cancel'),
         ),
         TextButton(
-          onPressed: () => Navigator.pop(context, true),
+          onPressed: () {
+            if (dangerous) HapticFeedback.heavyImpact();
+            Navigator.pop(context, true);
+          },
           child: Text(
             dangerous ? 'Delete' : 'Continue',
             style: TextStyle(color: dangerous ? appleRed : appleBlue),
@@ -2362,6 +2371,7 @@ Future<bool> _confirm(
 }
 
 void _toast(BuildContext context, String message, {bool error = false}) {
+  if (error) HapticFeedback.errorNotification();
   final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentSnackBar();
   messenger.showSnackBar(
@@ -2389,6 +2399,7 @@ Future<void> _runMutation(
 ) async {
   try {
     await mutation();
+    HapticFeedback.successNotification();
     if (context.mounted) _toast(context, success);
   } catch (error) {
     if (context.mounted) _toast(context, '$error', error: true);
@@ -2814,6 +2825,7 @@ class _MetricCard extends StatelessWidget {
                   color: color,
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
+                  fontFeatures: AppStyles.tabularFigures,
                   letterSpacing: -.7,
                   shadows: AppStyles.inkGlow(color, strong: true),
                 ),
@@ -3676,6 +3688,7 @@ class _MilkDetailHero extends StatelessWidget {
                           fontSize: compact ? 34 : 39,
                           height: 1,
                           fontWeight: FontWeight.w900,
+                          fontFeatures: AppStyles.tabularFigures,
                           letterSpacing: -1.4,
                         ),
                       ),
@@ -3717,6 +3730,7 @@ class _MilkDetailHero extends StatelessWidget {
                           color: color,
                           fontSize: compact ? 20 : 23,
                           fontWeight: FontWeight.w900,
+                          fontFeatures: AppStyles.tabularFigures,
                           letterSpacing: -.45,
                         ),
                       ),
@@ -3792,9 +3806,9 @@ class _SoftShareButton extends StatelessWidget {
             Icon(
               icon,
               color: color,
-              size: micro ? 20 : 22,
+              size: micro ? 18 : 20,
             ),
-            SizedBox(width: micro ? 6 : 8),
+            SizedBox(width: micro ? 5 : 7),
             Flexible(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -4121,6 +4135,7 @@ class _MilkValueCell extends StatelessWidget {
               color: color,
               fontSize: compact ? 13 : (strong ? 16 : 15),
               fontWeight: FontWeight.w700,
+              fontFeatures: AppStyles.tabularFigures,
               letterSpacing: strong ? -.25 : 0,
             ),
           ),
@@ -4462,6 +4477,7 @@ class _LedgerAmountCell extends StatelessWidget {
               color: color,
               fontSize: 15.5,
               fontWeight: FontWeight.w700,
+              fontFeatures: AppStyles.tabularFigures,
               letterSpacing: -.25,
             ),
           ),
@@ -6554,6 +6570,8 @@ class BusinessDetailScreen extends StatelessWidget {
                       avatar: Icon(entry.value.icon,
                           size: 16, color: entry.value.color),
                       selectedColor: entry.value.color.withAlpha(45),
+                      shape: const StadiumBorder(),
+                      showCheckmark: false,
                       side: BorderSide(color: entry.value.color.withAlpha(70)),
                       onSelected: (_) {
                         HapticFeedback.selectionClick();
@@ -6739,6 +6757,7 @@ class BusinessDetailScreen extends StatelessWidget {
                                       color: tone.color,
                                       fontSize: 19,
                                       fontWeight: FontWeight.w900,
+                                      fontFeatures: AppStyles.tabularFigures,
                                     ),
                                   ),
                                 ],
@@ -7615,7 +7634,7 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
                     child: _formatButton(
                       _ExportFormat.aiLedger,
                       'AI Ledger',
-                      Icons.smart_toy_rounded,
+                      Icons.auto_awesome_rounded,
                       const <Color>[
                         Color(0xFF9A67EA),
                         Color(0xFF7057D9),
@@ -7713,9 +7732,9 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
             Icon(
               icon,
               color: selected ? Colors.white : idleColor,
-              size: 23,
+              size: 20,
             ),
-            const SizedBox(width: 9),
+            const SizedBox(width: 8),
             Flexible(
               child: Text(
                 label,
@@ -7779,8 +7798,8 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Icon(spec.icon, size: wide ? 25 : 23, color: Colors.white),
-            const SizedBox(width: 9),
+            Icon(spec.icon, size: wide ? 22 : 20, color: Colors.white),
+            const SizedBox(width: 8),
             Flexible(
               child: Text(
                 spec.label,
