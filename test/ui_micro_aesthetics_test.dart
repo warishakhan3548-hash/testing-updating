@@ -21,6 +21,18 @@ void main() {
     expect(source, isNot(contains('Icons.delete_rounded')));
     expect(source, contains('this.icon = Icons.add_rounded'));
 
+    // Direct manipulation stays brief, tactile and accessibility-aware.
+    expect(source, contains('Duration(milliseconds: 55)'));
+    expect(source, contains('reverseDuration: const Duration(milliseconds: 180)'));
+    expect(source, contains('offset: Offset(0, motion * 1.1)'));
+    expect(source, contains('scale: 1 - (motion * .017)'));
+    expect(source, contains('MediaQuery.of(context).disableAnimations'));
+
+    // Navigation and pull-to-refresh keep the snappier feedback model.
+    expect(source, contains('Duration(milliseconds: 250)'));
+    expect(source, contains('RefreshIndicator.adaptive('));
+    expect(source, contains('HapticFeedback.lightImpact();'));
+
     // Brand/state color logic and Firebase integration must stay untouched.
     expect(source, contains("import 'firebase_sync.dart';"));
     expect(source, contains('Firebase.initializeApp('));
@@ -32,5 +44,4 @@ void main() {
 }
 
 // This source guard intentionally lives in test/ so every future UI edit rechecks
-// the premium depth/icon invariants together with the app's normal Flutter CI.
-// Final verification trigger after project-aware Dart formatting.
+// the premium depth, icon and motion invariants with the app's normal Flutter CI.
