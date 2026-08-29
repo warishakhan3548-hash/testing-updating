@@ -83,17 +83,24 @@ abstract final class AppStyles {
     final bool dark = isDark(context);
     return <BoxShadow>[
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 56 : 12),
+        color: Colors.black.withAlpha(dark ? 58 : 11),
         blurRadius: 7,
         spreadRadius: -2,
         offset: const Offset(0, 2),
       ),
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 66 : 15),
-        blurRadius: dark ? 28 : 24,
-        spreadRadius: -7,
-        offset: const Offset(0, 9),
+        color: Colors.black.withAlpha(dark ? 74 : 20),
+        blurRadius: dark ? 32 : 28,
+        spreadRadius: -8,
+        offset: const Offset(0, 10),
       ),
+      if (!dark)
+        BoxShadow(
+          color: Colors.white.withAlpha(190),
+          blurRadius: 18,
+          spreadRadius: -12,
+          offset: const Offset(0, -3),
+        ),
     ];
   }
 
@@ -106,17 +113,17 @@ abstract final class AppStyles {
     return <BoxShadow>[
       BoxShadow(
         color: color.withAlpha(
-          strong ? (dark ? 60 : 42) : (dark ? 44 : 30),
+          strong ? (dark ? 68 : 48) : (dark ? 48 : 34),
         ),
-        blurRadius: strong ? 28 : 22,
-        spreadRadius: -5,
-        offset: const Offset(0, 8),
+        blurRadius: strong ? 32 : 24,
+        spreadRadius: strong ? -5 : -6,
+        offset: const Offset(0, 9),
       ),
       if (strong)
         BoxShadow(
-          color: color.withAlpha(dark ? 28 : 20),
-          blurRadius: 40,
-          spreadRadius: -10,
+          color: color.withAlpha(dark ? 34 : 25),
+          blurRadius: 46,
+          spreadRadius: -12,
           offset: const Offset(0, 16),
         ),
       ...surfaceDepth(context),
@@ -126,18 +133,17 @@ abstract final class AppStyles {
   static List<BoxShadow> railDepth(BuildContext context, Color color) {
     final bool dark = isDark(context);
     return <BoxShadow>[
-      // A narrow side aura reinforces the semantic rail without drawing a box.
       BoxShadow(
-        color: color.withAlpha(dark ? 62 : 44),
-        blurRadius: 18,
-        spreadRadius: -4,
-        offset: const Offset(-3, 0),
+        color: color.withAlpha(dark ? 68 : 48),
+        blurRadius: 22,
+        spreadRadius: -5,
+        offset: const Offset(-3, 1),
       ),
       BoxShadow(
-        color: color.withAlpha(dark ? 34 : 24),
-        blurRadius: 30,
-        spreadRadius: -8,
-        offset: const Offset(0, 12),
+        color: color.withAlpha(dark ? 38 : 27),
+        blurRadius: 36,
+        spreadRadius: -10,
+        offset: const Offset(0, 13),
       ),
       ...surfaceDepth(context),
     ];
@@ -147,15 +153,15 @@ abstract final class AppStyles {
     final bool dark = isDark(context);
     return <BoxShadow>[
       BoxShadow(
-        color: color.withAlpha(dark ? 56 : 40),
-        blurRadius: 18,
+        color: color.withAlpha(dark ? 62 : 47),
+        blurRadius: 21,
         spreadRadius: -4,
-        offset: const Offset(0, 6),
+        offset: const Offset(0, 7),
       ),
       BoxShadow(
-        color: color.withAlpha(dark ? 28 : 20),
-        blurRadius: 26,
-        spreadRadius: -8,
+        color: color.withAlpha(dark ? 31 : 23),
+        blurRadius: 30,
+        spreadRadius: -9,
         offset: Offset.zero,
       ),
     ];
@@ -164,7 +170,7 @@ abstract final class AppStyles {
   static Border glassBorder(BuildContext context, {Color? accent}) {
     final bool dark = isDark(context);
     return Border.all(
-      color: Colors.white.withAlpha(dark ? 24 : 96),
+      color: Colors.white.withAlpha(dark ? 30 : 132),
       width: UIConstants.borderWidth,
     );
   }
@@ -1219,18 +1225,34 @@ class _BottomLedgerNav extends StatelessWidget {
   }
 }
 
+class _PressableScope extends InheritedWidget {
+  const _PressableScope({required super.child});
+
+  static bool contains(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_PressableScope>() != null;
+
+  @override
+  bool updateShouldNotify(covariant _PressableScope oldWidget) => false;
+}
+
 class _Pressable extends StatefulWidget {
   const _Pressable({
     required this.child,
     required this.onTap,
     this.borderRadius,
     this.semanticLabel,
+    this.visualOnly = false,
+    this.pressScale = .986,
+    this.softBounce = true,
   });
 
   final Widget child;
   final VoidCallback? onTap;
   final BorderRadius? borderRadius;
   final String? semanticLabel;
+  final bool visualOnly;
+  final double pressScale;
+  final bool softBounce;
 
   @override
   State<_Pressable> createState() => _PressableState();
@@ -1240,37 +1262,47 @@ class _PressableState extends State<_Pressable>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pressController;
 
+  bool get _canPress => widget.onTap != null || widget.visualOnly;
+
+  bool get _reduceMotion =>
+      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
   @override
   void initState() {
     super.initState();
     _pressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 70),
-      reverseDuration: const Duration(milliseconds: 220),
+      duration: const Duration(milliseconds: 82),
+      reverseDuration: const Duration(milliseconds: 230),
     );
   }
 
   void _press() {
-    if (widget.onTap == null) return;
+    if (!_canPress) return;
+    if (_reduceMotion) {
+      _pressController.value = 0;
+      return;
+    }
     _pressController.animateTo(
       1,
-      duration: const Duration(milliseconds: 70),
-      curve: const Cubic(0.2, 0, 0, 1),
+      duration: const Duration(milliseconds: 82),
+      curve: const Cubic(0.20, 0, 0, 1),
     );
   }
 
   void _release() {
-    if (widget.onTap == null) return;
+    if (!_canPress) return;
+    if (_reduceMotion) {
+      _pressController.value = 0;
+      return;
+    }
     _pressController.animateBack(
       0,
-      duration: const Duration(milliseconds: 220),
-      curve: const Cubic(0.34, 1.18, 0.64, 1),
+      duration: Duration(milliseconds: widget.softBounce ? 230 : 180),
+      curve: widget.softBounce
+          ? const Cubic(0.20, 1.08, 0.30, 1)
+          : const Cubic(0.22, 1, 0.36, 1),
     );
-  }
-
-  void _handleLongPress() {
-    _press();
-    HapticFeedback.mediumImpact();
   }
 
   @override
@@ -1280,28 +1312,30 @@ class _PressableState extends State<_Pressable>
   }
 
   @override
-  Widget build(BuildContext context) => Semantics(
-        button: true,
-        label: widget.semanticLabel,
-        onLongPress: widget.onTap == null ? null : _handleLongPress,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: widget.onTap == null ? null : (_) => _press(),
-          onTapCancel: widget.onTap == null ? null : _release,
-          onTapUp: widget.onTap == null ? null : (_) => _release(),
-          onLongPress: widget.onTap == null ? null : _handleLongPress,
-          onLongPressEnd: widget.onTap == null ? null : (_) => _release(),
-          onTap: widget.onTap == null
-              ? null
-              : () {
-                  HapticFeedback.selectionClick();
-                  widget.onTap!();
-                },
-          child: AnimatedBuilder(
-            animation: _pressController,
-            child: widget.child,
-            builder: (BuildContext context, Widget? child) => Transform.scale(
-              scale: 1 - (_pressController.value * .022),
+  Widget build(BuildContext context) {
+    final bool interactive = widget.onTap != null;
+    final double pressScale = widget.pressScale.clamp(.96, 1.0).toDouble();
+    return Semantics(
+      button: interactive,
+      label: widget.semanticLabel,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: _canPress ? (_) => _press() : null,
+        onTapCancel: _canPress ? _release : null,
+        onTapUp: _canPress ? (_) => _release() : null,
+        onTap: !interactive
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                widget.onTap!();
+              },
+        child: AnimatedBuilder(
+          animation: _pressController,
+          child: _PressableScope(child: widget.child),
+          builder: (BuildContext context, Widget? child) {
+            final double amount = _pressController.value;
+            return Transform.scale(
+              scale: 1 - ((1 - pressScale) * amount),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: <Widget>[
@@ -1316,11 +1350,11 @@ class _PressableState extends State<_Pressable>
                                       ? Colors.white
                                       : Colors.black)
                                   .withAlpha(
-                            (_pressController.value *
+                            (amount *
                                     (Theme.of(context).brightness ==
                                             Brightness.dark
-                                        ? 14
-                                        : 9))
+                                        ? 11
+                                        : 7))
                                 .round(),
                           ),
                         ),
@@ -1329,10 +1363,12 @@ class _PressableState extends State<_Pressable>
                   ),
                 ],
               ),
-            ),
-          ),
+            );
+          },
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _GlassCard extends StatelessWidget {
@@ -1386,7 +1422,7 @@ class _GlassCard extends StatelessWidget {
               )
         : AppStyles.surfaceDepth(context);
     final BorderRadius radius = BorderRadius.circular(borderRadius);
-    return DecoratedBox(
+    final Widget surface = DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -1463,6 +1499,15 @@ class _GlassCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+    if (_PressableScope.contains(context)) return surface;
+    return _Pressable(
+      onTap: null,
+      visualOnly: true,
+      pressScale: .986,
+      softBounce: true,
+      borderRadius: radius,
+      child: surface,
     );
   }
 }
