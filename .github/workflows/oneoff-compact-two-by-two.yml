@@ -1,0 +1,97 @@
+name: One-off Compact Two By Two
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/oneoff-compact-two-by-two.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply guarded compact layout patch
+        run: python3 .github/patch_compact_two_by_two.py
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format
+        run: dart format lib/main.dart
+
+      - name: Geometry guard
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('lib/main.dart').read_text(encoding='utf-8')
+          assert 'class _CompactTwoByTwoGrid extends StatelessWidget' in src
+          helper = src[src.index('class _CompactTwoByTwoGrid'):src.index('class _MetricCard')]
+          assert '(constraints.maxWidth - gap) / 2' in helper
+          assert 'height: cardSize' in helper
+          assert 'width: cardSize' in helper
+          assert 'height: (cardSize * 2) + gap' in helper
+          dash = src[src.index('class DashboardScreen'):src.index('class _SyncPill')]
+          assert '_CompactTwoByTwoGrid(' in dash
+          assert 'gap: 8' in dash
+          assert 'GridView.count(' not in dash
+          biz = src[src.index('class BusinessDetailScreen'):src.index('class _AiMessage')]
+          assert '_CompactTwoByTwoGrid(' in biz
+          assert 'gap: 8' in biz
+          print('GEOMETRY_OK exact square cards + compact 8dp gaps')
+          PY
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Diff scope guard
+        run: |
+          git diff -- lib/main.dart > /tmp/compact.diff
+          python3 - <<'PY'
+          from pathlib import Path
+          d = Path('/tmp/compact.diff').read_text(encoding='utf-8')
+          required = ['_CompactTwoByTwoGrid', 'crossAxisSpacing: 13', 'childAspectRatio: 1.55']
+          for item in required:
+              if item not in d:
+                  raise SystemExit(f'Expected compact-layout delta missing: {item}')
+          forbidden = [
+              '_BottomNavModuleIcon', '_CreditMoneyHandIcon',
+              'class _ScreenHeader', 'class _ListCard',
+              'class _GlassCard', 'Firebase', 'LedgerMath',
+          ]
+          for item in forbidden:
+              if item in d:
+                  raise SystemExit(f'Forbidden unrelated scope touched: {item}')
+          print('SCOPE_OK only dashboard/business compact geometry changed')
+          PY
+
+      - name: Commit verified compact layout
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Compact dashboard and business cards into square grids [skip ci]
+          file_pattern: lib/main.dart
