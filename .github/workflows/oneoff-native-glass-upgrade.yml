@@ -19,7 +19,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Apply guarded native glass translation
-        run: python3 .github/native_glass_upgrade.py
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/native_glass_upgrade.py')
+          s = p.read_text(encoding='utf-8')
+          old = """replace_once(\n    '              boxShadow: AppStyles.glow(context, color),',\n    '              boxShadow: AppStyles.jewelDepth(context, color),',\n    'circle action jewel shadow',\n)"""
+          new = """replace_once(\n    \"\"\"              shape: BoxShape.circle,\n              color: color.withAlpha(23),\n              border: Border.fromBorderSide(\n                AppStyles.hairline(context, accent: color, active: true),\n              ),\n              boxShadow: AppStyles.glow(context, color),\"\"\",\n    \"\"\"              shape: BoxShape.circle,\n              color: color.withAlpha(23),\n              border: Border.fromBorderSide(\n                AppStyles.hairline(context, accent: color, active: true),\n              ),\n              boxShadow: AppStyles.jewelDepth(context, color),\"\"\",\n    'circle action jewel shadow',\n)"""
+          if old not in s:
+              raise SystemExit('workflow hotfix precondition failed')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+          python3 .github/native_glass_upgrade.py
 
       - name: Java 17
         uses: actions/setup-java@v4
