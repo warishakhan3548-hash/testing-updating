@@ -61,7 +61,7 @@ NEW_GLOW = '''    canvas.drawRect(
           radius: radius,
           colors: <Color>[
             color,
-            color.withAlpha((color.alpha * .35).round()),
+            color.withValues(alpha: color.a * .35),
             Colors.transparent,
           ],
           stops: const <double>[0, .45, 1],
@@ -153,6 +153,7 @@ def validate(text: str) -> None:
         'blurRadius: dark ? 6 : 5,',
         'blurRadius: dark ? 38 : 28,',
         '..blendMode = dark ? BlendMode.screen : BlendMode.srcOver',
+        'color.withValues(alpha: color.a * .35)',
         'stops: const <double>[0, .45, 1],',
         'Colors.white.withAlpha(dark ? 76 : 210)',
         'Colors.black.withAlpha(dark ? 64 : 16)',
