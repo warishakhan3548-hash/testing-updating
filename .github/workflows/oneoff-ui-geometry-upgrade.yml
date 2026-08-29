@@ -26,10 +26,10 @@ jobs:
           sed -E -i 's/ \+[0-9]+,/ +100,/' /tmp/ui_geometry_upgrade.patch
 
       - name: Verify patch applies cleanly
-        run: patch --dry-run -p1 -F 0 < /tmp/ui_geometry_upgrade.patch
+        run: patch --dry-run -l -p1 -F 0 < /tmp/ui_geometry_upgrade.patch
 
       - name: Apply surgical UI geometry patch
-        run: patch -p1 -F 0 < /tmp/ui_geometry_upgrade.patch
+        run: patch -l -p1 -F 0 < /tmp/ui_geometry_upgrade.patch
 
       - name: Verify scope lock before formatting
         run: |
