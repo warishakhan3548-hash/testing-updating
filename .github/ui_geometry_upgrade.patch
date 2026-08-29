@@ -1,0 +1,521 @@
+--- a/lib/main.dart
++++ b/lib/main.dart
+@@ -1,19 +1,21 @@
+ abstract final class UIConstants {
+   static const double minTapTarget = 48;
+-  static const double inputRadius = 20;
+-  static const double compactRadius = 18;
+-  static const double actionRadius = 22;
+-  static const double cardRadius = 26;
+-  static const double heroRadius = 28;
+-  static const double sheetRadius = 36;
++  static const double compactButtonHeight = 48;
++  static const double standardButtonHeight = 56;
++  static const double inputRadius = 16;
++  static const double compactRadius = 16;
++  static const double actionRadius = 20;
++  static const double cardRadius = 24;
++  static const double heroRadius = 24;
++  static const double sheetRadius = 32;
+   static const double accentStroke = 6;
+   static const double borderWidth = 1;
+ 
+-  static const EdgeInsets cardPadding = EdgeInsets.all(18);
+-  static const EdgeInsets compactCardPadding = EdgeInsets.all(15);
++  static const EdgeInsets cardPadding = EdgeInsets.all(20);
++  static const EdgeInsets compactCardPadding = EdgeInsets.all(16);
+   static const EdgeInsets inputPadding =
+-      EdgeInsets.symmetric(horizontal: 20, vertical: 18);
+-  static const EdgeInsets actionPadding = EdgeInsets.symmetric(horizontal: 22);
++      EdgeInsets.symmetric(horizontal: 20, vertical: 16);
++  static const EdgeInsets actionPadding = EdgeInsets.symmetric(horizontal: 20);
+ 
+   static const Duration motion = Duration(milliseconds: 280);
+ }
+@@ -1,3 +1,3 @@
+ void _scrollNavigation(int index) {
+-  final double target = math.max(0, index * 82 - 120).toDouble();
++  final double target = math.max(0, index * 88 - 120).toDouble();
+   if (_navController.hasClients) {
+@@ -1,6 +1,6 @@
+ child: SafeArea(
+   top: false,
+   child: SizedBox(
+-    height: 88,
++    height: 80,
+     child: SingleChildScrollView(
+       controller: controller,
+@@ -1,7 +1,7 @@
+ child: AnimatedContainer(
+   duration: UIConstants.motion,
+   curve: const Cubic(0.32, 0.72, 0, 1),
+-  width: 82,
+-  height: 74,
+-  margin: const EdgeInsets.symmetric(horizontal: 2),
++  width: 80,
++  height: 64,
++  margin: const EdgeInsets.symmetric(horizontal: 4),
+   decoration: BoxDecoration(
+@@ -1,4 +1,4 @@
+ child: Icon(
+   spec.icon,
+-  size: 27,
++  size: 24,
+   color: active ? color : systemGray,
+@@ -1,4 +1,4 @@
+ fontSize: 12,
+ fontWeight:
+-    active ? FontWeight.w900 : FontWeight.w700,
++    active ? FontWeight.w800 : FontWeight.w600,
+ shadows:
+@@ -1,4 +1,4 @@
+ curve: const Cubic(0.32, 0.72, 0, 1),
+-width: active ? 38 : 0,
++width: active ? 40 : 0,
+ height: 4,
+ decoration: BoxDecoration(
+@@ -1,10 +1,10 @@
+ child: SafeArea(
+   bottom: false,
+   child: Padding(
+-    padding: const EdgeInsets.fromLTRB(24, 14, 20, 16),
++    padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+     child: Row(
+       children: <Widget>[
+         if (leading != null) ...<Widget>[
+           leading!,
+-          const SizedBox(width: 11),
++          const SizedBox(width: 12),
+         ],
+@@ -1,6 +1,6 @@
+ style: TextStyle(
+   color: color,
+-  fontSize: leading == null ? 30 : 26,
+-  fontWeight: FontWeight.w900,
+-  letterSpacing: -.5,
++  fontSize: leading == null ? 28 : 24,
++  fontWeight: FontWeight.w800,
++  letterSpacing: -.4,
+   shadows:
+@@ -1,6 +1,6 @@
+ style: const TextStyle(
+   color: appleBlue,
+   fontSize: 10,
+-  fontWeight: FontWeight.w900,
+-  letterSpacing: 1.1,
++  fontWeight: FontWeight.w700,
++  letterSpacing: 1.0,
+ ),
+@@ -4,7 +4,7 @@
+       child: _Pressable(
+         onTap: onTap,
+         semanticLabel: semanticLabel,
+         borderRadius: BorderRadius.circular(UIConstants.compactRadius),
+         child: Container(
+-          width: 50,
+-          height: 50,
++          width: 48,
++          height: 48,
+@@ -1,7 +1,7 @@
+ @override
+ Widget build(BuildContext context) => _Pressable(
+       onTap: () => Navigator.of(context).maybePop(),
+-      borderRadius: BorderRadius.circular(25),
++      borderRadius: BorderRadius.circular(24),
+       child: Container(
+-        width: 50,
+-        height: 50,
++        width: 48,
++        height: 48,
+@@ -1,17 +1,17 @@
+ style: TextStyle(
+   color: widget.color,
+   fontSize: 16,
+-  fontWeight: FontWeight.w800,
++  fontWeight: FontWeight.w700,
+   shadows: AppStyles.inkGlow(widget.color),
+ ),
+ decoration: InputDecoration(
+   hintText: widget.hint,
+   filled: true,
+   fillColor: widget.color.withAlpha(dark ? 12 : 8),
+   contentPadding:
+-      const EdgeInsets.symmetric(horizontal: 20, vertical: 19),
++      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+   hintStyle: TextStyle(
+     color: widget.color.withAlpha(160),
+     fontSize: 16,
+-    fontWeight: FontWeight.w800,
++    fontWeight: FontWeight.w600,
+   ),
+@@ -1,2 +1,2 @@
+-prefixIconConstraints: const BoxConstraints(minWidth: 54),
++prefixIconConstraints: const BoxConstraints(minWidth: 48),
+ enabledBorder: idleBorder,
+@@ -1,5 +1,7 @@
+ child: Container(
+   constraints:
+       const BoxConstraints(minHeight: UIConstants.minTapTarget),
+-  height: compact ? 52 : 58,
++  height: compact
++      ? UIConstants.compactButtonHeight
++      : UIConstants.standardButtonHeight,
+   padding: UIConstants.actionPadding,
+@@ -1,8 +1,8 @@
+ Text(
+   label,
+   style: TextStyle(
+     color: foregroundColor,
+-    fontSize: compact ? 15.5 : 17,
+-    fontWeight: FontWeight.w900,
++    fontSize: compact ? 15 : 16.5,
++    fontWeight: FontWeight.w800,
+     shadows: AppStyles.inkGlow(foregroundColor),
+   ),
+@@ -1,4 +1,4 @@
+ return Container(
+   width: double.infinity,
+-  padding: const EdgeInsets.all(22),
++  padding: const EdgeInsets.all(20),
+   decoration: BoxDecoration(
+@@ -1,22 +1,22 @@
+ Text(
+   label.toUpperCase(),
+   style: TextStyle(
+     color: color,
+-    fontSize: 10,
+-    fontWeight: FontWeight.w900,
++    fontSize: 11,
++    fontWeight: FontWeight.w600,
+     letterSpacing: .8,
+     shadows: <Shadow>[
+       Shadow(color: glow.withAlpha(78), blurRadius: 12),
+     ],
+   ),
+ ),
+-const SizedBox(height: 5),
++const SizedBox(height: 4),
+ Text(
+   value,
+   maxLines: 1,
+   overflow: TextOverflow.ellipsis,
+   style: TextStyle(
+     color: color,
+-    fontSize: 31,
+-    fontWeight: FontWeight.w900,
++    fontSize: 32,
++    fontWeight: FontWeight.w700,
+     letterSpacing: -.8,
+@@ -1,4 +1,4 @@
+ @override
+ Widget build(BuildContext context) => Padding(
+-      padding: const EdgeInsets.only(bottom: 14),
++      padding: const EdgeInsets.only(bottom: 12),
+       child: _Pressable(
+@@ -1,5 +1,5 @@
+ children: <Widget>[
+   Container(
+-    width: 48,
+-    height: 48,
++    width: 44,
++    height: 44,
+     decoration: BoxDecoration(
+@@ -1,7 +1,7 @@
+ child: avatarText == null
+     ? Icon(
+         icon,
+         color: color,
+-        size: 22,
++        size: 20,
+         shadows: AppStyles.inkGlow(color),
+       )
+@@ -1,6 +1,6 @@
+ style: TextStyle(
+   color: color,
+   fontSize: 18,
+-  fontWeight: FontWeight.w900,
++  fontWeight: FontWeight.w800,
+   shadows: AppStyles.inkGlow(color),
+ ),
+@@ -1,3 +1,3 @@
+ ),
+-const SizedBox(width: 15),
++const SizedBox(width: 16),
+ Expanded(
+@@ -1,6 +1,6 @@
+ style: TextStyle(
+   color: color,
+-  fontSize: 16.5,
+-  fontWeight: FontWeight.w900,
++  fontSize: 16,
++  fontWeight: FontWeight.w700,
+   shadows: AppStyles.inkGlow(color),
+ ),
+@@ -1,5 +1,5 @@
+ style: TextStyle(
+   color: color.withAlpha(190),
+   fontSize: 13,
+-  fontWeight: FontWeight.w800,
++  fontWeight: FontWeight.w600,
+ ),
+@@ -1,6 +1,6 @@
+ style: TextStyle(
+   color: color,
+-  fontSize: 15.5,
+-  fontWeight: FontWeight.w900,
++  fontSize: 16,
++  fontWeight: FontWeight.w700,
+   shadows: AppStyles.inkGlow(color),
+ ),
+@@ -1,5 +1,5 @@
+ style: TextStyle(
+   color: color,
+   fontSize: 18,
+-  fontWeight: FontWeight.w900,
++  fontWeight: FontWeight.w800,
+   letterSpacing: -.2,
+@@ -1,2 +1,2 @@
+ InputDecoration _pickerDecoration() => InputDecoration(
+-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
++      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+@@ -1,5 +1,5 @@
+ Align(
+   child: Container(
+-    width: 54,
+-    height: 6,
++    width: 40,
++    height: 4,
+     decoration: BoxDecoration(
+@@ -1,9 +1,9 @@
+-const SizedBox(height: 26),
++const SizedBox(height: 24),
+ Text(
+   title,
+   textAlign: centerTitle ? TextAlign.center : TextAlign.start,
+   style: const TextStyle(
+-    fontSize: 30,
+-    fontWeight: FontWeight.w900,
+-    letterSpacing: -.5,
++    fontSize: 24,
++    fontWeight: FontWeight.w800,
++    letterSpacing: -.4,
+   ),
+@@ -1,12 +1,12 @@
+ return _Pressable(
+   onTap: onTap,
+   semanticLabel: semanticLabel,
+-  borderRadius: BorderRadius.circular(22),
++  borderRadius: BorderRadius.circular(UIConstants.actionRadius),
+   child: Container(
+     constraints: const BoxConstraints(
+-      minHeight: 62,
++      minHeight: 56,
+       minWidth: UIConstants.minTapTarget,
+     ),
+-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
++    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+     decoration: BoxDecoration(
+       gradient: LinearGradient(
+@@ -1,3 +1,3 @@
+-borderRadius: BorderRadius.circular(22),
++borderRadius: BorderRadius.circular(UIConstants.actionRadius),
+ border: Border.all(
+   color: dark ? Colors.white.withAlpha(34) : color.withAlpha(95),
+@@ -1,5 +1,5 @@
+ style: const TextStyle(
+   color: Colors.white,
+-  fontSize: 17,
+-  fontWeight: FontWeight.w900,
+-  letterSpacing: -.25,
++  fontSize: 16.5,
++  fontWeight: FontWeight.w800,
++  letterSpacing: -.2,
+@@ -1,8 +1,8 @@
+ Text(
+   label,
+   style: TextStyle(
+     color: color,
+     fontSize: 12,
+-    fontWeight: FontWeight.w900,
++    fontWeight: FontWeight.w700,
+     shadows: AppStyles.inkGlow(color),
+   ),
+@@ -1,6 +1,6 @@
+ return Container(
+   clipBehavior: Clip.antiAlias,
+   decoration: BoxDecoration(
+     color: dark ? const Color(0xFF12161D) : Colors.white,
+-    borderRadius: BorderRadius.circular(25),
++    borderRadius: BorderRadius.circular(UIConstants.cardRadius),
+     border: Border.all(
+@@ -1,3 +1,3 @@
+ Container(
+-  constraints: const BoxConstraints(minHeight: 58),
+-  padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14),
++  constraints: const BoxConstraints(minHeight: 48),
++  padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16),
+@@ -1,6 +1,6 @@
+ style: TextStyle(
+   color: appleBlue,
+   fontSize: compact ? 9.6 : 10.7,
+   height: 1,
+-  fontWeight: FontWeight.w900,
++  fontWeight: FontWeight.w700,
+   letterSpacing: compact ? .15 : .55,
+@@ -1,7 +1,7 @@
+ for (int rowIndex = 0; rowIndex < rows.length; rowIndex++)
+   Container(
+-    constraints: BoxConstraints(minHeight: compact ? 78 : 84),
++    constraints: const BoxConstraints(minHeight: 72),
+     padding: EdgeInsets.symmetric(
+-      horizontal: compact ? 10 : 14,
+-      vertical: 10,
++      horizontal: compact ? 12 : 16,
++      vertical: 8,
+     ),
+@@ -1,9 +1,8 @@
+-SizedBox(
+-  width: compact ? 46 : 52,
++const SizedBox(
++  width: 52,
+   child: Align(
+     alignment: Alignment.centerRight,
+     child: _LedgerDeleteAction(
+       onTap: rows[rowIndex].onDelete,
+       semanticLabel: rows[rowIndex].semanticLabel,
+-      compact: compact,
+     ),
+@@ -1,15 +1,13 @@
+ class _LedgerDeleteAction extends StatelessWidget {
+   const _LedgerDeleteAction({
+     required this.onTap,
+     required this.semanticLabel,
+-    required this.compact,
+   });
+ 
+   final VoidCallback onTap;
+   final String semanticLabel;
+-  final bool compact;
+ 
+   @override
+   Widget build(BuildContext context) {
+     final bool dark = Theme.of(context).brightness == Brightness.dark;
+-    final double size = compact ? 40 : 44;
++    const double size = UIConstants.minTapTarget;
+@@ -1,5 +1,5 @@
+ style: TextStyle(
+   color: color,
+   fontSize: 14,
+-  fontWeight: FontWeight.w900,
++  fontWeight: FontWeight.w700,
+ ),
+@@ -1,6 +1,6 @@
+ style: TextStyle(
+   color: color,
+   fontSize: 15,
+   height: 1,
+-  fontWeight: FontWeight.w900,
++  fontWeight: FontWeight.w700,
+ ),
+@@ -1,6 +1,6 @@
+ style: TextStyle(
+   color: color,
+   fontSize: 12.5,
+   height: 1,
+-  fontWeight: FontWeight.w900,
++  fontWeight: FontWeight.w700,
+ ),
+@@ -1,5 +1,5 @@
+ style: TextStyle(
+   color: color,
+   fontSize: 14.5,
+-  fontWeight: FontWeight.w900,
++  fontWeight: FontWeight.w700,
+   letterSpacing: -.15,
+@@ -1,5 +1,5 @@
+ style: TextStyle(
+   color: color,
+   fontSize: 15.5,
+-  fontWeight: FontWeight.w900,
++  fontWeight: FontWeight.w700,
+   letterSpacing: -.25,
+@@ -1,6 +1,6 @@
+ style: TextStyle(
+   color: color,
+   fontSize: 9.8,
+   height: 1,
+-  fontWeight: FontWeight.w900,
++  fontWeight: FontWeight.w700,
+   letterSpacing: .2,
+@@ -1,5 +1,5 @@
+ style: TextStyle(
+   color: color,
+   fontSize: 13.5,
+-  fontWeight: FontWeight.w900,
++  fontWeight: FontWeight.w700,
+ ),
+@@ -1,6 +1,6 @@
+ return Container(
+   clipBehavior: Clip.antiAlias,
+   decoration: BoxDecoration(
+     color: dark ? const Color(0xFF12161D) : Colors.white,
+-    borderRadius: BorderRadius.circular(25),
++    borderRadius: BorderRadius.circular(UIConstants.cardRadius),
+     border: Border.all(
+@@ -1,3 +1,3 @@
+ Container(
+-  height: 58,
++  height: 48,
+   padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
+@@ -1,2 +1,2 @@
+-  SizedBox(width: compact ? 44 : 50),
++  const SizedBox(width: 52),
+ ],
+@@ -1,6 +1,6 @@
+ style: TextStyle(
+   color: appleBlue,
+   fontSize: compact ? 9.2 : 10.5,
+   height: 1,
+-  fontWeight: FontWeight.w900,
++  fontWeight: FontWeight.w700,
+   letterSpacing: compact ? .15 : .45,
+@@ -1,3 +1,3 @@
+ return Container(
+-  constraints: const BoxConstraints(minHeight: 88),
+-  padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12, vertical: 10),
++  constraints: const BoxConstraints(minHeight: 72),
++  padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12, vertical: 8),
+@@ -1,4 +1,4 @@
+-SizedBox(
+-  width: compact ? 44 : 50,
++const SizedBox(
++  width: 52,
+   child: Align(
+     alignment: Alignment.centerRight,
+@@ -1,4 +1,4 @@
+ child: Container(
+-  width: compact ? 40 : 44,
+-  height: compact ? 40 : 44,
++  width: 48,
++  height: 48,
+   decoration: BoxDecoration(
+@@ -1,3 +1,3 @@
+ fontSize: compact ? 13 : (strong ? 16 : 15),
+-fontWeight: strong ? FontWeight.w900 : FontWeight.w800,
++fontWeight: FontWeight.w700,
+ letterSpacing: strong ? -.25 : 0,
+@@ -1,6 +1,6 @@
+ style: const TextStyle(
+   color: systemGray,
+   fontSize: 10,
+-  fontWeight: FontWeight.w900,
++  fontWeight: FontWeight.w600,
+   letterSpacing: .65,
+ ),
+@@ -1,5 +1,5 @@
+ style: TextStyle(
+   color: color,
+   fontSize: 24,
+-  fontWeight: FontWeight.w900,
++  fontWeight: FontWeight.w700,
+   letterSpacing: -.7,
