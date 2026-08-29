@@ -1,5 +1,6 @@
 name: One-off Rounded Card Surface Cleanup
 
+# retry: corrected guarded helper preconditions
 on:
   push:
     branches: [main]
