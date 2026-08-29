@@ -1,0 +1,63 @@
+name: Apply premium navigation v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/premium_nav_v2.py"
+      - ".github/workflows/premium-nav-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Apply guarded premium navigation patch
+        run: python3 .github/premium_nav_v2.py
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format patched source
+        run: dart format lib/main.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test ledger invariants
+        run: flutter test
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Remove one-time migration files
+        run: rm .github/premium_nav_v2.py .github/workflows/premium-nav-v2.yml
+
+      - name: Commit verified premium navigation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A lib/main.dart .github/premium_nav_v2.py .github/workflows/premium-nav-v2.yml
+          git diff --cached --check
+          git commit -m "Upgrade bottom navigation to premium v2 [skip ci]"
+          git push origin HEAD:main
