@@ -20,10 +20,10 @@ jobs:
           fetch-depth: 0
 
       - name: Verify patch applies cleanly
-        run: patch --dry-run -p1 -F 0 < .github/ui_geometry_upgrade.patch
+        run: git apply --check --recount --ignore-space-change .github/ui_geometry_upgrade.patch
 
       - name: Apply surgical UI geometry patch
-        run: patch -p1 -F 0 < .github/ui_geometry_upgrade.patch
+        run: git apply --recount --ignore-space-change .github/ui_geometry_upgrade.patch
 
       - name: Verify scope lock before formatting
         run: |
