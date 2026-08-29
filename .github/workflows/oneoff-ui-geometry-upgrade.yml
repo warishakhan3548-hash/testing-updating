@@ -26,6 +26,8 @@ jobs:
           sed -i "/list avatar letter weight/ s/FontWeight.w800/FontWeight.w700/" .github/ui_geometry_upgrade.py
           sed -i "s/'role press radius')/'role press radius', expected=2)/" .github/ui_geometry_upgrade.py
           sed -i "/role surface radius/d" .github/ui_geometry_upgrade.py
+          sed -i "/metric label hierarchy/ s/expected=1/expected=2/" .github/ui_geometry_upgrade.py
+          sed -i "/metric amount hierarchy/ s/FontWeight.w900/FontWeight.w600/" .github/ui_geometry_upgrade.py
 
       - name: Apply guarded UI geometry migration
         run: |
