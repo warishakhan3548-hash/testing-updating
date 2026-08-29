@@ -1,0 +1,82 @@
+name: One-off Locked UI Batch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/oneoff-locked-ui-batch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-verify-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate and apply locked UI migration
+        run: |
+          sed -i 's/required_locked_markers = <str>\[/required_locked_markers = [/' .github/locked_ui_batch_patch.py
+          python3 -m py_compile .github/locked_ui_batch_patch.py
+          python3 .github/locked_ui_batch_patch.py
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format migrated source
+        run: dart format lib/main.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test ledger invariants
+        run: flutter test
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Verify locked UI markers after format
+        run: |
+          grep -q "label: 'Receives'" lib/main.dart
+          grep -q "label: 'Pays'" lib/main.dart
+          grep -q "class _LedgerTableCard extends StatelessWidget" lib/main.dart
+          grep -q "headers: const <String>\['DATE', 'DETAIL', 'AMOUNT'\]" lib/main.dart
+          grep -q "headers: const <String>\['DATE', 'AMOUNT'\]" lib/main.dart
+          grep -q "class _MilkRecordsTable extends StatelessWidget" lib/main.dart
+          grep -q "class _MilkShareAction extends StatelessWidget" lib/main.dart
+
+      - name: Remove one-off migration machinery
+        run: |
+          rm -f .github/locked_ui_batch_patch.py
+          rm -f .github/workflows/oneoff-locked-ui-batch.yml
+
+      - name: Commit verified locked UI batch
+        run: |
+          git config user.name "Aarish Locked UI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No migration changes to commit."
+            exit 0
+          fi
+          git commit -m "Apply locked ledger UI designs [skip ci]"
+          git push origin HEAD:main
