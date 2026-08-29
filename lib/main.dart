@@ -282,12 +282,57 @@ class _AarishDiaryAppState extends State<AarishDiaryApp> {
         themeAnimationCurve: const Cubic(0.25, 1, 0.5, 1),
         builder: (BuildContext context, Widget? child) =>
             _AmbientBackground(child: child ?? const SizedBox.shrink()),
-        home: _booting
-            ? const _LaunchScreen()
-            : _userId == null
-                ? _LoginScreen(sync: widget.sync)
-                : AppShell(sync: widget.sync),
+        home: _RootStage(
+          booting: _booting,
+          userId: _userId,
+          sync: widget.sync,
+        ),
       );
+}
+
+class _RootStage extends StatelessWidget {
+  const _RootStage({
+    required this.booting,
+    required this.userId,
+    required this.sync,
+  });
+
+  final bool booting;
+  final String? userId;
+  final LedgerSyncService sync;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final Widget stage;
+    final String stageKey;
+    if (booting) {
+      stage = const _LaunchScreen();
+      stageKey = 'launch';
+    } else if (userId == null) {
+      stage = _LoginScreen(sync: sync);
+      stageKey = 'login';
+    } else {
+      stage = AppShell(sync: sync);
+      stageKey = 'app';
+    }
+
+    return AnimatedSwitcher(
+      duration:
+          reduceMotion ? Duration.zero : const Duration(milliseconds: 180),
+      reverseDuration:
+          reduceMotion ? Duration.zero : const Duration(milliseconds: 140),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (Widget child, Animation<double> animation) =>
+          FadeTransition(opacity: animation, child: child),
+      child: KeyedSubtree(
+        key: ValueKey<String>(stageKey),
+        child: stage,
+      ),
+    );
+  }
 }
 
 ThemeData _theme(Brightness brightness) {
@@ -501,6 +546,9 @@ class _PremiumTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      return child;
+    }
     final Animation<double> curved = CurvedAnimation(
       parent: animation,
       curve: const Cubic(0.2, 0.8, 0.2, 1),
@@ -2758,16 +2806,26 @@ class _SheetFrame extends StatelessWidget {
   }
 }
 
-Future<T?> _openSheet<T>(BuildContext context, Widget child) =>
-    showModalBottomSheet<T>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withAlpha(105),
-      elevation: 0,
-      builder: (BuildContext context) => child,
-    );
+Future<T?> _openSheet<T>(BuildContext context, Widget child) {
+  final bool reduceMotion =
+      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+  return showModalBottomSheet<T>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    requestFocus: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withAlpha(105),
+    elevation: 0,
+    sheetAnimationStyle: reduceMotion
+        ? AnimationStyle.noAnimation
+        : const AnimationStyle(
+            duration: Duration(milliseconds: 250),
+            reverseDuration: Duration(milliseconds: 190),
+          ),
+    builder: (BuildContext context) => child,
+  );
+}
 
 Future<bool> _confirm(
   BuildContext context,
@@ -2775,17 +2833,28 @@ Future<bool> _confirm(
   String message, {
   bool dangerous = true,
 }) async {
+  final bool reduceMotion =
+      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
   final bool? result = await showDialog<bool>(
     context: context,
+    requestFocus: true,
+    animationStyle: reduceMotion
+        ? AnimationStyle.noAnimation
+        : const AnimationStyle(
+            duration: Duration(milliseconds: 240),
+            reverseDuration: Duration(milliseconds: 180),
+          ),
     builder: (BuildContext context) => AlertDialog(
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
       content: Text(message),
       actions: <Widget>[
         TextButton(
+          autofocus: dangerous,
           onPressed: () => Navigator.pop(context, false),
           child: const Text('Cancel'),
         ),
         TextButton(
+          autofocus: !dangerous,
           onPressed: () {
             if (dangerous) HapticFeedback.heavyImpact();
             Navigator.pop(context, true);
@@ -2803,6 +2872,8 @@ Future<bool> _confirm(
 
 void _toast(BuildContext context, String message, {bool error = false}) {
   if (error) HapticFeedback.errorNotification();
+  final bool reduceMotion =
+      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
   final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentSnackBar();
   messenger.showSnackBar(
@@ -2820,6 +2891,12 @@ void _toast(BuildContext context, String message, {bool error = false}) {
       ),
       duration: const Duration(seconds: 2),
     ),
+    snackBarAnimationStyle: reduceMotion
+        ? AnimationStyle.noAnimation
+        : const AnimationStyle(
+            duration: Duration(milliseconds: 180),
+            reverseDuration: Duration(milliseconds: 140),
+          ),
   );
 }
 
@@ -2945,7 +3022,15 @@ PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
       transitionDuration: const Duration(milliseconds: 235),
       reverseTransitionDuration: const Duration(milliseconds: 195),
       pageBuilder: (_, __, ___) => child,
-      transitionsBuilder: (_, Animation<double> animation, __, Widget child) {
+      transitionsBuilder: (
+        BuildContext context,
+        Animation<double> animation,
+        Animation<double> secondaryAnimation,
+        Widget child,
+      ) {
+        if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+          return child;
+        }
         final Animation<double> curved = CurvedAnimation(
           parent: animation,
           curve: const Cubic(0.32, 0.72, 0, 1),
@@ -7634,8 +7719,17 @@ class _AiHubScreenState extends State<AiHubScreen> {
   }
 
   Future<bool> _confirmAiActions(List<Map<String, dynamic>> actions) async {
+    final bool reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final bool? result = await showDialog<bool>(
       context: context,
+      requestFocus: true,
+      animationStyle: reduceMotion
+          ? AnimationStyle.noAnimation
+          : const AnimationStyle(
+              duration: Duration(milliseconds: 240),
+              reverseDuration: Duration(milliseconds: 180),
+            ),
       builder: (BuildContext dialogContext) => AlertDialog(
         title: const Text(
           'Review AI changes',
@@ -7688,6 +7782,7 @@ class _AiHubScreenState extends State<AiHubScreen> {
         ),
         actions: <Widget>[
           TextButton(
+            autofocus: true,
             onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
