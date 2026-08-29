@@ -24,8 +24,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Apply curved accent strip migration
-        run: python3 .github/curved_accent_patch.py
+      - name: Apply premium adaptive share UI migration
+        run: python3 .github/premium_share_patch.py
 
       - name: Java 17
         uses: actions/setup-java@v4
@@ -52,10 +52,10 @@ jobs:
       - name: Test ledger invariants
         run: flutter test
 
-      - name: Commit verified curved card accents
+      - name: Commit verified premium share UI
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: Curve module card accent strips
+          commit_message: Upgrade share buttons to premium adaptive UI [skip ci]
           file_pattern: lib/main.dart
 
       - name: Build Android debug APK
