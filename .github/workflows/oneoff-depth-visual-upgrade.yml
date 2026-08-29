@@ -1,0 +1,70 @@
+name: One-off Depth Visual Upgrade
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/oneoff-depth-visual-upgrade.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply guarded visual depth migration
+        run: python3 .github/depth_visual_upgrade.py
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Restore stable debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: aarish-diary-debug-keystore-v1
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format
+        run: dart format lib/main.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test ledger invariants
+        run: flutter test
+
+      - name: Commit verified visual depth upgrade
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Upgrade global card depth and tactile UI [skip ci]
+          file_pattern: lib/main.dart
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Upload Android debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarish-diary-depth-ui-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
