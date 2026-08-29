@@ -4864,12 +4864,10 @@ class CreditDetailScreen extends StatelessWidget {
   Future<void> _addEntry(BuildContext context) async {
     final TextEditingController date = TextEditingController(text: _today());
     final TextEditingController amount = TextEditingController();
-    String type = 'credit';
-    final bool? save = await _openSheet<bool>(
+    final String? type = await _openSheet<String>(
       context,
-      StatefulBuilder(
-        builder: (BuildContext sheetContext, StateSetter setSheetState) =>
-            _SheetFrame(
+      Builder(
+        builder: (BuildContext sheetContext) => _SheetFrame(
           title: '$personName Credit Entry',
           children: <Widget>[
             _DateField(controller: date),
@@ -4885,30 +4883,41 @@ class CreditDetailScreen extends StatelessWidget {
               decoration:
                   const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
             ),
-            const SizedBox(height: 13),
-            SegmentedButton<String>(
-              segments: const <ButtonSegment<String>>[
-                ButtonSegment<String>(
-                    value: 'credit', label: Text('Given (+)')),
-                ButtonSegment<String>(value: 'debit', label: Text('Taken (-)')),
+            const SizedBox(height: 22),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: _MilkCustomerRoleButton(
+                    label: 'Given',
+                    icon: Icons.add_rounded,
+                    color: appleGreen,
+                    semanticLabel: 'Save credit as given',
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      Navigator.pop(sheetContext, 'credit');
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _MilkCustomerRoleButton(
+                    label: 'Taken',
+                    icon: Icons.remove_rounded,
+                    color: appleRed,
+                    semanticLabel: 'Save credit as taken',
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      Navigator.pop(sheetContext, 'debit');
+                    },
+                  ),
+                ),
               ],
-              selected: <String>{type},
-              onSelectionChanged: (Set<String> values) {
-                HapticFeedback.selectionClick();
-                setSheetState(() => type = values.first);
-              },
-            ),
-            const SizedBox(height: 20),
-            _PrimaryButton(
-              label: 'Save Entry',
-              color: type == 'credit' ? appleGreen : appleRed,
-              onTap: () => Navigator.pop(sheetContext, true),
             ),
           ],
         ),
       ),
     );
-    if (save != true || !context.mounted) {
+    if (type == null || !context.mounted) {
       date.dispose();
       amount.dispose();
       return;
@@ -4935,7 +4944,7 @@ class CreditDetailScreen extends StatelessWidget {
         },
         reason: 'credit-entry-save',
       ),
-      'Entry saved safely!',
+      type == 'credit' ? 'Given entry saved!' : 'Taken entry saved!',
     );
   }
 
