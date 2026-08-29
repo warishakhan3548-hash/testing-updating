@@ -71,3 +71,5 @@ jobs:
           fi
           git commit -m "Upgrade milk customer detail premium table UI [skip ci]"
           git push origin HEAD:main
+
+# verification retry 3
