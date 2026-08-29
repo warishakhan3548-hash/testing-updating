@@ -3059,39 +3059,62 @@ class DashboardScreen extends StatelessWidget {
                     const double gap = 13;
                     const double minimumCardHeight = 156;
                     final double cardWidth = (constraints.maxWidth - gap) / 2;
-                    final double ratio =
-                        math.min(1.0, cardWidth / minimumCardHeight);
-                    return GridView.count(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: gap,
-                      mainAxisSpacing: gap,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      childAspectRatio: ratio,
+                    final double cardHeight = math.max(
+                      minimumCardHeight,
+                      cardWidth,
+                    );
+
+                    Widget lockedCard(Widget child) => SizedBox(
+                          width: cardWidth,
+                          height: cardHeight,
+                          child: child,
+                        );
+
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        _MetricCard(
-                          icon: Icons.volunteer_activism_rounded,
-                          label: 'To Receive (+)',
-                          value: _money(totals.toReceive),
-                          color: appleGreen,
+                        Row(
+                          children: <Widget>[
+                            lockedCard(
+                              _MetricCard(
+                                icon: Icons.volunteer_activism_rounded,
+                                label: 'To Receive (+)',
+                                value: _money(totals.toReceive),
+                                color: appleGreen,
+                              ),
+                            ),
+                            const SizedBox(width: gap),
+                            lockedCard(
+                              _MetricCard(
+                                icon: Icons.request_quote_rounded,
+                                label: 'To Pay (-)',
+                                value: _money(totals.toPay),
+                                color: appleRed,
+                              ),
+                            ),
+                          ],
                         ),
-                        _MetricCard(
-                          icon: Icons.request_quote_rounded,
-                          label: 'To Pay (-)',
-                          value: _money(totals.toPay),
-                          color: appleRed,
-                        ),
-                        _MetricCard(
-                          icon: Icons.receipt_long_rounded,
-                          label: 'Month Expense',
-                          value: _money(totals.monthExpense),
-                          color: diaryOrange,
-                        ),
-                        _MetricCard(
-                          icon: Icons.trending_up_rounded,
-                          label: 'Month Profit',
-                          value: _signedMoney(totals.monthProfit),
-                          color: appleBlue,
+                        const SizedBox(height: gap),
+                        Row(
+                          children: <Widget>[
+                            lockedCard(
+                              _MetricCard(
+                                icon: Icons.receipt_long_rounded,
+                                label: 'Month Expense',
+                                value: _money(totals.monthExpense),
+                                color: diaryOrange,
+                              ),
+                            ),
+                            const SizedBox(width: gap),
+                            lockedCard(
+                              _MetricCard(
+                                icon: Icons.trending_up_rounded,
+                                label: 'Month Profit',
+                                value: _signedMoney(totals.monthProfit),
+                                color: appleBlue,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     );
