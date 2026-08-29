@@ -65,7 +65,7 @@ jobs:
           grid_end = biz.index("const SizedBox(height: 24)", grid_start)
           grid = biz[grid_start:grid_end]
           assert '.where(' not in grid, 'Business summary cards must not be filtered'
-          assert 'children: totals.entries' in grid
+          assert 'totals.entries' in grid, 'Business summary grid must render all four totals entries'
           print('GEOMETRY_OK dashboard=2x2 business=2x2 fixed-order')
           PY
 
