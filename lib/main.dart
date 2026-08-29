@@ -3131,6 +3131,52 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+                _Pressable(
+                  onTap: () => Navigator.of(context).push(
+                    _premiumRoute<void>(
+                      const PharmacyDashboardPlaceholderScreen(),
+                    ),
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  semanticLabel: 'Enter in Pharmacy',
+                  child: const _GlassCard(
+                    child: Row(
+                      children: <Widget>[
+                        _LedgerIcon(
+                          icon: Icons.medication_rounded,
+                          color: salaryGreen,
+                        ),
+                        SizedBox(width: 15),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                'Enter in Pharmacy',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                'PHARMACY MEDICATIONS',
+                                style: TextStyle(
+                                  color: systemGray,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: .8,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded, color: systemGray),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -3309,6 +3355,38 @@ class _LedgerIcon extends StatelessWidget {
       ),
     );
   }
+}
+
+class PharmacyDashboardPlaceholderScreen extends StatelessWidget {
+  const PharmacyDashboardPlaceholderScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: Column(
+          children: <Widget>[
+            const _ScreenHeader(
+              leading: _BackCircle(),
+              title: 'Dashboard',
+              subtitle: 'PHARMACY MEDICATIONS',
+              color: salaryGreen,
+            ),
+            Expanded(
+              child: Center(
+                child: Text(
+                  'Dashboard',
+                  style: TextStyle(
+                    color: salaryGreen,
+                    fontSize: 32,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -.5,
+                    shadows: AppStyles.inkGlow(salaryGreen, strong: true),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class PartyLedgerScreen extends StatefulWidget {
