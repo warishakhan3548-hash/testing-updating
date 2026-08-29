@@ -159,7 +159,10 @@ class _BottomNavGlyphPainter extends CustomPainter {
       ..strokeWidth = 2.35
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, active ? 3.2 : 1.8);
+      ..maskFilter = ui.MaskFilter.blur(
+        ui.BlurStyle.normal,
+        active ? 3.2 : 1.8,
+      );
     final Paint ink = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
@@ -171,12 +174,15 @@ class _BottomNavGlyphPainter extends CustomPainter {
       case _BottomNavGlyphKind.milk:
         _paintMilk(canvas, glow);
         _paintMilk(canvas, ink);
+        break;
       case _BottomNavGlyphKind.credit:
         _paintCredit(canvas, glow, glowPass: true);
         _paintCredit(canvas, ink);
+        break;
       case _BottomNavGlyphKind.salary:
         _paintSalary(canvas, glow, glowPass: true);
         _paintSalary(canvas, ink);
+        break;
     }
     canvas.restore();
   }
