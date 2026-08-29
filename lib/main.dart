@@ -77,11 +77,19 @@ abstract final class AppStyles {
   static List<BoxShadow> surfaceDepth(BuildContext context) {
     final bool dark = isDark(context);
     return <BoxShadow>[
+      // Tight key shadow: grounds the surface without making it look stamped.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 108 : 16),
-        blurRadius: dark ? 34 : 24,
-        spreadRadius: dark ? -3 : -5,
-        offset: Offset.zero,
+        color: Colors.black.withAlpha(dark ? 82 : 10),
+        blurRadius: dark ? 6 : 5,
+        spreadRadius: -2,
+        offset: const Offset(0, 1),
+      ),
+      // Wide ambient shadow: creates the soft elevation falloff.
+      BoxShadow(
+        color: Colors.black.withAlpha(dark ? 90 : 13),
+        blurRadius: dark ? 38 : 28,
+        spreadRadius: dark ? -6 : -9,
+        offset: const Offset(0, 4),
       ),
     ];
   }
@@ -395,11 +403,18 @@ class _AmbientPainter extends CustomPainter {
     canvas.drawRect(
       bounds,
       Paint()
+        // Screen blending is additive enough for dark mode while srcOver keeps
+        // the light theme clean instead of washing white surfaces out.
+        ..blendMode = dark ? BlendMode.screen : BlendMode.srcOver
         ..shader = RadialGradient(
           center: center,
           radius: radius,
-          colors: <Color>[color, Colors.transparent],
-          stops: const <double>[0, 1],
+          colors: <Color>[
+            color,
+            color.withValues(alpha: color.a * .35),
+            Colors.transparent,
+          ],
+          stops: const <double>[0, .45, 1],
         ).createShader(bounds),
     );
   }
@@ -1207,7 +1222,7 @@ class _PressableState extends State<_Pressable>
             animation: _pressController,
             child: widget.child,
             builder: (BuildContext context, Widget? child) => Transform.scale(
-              scale: 1 - (_pressController.value * .025),
+              scale: 1 - (_pressController.value * .022),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: <Widget>[
@@ -1217,8 +1232,17 @@ class _PressableState extends State<_Pressable>
                       child: ClipRRect(
                         borderRadius: widget.borderRadius ?? BorderRadius.zero,
                         child: ColoredBox(
-                          color: Colors.white.withAlpha(
-                            (_pressController.value * 18).round(),
+                          color:
+                              (Theme.of(context).brightness == Brightness.dark
+                                      ? Colors.white
+                                      : Colors.black)
+                                  .withAlpha(
+                            (_pressController.value *
+                                    (Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? 14
+                                        : 9))
+                                .round(),
                           ),
                         ),
                       ),
@@ -1301,6 +1325,48 @@ class _GlassCard extends StatelessWidget {
       ),
       child: Stack(
         children: <Widget>[
+          // Specular highlight: strongest near the top-center and feathered
+          // toward the rounded corners so the card reads as a physical layer.
+          Positioned(
+            left: math.max(10, borderRadius * .48),
+            right: math.max(10, borderRadius * .48),
+            top: 0,
+            height: 1,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: <Color>[
+                      Colors.transparent,
+                      Colors.white.withAlpha(dark ? 76 : 210),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Opposing lowlight gives the surface a thin optical thickness
+          // without changing its base color or layout.
+          Positioned(
+            left: math.max(12, borderRadius * .55),
+            right: math.max(12, borderRadius * .55),
+            bottom: 0,
+            height: 1,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: <Color>[
+                      Colors.transparent,
+                      Colors.black.withAlpha(dark ? 64 : 16),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
           if (accentColor != null)
             Positioned.fill(
               child: IgnorePointer(
