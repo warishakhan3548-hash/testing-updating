@@ -1524,19 +1524,35 @@ class _CardAccentPainter extends CustomPainter {
   final bool dark;
 
   Path _rail(Size size) {
-    final double r = math.min(radius, size.height / 2);
-    final Path path = Path()
-      ..moveTo(r * .72, 0)
-      ..quadraticBezierTo(0, 0, 0, r)
-      ..lineTo(0, size.height - r)
-      ..quadraticBezierTo(0, size.height, r * .72, size.height);
-    return path;
+    // Keep the solid rail fully inside the rounded clip. The old path lived on
+    // x=0/y=0, so half of its stroke was clipped and the curved ends could look
+    // detached. Insetting by half the primary stroke preserves the same visual
+    // edge while making the rail one continuous anti-aliased path.
+    final double halfStroke = UIConstants.accentStroke / 2;
+    final double x = halfStroke;
+    final double top = halfStroke;
+    final double bottom = math.max(top, size.height - halfStroke);
+    final double availableRadius = math.max(0, (bottom - top) / 2);
+    final double r = math.min(
+      math.max(0, radius - halfStroke),
+      availableRadius,
+    );
+    final double reach = x + (r * .72);
+
+    return Path()
+      ..moveTo(reach, top)
+      ..quadraticBezierTo(x, top, x, top + r)
+      ..lineTo(x, bottom - r)
+      ..quadraticBezierTo(x, bottom, reach, bottom);
   }
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     final Path path = _rail(size);
+
+    // Soft aura stays behind the rail, but the solid 4px stroke is never
+    // clipped. This matches the continuous curved side rail in the reference.
     canvas.drawPath(
       path,
       Paint()
