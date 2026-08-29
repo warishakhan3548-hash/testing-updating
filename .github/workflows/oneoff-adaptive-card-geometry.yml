@@ -1,0 +1,107 @@
+name: One-off Adaptive Card Geometry
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/oneoff-adaptive-card-geometry.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply guarded adaptive card patch
+        run: python3 .github/patch_adaptive_card_geometry.py
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format
+        run: dart format lib/main.dart
+
+      - name: Responsive geometry guard
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('lib/main.dart').read_text(encoding='utf-8')
+          dash = src[src.index('class DashboardScreen'):src.index('class _SyncPill')]
+          assert 'const double gap = 13;' in dash
+          assert 'const double minimumCardHeight = 156;' in dash
+          assert 'math.min(1.0, cardWidth / minimumCardHeight)' in dash
+          assert 'childAspectRatio: ratio' in dash
+          biz = src[src.index('class BusinessDetailScreen'):src.index('class _AiMessage')]
+          assert 'const double gap = 11;' in biz
+          assert 'const double preferredRatio = 1.55;' in biz
+          assert 'const double minimumCardHeight = 86;' in biz
+          assert 'childAspectRatio: ratio' in biz
+          # Validate the intended physics numerically.
+          def dash_ratio(screen_width):
+              available = screen_width - 40
+              card = (available - 13) / 2
+              return min(1.0, card / 156)
+          assert 0.85 < dash_ratio(320) < 0.87
+          assert dash_ratio(390) == 1.0
+          print('RESPONSIVE_GEOMETRY_OK narrow≈0.86, normal=1.0; business preserves 1.55 until needed')
+          PY
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Diff scope guard
+        run: |
+          git diff -- lib/main.dart > /tmp/adaptive.diff
+          python3 - <<'PY'
+          from pathlib import Path
+          d = Path('/tmp/adaptive.diff').read_text(encoding='utf-8')
+          required = [
+              'minimumCardHeight = 156',
+              'preferredRatio = 1.55',
+              'minimumCardHeight = 86',
+              'childAspectRatio: ratio',
+          ]
+          for item in required:
+              if item not in d:
+                  raise SystemExit(f'Expected adaptive geometry delta missing: {item}')
+          forbidden = [
+              '_BottomLedgerNav', '_BottomNavModuleIcon', '_tabs =',
+              'class _GlassCard', 'class _ScreenHeader', 'Firebase',
+              'LedgerMath', 'class CreditScreen', 'class SalaryScreen',
+              'class DiaryScreen', 'class BusinessScreen',
+          ]
+          for item in forbidden:
+              if item in d:
+                  raise SystemExit(f'Forbidden unrelated scope touched: {item}')
+          print('SCOPE_OK only dashboard/business grid geometry changed')
+          PY
+
+      - name: Commit verified adaptive geometry
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Make dashboard and business cards responsively adaptive [skip ci]
+          file_pattern: lib/main.dart
