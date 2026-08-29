@@ -3636,10 +3636,9 @@ class _PremiumShareButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final double viewportWidth = MediaQuery.sizeOf(context).width;
-    final bool iconOnly = compact && viewportWidth < 390;
     final bool micro = compact && viewportWidth < 340;
-    final double height = micro ? 48 : (compact ? 50 : 54);
-    final double width = iconOnly ? height : (compact ? 104 : 138);
+    final double height = micro ? 46 : (compact ? 48 : 54);
+    final double width = compact ? (micro ? 96 : 108) : 138;
     final double radius = height * .44;
     final Color neon = Color.lerp(const Color(0xFF00E8FF), color, .24) ??
         const Color(0xFF19D8FF);
@@ -3729,74 +3728,66 @@ class _PremiumShareButton extends StatelessWidget {
                   ),
                   Padding(
                     padding: EdgeInsets.symmetric(
-                      horizontal: iconOnly ? 7 : (compact ? 8 : 10),
+                      horizontal: compact ? 7 : 10,
                     ),
-                    child: iconOnly
-                        ? Center(
-                            child: _PremiumShareGlyph(
-                              icon: icon,
-                              neon: neon,
-                              size: micro ? 29 : 31,
-                            ),
-                          )
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        _PremiumShareGlyph(
+                          icon: icon,
+                          neon: neon,
+                          size: compact ? 30 : 34,
+                        ),
+                        SizedBox(width: compact ? 6 : 8),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              _PremiumShareGlyph(
-                                icon: icon,
-                                neon: neon,
-                                size: compact ? 30 : 34,
-                              ),
-                              SizedBox(width: compact ? 6 : 8),
-                              Expanded(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      alignment: Alignment.centerLeft,
-                                      child: Text(
-                                        label.toUpperCase(),
-                                        maxLines: 1,
-                                        style: TextStyle(
-                                          color: const Color(0xFFEAFDFF),
-                                          fontSize: compact ? 12.5 : 15.5,
-                                          height: 1,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: compact ? .15 : .45,
-                                          shadows: <Shadow>[
-                                            Shadow(
-                                              color: neon.withAlpha(118),
-                                              blurRadius: 9,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    if (!compact) ...<Widget>[
-                                      const SizedBox(height: 3),
-                                      FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        alignment: Alignment.centerLeft,
-                                        child: Text(
-                                          'DISTRIBUTE | CONNECT',
-                                          maxLines: 1,
-                                          style: TextStyle(
-                                            color: neonSoft,
-                                            fontSize: 7.2,
-                                            height: 1,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: .18,
-                                          ),
-                                        ),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  label.toUpperCase(),
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                    color: const Color(0xFFEAFDFF),
+                                    fontSize: compact ? 12.5 : 15.5,
+                                    height: 1,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: compact ? .15 : .45,
+                                    shadows: <Shadow>[
+                                      Shadow(
+                                        color: neon.withAlpha(118),
+                                        blurRadius: 9,
                                       ),
                                     ],
-                                  ],
+                                  ),
                                 ),
                               ),
+                              if (!compact) ...<Widget>[
+                                const SizedBox(height: 3),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'DISTRIBUTE | CONNECT',
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      color: neonSoft,
+                                      fontSize: 7.2,
+                                      height: 1,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: .18,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
