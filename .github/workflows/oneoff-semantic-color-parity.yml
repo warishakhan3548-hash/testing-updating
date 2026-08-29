@@ -1,0 +1,82 @@
+name: One-off Semantic Color Parity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/oneoff-semantic-color-parity.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-verify-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate and apply semantic color migration
+        run: |
+          python3 -m py_compile .github/semantic_color_parity_patch.py
+          python3 .github/semantic_color_parity_patch.py
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format migrated source
+        run: dart format lib/main.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test ledger invariants
+        run: flutter test
+
+      - name: Verify semantic color contracts
+        run: |
+          grep -q "_tone(_milkGlobalNet(state))" lib/main.dart
+          grep -q "_tone(_creditGlobalNet(state))" lib/main.dart
+          grep -q "_expenseToneForTotal(_expenseCurrentMonthTotal(state))" lib/main.dart
+          grep -q "_tone(_salaryGlobalNet(state))" lib/main.dart
+          grep -q "final Color moduleColor = _tone(net);" lib/main.dart
+          grep -q "final Color moduleColor = _expenseToneForTotal(total);" lib/main.dart
+          grep -q "final Color detailColor = _expenseToneForTotal(total);" lib/main.dart
+          ! grep -q "final Color moduleColor = appleGreen;" lib/main.dart
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Remove one-off migration machinery
+        run: |
+          rm -f .github/semantic_color_parity_patch.py
+          rm -f .github/workflows/oneoff-semantic-color-parity.yml
+
+      - name: Commit verified semantic color parity
+        run: |
+          git config user.name "Aarish Semantic UI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No migration changes to commit."
+            exit 0
+          fi
+          git commit -m "Link ledger colors to calculated semantics [skip ci]"
+          git push origin HEAD:main
