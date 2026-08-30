@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -73,6 +74,14 @@ abstract final class UIConstants {
   static const Duration motion = Duration(milliseconds: 260);
   static const Duration routeIn = Duration(milliseconds: 280);
   static const Duration routeOut = Duration(milliseconds: 220);
+
+  // A lightly under-damped release: quick enough for repeated ledger work,
+  // with one restrained rebound instead of a decorative wobble.
+  static const SpringDescription pressSpring = SpringDescription(
+    mass: 1,
+    stiffness: 520,
+    damping: 30,
+  );
 
   // Fast initial response with a long, calm deceleration. These stay inside
   // the unit interval, so buttons and routes never wobble past their target.
@@ -1494,6 +1503,7 @@ class _Pressable extends StatefulWidget {
 class _PressableState extends State<_Pressable>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pressController;
+  Alignment _touchAlignment = Alignment.center;
 
   @override
   void initState() {
@@ -1508,8 +1518,21 @@ class _PressableState extends State<_Pressable>
     );
   }
 
-  void _press() {
+  void _captureTouch(TapDownDetails details) {
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || box.size.isEmpty) return;
+    final double x = (details.localPosition.dx / box.size.width * 2 - 1)
+        .clamp(-.72, .72)
+        .toDouble();
+    final double y = (details.localPosition.dy / box.size.height * 2 - 1)
+        .clamp(-.72, .72)
+        .toDouble();
+    _touchAlignment = Alignment(x, y);
+  }
+
+  void _press([TapDownDetails? details]) {
     if (widget.onTap == null) return;
+    if (details != null) _captureTouch(details);
     _pressController.animateTo(
       1,
       duration: UIConstants.pressIn,
@@ -1519,10 +1542,16 @@ class _PressableState extends State<_Pressable>
 
   void _release() {
     if (widget.onTap == null) return;
-    _pressController.animateBack(
-      0,
-      duration: UIConstants.pressOut,
-      curve: const Cubic(0.34, 1.42, 0.64, 1),
+    final double releaseVelocity = _pressController.velocity
+        .clamp(-2.5, 2.5)
+        .toDouble();
+    _pressController.animateWith(
+      SpringSimulation(
+        UIConstants.pressSpring,
+        _pressController.value,
+        0,
+        releaseVelocity,
+      ),
     );
   }
 
@@ -1544,7 +1573,7 @@ class _PressableState extends State<_Pressable>
     onLongPress: widget.onTap == null ? null : _handleLongPress,
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null ? null : (_) => _press(),
+      onTapDown: widget.onTap == null ? null : _press,
       onTapCancel: widget.onTap == null ? null : _release,
       onTapUp: widget.onTap == null ? null : (_) => _release(),
       onLongPress: widget.onTap == null ? null : _handleLongPress,
@@ -1552,7 +1581,11 @@ class _PressableState extends State<_Pressable>
       onTap: widget.onTap == null
           ? null
           : () {
-              HapticFeedback.selectionClick();
+              if (widget.feedbackColor == null) {
+                HapticFeedback.selectionClick();
+              } else {
+                HapticFeedback.lightImpact();
+              }
               widget.onTap!();
             },
       child: AnimatedBuilder(
@@ -1564,10 +1597,19 @@ class _PressableState extends State<_Pressable>
           final double feedback = _pressController.value;
           final double pressed = feedback.clamp(0.0, 1.0).toDouble();
           final double motion = reduceMotion ? 0 : feedback;
-          return Transform.translate(
-            offset: Offset(0, motion * 1.1),
+          final double cardTilt = reduceMotion || widget.feedbackColor == null
+              ? 0
+              : pressed * .012;
+          final Matrix4 perspective = Matrix4.identity()
+            ..setEntry(3, 2, .0012)
+            ..rotateX(-_touchAlignment.y * cardTilt)
+            ..rotateY(_touchAlignment.x * cardTilt);
+          final Widget compressed = Transform.translate(
+            transformHitTests: false,
+            offset: Offset(0, motion * 1.25),
             child: Transform.scale(
-              scale: 1 - (motion * .018),
+              transformHitTests: false,
+              scale: 1 - (motion * .014),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: <Widget>[
@@ -1592,21 +1634,50 @@ class _PressableState extends State<_Pressable>
                     child: IgnorePointer(
                       child: ClipRRect(
                         borderRadius: widget.borderRadius ?? BorderRadius.zero,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: <Color>[
-                                Colors.white.withAlpha(
-                                  (pressed * (dark ? 12 : 20)).round(),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: <Widget>[
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: <Color>[
+                                    Colors.white.withAlpha(
+                                      (pressed * (dark ? 12 : 20)).round(),
+                                    ),
+                                    Colors.black.withAlpha(
+                                      (pressed * (dark ? 7 : 10)).round(),
+                                    ),
+                                  ],
                                 ),
-                                Colors.black.withAlpha(
-                                  (pressed * (dark ? 7 : 10)).round(),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
+                            if (widget.feedbackColor != null)
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius:
+                                      widget.borderRadius ?? BorderRadius.zero,
+                                  border: Border.all(
+                                    color: widget.feedbackColor!.withAlpha(
+                                      (pressed * (dark ? 54 : 38)).round(),
+                                    ),
+                                    width: .8,
+                                  ),
+                                  gradient: RadialGradient(
+                                    center: _touchAlignment,
+                                    radius: 1.05,
+                                    colors: <Color>[
+                                      Colors.white.withAlpha(
+                                        (pressed * (dark ? 15 : 26)).round(),
+                                      ),
+                                      Colors.transparent,
+                                    ],
+                                    stops: const <double>[0, 1],
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -1614,6 +1685,13 @@ class _PressableState extends State<_Pressable>
                 ],
               ),
             ),
+          );
+          if (cardTilt == 0) return compressed;
+          return Transform(
+            alignment: Alignment.center,
+            transform: perspective,
+            transformHitTests: false,
+            child: compressed,
           );
         },
       ),
