@@ -196,12 +196,12 @@ abstract final class AppStyles {
   }
 
   static List<Shadow> inkGlow(Color color, {bool strong = false}) => <Shadow>[
-        Shadow(
-          color: color.withAlpha(strong ? 46 : 24),
-          blurRadius: strong ? 8 : 5,
-          offset: Offset.zero,
-        ),
-      ];
+    Shadow(
+      color: color.withAlpha(strong ? 46 : 24),
+      blurRadius: strong ? 8 : 5,
+      offset: Offset.zero,
+    ),
+  ];
 }
 
 const Uuid _ids = Uuid();
@@ -283,21 +283,17 @@ class _AarishDiaryAppState extends State<AarishDiaryApp> {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Aarish Dairy Pro',
-        themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
-        theme: _theme(Brightness.light),
-        darkTheme: _theme(Brightness.dark),
-        themeAnimationDuration: const Duration(milliseconds: 300),
-        themeAnimationCurve: const Cubic(0.25, 1, 0.5, 1),
-        builder: (BuildContext context, Widget? child) =>
-            _AmbientBackground(child: child ?? const SizedBox.shrink()),
-        home: _RootStage(
-          booting: _booting,
-          userId: _userId,
-          sync: widget.sync,
-        ),
-      );
+    debugShowCheckedModeBanner: false,
+    title: 'Aarish Dairy Pro',
+    themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
+    theme: _theme(Brightness.light),
+    darkTheme: _theme(Brightness.dark),
+    themeAnimationDuration: const Duration(milliseconds: 300),
+    themeAnimationCurve: const Cubic(0.25, 1, 0.5, 1),
+    builder: (BuildContext context, Widget? child) =>
+        _AmbientBackground(child: child ?? const SizedBox.shrink()),
+    home: _RootStage(booting: _booting, userId: _userId, sync: widget.sync),
+  );
 }
 
 class _RootStage extends StatelessWidget {
@@ -329,18 +325,17 @@ class _RootStage extends StatelessWidget {
     }
 
     return AnimatedSwitcher(
-      duration:
-          reduceMotion ? Duration.zero : const Duration(milliseconds: 180),
-      reverseDuration:
-          reduceMotion ? Duration.zero : const Duration(milliseconds: 140),
+      duration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 180),
+      reverseDuration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 140),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
       transitionBuilder: (Widget child, Animation<double> animation) =>
           FadeTransition(opacity: animation, child: child),
-      child: KeyedSubtree(
-        key: ValueKey<String>(stageKey),
-        child: stage,
-      ),
+      child: KeyedSubtree(key: ValueKey<String>(stageKey), child: stage),
     );
   }
 }
@@ -349,33 +344,35 @@ ThemeData _theme(Brightness brightness) {
   final bool dark = brightness == Brightness.dark;
   final Color surface = dark ? darkGlassTop : Colors.white;
   final Color text = dark ? Colors.white : const Color(0xFF1C1C1E);
-  final Color outline =
-      dark ? Colors.white.withAlpha(35) : Colors.black.withAlpha(11);
+  final Color outline = dark
+      ? Colors.white.withAlpha(35)
+      : Colors.black.withAlpha(11);
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
     scaffoldBackgroundColor: Colors.transparent,
     canvasColor: dark ? const Color(0xFF1C2230) : Colors.white,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: appleBlue,
-      brightness: brightness,
-      surface: surface,
-      error: appleRed,
-    ).copyWith(
-      primary: appleBlue,
-      secondary: appleGreen,
-      surface: surface,
-      error: appleRed,
-      outline: outline,
-    ),
-    textTheme: ThemeData(brightness: brightness)
-        .textTheme
+    colorScheme:
+        ColorScheme.fromSeed(
+          seedColor: appleBlue,
+          brightness: brightness,
+          surface: surface,
+          error: appleRed,
+        ).copyWith(
+          primary: appleBlue,
+          secondary: appleGreen,
+          surface: surface,
+          error: appleRed,
+          outline: outline,
+        ),
+    textTheme: ThemeData(brightness: brightness).textTheme
         .apply(bodyColor: text, displayColor: text),
     iconTheme: IconThemeData(color: text),
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
-    dividerColor:
-        dark ? Colors.white.withAlpha(23) : Colors.black.withAlpha(11),
+    dividerColor: dark
+        ? Colors.white.withAlpha(23)
+        : Colors.black.withAlpha(11),
     textSelectionTheme: TextSelectionThemeData(
       cursorColor: appleBlue,
       selectionColor: appleBlue.withAlpha(54),
@@ -463,8 +460,9 @@ class _AmbientBackground extends StatelessWidget {
       statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
       statusBarBrightness: dark ? Brightness.dark : Brightness.light,
       systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarIconBrightness:
-          dark ? Brightness.light : Brightness.dark,
+      systemNavigationBarIconBrightness: dark
+          ? Brightness.light
+          : Brightness.dark,
       systemNavigationBarDividerColor: Colors.transparent,
     );
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -582,21 +580,21 @@ class _LaunchScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              _AppMark(size: 74),
-              SizedBox(height: 22),
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2.4),
-              ),
-            ],
+    body: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _AppMark(size: 74),
+          SizedBox(height: 22),
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2.4),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }
 
 class _AppMark extends StatelessWidget {
@@ -606,22 +604,22 @@ class _AppMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: <Color>[appleBlue.withAlpha(48), appleBlue2.withAlpha(22)],
-          ),
-          borderRadius: BorderRadius.circular(size * .27),
-          border: Border.all(color: appleBlue.withAlpha(58)),
-          boxShadow: <BoxShadow>[
-            BoxShadow(color: appleBlue.withAlpha(76), blurRadius: 22),
-          ],
-        ),
-        child: Icon(Icons.eco_rounded, color: appleBlue2, size: size * .52),
-      );
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[appleBlue.withAlpha(48), appleBlue2.withAlpha(22)],
+      ),
+      borderRadius: BorderRadius.circular(size * .27),
+      border: Border.all(color: appleBlue.withAlpha(58)),
+      boxShadow: <BoxShadow>[
+        BoxShadow(color: appleBlue.withAlpha(76), blurRadius: 22),
+      ],
+    ),
+    child: Icon(Icons.eco_rounded, color: appleBlue2, size: size * .52),
+  );
 }
 
 class _LoginScreen extends StatefulWidget {
@@ -756,13 +754,13 @@ class _LoginScreenState extends State<_LoginScreen> {
                                 blendMode: BlendMode.srcIn,
                                 shaderCallback: (Rect bounds) =>
                                     const LinearGradient(
-                                  colors: <Color>[
-                                    Color(0xFF4285F4),
-                                    Color(0xFFEA4335),
-                                    Color(0xFFFBBC05),
-                                    Color(0xFF34A853),
-                                  ],
-                                ).createShader(bounds),
+                                      colors: <Color>[
+                                        Color(0xFF4285F4),
+                                        Color(0xFFEA4335),
+                                        Color(0xFFFBBC05),
+                                        Color(0xFF34A853),
+                                      ],
+                                    ).createShader(bounds),
                                 child: const Text(
                                   'G',
                                   style: TextStyle(
@@ -993,8 +991,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             animation: widget.sync,
             builder: (BuildContext context, Widget? child) =>
                 widget.sync.isConnected
-                    ? const SizedBox.shrink()
-                    : const _OfflineBanner(),
+                ? const SizedBox.shrink()
+                : const _OfflineBanner(),
           ),
           Expanded(
             child: RepaintBoundary(
@@ -1094,23 +1092,23 @@ class _OfflineBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SafeArea(
-        bottom: false,
-        child: Container(
-          width: double.infinity,
-          color: appleOrange,
-          padding: const EdgeInsets.symmetric(vertical: 5),
-          child: const Text(
-            'OFFLINE • Changes will sync automatically',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              letterSpacing: .6,
-            ),
-          ),
+    bottom: false,
+    child: Container(
+      width: double.infinity,
+      color: appleOrange,
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: const Text(
+        'OFFLINE • Changes will sync automatically',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          letterSpacing: .6,
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _BottomLedgerNav extends StatelessWidget {
@@ -1128,10 +1126,9 @@ class _BottomLedgerNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: sync,
-        builder: (BuildContext context, Widget? child) =>
-            _buildNavigation(context),
-      );
+    animation: sync,
+    builder: (BuildContext context, Widget? child) => _buildNavigation(context),
+  );
 
   Widget _buildNavigation(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
@@ -1192,8 +1189,9 @@ class _BottomLedgerNav extends StatelessWidget {
                             UIConstants.actionRadius,
                           ),
                           child: AnimatedSlide(
-                            offset:
-                                active ? const Offset(0, -.025) : Offset.zero,
+                            offset: active
+                                ? const Offset(0, -.025)
+                                : Offset.zero,
                             duration: UIConstants.motion,
                             curve: UIConstants.motionOut,
                             child: AnimatedContainer(
@@ -1303,44 +1301,43 @@ class _PremiumNavIconFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedContainer(
-        duration: UIConstants.motion,
-        curve: UIConstants.motionOut,
-        width: active ? 46 : 39,
-        height: active ? 39 : 35,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(active ? 15 : 13),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: <Color>[
-              color.withAlpha(active ? (dark ? 34 : 26) : (dark ? 16 : 11)),
-              color.withAlpha(active ? (dark ? 14 : 9) : 0),
-            ],
-          ),
-          border: Border.all(
-            color:
-                color.withAlpha(active ? (dark ? 70 : 54) : (dark ? 24 : 18)),
-            width: active ? .9 : .7,
-          ),
-          boxShadow: active
-              ? <BoxShadow>[
-                  BoxShadow(
-                    color: color.withAlpha(dark ? 48 : 34),
-                    blurRadius: 16,
-                    spreadRadius: -5,
-                    offset: const Offset(0, 5),
-                  ),
-                  BoxShadow(
-                    color: Colors.white.withAlpha(dark ? 12 : 88),
-                    blurRadius: 1,
-                    offset: const Offset(0, -1),
-                  ),
-                ]
-              : null,
-        ),
-        child: child,
-      );
+    duration: UIConstants.motion,
+    curve: UIConstants.motionOut,
+    width: active ? 46 : 39,
+    height: active ? 39 : 35,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(active ? 15 : 13),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          color.withAlpha(active ? (dark ? 34 : 26) : (dark ? 16 : 11)),
+          color.withAlpha(active ? (dark ? 14 : 9) : 0),
+        ],
+      ),
+      border: Border.all(
+        color: color.withAlpha(active ? (dark ? 70 : 54) : (dark ? 24 : 18)),
+        width: active ? .9 : .7,
+      ),
+      boxShadow: active
+          ? <BoxShadow>[
+              BoxShadow(
+                color: color.withAlpha(dark ? 48 : 34),
+                blurRadius: 16,
+                spreadRadius: -5,
+                offset: const Offset(0, 5),
+              ),
+              BoxShadow(
+                color: Colors.white.withAlpha(dark ? 12 : 88),
+                blurRadius: 1,
+                offset: const Offset(0, -1),
+              ),
+            ]
+          : null,
+    ),
+    child: child,
+  );
 }
 
 class _BottomNavGlyph extends StatelessWidget {
@@ -1369,12 +1366,8 @@ class _BottomNavGlyph extends StatelessWidget {
       : <Shadow>[Shadow(color: color.withAlpha(dark ? 40 : 28), blurRadius: 5)];
 
   @override
-  Widget build(BuildContext context) => Icon(
-        icon,
-        size: size,
-        color: color,
-        shadows: _shadows,
-      );
+  Widget build(BuildContext context) =>
+      Icon(icon, size: size, color: color, shadows: _shadows);
 }
 
 class _Pressable extends StatefulWidget {
@@ -1439,71 +1432,69 @@ class _PressableState extends State<_Pressable>
 
   @override
   Widget build(BuildContext context) => Semantics(
-        button: true,
-        label: widget.semanticLabel,
-        onLongPress: widget.onTap == null ? null : _handleLongPress,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: widget.onTap == null ? null : (_) => _press(),
-          onTapCancel: widget.onTap == null ? null : _release,
-          onTapUp: widget.onTap == null ? null : (_) => _release(),
-          onLongPress: widget.onTap == null ? null : _handleLongPress,
-          onLongPressEnd: widget.onTap == null ? null : (_) => _release(),
-          onTap: widget.onTap == null
-              ? null
-              : () {
-                  HapticFeedback.selectionClick();
-                  widget.onTap!();
-                },
-          child: AnimatedBuilder(
-            animation: _pressController,
-            child: widget.child,
-            builder: (BuildContext context, Widget? child) {
-              final bool dark = Theme.of(context).brightness == Brightness.dark;
-              final bool reduceMotion =
-                  MediaQuery.of(context).disableAnimations;
-              final double feedback = _pressController.value;
-              final double motion = reduceMotion ? 0 : feedback;
-              return Transform.translate(
-                offset: Offset(0, motion * .8),
-                child: Transform.scale(
-                  scale: 1 - (motion * .015),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: <Widget>[
-                      child!,
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: ClipRRect(
-                            borderRadius:
-                                widget.borderRadius ?? BorderRadius.zero,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: <Color>[
-                                    Colors.white.withAlpha(
-                                      (feedback * (dark ? 12 : 20)).round(),
-                                    ),
-                                    Colors.black.withAlpha(
-                                      (feedback * (dark ? 7 : 10)).round(),
-                                    ),
-                                  ],
+    button: true,
+    label: widget.semanticLabel,
+    onLongPress: widget.onTap == null ? null : _handleLongPress,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: widget.onTap == null ? null : (_) => _press(),
+      onTapCancel: widget.onTap == null ? null : _release,
+      onTapUp: widget.onTap == null ? null : (_) => _release(),
+      onLongPress: widget.onTap == null ? null : _handleLongPress,
+      onLongPressEnd: widget.onTap == null ? null : (_) => _release(),
+      onTap: widget.onTap == null
+          ? null
+          : () {
+              HapticFeedback.selectionClick();
+              widget.onTap!();
+            },
+      child: AnimatedBuilder(
+        animation: _pressController,
+        child: widget.child,
+        builder: (BuildContext context, Widget? child) {
+          final bool dark = Theme.of(context).brightness == Brightness.dark;
+          final bool reduceMotion = MediaQuery.of(context).disableAnimations;
+          final double feedback = _pressController.value;
+          final double motion = reduceMotion ? 0 : feedback;
+          return Transform.translate(
+            offset: Offset(0, motion * .8),
+            child: Transform.scale(
+              scale: 1 - (motion * .015),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  child!,
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: ClipRRect(
+                        borderRadius: widget.borderRadius ?? BorderRadius.zero,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: <Color>[
+                                Colors.white.withAlpha(
+                                  (feedback * (dark ? 12 : 20)).round(),
                                 ),
-                              ),
+                                Colors.black.withAlpha(
+                                  (feedback * (dark ? 7 : 10)).round(),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
-        ),
-      );
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
 }
 
 class _GlassCard extends StatelessWidget {
@@ -1549,8 +1540,8 @@ class _GlassCard extends StatelessWidget {
         : AppStyles.glassBorder(context, accent: accentColor);
     final List<BoxShadow> shadows = shadowColor != null
         ? accentColor != null
-            ? AppStyles.railDepth(context, shadowColor!)
-            : AppStyles.glow(context, shadowColor!, strong: tintColor != null)
+              ? AppStyles.railDepth(context, shadowColor!)
+              : AppStyles.glow(context, shadowColor!, strong: tintColor != null)
         : AppStyles.surfaceDepth(context);
     final BorderRadius radius = BorderRadius.circular(borderRadius);
     return DecoratedBox(
@@ -1653,8 +1644,10 @@ class _CardAccentPainter extends CustomPainter {
     final double top = inset;
     final double bottom = math.max(top, size.height - inset);
     final double upperTurn = math.min(bottom, math.max(top, r));
-    final double lowerTurn =
-        math.max(upperTurn, math.min(bottom, size.height - r));
+    final double lowerTurn = math.max(
+      upperTurn,
+      math.min(bottom, size.height - r),
+    );
 
     return Path()
       ..moveTo(inset + reach, top)
@@ -1824,31 +1817,31 @@ class _CircleAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(left: 6),
-        child: _Pressable(
-          onTap: onTap,
-          semanticLabel: semanticLabel,
-          borderRadius: BorderRadius.circular(24),
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withAlpha(23),
-              border: Border.fromBorderSide(
-                AppStyles.hairline(context, accent: color, active: true),
-              ),
-              boxShadow: AppStyles.jewelDepth(context, color),
-            ),
-            child: Icon(
-              icon,
-              size: 22,
-              color: color,
-              shadows: AppStyles.inkGlow(color),
-            ),
+    padding: const EdgeInsets.only(left: 6),
+    child: _Pressable(
+      onTap: onTap,
+      semanticLabel: semanticLabel,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color.withAlpha(23),
+          border: Border.fromBorderSide(
+            AppStyles.hairline(context, accent: color, active: true),
           ),
+          boxShadow: AppStyles.jewelDepth(context, color),
         ),
-      );
+        child: Icon(
+          icon,
+          size: 22,
+          color: color,
+          shadows: AppStyles.inkGlow(color),
+        ),
+      ),
+    ),
+  );
 }
 
 class _BackCircle extends StatelessWidget {
@@ -1856,22 +1849,22 @@ class _BackCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Pressable(
-        onTap: () => Navigator.of(context).maybePop(),
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.white.withAlpha(13)
-                : Colors.black.withAlpha(10),
-            border: Border.fromBorderSide(AppStyles.hairline(context)),
-            boxShadow: AppStyles.surfaceDepth(context),
-          ),
-          child: const Icon(Icons.chevron_left_rounded),
-        ),
-      );
+    onTap: () => Navigator.of(context).maybePop(),
+    borderRadius: BorderRadius.circular(24),
+    child: Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.white.withAlpha(13)
+            : Colors.black.withAlpha(10),
+        border: Border.fromBorderSide(AppStyles.hairline(context)),
+        boxShadow: AppStyles.surfaceDepth(context),
+      ),
+      child: const Icon(Icons.chevron_left_rounded),
+    ),
+  );
 }
 
 class _SearchBox extends StatefulWidget {
@@ -1966,8 +1959,8 @@ class _DateField extends StatelessWidget {
     final DateTime initial = parsed.isBefore(firstDate)
         ? firstDate
         : parsed.isAfter(lastDate)
-            ? lastDate
-            : parsed;
+        ? lastDate
+        : parsed;
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -1982,15 +1975,15 @@ class _DateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TextField(
-        controller: controller,
-        readOnly: true,
-        enableInteractiveSelection: false,
-        onTap: () => unawaited(_pickDate(context)),
-        decoration: const InputDecoration(
-          labelText: 'Date (YYYY-MM-DD)',
-          prefixIcon: Icon(Icons.calendar_today_rounded),
-        ),
-      );
+    controller: controller,
+    readOnly: true,
+    enableInteractiveSelection: false,
+    onTap: () => unawaited(_pickDate(context)),
+    decoration: const InputDecoration(
+      labelText: 'Date (YYYY-MM-DD)',
+      prefixIcon: Icon(Icons.calendar_today_rounded),
+    ),
+  );
 }
 
 class _EmptyState extends StatelessWidget {
@@ -2008,45 +2001,43 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 58),
-        child: Center(
-          child: Column(
-            children: <Widget>[
-              Container(
-                width: prominent ? 92 : 72,
-                height: prominent ? 92 : 72,
-                decoration: BoxDecoration(
-                  color: color.withAlpha(prominent ? 24 : 14),
-                  shape: BoxShape.circle,
-                  border: Border.fromBorderSide(
-                    AppStyles.hairline(context,
-                        accent: color, active: prominent),
-                  ),
-                  boxShadow: AppStyles.glow(context, color, strong: prominent),
-                ),
-                child: Icon(
-                  icon,
-                  size: prominent ? 42 : 32,
-                  color: color.withAlpha(prominent ? 235 : 150),
-                  shadows: AppStyles.inkGlow(color),
-                ),
+    padding: const EdgeInsets.symmetric(vertical: 58),
+    child: Center(
+      child: Column(
+        children: <Widget>[
+          Container(
+            width: prominent ? 92 : 72,
+            height: prominent ? 92 : 72,
+            decoration: BoxDecoration(
+              color: color.withAlpha(prominent ? 24 : 14),
+              shape: BoxShape.circle,
+              border: Border.fromBorderSide(
+                AppStyles.hairline(context, accent: color, active: prominent),
               ),
-              const SizedBox(height: 16),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: prominent ? color : systemGray,
-                  fontSize: prominent ? 17 : 14,
-                  fontWeight: prominent ? FontWeight.w900 : FontWeight.w700,
-                  shadows:
-                      prominent ? AppStyles.inkGlow(color) : const <Shadow>[],
-                ),
-              ),
-            ],
+              boxShadow: AppStyles.glow(context, color, strong: prominent),
+            ),
+            child: Icon(
+              icon,
+              size: prominent ? 42 : 32,
+              color: color.withAlpha(prominent ? 235 : 150),
+              shadows: AppStyles.inkGlow(color),
+            ),
           ),
-        ),
-      );
+          const SizedBox(height: 16),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: prominent ? color : systemGray,
+              fontSize: prominent ? 17 : 14,
+              fontWeight: prominent ? FontWeight.w900 : FontWeight.w700,
+              shadows: prominent ? AppStyles.inkGlow(color) : const <Shadow>[],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _PrimaryButton extends StatelessWidget {
@@ -2070,53 +2061,52 @@ class _PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Pressable(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(UIConstants.actionRadius),
-        child: Container(
-          constraints:
-              const BoxConstraints(minHeight: UIConstants.minTapTarget),
-          height: compact
-              ? UIConstants.compactButtonHeight
-              : UIConstants.standardButtonHeight,
-          padding: UIConstants.actionPadding,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: tonal
-                  ? <Color>[color.withAlpha(40), color.withAlpha(22)]
-                  : <Color>[color, _toneCompanion(color)],
-            ),
-            borderRadius: BorderRadius.circular(UIConstants.actionRadius),
-            border: Border.fromBorderSide(
-              AppStyles.hairline(context, accent: color, active: true),
-            ),
-            boxShadow: AppStyles.glow(context, color, strong: !tonal),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Icon(
-                icon,
-                color: foregroundColor,
-                size: compact ? 19.5 : 21.5,
-                shadows: AppStyles.inkGlow(foregroundColor),
-              ),
-              const SizedBox(width: 7),
-              Text(
-                label,
-                style: TextStyle(
-                  color: foregroundColor,
-                  fontSize: compact ? 15 : 16.5,
-                  fontWeight: FontWeight.w800,
-                  shadows: AppStyles.inkGlow(foregroundColor),
-                ),
-              ),
-            ],
-          ),
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(UIConstants.actionRadius),
+    child: Container(
+      constraints: const BoxConstraints(minHeight: UIConstants.minTapTarget),
+      height: compact
+          ? UIConstants.compactButtonHeight
+          : UIConstants.standardButtonHeight,
+      padding: UIConstants.actionPadding,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: tonal
+              ? <Color>[color.withAlpha(40), color.withAlpha(22)]
+              : <Color>[color, _toneCompanion(color)],
         ),
-      );
+        borderRadius: BorderRadius.circular(UIConstants.actionRadius),
+        border: Border.fromBorderSide(
+          AppStyles.hairline(context, accent: color, active: true),
+        ),
+        boxShadow: AppStyles.glow(context, color, strong: !tonal),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Icon(
+            icon,
+            color: foregroundColor,
+            size: compact ? 19.5 : 21.5,
+            shadows: AppStyles.inkGlow(foregroundColor),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: TextStyle(
+              color: foregroundColor,
+              fontSize: compact ? 15 : 16.5,
+              fontWeight: FontWeight.w800,
+              shadows: AppStyles.inkGlow(foregroundColor),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _AmountHero extends StatelessWidget {
@@ -2143,8 +2133,7 @@ class _AmountHero extends StatelessWidget {
               darkGlassBottom,
               _toneCompanion(color),
               .16,
-            )!
-                .withAlpha(218),
+            )!.withAlpha(218),
             Color.lerp(Colors.black, color, .18)!.withAlpha(204),
           ]
         : <Color>[
@@ -2153,8 +2142,7 @@ class _AmountHero extends StatelessWidget {
               Colors.white,
               _toneCompanion(color),
               .08,
-            )!
-                .withAlpha(218),
+            )!.withAlpha(218),
             Color.lerp(Colors.white, color, .13)!.withAlpha(194),
           ];
     return Container(
@@ -2195,38 +2183,34 @@ class _HeroValue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: .8,
-              shadows: <Shadow>[
-                Shadow(color: glow.withAlpha(78), blurRadius: 12)
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: 32,
-              fontWeight: FontWeight.w700,
-              fontFeatures: AppStyles.tabularFigures,
-              letterSpacing: -.8,
-              shadows: <Shadow>[
-                Shadow(color: glow.withAlpha(94), blurRadius: 16)
-              ],
-            ),
-          ),
-        ],
-      );
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: <Widget>[
+      Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: .8,
+          shadows: <Shadow>[Shadow(color: glow.withAlpha(78), blurRadius: 12)],
+        ),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontSize: 32,
+          fontWeight: FontWeight.w700,
+          fontFeatures: AppStyles.tabularFigures,
+          letterSpacing: -.8,
+          shadows: <Shadow>[Shadow(color: glow.withAlpha(94), blurRadius: 16)],
+        ),
+      ),
+    ],
+  );
 }
 
 class _ListCard extends StatelessWidget {
@@ -2252,140 +2236,139 @@ class _ListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: _Pressable(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(UIConstants.cardRadius),
-          child: _GlassCard(
-            borderRadius: UIConstants.cardRadius,
-            padding: UIConstants.compactCardPadding,
-            accentColor: color,
-            shadowColor: color,
-            child: Row(
-              children: <Widget>[
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: <Color>[color.withAlpha(34), color.withAlpha(16)],
-                    ),
-                    borderRadius:
-                        BorderRadius.circular(UIConstants.compactRadius),
-                    border: Border.fromBorderSide(
-                      AppStyles.hairline(context, accent: color, active: true),
-                    ),
-                    boxShadow: AppStyles.jewelDepth(context, color),
-                  ),
-                  child: avatarText == null
-                      ? Icon(
-                          icon,
-                          color: color,
-                          size: 20,
-                          shadows: AppStyles.inkGlow(color),
-                        )
-                      : Center(
-                          child: Text(
-                            avatarText!,
-                            style: TextStyle(
-                              color: color,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              shadows: AppStyles.inkGlow(color),
-                            ),
-                          ),
-                        ),
+    padding: const EdgeInsets.only(bottom: 12),
+    child: _Pressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(UIConstants.cardRadius),
+      child: _GlassCard(
+        borderRadius: UIConstants.cardRadius,
+        padding: UIConstants.compactCardPadding,
+        accentColor: color,
+        shadowColor: color,
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[color.withAlpha(34), color.withAlpha(16)],
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                borderRadius: BorderRadius.circular(UIConstants.compactRadius),
+                border: Border.fromBorderSide(
+                  AppStyles.hairline(context, accent: color, active: true),
+                ),
+                boxShadow: AppStyles.jewelDepth(context, color),
+              ),
+              child: avatarText == null
+                  ? Icon(
+                      icon,
+                      color: color,
+                      size: 20,
+                      shadows: AppStyles.inkGlow(color),
+                    )
+                  : Center(
+                      child: Text(
+                        avatarText!,
                         style: TextStyle(
                           color: color,
-                          fontSize: 16,
+                          fontSize: 18,
                           fontWeight: FontWeight.w700,
                           shadows: AppStyles.inkGlow(color),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: color.withAlpha(190),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (trailing != null) ...<Widget>[
-                  const SizedBox(width: 8),
+                    ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
                   Text(
-                    trailing!,
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: color,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      fontFeatures: AppStyles.tabularFigures,
                       shadows: AppStyles.inkGlow(color),
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color.withAlpha(190),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
-                if (onDelete != null)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 9),
-                    child: _Pressable(
-                      onTap: onDelete,
-                      semanticLabel: 'Delete $title',
+              ),
+            ),
+            if (trailing != null) ...<Widget>[
+              const SizedBox(width: 8),
+              Text(
+                trailing!,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: AppStyles.tabularFigures,
+                  shadows: AppStyles.inkGlow(color),
+                ),
+              ),
+            ],
+            if (onDelete != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 9),
+                child: _Pressable(
+                  onTap: onDelete,
+                  semanticLabel: 'Delete $title',
+                  borderRadius: BorderRadius.circular(
+                    UIConstants.compactRadius,
+                  ),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: appleRed.withAlpha(24),
                       borderRadius: BorderRadius.circular(
                         UIConstants.compactRadius,
                       ),
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: appleRed.withAlpha(24),
-                          borderRadius: BorderRadius.circular(
-                            UIConstants.compactRadius,
-                          ),
-                          border: Border.fromBorderSide(
-                            AppStyles.hairline(
-                              context,
-                              accent: appleRed,
-                              active: true,
-                            ),
-                          ),
-                          boxShadow: AppStyles.glow(context, appleRed),
-                        ),
-                        child: const Icon(
-                          Icons.delete_outline_rounded,
-                          color: appleRed,
-                          size: 20,
+                      border: Border.fromBorderSide(
+                        AppStyles.hairline(
+                          context,
+                          accent: appleRed,
+                          active: true,
                         ),
                       ),
+                      boxShadow: AppStyles.glow(context, appleRed),
                     ),
-                  )
-                else
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: color.withAlpha(150),
-                    shadows: AppStyles.inkGlow(color),
+                    child: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: appleRed,
+                      size: 20,
+                    ),
                   ),
-              ],
-            ),
-          ),
+                ),
+              )
+            else
+              Icon(
+                Icons.chevron_right_rounded,
+                color: color.withAlpha(150),
+                shadows: AppStyles.inkGlow(color),
+              ),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -2401,29 +2384,29 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
-          children: <Widget>[
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -.2,
-                  shadows: color == null
-                      ? null
-                      : <Shadow>[
-                          Shadow(color: color!.withAlpha(68), blurRadius: 10),
-                        ],
-                ),
-              ),
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -.2,
+              shadows: color == null
+                  ? null
+                  : <Shadow>[
+                      Shadow(color: color!.withAlpha(68), blurRadius: 10),
+                    ],
             ),
-            ...actions,
-          ],
+          ),
         ),
-      );
+        ...actions,
+      ],
+    ),
+  );
 }
 
 class _MonthYearPicker extends StatelessWidget {
@@ -2500,19 +2483,19 @@ class _MonthYearPicker extends StatelessWidget {
 }
 
 InputDecoration _pickerDecoration() => InputDecoration(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(UIConstants.inputRadius),
-        borderSide: BorderSide(
-          color: appleBlue.withAlpha(55),
-          width: UIConstants.borderWidth,
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(UIConstants.inputRadius),
-        borderSide: const BorderSide(color: appleBlue, width: 1.4),
-      ),
-    );
+  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+  enabledBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(UIConstants.inputRadius),
+    borderSide: BorderSide(
+      color: appleBlue.withAlpha(55),
+      width: UIConstants.borderWidth,
+    ),
+  ),
+  focusedBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(UIConstants.inputRadius),
+    borderSide: const BorderSide(color: appleBlue, width: 1.4),
+  ),
+);
 
 class _SheetFrame extends StatelessWidget {
   const _SheetFrame({
@@ -2769,8 +2752,8 @@ double _milkGlobalNet(Map<String, dynamic> state) {
   return net;
 }
 
-double _creditGlobalNet(Map<String, dynamic> state) =>
-    _rows(state['udharDB']).fold<double>(
+double _creditGlobalNet(Map<String, dynamic> state) => _rows(state['udharDB'])
+    .fold<double>(
       0,
       (double sum, Map<String, dynamic> row) =>
           sum + LedgerMath.creditSigned(row),
@@ -2803,20 +2786,21 @@ Color _expenseToneForTotal(double total) =>
     total > .000001 ? semanticRed : appleBlue;
 
 List<Color> _moduleTabColors(Map<String, dynamic> state) => <Color>[
-      appleBlue,
-      _tone(_milkGlobalNet(state)),
-      _tone(_creditGlobalNet(state)),
-      _expenseToneForTotal(_expenseCurrentMonthTotal(state)),
-      _tone(_salaryGlobalNet(state)),
-      diaryOrange,
-      appleBlue,
-    ];
+  appleBlue,
+  _tone(_milkGlobalNet(state)),
+  _tone(_creditGlobalNet(state)),
+  _expenseToneForTotal(_expenseCurrentMonthTotal(state)),
+  _tone(_salaryGlobalNet(state)),
+  diaryOrange,
+  appleBlue,
+];
 
 PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
-      transitionDuration: UIConstants.routeIn,
-      reverseTransitionDuration: UIConstants.routeOut,
-      pageBuilder: (_, __, ___) => child,
-      transitionsBuilder: (
+  transitionDuration: UIConstants.routeIn,
+  reverseTransitionDuration: UIConstants.routeOut,
+  pageBuilder: (_, __, ___) => child,
+  transitionsBuilder:
+      (
         BuildContext context,
         Animation<double> animation,
         Animation<double> secondaryAnimation,
@@ -2841,7 +2825,7 @@ PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
           ),
         );
       },
-    );
+);
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({required this.sync, super.key});
@@ -2888,8 +2872,9 @@ class DashboardScreen extends StatelessWidget {
           title: 'Dashboard',
           subtitle: 'AARISH DAIRY',
           subtitleTrailing: _Pressable(
-            onTap: () => Navigator.of(context)
-                .push(_premiumRoute<void>(AiHubScreen(sync: sync))),
+            onTap: () =>
+                Navigator.of(context)
+                    .push(_premiumRoute<void>(AiHubScreen(sync: sync))),
             semanticLabel: 'AI Hub',
             borderRadius: BorderRadius.circular(12),
             child: SizedBox(
@@ -3048,41 +3033,40 @@ class _SyncPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-          decoration: BoxDecoration(
-            color: appleBlue.withAlpha(20),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: appleBlue.withAlpha(40)),
+    alignment: Alignment.centerLeft,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: appleBlue.withAlpha(20),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: appleBlue.withAlpha(40)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (sync.syncing)
+            const SizedBox(
+              width: 13,
+              height: 13,
+              child: CircularProgressIndicator(strokeWidth: 1.8),
+            )
+          else
+            const Icon(Icons.cloud_upload_rounded, color: appleBlue, size: 15),
+          const SizedBox(width: 7),
+          Text(
+            sync.syncing
+                ? 'Syncing safely…'
+                : '${sync.pendingWrites} change(s) queued',
+            style: const TextStyle(
+              color: appleBlue,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              if (sync.syncing)
-                const SizedBox(
-                  width: 13,
-                  height: 13,
-                  child: CircularProgressIndicator(strokeWidth: 1.8),
-                )
-              else
-                const Icon(Icons.cloud_upload_rounded,
-                    color: appleBlue, size: 15),
-              const SizedBox(width: 7),
-              Text(
-                sync.syncing
-                    ? 'Syncing safely…'
-                    : '${sync.pendingWrites} change(s) queued',
-                style: const TextStyle(
-                  color: appleBlue,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }
 
 class _MetricCard extends StatelessWidget {
@@ -3100,46 +3084,46 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _GlassCard(
-        padding: UIConstants.compactCardPadding,
-        borderRadius: UIConstants.cardRadius,
-        tintColor: color,
-        shadowColor: color,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            _LedgerIcon(icon: icon, color: color, size: 46),
-            const Spacer(),
-            Text(
-              label.toUpperCase(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: systemGray,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                letterSpacing: .65,
-              ),
-            ),
-            const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  fontFeatures: AppStyles.tabularFigures,
-                  letterSpacing: -.7,
-                  shadows: AppStyles.inkGlow(color, strong: true),
-                ),
-              ),
-            ),
-          ],
+    padding: UIConstants.compactCardPadding,
+    borderRadius: UIConstants.cardRadius,
+    tintColor: color,
+    shadowColor: color,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        _LedgerIcon(icon: icon, color: color, size: 46),
+        const Spacer(),
+        Text(
+          label.toUpperCase(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: systemGray,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            letterSpacing: .65,
+          ),
         ),
-      );
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              fontFeatures: AppStyles.tabularFigures,
+              letterSpacing: -.7,
+              shadows: AppStyles.inkGlow(color, strong: true),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _LedgerIcon extends StatelessWidget {
@@ -3275,8 +3259,9 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
                 else
                   ...balances.map((PartyBalance item) {
                     final Color color = _tone(item.net);
-                    final String label =
-                        item.net >= 0 ? 'TO RECEIVE' : 'TO PAY';
+                    final String label = item.net >= 0
+                        ? 'TO RECEIVE'
+                        : 'TO PAY';
                     return _ListCard(
                       title: item.name,
                       subtitle:
@@ -3406,16 +3391,13 @@ class _MilkScreenState extends State<MilkScreen> {
     }
     await _runMutation(
       context,
-      () => widget.sync.write(
-          'milkDB/$customerName',
-          <String, dynamic>{
-            'rate': customerRate,
-            'type': type,
-            'records': <dynamic>[],
-            'canonicalNameV18': customerName.toLowerCase(),
-            'createdAtV18': DateTime.now().toIso8601String(),
-          },
-          reason: 'milk-profile-create'),
+      () => widget.sync.write('milkDB/$customerName', <String, dynamic>{
+        'rate': customerRate,
+        'type': type,
+        'records': <dynamic>[],
+        'canonicalNameV18': customerName.toLowerCase(),
+        'createdAtV18': DateTime.now().toIso8601String(),
+      }, reason: 'milk-profile-create'),
       'Customer added safely!',
     );
   }
@@ -3424,14 +3406,16 @@ class _MilkScreenState extends State<MilkScreen> {
   Widget build(BuildContext context) {
     final Map<String, dynamic> database = _map(widget.sync.state['milkDB']);
     final Color moduleColor = _tone(_milkGlobalNet(widget.sync.state));
-    final List<String> names = database.keys
-        .where(
-          (String name) => name.toLowerCase().contains(_query.toLowerCase()),
-        )
-        .toList()
-      ..sort(
-        (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
-      );
+    final List<String> names =
+        database.keys
+            .where(
+              (String name) =>
+                  name.toLowerCase().contains(_query.toLowerCase()),
+            )
+            .toList()
+          ..sort(
+            (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
+          );
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -3819,25 +3803,24 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: widget.sync,
-        builder: (BuildContext context, Widget? child) {
-          final Map<String, dynamic> database =
-              _map(widget.sync.state['milkDB']);
-          final Map<String, dynamic>? profile =
-              database[widget.customerName] is Map
-                  ? _map(database[widget.customerName])
-                  : null;
-          if (profile == null) {
-            return const Scaffold(
-              body: Center(
-                child: _EmptyState(
-                  Icons.water_drop_rounded,
-                  'Customer no longer exists',
-                ),
-              ),
-            );
-          }
-          final List<Map<String, dynamic>> records = _rows(profile['records'])
+    animation: widget.sync,
+    builder: (BuildContext context, Widget? child) {
+      final Map<String, dynamic> database = _map(widget.sync.state['milkDB']);
+      final Map<String, dynamic>? profile = database[widget.customerName] is Map
+          ? _map(database[widget.customerName])
+          : null;
+      if (profile == null) {
+        return const Scaffold(
+          body: Center(
+            child: _EmptyState(
+              Icons.water_drop_rounded,
+              'Customer no longer exists',
+            ),
+          ),
+        );
+      }
+      final List<Map<String, dynamic>> records =
+          _rows(profile['records'])
               .where(
                 (Map<String, dynamic> row) =>
                     LedgerMath.inMonth(row, _month, _year),
@@ -3847,113 +3830,112 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
               (Map<String, dynamic> a, Map<String, dynamic> b) =>
                   '${b['date']}'.compareTo('${a['date']}'),
             );
-          final MilkTotals totals = LedgerMath.milkTotals(
-            profile,
-            month: _month,
-            year: _year,
-          );
-          final Color color = _tone(totals.netAmount);
-          return Scaffold(
-            body: Column(
-              children: <Widget>[
-                _ScreenHeader(
-                  leading: const _BackCircle(),
-                  title: widget.customerName,
-                  color: color,
-                  actions: <Widget>[
-                    _CircleAction(
-                      icon: Icons.delete_outline_rounded,
-                      color: appleRed,
-                      onTap: () => unawaited(_deleteProfile()),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: UIConstants.screenPadding,
-                    children: <Widget>[
-                      _MonthYearPicker(
-                        month: _month,
-                        year: _year,
-                        onChanged: (int month, int year) => setState(() {
-                          _month = month;
-                          _year = year;
-                        }),
-                      ),
-                      const SizedBox(height: 16),
-                      _MilkDetailHero(
-                        amount: _signedMoney(totals.netAmount),
-                        totalKg: '${totals.netKg.abs().toStringAsFixed(2)} KG',
-                        color: color,
-                      ),
-                      const SizedBox(height: 24),
-                      _SectionTitle(
-                        'Daily Entries',
-                        color: appleBlue,
-                        actions: <Widget>[
-                          _SoftShareButton(
-                            label: 'Share',
-                            icon: Icons.share_rounded,
-                            color: appleBlue,
-                            onTap: () => unawaited(
-                              _ExportService.sharePdf(
-                                '${widget.customerName} Milk Bill',
-                                <String>[
-                                  'Date',
-                                  'Flow',
-                                  'Morning',
-                                  'Evening',
-                                  'Total',
-                                ],
-                                records.map((Map<String, dynamic> row) {
-                                  final double quantity =
-                                      LedgerMath.milkQuantity(
-                                    row,
-                                  );
-                                  final String flow = LedgerMath.milkFlow(
-                                    row,
-                                    profile,
-                                  );
-                                  return <String>[
-                                    _displayDate(row['date']),
-                                    flow,
-                                    '${LedgerMath.number(row['morning']).toStringAsFixed(2)} KG',
-                                    '${LedgerMath.number(row['evening']).toStringAsFixed(2)} KG',
-                                    '${quantity.toStringAsFixed(2)} KG',
-                                  ];
-                                }).toList(),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _MiniAction(
-                            label: 'Add',
-                            icon: Icons.add_rounded,
-                            color: color,
-                            onTap: () => unawaited(_addEntry(profile)),
-                          ),
-                        ],
-                      ),
-                      if (records.isEmpty)
-                        const _EmptyState(
-                          Icons.water_drop_outlined,
-                          'No entries for this month',
-                        )
-                      else
-                        _MilkRecordsTable(
-                          records: records,
-                          profile: profile,
-                          onDelete: (String id) => unawaited(_deleteEntry(id)),
-                        ),
-                    ],
-                  ),
+      final MilkTotals totals = LedgerMath.milkTotals(
+        profile,
+        month: _month,
+        year: _year,
+      );
+      final Color color = _tone(totals.netAmount);
+      return Scaffold(
+        body: Column(
+          children: <Widget>[
+            _ScreenHeader(
+              leading: const _BackCircle(),
+              title: widget.customerName,
+              color: color,
+              actions: <Widget>[
+                _CircleAction(
+                  icon: Icons.delete_outline_rounded,
+                  color: appleRed,
+                  onTap: () => unawaited(_deleteProfile()),
                 ),
               ],
             ),
-          );
-        },
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: UIConstants.screenPadding,
+                children: <Widget>[
+                  _MonthYearPicker(
+                    month: _month,
+                    year: _year,
+                    onChanged: (int month, int year) => setState(() {
+                      _month = month;
+                      _year = year;
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  _MilkDetailHero(
+                    amount: _signedMoney(totals.netAmount),
+                    totalKg: '${totals.netKg.abs().toStringAsFixed(2)} KG',
+                    color: color,
+                  ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(
+                    'Daily Entries',
+                    color: appleBlue,
+                    actions: <Widget>[
+                      _SoftShareButton(
+                        label: 'Share',
+                        icon: Icons.share_rounded,
+                        color: appleBlue,
+                        onTap: () => unawaited(
+                          _ExportService.sharePdf(
+                            '${widget.customerName} Milk Bill',
+                            <String>[
+                              'Date',
+                              'Flow',
+                              'Morning',
+                              'Evening',
+                              'Total',
+                            ],
+                            records.map((Map<String, dynamic> row) {
+                              final double quantity = LedgerMath.milkQuantity(
+                                row,
+                              );
+                              final String flow = LedgerMath.milkFlow(
+                                row,
+                                profile,
+                              );
+                              return <String>[
+                                _displayDate(row['date']),
+                                flow,
+                                '${LedgerMath.number(row['morning']).toStringAsFixed(2)} KG',
+                                '${LedgerMath.number(row['evening']).toStringAsFixed(2)} KG',
+                                '${quantity.toStringAsFixed(2)} KG',
+                              ];
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _MiniAction(
+                        label: 'Add',
+                        icon: Icons.add_rounded,
+                        color: color,
+                        onTap: () => unawaited(_addEntry(profile)),
+                      ),
+                    ],
+                  ),
+                  if (records.isEmpty)
+                    const _EmptyState(
+                      Icons.water_drop_outlined,
+                      'No entries for this month',
+                    )
+                  else
+                    _MilkRecordsTable(
+                      records: records,
+                      profile: profile,
+                      onDelete: (String id) => unawaited(_deleteEntry(id)),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
+    },
+  );
 }
 
 class _MilkDetailHero extends StatelessWidget {
@@ -4222,8 +4204,9 @@ class _MilkRecordsTable extends StatelessWidget {
               Container(
                 height: 48,
                 padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
-                color:
-                    dark ? Colors.white.withAlpha(7) : const Color(0xFFF9FBFE),
+                color: dark
+                    ? Colors.white.withAlpha(7)
+                    : const Color(0xFFF9FBFE),
                 child: Row(
                   children: <Widget>[
                     Expanded(
@@ -4280,19 +4263,19 @@ class _MilkTableHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: alignment,
-        child: Text(
-          label,
-          maxLines: 1,
-          style: TextStyle(
-            color: appleBlue,
-            fontSize: compact ? 9.2 : 10.5,
-            height: 1,
-            fontWeight: FontWeight.w700,
-            letterSpacing: compact ? .15 : .45,
-          ),
-        ),
-      );
+    alignment: alignment,
+    child: Text(
+      label,
+      maxLines: 1,
+      style: TextStyle(
+        color: appleBlue,
+        fontSize: compact ? 9.2 : 10.5,
+        height: 1,
+        fontWeight: FontWeight.w700,
+        letterSpacing: compact ? .15 : .45,
+      ),
+    ),
+  );
 }
 
 class _MilkTableRow extends StatelessWidget {
@@ -4462,21 +4445,21 @@ class _MilkValueCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            value,
-            maxLines: 1,
-            style: TextStyle(
-              color: color,
-              fontSize: compact ? 13 : (strong ? 16 : 15),
-              fontWeight: FontWeight.w700,
-              fontFeatures: AppStyles.tabularFigures,
-              letterSpacing: strong ? -.25 : 0,
-            ),
-          ),
+    child: FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        value,
+        maxLines: 1,
+        style: TextStyle(
+          color: color,
+          fontSize: compact ? 13 : (strong ? 16 : 15),
+          fontWeight: FontWeight.w700,
+          fontFeatures: AppStyles.tabularFigures,
+          letterSpacing: strong ? -.25 : 0,
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _MiniAction extends StatelessWidget {
@@ -4494,44 +4477,42 @@ class _MiniAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Pressable(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(UIConstants.compactRadius),
-        child: Container(
-          constraints:
-              const BoxConstraints(minHeight: UIConstants.minTapTarget),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: <Color>[color.withAlpha(35), color.withAlpha(17)],
-            ),
-            borderRadius: BorderRadius.circular(UIConstants.compactRadius),
-            border: Border.fromBorderSide(
-              AppStyles.hairline(context, accent: color, active: true),
-            ),
-            boxShadow: AppStyles.glow(context, color),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Icon(icon,
-                  size: 17, color: color, shadows: AppStyles.inkGlow(color)),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  shadows: AppStyles.inkGlow(color),
-                ),
-              ),
-            ],
-          ),
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(UIConstants.compactRadius),
+    child: Container(
+      constraints: const BoxConstraints(minHeight: UIConstants.minTapTarget),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[color.withAlpha(35), color.withAlpha(17)],
         ),
-      );
+        borderRadius: BorderRadius.circular(UIConstants.compactRadius),
+        border: Border.fromBorderSide(
+          AppStyles.hairline(context, accent: color, active: true),
+        ),
+        boxShadow: AppStyles.glow(context, color),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Icon(icon, size: 17, color: color, shadows: AppStyles.inkGlow(color)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              shadows: AppStyles.inkGlow(color),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _LedgerTableRowData {
@@ -4590,8 +4571,9 @@ class _LedgerTableCard extends StatelessWidget {
               Container(
                 constraints: const BoxConstraints(minHeight: 48),
                 padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14),
-                color:
-                    dark ? Colors.white.withAlpha(7) : const Color(0xFFF9FBFE),
+                color: dark
+                    ? Colors.white.withAlpha(7)
+                    : const Color(0xFFF9FBFE),
                 child: Row(
                   children: <Widget>[
                     for (int i = 0; i < headers.length; i++)
@@ -4784,23 +4766,23 @@ class _LedgerAmountCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: Alignment.centerLeft,
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            value,
-            maxLines: 1,
-            style: TextStyle(
-              color: color,
-              fontSize: 15.5,
-              fontWeight: FontWeight.w700,
-              fontFeatures: AppStyles.tabularFigures,
-              letterSpacing: -.25,
-            ),
-          ),
+    alignment: Alignment.centerLeft,
+    child: FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Text(
+        value,
+        maxLines: 1,
+        style: TextStyle(
+          color: color,
+          fontSize: 15.5,
+          fontWeight: FontWeight.w700,
+          fontFeatures: AppStyles.tabularFigures,
+          letterSpacing: -.25,
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _LedgerBadgeCell extends StatelessWidget {
@@ -4811,28 +4793,28 @@ class _LedgerBadgeCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-          decoration: BoxDecoration(
-            color: color.withAlpha(15),
-            borderRadius: BorderRadius.circular(9),
-            border: Border.all(color: color.withAlpha(52)),
-          ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: 9.8,
-              height: 1,
-              fontWeight: FontWeight.w700,
-              letterSpacing: .2,
-            ),
-          ),
+    alignment: Alignment.centerLeft,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withAlpha(15),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: color.withAlpha(52)),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontSize: 9.8,
+          height: 1,
+          fontWeight: FontWeight.w700,
+          letterSpacing: .2,
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _LedgerDetailCell extends StatelessWidget {
@@ -4848,26 +4830,26 @@ class _LedgerDetailCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: Alignment.centerLeft,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 5),
-            _LedgerBadgeCell(label: badge, color: color),
-          ],
+    alignment: Alignment.centerLeft,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: color,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
+          ),
         ),
-      );
+        const SizedBox(height: 5),
+        _LedgerBadgeCell(label: badge, color: color),
+      ],
+    ),
+  );
 }
 
 class SalaryScreen extends StatefulWidget {
@@ -4949,8 +4931,9 @@ class _SalaryScreenState extends State<SalaryScreen> {
       return;
     }
     final String personName = _cleanKey(name.text);
-    final String companyName =
-        company.text.trim().isEmpty ? '—' : company.text.trim();
+    final String companyName = company.text.trim().isEmpty
+        ? '—'
+        : company.text.trim();
     name.dispose();
     company.dispose();
     if (personName.isEmpty) {
@@ -4966,14 +4949,11 @@ class _SalaryScreenState extends State<SalaryScreen> {
     }
     await _runMutation(
       context,
-      () => widget.sync.write(
-          'salaryDB/$personName',
-          <String, dynamic>{
-            'company': companyName,
-            'type': type,
-            'records': <dynamic>[],
-          },
-          reason: 'salary-profile-create'),
+      () => widget.sync.write('salaryDB/$personName', <String, dynamic>{
+        'company': companyName,
+        'type': type,
+        'records': <dynamic>[],
+      }, reason: 'salary-profile-create'),
       type == 'lene_wala'
           ? 'Receiving salary profile added!'
           : 'Paying salary profile added!',
@@ -4985,14 +4965,16 @@ class _SalaryScreenState extends State<SalaryScreen> {
     final DateTime now = DateTime.now();
     final Map<String, dynamic> database = _map(widget.sync.state['salaryDB']);
     final Color moduleColor = _tone(_salaryGlobalNet(widget.sync.state));
-    final List<String> names = database.keys
-        .where(
-          (String name) => name.toLowerCase().contains(_query.toLowerCase()),
-        )
-        .toList()
-      ..sort(
-        (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
-      );
+    final List<String> names =
+        database.keys
+            .where(
+              (String name) =>
+                  name.toLowerCase().contains(_query.toLowerCase()),
+            )
+            .toList()
+          ..sort(
+            (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
+          );
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -5184,23 +5166,22 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: widget.sync,
-        builder: (BuildContext context, Widget? child) {
-          final Map<String, dynamic> database =
-              _map(widget.sync.state['salaryDB']);
-          if (database[widget.personName] is! Map) {
-            return const Scaffold(
-              body: Center(
-                child: _EmptyState(
-                  Icons.groups_rounded,
-                  'Profile no longer exists',
-                ),
-              ),
-            );
-          }
-          final Map<String, dynamic> profile =
-              _map(database[widget.personName]);
-          final List<Map<String, dynamic>> records = _rows(profile['records'])
+    animation: widget.sync,
+    builder: (BuildContext context, Widget? child) {
+      final Map<String, dynamic> database = _map(widget.sync.state['salaryDB']);
+      if (database[widget.personName] is! Map) {
+        return const Scaffold(
+          body: Center(
+            child: _EmptyState(
+              Icons.groups_rounded,
+              'Profile no longer exists',
+            ),
+          ),
+        );
+      }
+      final Map<String, dynamic> profile = _map(database[widget.personName]);
+      final List<Map<String, dynamic>> records =
+          _rows(profile['records'])
               .where(
                 (Map<String, dynamic> row) =>
                     LedgerMath.inMonth(row, _month, _year),
@@ -5210,123 +5191,122 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
               (Map<String, dynamic> a, Map<String, dynamic> b) =>
                   '${b['date']}'.compareTo('${a['date']}'),
             );
-          final double total = records.fold<double>(
-            0,
-            (double sum, Map<String, dynamic> row) =>
-                sum + LedgerMath.number(row['amount']),
-          );
-          final double signed = profile['type'] == 'lene_wala' ? total : -total;
-          final Color color = _tone(signed);
-          return Scaffold(
-            body: Column(
-              children: <Widget>[
-                _ScreenHeader(
-                  leading: const _BackCircle(),
-                  title: widget.personName,
-                  color: color,
-                  actions: <Widget>[
-                    _CircleAction(
-                      icon: Icons.delete_outline_rounded,
-                      color: appleRed,
-                      onTap: () => unawaited(_deleteProfile()),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: UIConstants.screenPadding,
-                    children: <Widget>[
-                      _MonthYearPicker(
-                        month: _month,
-                        year: _year,
-                        onChanged: (int month, int year) => setState(() {
-                          _month = month;
-                          _year = year;
-                        }),
-                      ),
-                      const SizedBox(height: 16),
-                      _AmountHero(
-                        label: 'Total Salary (This Month)',
-                        value: _signedMoney(signed),
-                        color: color,
-                      ),
-                      const SizedBox(height: 24),
-                      _SectionTitle(
-                        'Daily Entries',
-                        color: appleBlue,
-                        actions: <Widget>[
-                          _SoftShareButton(
-                            label: 'Share',
-                            icon: Icons.share_rounded,
-                            color: appleBlue,
-                            onTap: () => unawaited(
-                              _ExportService.sharePdf(
-                                '${widget.personName} Salary',
-                                <String>['Date', 'Amount'],
-                                records
-                                    .map(
-                                      (Map<String, dynamic> row) => <String>[
-                                        _displayDate(row['date']),
-                                        _plainMoney(
-                                          (profile['type'] == 'lene_wala'
-                                                  ? 1
-                                                  : -1) *
-                                              LedgerMath.number(row['amount']),
-                                        ),
-                                      ],
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _MiniAction(
-                            label: 'Add',
-                            icon: Icons.add_rounded,
-                            color: color,
-                            onTap: () => unawaited(_addEntry(profile, color)),
-                          ),
-                        ],
-                      ),
-                      if (records.isEmpty)
-                        const _EmptyState(
-                          Icons.currency_rupee_rounded,
-                          'No salary entries for this month',
-                        )
-                      else
-                        _LedgerTableCard(
-                          headers: const <String>['DATE', 'AMOUNT'],
-                          flexes: const <int>[42, 42],
-                          rows: records.map((Map<String, dynamic> row) {
-                            final double rowSigned =
-                                (profile['type'] == 'lene_wala' ? 1 : -1) *
-                                    LedgerMath.number(row['amount']);
-                            final Color rowColor = _tone(rowSigned);
-                            return _LedgerTableRowData(
-                              cells: <Widget>[
-                                _LedgerDateCell(
-                                    date: row['date'], color: rowColor),
-                                _LedgerAmountCell(
-                                  value: _signedMoney(rowSigned),
-                                  color: rowColor,
-                                ),
-                              ],
-                              onDelete: () =>
-                                  unawaited(_deleteEntry('${row['id']}')),
-                              semanticLabel:
-                                  'Delete ${_displayDate(row['date'])} salary entry',
-                            );
-                          }).toList(),
-                        ),
-                    ],
-                  ),
+      final double total = records.fold<double>(
+        0,
+        (double sum, Map<String, dynamic> row) =>
+            sum + LedgerMath.number(row['amount']),
+      );
+      final double signed = profile['type'] == 'lene_wala' ? total : -total;
+      final Color color = _tone(signed);
+      return Scaffold(
+        body: Column(
+          children: <Widget>[
+            _ScreenHeader(
+              leading: const _BackCircle(),
+              title: widget.personName,
+              color: color,
+              actions: <Widget>[
+                _CircleAction(
+                  icon: Icons.delete_outline_rounded,
+                  color: appleRed,
+                  onTap: () => unawaited(_deleteProfile()),
                 ),
               ],
             ),
-          );
-        },
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: UIConstants.screenPadding,
+                children: <Widget>[
+                  _MonthYearPicker(
+                    month: _month,
+                    year: _year,
+                    onChanged: (int month, int year) => setState(() {
+                      _month = month;
+                      _year = year;
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  _AmountHero(
+                    label: 'Total Salary (This Month)',
+                    value: _signedMoney(signed),
+                    color: color,
+                  ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(
+                    'Daily Entries',
+                    color: appleBlue,
+                    actions: <Widget>[
+                      _SoftShareButton(
+                        label: 'Share',
+                        icon: Icons.share_rounded,
+                        color: appleBlue,
+                        onTap: () => unawaited(
+                          _ExportService.sharePdf(
+                            '${widget.personName} Salary',
+                            <String>['Date', 'Amount'],
+                            records
+                                .map(
+                                  (Map<String, dynamic> row) => <String>[
+                                    _displayDate(row['date']),
+                                    _plainMoney(
+                                      (profile['type'] == 'lene_wala'
+                                              ? 1
+                                              : -1) *
+                                          LedgerMath.number(row['amount']),
+                                    ),
+                                  ],
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _MiniAction(
+                        label: 'Add',
+                        icon: Icons.add_rounded,
+                        color: color,
+                        onTap: () => unawaited(_addEntry(profile, color)),
+                      ),
+                    ],
+                  ),
+                  if (records.isEmpty)
+                    const _EmptyState(
+                      Icons.currency_rupee_rounded,
+                      'No salary entries for this month',
+                    )
+                  else
+                    _LedgerTableCard(
+                      headers: const <String>['DATE', 'AMOUNT'],
+                      flexes: const <int>[42, 42],
+                      rows: records.map((Map<String, dynamic> row) {
+                        final double rowSigned =
+                            (profile['type'] == 'lene_wala' ? 1 : -1) *
+                            LedgerMath.number(row['amount']);
+                        final Color rowColor = _tone(rowSigned);
+                        return _LedgerTableRowData(
+                          cells: <Widget>[
+                            _LedgerDateCell(date: row['date'], color: rowColor),
+                            _LedgerAmountCell(
+                              value: _signedMoney(rowSigned),
+                              color: rowColor,
+                            ),
+                          ],
+                          onDelete: () =>
+                              unawaited(_deleteEntry('${row['id']}')),
+                          semanticLabel:
+                              'Delete ${_displayDate(row['date'])} salary entry',
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
+    },
+  );
 }
 
 class _CreditGroup {
@@ -5382,64 +5362,64 @@ class _CreditScreenState extends State<CreditScreen> {
       StatefulBuilder(
         builder: (BuildContext sheetContext, StateSetter setSheetState) =>
             _SheetFrame(
-          title: 'Credit / Loan Entry',
-          children: <Widget>[
-            _DateField(controller: date),
-            const SizedBox(height: 12),
-            TextField(
-              controller: name,
-              readOnly: fixedName != null,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Person name',
-                prefixIcon: Icon(Icons.person_rounded),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: amount,
-              autofocus: fixedName != null,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-              ],
-              decoration: const InputDecoration(
-                labelText: 'Amount',
-                prefixText: '₹ ',
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
+              title: 'Credit / Loan Entry',
               children: <Widget>[
-                Expanded(
-                  child: _TransactionPairButton(
-                    label: 'Given',
-                    icon: Icons.add_rounded,
-                    color: appleGreen,
-                    onTap: () {
-                      type = 'credit';
-                      Navigator.pop(sheetContext, true);
-                    },
+                _DateField(controller: date),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: name,
+                  readOnly: fixedName != null,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Person name',
+                    prefixIcon: Icon(Icons.person_rounded),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _TransactionPairButton(
-                    label: 'Taken',
-                    icon: Icons.remove_rounded,
-                    color: appleRed,
-                    onTap: () {
-                      type = 'debit';
-                      Navigator.pop(sheetContext, true);
-                    },
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amount,
+                  autofocus: fixedName != null,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
                   ),
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'Amount',
+                    prefixText: '₹ ',
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _TransactionPairButton(
+                        label: 'Given',
+                        icon: Icons.add_rounded,
+                        color: appleGreen,
+                        onTap: () {
+                          type = 'credit';
+                          Navigator.pop(sheetContext, true);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _TransactionPairButton(
+                        label: 'Taken',
+                        icon: Icons.remove_rounded,
+                        color: appleRed,
+                        onTap: () {
+                          type = 'debit';
+                          Navigator.pop(sheetContext, true);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
       ),
     );
     if (save != true || !mounted) {
@@ -5467,16 +5447,13 @@ class _CreditScreenState extends State<CreditScreen> {
     final String id = _newId('udh');
     await _runMutation(
       context,
-      () => widget.sync.write(
-          'udharDB/$id',
-          <String, dynamic>{
-            'id': id,
-            'date': entryDate,
-            'name': person,
-            'amount': entryAmount,
-            'type': type,
-          },
-          reason: 'credit-entry-save'),
+      () => widget.sync.write('udharDB/$id', <String, dynamic>{
+        'id': id,
+        'date': entryDate,
+        'name': person,
+        'amount': entryAmount,
+        'type': type,
+      }, reason: 'credit-entry-save'),
       'Credit entry saved safely!',
     );
   }
@@ -5517,8 +5494,8 @@ class _CreditScreenState extends State<CreditScreen> {
                 label: net > 0
                     ? 'Net Balance / Profit'
                     : net < 0
-                        ? 'Net Balance / Loss'
-                        : 'Net Balance',
+                    ? 'Net Balance / Loss'
+                    : 'Net Balance',
                 value: _signedMoney(net),
                 color: balanceColor,
               ),
@@ -5539,7 +5516,11 @@ class _CreditScreenState extends State<CreditScreen> {
                   return _ListCard(
                     title: group.name,
                     subtitle:
-                        '${group.net > 0 ? 'To Receive' : group.net < 0 ? 'To Pay' : 'Settled'} • Last ${_displayDate(group.lastDate)}',
+                        '${group.net > 0
+                            ? 'To Receive'
+                            : group.net < 0
+                            ? 'To Pay'
+                            : 'Settled'} • Last ${_displayDate(group.lastDate)}',
                     icon: Icons.person_rounded,
                     color: color,
                     avatarText: group.name.trim().isEmpty
@@ -5649,16 +5630,13 @@ class CreditDetailScreen extends StatelessWidget {
     final String id = _newId('udh');
     await _runMutation(
       context,
-      () => sync.write(
-          'udharDB/$id',
-          <String, dynamic>{
-            'id': id,
-            'date': entryDate,
-            'name': personName,
-            'amount': entryAmount,
-            'type': type,
-          },
-          reason: 'credit-entry-save'),
+      () => sync.write('udharDB/$id', <String, dynamic>{
+        'id': id,
+        'date': entryDate,
+        'name': personName,
+        'amount': entryAmount,
+        'type': type,
+      }, reason: 'credit-entry-save'),
       type == 'credit' ? 'Given entry saved!' : 'Taken entry saved!',
     );
   }
@@ -5707,131 +5685,129 @@ class CreditDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: sync,
-        builder: (BuildContext context, Widget? child) {
-          final List<Map<String, dynamic>> records =
-              _rows(sync.state['udharDB'])
-                  .where(
-                    (Map<String, dynamic> row) =>
-                        LedgerMath.cleanName(row['name']) == personName,
-                  )
-                  .toList()
-                ..sort(
-                  (Map<String, dynamic> a, Map<String, dynamic> b) =>
-                      '${b['date']}'.compareTo('${a['date']}'),
-                );
-          final double net = records.fold<double>(
-            0,
-            (double sum, Map<String, dynamic> row) =>
-                sum + LedgerMath.creditSigned(row),
-          );
-          final Color color = _tone(net);
-          return Scaffold(
-            body: Column(
-              children: <Widget>[
-                _ScreenHeader(
-                  leading: const _BackCircle(),
-                  title: personName,
-                  color: color,
-                  actions: <Widget>[
-                    _CircleAction(
-                      icon: Icons.delete_outline_rounded,
-                      color: appleRed,
-                      onTap: () => unawaited(_deleteProfile(context, records)),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: UIConstants.screenPadding,
-                    children: <Widget>[
-                      _AmountHero(
-                        label: net > 0
-                            ? 'To Receive'
-                            : net < 0
-                                ? 'To Pay'
-                                : 'Net Balance',
-                        value: _signedMoney(net),
-                        color: color,
-                      ),
-                      const SizedBox(height: 24),
-                      _SectionTitle(
-                        'All Entries',
-                        color: appleBlue,
-                        actions: <Widget>[
-                          _SoftShareButton(
-                            label: 'Share',
-                            icon: Icons.share_rounded,
-                            color: appleBlue,
-                            onTap: () => unawaited(
-                              _ExportService.sharePdf(
-                                '$personName Credit Ledger',
-                                <String>['Date', 'Type', 'Amount'],
-                                records
-                                    .map(
-                                      (Map<String, dynamic> row) => <String>[
-                                        _displayDate(row['date']),
-                                        LedgerMath.creditSigned(row) >= 0
-                                            ? 'Given'
-                                            : 'Taken',
-                                        _plainMoney(
-                                            LedgerMath.creditSigned(row)),
-                                      ],
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _MiniAction(
-                            label: 'Add',
-                            icon: Icons.add_rounded,
-                            color: appleGreen,
-                            onTap: () => unawaited(_addEntry(context)),
-                          ),
-                        ],
-                      ),
-                      if (records.isEmpty)
-                        const _EmptyState(
-                          Icons.account_balance_wallet_outlined,
-                          'No entries found',
-                        )
-                      else
-                        _LedgerTableCard(
-                          headers: const <String>['DATE', 'DETAIL', 'AMOUNT'],
-                          flexes: const <int>[29, 28, 31],
-                          rows: records.map((Map<String, dynamic> row) {
-                            final double signed = LedgerMath.creditSigned(row);
-                            final Color rowColor = _tone(signed);
-                            return _LedgerTableRowData(
-                              cells: <Widget>[
-                                _LedgerDateCell(
-                                    date: row['date'], color: rowColor),
-                                _LedgerBadgeCell(
-                                  label: signed >= 0 ? 'GIVEN' : 'TAKEN',
-                                  color: rowColor,
-                                ),
-                                _LedgerAmountCell(
-                                  value: _signedMoney(signed),
-                                  color: rowColor,
-                                ),
-                              ],
-                              onDelete: () => unawaited(
-                                  _deleteEntry(context, '${row['id']}')),
-                              semanticLabel:
-                                  'Delete ${_displayDate(row['date'])} credit entry',
-                            );
-                          }).toList(),
-                        ),
-                    ],
-                  ),
+    animation: sync,
+    builder: (BuildContext context, Widget? child) {
+      final List<Map<String, dynamic>> records =
+          _rows(sync.state['udharDB'])
+              .where(
+                (Map<String, dynamic> row) =>
+                    LedgerMath.cleanName(row['name']) == personName,
+              )
+              .toList()
+            ..sort(
+              (Map<String, dynamic> a, Map<String, dynamic> b) =>
+                  '${b['date']}'.compareTo('${a['date']}'),
+            );
+      final double net = records.fold<double>(
+        0,
+        (double sum, Map<String, dynamic> row) =>
+            sum + LedgerMath.creditSigned(row),
+      );
+      final Color color = _tone(net);
+      return Scaffold(
+        body: Column(
+          children: <Widget>[
+            _ScreenHeader(
+              leading: const _BackCircle(),
+              title: personName,
+              color: color,
+              actions: <Widget>[
+                _CircleAction(
+                  icon: Icons.delete_outline_rounded,
+                  color: appleRed,
+                  onTap: () => unawaited(_deleteProfile(context, records)),
                 ),
               ],
             ),
-          );
-        },
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: UIConstants.screenPadding,
+                children: <Widget>[
+                  _AmountHero(
+                    label: net > 0
+                        ? 'To Receive'
+                        : net < 0
+                        ? 'To Pay'
+                        : 'Net Balance',
+                    value: _signedMoney(net),
+                    color: color,
+                  ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(
+                    'All Entries',
+                    color: appleBlue,
+                    actions: <Widget>[
+                      _SoftShareButton(
+                        label: 'Share',
+                        icon: Icons.share_rounded,
+                        color: appleBlue,
+                        onTap: () => unawaited(
+                          _ExportService.sharePdf(
+                            '$personName Credit Ledger',
+                            <String>['Date', 'Type', 'Amount'],
+                            records
+                                .map(
+                                  (Map<String, dynamic> row) => <String>[
+                                    _displayDate(row['date']),
+                                    LedgerMath.creditSigned(row) >= 0
+                                        ? 'Given'
+                                        : 'Taken',
+                                    _plainMoney(LedgerMath.creditSigned(row)),
+                                  ],
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _MiniAction(
+                        label: 'Add',
+                        icon: Icons.add_rounded,
+                        color: appleGreen,
+                        onTap: () => unawaited(_addEntry(context)),
+                      ),
+                    ],
+                  ),
+                  if (records.isEmpty)
+                    const _EmptyState(
+                      Icons.account_balance_wallet_outlined,
+                      'No entries found',
+                    )
+                  else
+                    _LedgerTableCard(
+                      headers: const <String>['DATE', 'DETAIL', 'AMOUNT'],
+                      flexes: const <int>[29, 28, 31],
+                      rows: records.map((Map<String, dynamic> row) {
+                        final double signed = LedgerMath.creditSigned(row);
+                        final Color rowColor = _tone(signed);
+                        return _LedgerTableRowData(
+                          cells: <Widget>[
+                            _LedgerDateCell(date: row['date'], color: rowColor),
+                            _LedgerBadgeCell(
+                              label: signed >= 0 ? 'GIVEN' : 'TAKEN',
+                              color: rowColor,
+                            ),
+                            _LedgerAmountCell(
+                              value: _signedMoney(signed),
+                              color: rowColor,
+                            ),
+                          ],
+                          onDelete: () =>
+                              unawaited(_deleteEntry(context, '${row['id']}')),
+                          semanticLabel:
+                              'Delete ${_displayDate(row['date'])} credit entry',
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
+    },
+  );
 }
 
 class _ExpenseGroup {
@@ -5856,12 +5832,11 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     final DateTime now = DateTime.now();
     final List<Map<String, dynamic>> records =
         _rows(widget.sync.state['expenseDB']).where((Map<String, dynamic> row) {
-      return LedgerMath.inMonth(row, now.month, now.year);
-    }).toList()
-          ..sort(
-            (Map<String, dynamic> a, Map<String, dynamic> b) =>
-                '${b['date'] ?? ''}'.compareTo('${a['date'] ?? ''}'),
-          );
+          return LedgerMath.inMonth(row, now.month, now.year);
+        }).toList()..sort(
+          (Map<String, dynamic> a, Map<String, dynamic> b) =>
+              '${b['date'] ?? ''}'.compareTo('${a['date'] ?? ''}'),
+        );
     await _ExportService.sharePdf(
       'Monthly Expenses - ${DateFormat('MMMM yyyy').format(now)}',
       <String>['Date', 'Category', 'Amount'],
@@ -5930,8 +5905,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       return;
     }
     final String entryDate = date.text.trim();
-    final String entryCategory =
-        _cleanKey(category.text).isEmpty ? 'Other' : _cleanKey(category.text);
+    final String entryCategory = _cleanKey(category.text).isEmpty
+        ? 'Other'
+        : _cleanKey(category.text);
     final double entryAmount = double.tryParse(amount.text) ?? 0;
     date.dispose();
     category.dispose();
@@ -5943,15 +5919,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     final String id = _newId('exp');
     await _runMutation(
       context,
-      () => widget.sync.write(
-          'expenseDB/$id',
-          <String, dynamic>{
-            'id': id,
-            'date': entryDate,
-            'category': entryCategory,
-            'amount': entryAmount,
-          },
-          reason: 'expense-entry-save'),
+      () => widget.sync.write('expenseDB/$id', <String, dynamic>{
+        'id': id,
+        'date': entryDate,
+        'category': entryCategory,
+        'amount': entryAmount,
+      }, reason: 'expense-entry-save'),
       'Expense saved safely!',
     );
   }
@@ -6115,15 +6088,12 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     final String id = _newId('exp');
     await _runMutation(
       context,
-      () => widget.sync.write(
-          'expenseDB/$id',
-          <String, dynamic>{
-            'id': id,
-            'date': entryDate,
-            'category': widget.category,
-            'amount': entryAmount,
-          },
-          reason: 'expense-entry-save'),
+      () => widget.sync.write('expenseDB/$id', <String, dynamic>{
+        'id': id,
+        'date': entryDate,
+        'category': widget.category,
+        'amount': entryAmount,
+      }, reason: 'expense-entry-save'),
       'Expense saved safely!',
     );
     final DateTime parsed = LedgerMath.strictDate(entryDate)!;
@@ -6183,17 +6153,18 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: widget.sync,
-        builder: (BuildContext context, Widget? child) {
-          final List<Map<String, dynamic>> allRecords =
-              _rows(widget.sync.state['expenseDB'])
-                  .where(
-                    (Map<String, dynamic> row) =>
-                        _cleanKey(row['category']).toLowerCase() ==
-                        widget.category.toLowerCase(),
-                  )
-                  .toList();
-          final List<Map<String, dynamic>> records = allRecords
+    animation: widget.sync,
+    builder: (BuildContext context, Widget? child) {
+      final List<Map<String, dynamic>> allRecords =
+          _rows(widget.sync.state['expenseDB'])
+              .where(
+                (Map<String, dynamic> row) =>
+                    _cleanKey(row['category']).toLowerCase() ==
+                    widget.category.toLowerCase(),
+              )
+              .toList();
+      final List<Map<String, dynamic>> records =
+          allRecords
               .where(
                 (Map<String, dynamic> row) =>
                     LedgerMath.inMonth(row, _month, _year),
@@ -6203,118 +6174,117 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
               (Map<String, dynamic> a, Map<String, dynamic> b) =>
                   '${b['date']}'.compareTo('${a['date']}'),
             );
-          final double total = records.fold<double>(
-            0,
-            (double sum, Map<String, dynamic> row) =>
-                sum + LedgerMath.number(row['amount']).abs(),
-          );
-          final Color detailColor = _expenseToneForTotal(total);
-          return Scaffold(
-            body: Column(
-              children: <Widget>[
-                _ScreenHeader(
-                  leading: const _BackCircle(),
-                  title: widget.category,
-                  color: detailColor,
-                  actions: <Widget>[
-                    _CircleAction(
-                      icon: Icons.delete_outline_rounded,
-                      color: appleRed,
-                      onTap: () => unawaited(_deleteCategory(allRecords)),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: UIConstants.screenPadding,
-                    children: <Widget>[
-                      _MonthYearPicker(
-                        month: _month,
-                        year: _year,
-                        onChanged: (int month, int year) => setState(() {
-                          _month = month;
-                          _year = year;
-                        }),
-                      ),
-                      const SizedBox(height: 16),
-                      _AmountHero(
-                        label: 'Category Total',
-                        value: '-${_money(total)}',
-                        color: detailColor,
-                      ),
-                      const SizedBox(height: 24),
-                      _SectionTitle(
-                        'Expense Entries',
-                        color: appleBlue,
-                        actions: <Widget>[
-                          _SoftShareButton(
-                            label: 'Share',
-                            icon: Icons.share_rounded,
-                            color: appleBlue,
-                            onTap: () => unawaited(
-                              _ExportService.sharePdf(
-                                '${widget.category} Expenses',
-                                <String>['Date', 'Amount'],
-                                records
-                                    .map(
-                                      (Map<String, dynamic> row) => <String>[
-                                        _displayDate(row['date']),
-                                        '-${_plainMoney(row['amount'])}',
-                                      ],
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _MiniAction(
-                            label: 'Add',
-                            icon: Icons.add_rounded,
-                            color: semanticRed,
-                            onTap: () => unawaited(_addExpense()),
-                          ),
-                        ],
-                      ),
-                      if (records.isEmpty)
-                        const _EmptyState(
-                          Icons.receipt_long_rounded,
-                          'No expenses for this month',
-                        )
-                      else
-                        _LedgerTableCard(
-                          headers: const <String>['DATE', 'AMOUNT'],
-                          flexes: const <int>[42, 42],
-                          rows: records
-                              .map(
-                                (Map<String, dynamic> row) =>
-                                    _LedgerTableRowData(
-                                  cells: <Widget>[
-                                    _LedgerDateCell(
-                                      date: row['date'],
-                                      color: semanticRed,
-                                    ),
-                                    _LedgerAmountCell(
-                                      value: '-${_money(row['amount'])}',
-                                      color: semanticRed,
-                                    ),
-                                  ],
-                                  onDelete: () =>
-                                      unawaited(_deleteEntry('${row['id']}')),
-                                  semanticLabel:
-                                      'Delete ${_displayDate(row['date'])} expense entry',
-                                ),
-                              )
-                              .toList(),
-                        ),
-                    ],
-                  ),
+      final double total = records.fold<double>(
+        0,
+        (double sum, Map<String, dynamic> row) =>
+            sum + LedgerMath.number(row['amount']).abs(),
+      );
+      final Color detailColor = _expenseToneForTotal(total);
+      return Scaffold(
+        body: Column(
+          children: <Widget>[
+            _ScreenHeader(
+              leading: const _BackCircle(),
+              title: widget.category,
+              color: detailColor,
+              actions: <Widget>[
+                _CircleAction(
+                  icon: Icons.delete_outline_rounded,
+                  color: appleRed,
+                  onTap: () => unawaited(_deleteCategory(allRecords)),
                 ),
               ],
             ),
-          );
-        },
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: UIConstants.screenPadding,
+                children: <Widget>[
+                  _MonthYearPicker(
+                    month: _month,
+                    year: _year,
+                    onChanged: (int month, int year) => setState(() {
+                      _month = month;
+                      _year = year;
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  _AmountHero(
+                    label: 'Category Total',
+                    value: '-${_money(total)}',
+                    color: detailColor,
+                  ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(
+                    'Expense Entries',
+                    color: appleBlue,
+                    actions: <Widget>[
+                      _SoftShareButton(
+                        label: 'Share',
+                        icon: Icons.share_rounded,
+                        color: appleBlue,
+                        onTap: () => unawaited(
+                          _ExportService.sharePdf(
+                            '${widget.category} Expenses',
+                            <String>['Date', 'Amount'],
+                            records
+                                .map(
+                                  (Map<String, dynamic> row) => <String>[
+                                    _displayDate(row['date']),
+                                    '-${_plainMoney(row['amount'])}',
+                                  ],
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _MiniAction(
+                        label: 'Add',
+                        icon: Icons.add_rounded,
+                        color: semanticRed,
+                        onTap: () => unawaited(_addExpense()),
+                      ),
+                    ],
+                  ),
+                  if (records.isEmpty)
+                    const _EmptyState(
+                      Icons.receipt_long_rounded,
+                      'No expenses for this month',
+                    )
+                  else
+                    _LedgerTableCard(
+                      headers: const <String>['DATE', 'AMOUNT'],
+                      flexes: const <int>[42, 42],
+                      rows: records
+                          .map(
+                            (Map<String, dynamic> row) => _LedgerTableRowData(
+                              cells: <Widget>[
+                                _LedgerDateCell(
+                                  date: row['date'],
+                                  color: semanticRed,
+                                ),
+                                _LedgerAmountCell(
+                                  value: '-${_money(row['amount'])}',
+                                  color: semanticRed,
+                                ),
+                              ],
+                              onDelete: () =>
+                                  unawaited(_deleteEntry('${row['id']}')),
+                              semanticLabel:
+                                  'Delete ${_displayDate(row['date'])} expense entry',
+                            ),
+                          )
+                          .toList(),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
+    },
+  );
 }
 
 Future<void> _saveDiarySheet(
@@ -6375,8 +6345,9 @@ Future<void> _saveDiarySheet(
     return;
   }
   final String entryDate = date.text.trim();
-  final String entryTitle =
-      title.text.trim().isEmpty ? 'Untitled' : title.text.trim();
+  final String entryTitle = title.text.trim().isEmpty
+      ? 'Untitled'
+      : title.text.trim();
   final String entryContent = content.text.trim();
   date.dispose();
   title.dispose();
@@ -6392,16 +6363,13 @@ Future<void> _saveDiarySheet(
   final String id = existing == null ? _newId('dia') : '${existing['id']}';
   await _runMutation(
     context,
-    () => sync.write(
-        'diaryDB/$id',
-        <String, dynamic>{
-          'id': id,
-          'date': entryDate,
-          'title': entryTitle,
-          'content': entryContent,
-          'updated': DateTime.now().millisecondsSinceEpoch,
-        },
-        reason: existing == null ? 'diary-entry-save' : 'diary-entry-update'),
+    () => sync.write('diaryDB/$id', <String, dynamic>{
+      'id': id,
+      'date': entryDate,
+      'title': entryTitle,
+      'content': entryContent,
+      'updated': DateTime.now().millisecondsSinceEpoch,
+    }, reason: existing == null ? 'diary-entry-save' : 'diary-entry-update'),
     'Diary saved!',
   );
 }
@@ -6427,18 +6395,17 @@ class _DiaryScreenState extends State<DiaryScreen> {
         .toList();
     final List<Map<String, dynamic>> entries =
         _rows(widget.sync.state['diaryDB']).where((Map<String, dynamic> row) {
-      final String haystack =
-          '${row['title'] ?? ''} ${row['content'] ?? ''} ${row['date'] ?? ''}'
-              .toLowerCase();
-      return words.every(haystack.contains);
-    }).toList()
-          ..sort((Map<String, dynamic> a, Map<String, dynamic> b) {
-            final int byDate = '${b['date']}'.compareTo('${a['date']}');
-            return byDate != 0
-                ? byDate
-                : LedgerMath.number(b['updated'])
+          final String haystack =
+              '${row['title'] ?? ''} ${row['content'] ?? ''} ${row['date'] ?? ''}'
+                  .toLowerCase();
+          return words.every(haystack.contains);
+        }).toList()..sort((Map<String, dynamic> a, Map<String, dynamic> b) {
+          final int byDate = '${b['date']}'.compareTo('${a['date']}');
+          return byDate != 0
+              ? byDate
+              : LedgerMath.number(b['updated'])
                     .compareTo(LedgerMath.number(a['updated']));
-          });
+        });
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -6582,106 +6549,106 @@ class DiaryDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: sync,
-        builder: (BuildContext context, Widget? child) {
-          Map<String, dynamic>? entry;
-          for (final Map<String, dynamic> row in _rows(sync.state['diaryDB'])) {
-            if ('${row['id']}' == entryId) {
-              entry = row;
-              break;
-            }
-          }
-          if (entry == null) {
-            return const Scaffold(
-              body: Center(
-                child: _EmptyState(
-                  Icons.auto_stories_rounded,
-                  'Diary page no longer exists',
-                ),
-              ),
-            );
-          }
-          final Map<String, dynamic> current = entry;
-          return Scaffold(
-            body: Column(
-              children: <Widget>[
-                _ScreenHeader(
-                  leading: const _BackCircle(),
-                  title: '${current['title'] ?? 'Untitled'}',
+    animation: sync,
+    builder: (BuildContext context, Widget? child) {
+      Map<String, dynamic>? entry;
+      for (final Map<String, dynamic> row in _rows(sync.state['diaryDB'])) {
+        if ('${row['id']}' == entryId) {
+          entry = row;
+          break;
+        }
+      }
+      if (entry == null) {
+        return const Scaffold(
+          body: Center(
+            child: _EmptyState(
+              Icons.auto_stories_rounded,
+              'Diary page no longer exists',
+            ),
+          ),
+        );
+      }
+      final Map<String, dynamic> current = entry;
+      return Scaffold(
+        body: Column(
+          children: <Widget>[
+            _ScreenHeader(
+              leading: const _BackCircle(),
+              title: '${current['title'] ?? 'Untitled'}',
+              color: diaryOrange,
+              actions: <Widget>[
+                _CircleAction(
+                  icon: Icons.edit_rounded,
                   color: diaryOrange,
-                  actions: <Widget>[
-                    _CircleAction(
-                      icon: Icons.edit_rounded,
-                      color: diaryOrange,
-                      onTap: () => unawaited(
-                        _saveDiarySheet(context, sync, existing: current),
-                      ),
-                    ),
-                    _SoftShareButton(
-                      compact: true,
-                      icon: Icons.share_rounded,
-                      color: appleBlue,
-                      onTap: () => unawaited(
-                        _ExportService.sharePdf(
-                          '${current['title'] ?? 'Diary'}',
-                          <String>['Date', 'Content'],
-                          <List<String>>[
-                            <String>[
-                              _displayDate(current['date']),
-                              '${current['content'] ?? ''}',
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                    _CircleAction(
-                      icon: Icons.delete_outline_rounded,
-                      color: appleRed,
-                      onTap: () => unawaited(_delete(context)),
-                    ),
-                  ],
+                  onTap: () => unawaited(
+                    _saveDiarySheet(context, sync, existing: current),
+                  ),
                 ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: UIConstants.screenPadding,
-                    child: _GlassCard(
-                      borderColor: diaryOrange.withAlpha(65),
-                      shadowColor: diaryOrange.withAlpha(35),
-                      tintColor: diaryOrange,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            _displayDate(current['date']).toUpperCase(),
-                            style: const TextStyle(
-                              color: diaryOrange,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          SelectableText(
-                            '${current['content'] ?? ''}',
-                            style: const TextStyle(
-                              color: diaryOrange,
-                              fontSize: 17,
-                              height: 1.9,
-                              fontStyle: FontStyle.italic,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                _SoftShareButton(
+                  compact: true,
+                  icon: Icons.share_rounded,
+                  color: appleBlue,
+                  onTap: () => unawaited(
+                    _ExportService.sharePdf(
+                      '${current['title'] ?? 'Diary'}',
+                      <String>['Date', 'Content'],
+                      <List<String>>[
+                        <String>[
+                          _displayDate(current['date']),
+                          '${current['content'] ?? ''}',
                         ],
-                      ),
+                      ],
                     ),
                   ),
                 ),
+                _CircleAction(
+                  icon: Icons.delete_outline_rounded,
+                  color: appleRed,
+                  onTap: () => unawaited(_delete(context)),
+                ),
               ],
             ),
-          );
-        },
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: UIConstants.screenPadding,
+                child: _GlassCard(
+                  borderColor: diaryOrange.withAlpha(65),
+                  shadowColor: diaryOrange.withAlpha(35),
+                  tintColor: diaryOrange,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        _displayDate(current['date']).toUpperCase(),
+                        style: const TextStyle(
+                          color: diaryOrange,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SelectableText(
+                        '${current['content'] ?? ''}',
+                        style: const TextStyle(
+                          color: diaryOrange,
+                          fontSize: 17,
+                          height: 1.9,
+                          fontStyle: FontStyle.italic,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       );
+    },
+  );
 }
 
 class _BusinessTone {
@@ -6776,14 +6743,11 @@ class _BusinessScreenState extends State<BusinessScreen> {
     }
     await _runMutation(
       context,
-      () => widget.sync.write(
-          'projectDB/$project',
-          <String, dynamic>{
-            'records': <dynamic>[],
-            'created': DateTime.now().millisecondsSinceEpoch,
-            'safeKeyCore': true,
-          },
-          reason: 'business-project-create'),
+      () => widget.sync.write('projectDB/$project', <String, dynamic>{
+        'records': <dynamic>[],
+        'created': DateTime.now().millisecondsSinceEpoch,
+        'safeKeyCore': true,
+      }, reason: 'business-project-create'),
       'Business account created!',
     );
   }
@@ -6811,14 +6775,16 @@ class _BusinessScreenState extends State<BusinessScreen> {
   @override
   Widget build(BuildContext context) {
     final Map<String, dynamic> database = _map(widget.sync.state['projectDB']);
-    final List<String> names = database.keys
-        .where(
-          (String name) => name.toLowerCase().contains(_query.toLowerCase()),
-        )
-        .toList()
-      ..sort(
-        (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
-      );
+    final List<String> names =
+        database.keys
+            .where(
+              (String name) =>
+                  name.toLowerCase().contains(_query.toLowerCase()),
+            )
+            .toList()
+          ..sort(
+            (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
+          );
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -6853,8 +6819,8 @@ class _BusinessScreenState extends State<BusinessScreen> {
                 )
               else
                 ...names.map((String name) {
-                  final int count =
-                      _rows(_map(database[name])['records']).length;
+                  final int count = _rows(_map(database[name])['records'])
+                      .length;
                   return _ListCard(
                     title: name,
                     subtitle: '$count Records Logged',
@@ -6899,69 +6865,69 @@ class BusinessDetailScreen extends StatelessWidget {
       StatefulBuilder(
         builder: (BuildContext sheetContext, StateSetter setSheetState) =>
             _SheetFrame(
-          title: 'Business Entry',
-          children: <Widget>[
-            _DateField(controller: date),
-            const SizedBox(height: 12),
-            TextField(
-              controller: title,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Detail / title',
-                prefixIcon: Icon(Icons.notes_rounded),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: amount,
-              autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              title: 'Business Entry',
+              children: <Widget>[
+                _DateField(controller: date),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: title,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Detail / title',
+                    prefixIcon: Icon(Icons.notes_rounded),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amount,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'Amount',
+                    prefixText: '₹ ',
+                  ),
+                ),
+                const SizedBox(height: 15),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _businessTones.entries
+                      .map(
+                        (MapEntry<String, _BusinessTone> entry) => ChoiceChip(
+                          selected: tone == entry.key,
+                          label: Text(entry.value.badge),
+                          avatar: Icon(
+                            entry.value.icon,
+                            size: 16,
+                            color: entry.value.color,
+                          ),
+                          selectedColor: entry.value.color.withAlpha(45),
+                          shape: const StadiumBorder(),
+                          showCheckmark: false,
+                          side: BorderSide(
+                            color: entry.value.color.withAlpha(70),
+                          ),
+                          onSelected: (_) {
+                            HapticFeedback.selectionClick();
+                            setSheetState(() => tone = entry.key);
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 20),
+                _PrimaryButton(
+                  label: 'Save Entry',
+                  color: _businessTones[tone]!.color,
+                  onTap: () => Navigator.pop(sheetContext, true),
+                ),
               ],
-              decoration: const InputDecoration(
-                labelText: 'Amount',
-                prefixText: '₹ ',
-              ),
             ),
-            const SizedBox(height: 15),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _businessTones.entries
-                  .map(
-                    (MapEntry<String, _BusinessTone> entry) => ChoiceChip(
-                      selected: tone == entry.key,
-                      label: Text(entry.value.badge),
-                      avatar: Icon(
-                        entry.value.icon,
-                        size: 16,
-                        color: entry.value.color,
-                      ),
-                      selectedColor: entry.value.color.withAlpha(45),
-                      shape: const StadiumBorder(),
-                      showCheckmark: false,
-                      side: BorderSide(
-                        color: entry.value.color.withAlpha(70),
-                      ),
-                      onSelected: (_) {
-                        HapticFeedback.selectionClick();
-                        setSheetState(() => tone = entry.key);
-                      },
-                    ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 20),
-            _PrimaryButton(
-              label: 'Save Entry',
-              color: _businessTones[tone]!.color,
-              onTap: () => Navigator.pop(sheetContext, true),
-            ),
-          ],
-        ),
       ),
     );
     if (save != true || !context.mounted) {
@@ -6971,8 +6937,9 @@ class BusinessDetailScreen extends StatelessWidget {
       return;
     }
     final String entryDate = date.text.trim();
-    final String entryTitle =
-        title.text.trim().isEmpty ? 'Record' : title.text.trim();
+    final String entryTitle = title.text.trim().isEmpty
+        ? 'Record'
+        : title.text.trim();
     final double entryAmount = double.tryParse(amount.text) ?? 0;
     date.dispose();
     title.dispose();
@@ -6988,16 +6955,13 @@ class BusinessDetailScreen extends StatelessWidget {
     final String id = _newId('prj');
     await _runMutation(
       context,
-      () => sync.write(
-          'projectDB/$projectName/records/$id',
-          <String, dynamic>{
-            'id': id,
-            'date': entryDate,
-            'title': entryTitle,
-            'amount': entryAmount,
-            'color': tone,
-          },
-          reason: 'business-entry-save'),
+      () => sync.write('projectDB/$projectName/records/$id', <String, dynamic>{
+        'id': id,
+        'date': entryDate,
+        'title': entryTitle,
+        'amount': entryAmount,
+        'color': tone,
+      }, reason: 'business-entry-save'),
       'Business entry saved!',
     );
   }
@@ -7045,72 +7009,72 @@ class BusinessDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: sync,
-        builder: (BuildContext context, Widget? child) {
-          final Map<String, dynamic> database = _map(sync.state['projectDB']);
-          if (database[projectName] is! Map) {
-            return const Scaffold(
-              body: Center(
-                child: _EmptyState(
-                  Icons.business_center_rounded,
-                  'Account no longer exists',
+    animation: sync,
+    builder: (BuildContext context, Widget? child) {
+      final Map<String, dynamic> database = _map(sync.state['projectDB']);
+      if (database[projectName] is! Map) {
+        return const Scaffold(
+          body: Center(
+            child: _EmptyState(
+              Icons.business_center_rounded,
+              'Account no longer exists',
+            ),
+          ),
+        );
+      }
+      final Map<String, dynamic> project = _map(database[projectName]);
+      final List<Map<String, dynamic>> records = _rows(project['records'])
+        ..sort(
+          (Map<String, dynamic> a, Map<String, dynamic> b) =>
+              '${b['date']}'.compareTo('${a['date']}'),
+        );
+      final Map<String, double> totals = <String, double>{
+        for (final String key in _businessTones.keys) key: 0,
+      };
+      for (final Map<String, dynamic> row in records) {
+        final String key = _businessTones.containsKey('${row['color']}')
+            ? '${row['color']}'
+            : 'blue';
+        totals[key] =
+            (totals[key] ?? 0) + LedgerMath.number(row['amount']).abs();
+      }
+      return Scaffold(
+        body: Column(
+          children: <Widget>[
+            _ScreenHeader(
+              leading: const _BackCircle(),
+              title: projectName,
+              color: appleBlue,
+              actions: <Widget>[
+                _CircleAction(
+                  icon: Icons.add_rounded,
+                  onTap: () => unawaited(_addEntry(context)),
                 ),
-              ),
-            );
-          }
-          final Map<String, dynamic> project = _map(database[projectName]);
-          final List<Map<String, dynamic>> records = _rows(project['records'])
-            ..sort(
-              (Map<String, dynamic> a, Map<String, dynamic> b) =>
-                  '${b['date']}'.compareTo('${a['date']}'),
-            );
-          final Map<String, double> totals = <String, double>{
-            for (final String key in _businessTones.keys) key: 0,
-          };
-          for (final Map<String, dynamic> row in records) {
-            final String key = _businessTones.containsKey('${row['color']}')
-                ? '${row['color']}'
-                : 'blue';
-            totals[key] =
-                (totals[key] ?? 0) + LedgerMath.number(row['amount']).abs();
-          }
-          return Scaffold(
-            body: Column(
-              children: <Widget>[
-                _ScreenHeader(
-                  leading: const _BackCircle(),
-                  title: projectName,
-                  color: appleBlue,
-                  actions: <Widget>[
-                    _CircleAction(
-                      icon: Icons.add_rounded,
-                      onTap: () => unawaited(_addEntry(context)),
-                    ),
-                    _CircleAction(
-                      icon: Icons.delete_outline_rounded,
-                      color: appleRed,
-                      onTap: () => unawaited(_deleteProject(context)),
-                    ),
-                  ],
+                _CircleAction(
+                  icon: Icons.delete_outline_rounded,
+                  color: appleRed,
+                  onTap: () => unawaited(_deleteProject(context)),
                 ),
-                Expanded(
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: UIConstants.screenPadding,
-                    children: <Widget>[
-                      if (totals.values.any((double value) => value > 0))
-                        GridView.count(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 11,
-                          mainAxisSpacing: 11,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          childAspectRatio: 1.55,
-                          children: totals.entries
-                              .where(
+              ],
+            ),
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: UIConstants.screenPadding,
+                children: <Widget>[
+                  if (totals.values.any((double value) => value > 0))
+                    GridView.count(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 11,
+                      mainAxisSpacing: 11,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      childAspectRatio: 1.55,
+                      children: totals.entries
+                          .where(
                             (MapEntry<String, double> item) => item.value > 0,
                           )
-                              .map((MapEntry<String, double> item) {
+                          .map((MapEntry<String, double> item) {
                             final _BusinessTone tone =
                                 _businessTones[item.key]!;
                             return _GlassCard(
@@ -7145,92 +7109,93 @@ class BusinessDetailScreen extends StatelessWidget {
                                 ],
                               ),
                             );
-                          }).toList(),
-                        ),
-                      const SizedBox(height: 24),
-                      _SectionTitle(
-                        'All Entries',
+                          })
+                          .toList(),
+                    ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(
+                    'All Entries',
+                    color: appleBlue,
+                    actions: <Widget>[
+                      _SoftShareButton(
+                        label: 'Share',
+                        icon: Icons.share_rounded,
                         color: appleBlue,
-                        actions: <Widget>[
-                          _SoftShareButton(
-                            label: 'Share',
-                            icon: Icons.share_rounded,
-                            color: appleBlue,
-                            onTap: () => unawaited(
-                              _ExportService.sharePdf(
-                                '$projectName Business Khata',
-                                <String>['Date', 'Detail', 'Type', 'Amount'],
-                                records.map((Map<String, dynamic> row) {
-                                  final String key = _businessTones
-                                          .containsKey('${row['color']}')
-                                      ? '${row['color']}'
-                                      : 'blue';
-                                  return <String>[
-                                    _displayDate(row['date']),
-                                    '${row['title'] ?? 'Record'}',
-                                    _businessTones[key]!.badge,
-                                    _plainMoney(row['amount']),
-                                  ];
-                                }).toList(),
-                              ),
-                            ),
+                        onTap: () => unawaited(
+                          _ExportService.sharePdf(
+                            '$projectName Business Khata',
+                            <String>['Date', 'Detail', 'Type', 'Amount'],
+                            records.map((Map<String, dynamic> row) {
+                              final String key =
+                                  _businessTones.containsKey('${row['color']}')
+                                  ? '${row['color']}'
+                                  : 'blue';
+                              return <String>[
+                                _displayDate(row['date']),
+                                '${row['title'] ?? 'Record'}',
+                                _businessTones[key]!.badge,
+                                _plainMoney(row['amount']),
+                              ];
+                            }).toList(),
                           ),
-                          const SizedBox(width: 8),
-                          _MiniAction(
-                            label: 'Entry',
-                            icon: Icons.add_rounded,
-                            color: appleBlue,
-                            onTap: () => unawaited(_addEntry(context)),
-                          ),
-                        ],
-                      ),
-                      if (records.isEmpty)
-                        const _EmptyState(
-                          Icons.business_center_outlined,
-                          'No records logged yet',
-                        )
-                      else
-                        _LedgerTableCard(
-                          headers: const <String>['DATE', 'DETAIL', 'AMOUNT'],
-                          flexes: const <int>[24, 36, 28],
-                          rows: records.map((Map<String, dynamic> row) {
-                            final String key =
-                                _businessTones.containsKey('${row['color']}')
-                                    ? '${row['color']}'
-                                    : 'blue';
-                            final _BusinessTone tone = _businessTones[key]!;
-                            return _LedgerTableRowData(
-                              cells: <Widget>[
-                                _LedgerDateCell(
-                                  date: row['date'],
-                                  color: tone.color,
-                                  stacked: true,
-                                ),
-                                _LedgerDetailCell(
-                                  title: '${row['title'] ?? 'Record'}',
-                                  badge: tone.badge,
-                                  color: tone.color,
-                                ),
-                                _LedgerAmountCell(
-                                  value: _money(row['amount']),
-                                  color: tone.color,
-                                ),
-                              ],
-                              onDelete: () => unawaited(
-                                  _deleteEntry(context, '${row['id']}')),
-                              semanticLabel:
-                                  'Delete ${row['title'] ?? 'Record'} business entry',
-                            );
-                          }).toList(),
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      _MiniAction(
+                        label: 'Entry',
+                        icon: Icons.add_rounded,
+                        color: appleBlue,
+                        onTap: () => unawaited(_addEntry(context)),
+                      ),
                     ],
                   ),
-                ),
-              ],
+                  if (records.isEmpty)
+                    const _EmptyState(
+                      Icons.business_center_outlined,
+                      'No records logged yet',
+                    )
+                  else
+                    _LedgerTableCard(
+                      headers: const <String>['DATE', 'DETAIL', 'AMOUNT'],
+                      flexes: const <int>[24, 36, 28],
+                      rows: records.map((Map<String, dynamic> row) {
+                        final String key =
+                            _businessTones.containsKey('${row['color']}')
+                            ? '${row['color']}'
+                            : 'blue';
+                        final _BusinessTone tone = _businessTones[key]!;
+                        return _LedgerTableRowData(
+                          cells: <Widget>[
+                            _LedgerDateCell(
+                              date: row['date'],
+                              color: tone.color,
+                              stacked: true,
+                            ),
+                            _LedgerDetailCell(
+                              title: '${row['title'] ?? 'Record'}',
+                              badge: tone.badge,
+                              color: tone.color,
+                            ),
+                            _LedgerAmountCell(
+                              value: _money(row['amount']),
+                              color: tone.color,
+                            ),
+                          ],
+                          onDelete: () =>
+                              unawaited(_deleteEntry(context, '${row['id']}')),
+                          semanticLabel:
+                              'Delete ${row['title'] ?? 'Record'} business entry',
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
             ),
-          );
-        },
+          ],
+        ),
       );
+    },
+  );
 }
 
 class _AiMessage {
@@ -7385,10 +7350,7 @@ class _ExternalAiConnectPrelude extends StatelessWidget {
 }
 
 class _ExternalAiReadyCard extends StatelessWidget {
-  const _ExternalAiReadyCard({
-    required this.onPaste,
-    required this.onDismiss,
-  });
+  const _ExternalAiReadyCard({required this.onPaste, required this.onDismiss});
 
   final VoidCallback onPaste;
   final VoidCallback onDismiss;
@@ -7476,8 +7438,8 @@ class _AiBatchProgressCard extends StatelessWidget {
     final String status = job.paused
         ? 'Paused safely${job.lastError.isEmpty ? '' : ' • ${job.lastError}'}'
         : writing
-            ? 'Saving next ${job.nextChunkSize}…'
-            : 'Next ${job.nextChunkSize} in $_countdown';
+        ? 'Saving next ${job.nextChunkSize}…'
+        : 'Next ${job.nextChunkSize} in $_countdown';
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
@@ -7507,16 +7469,10 @@ class _AiBatchProgressCard extends StatelessWidget {
                 ),
               ),
               if (job.paused && !job.hasStateConflict)
-                TextButton(
-                  onPressed: onRetry,
-                  child: const Text('Retry'),
-                ),
+                TextButton(onPressed: onRetry, child: const Text('Retry')),
               TextButton(
                 onPressed: onCancel,
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(color: appleRed),
-                ),
+                child: const Text('Cancel', style: TextStyle(color: appleRed)),
               ),
             ],
           ),
@@ -7535,8 +7491,9 @@ class _AiBatchProgressCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(99),
             child: LinearProgressIndicator(
               minHeight: 5,
-              value:
-                  job.actions.isEmpty ? 0 : job.completed / job.actions.length,
+              value: job.actions.isEmpty
+                  ? 0
+                  : job.completed / job.actions.length,
               color: job.paused ? appleOrange : appleBlue,
               backgroundColor: systemGray.withAlpha(30),
             ),
@@ -7623,24 +7580,23 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
     final AiBatchJob? storedBatch = ownerUid.isEmpty
         ? null
         : AiBatchJob.tryDecode(
-            widget.sync.readSetting(
-              _scopedSetting(_batchJobSetting, ownerUid),
-            ),
+            widget.sync.readSetting(_scopedSetting(_batchJobSetting, ownerUid)),
           );
-    final AiBatchJob? batchJob =
-        storedBatch?.ownerUid == ownerUid ? storedBatch : null;
+    final AiBatchJob? batchJob = storedBatch?.ownerUid == ownerUid
+        ? storedBatch
+        : null;
     final String externalSnapshotId = ownerUid.isEmpty
         ? ''
         : widget.sync.readSetting(
-              _scopedSetting(_externalSnapshotIdSetting, ownerUid),
-            ) ??
-            '';
+                _scopedSetting(_externalSnapshotIdSetting, ownerUid),
+              ) ??
+              '';
     final String externalStateFingerprint = ownerUid.isEmpty
         ? ''
         : widget.sync.readSetting(
-              _scopedSetting(_externalFingerprintSetting, ownerUid),
-            ) ??
-            '';
+                _scopedSetting(_externalFingerprintSetting, ownerUid),
+              ) ??
+              '';
     final List<String> completedFingerprints = ownerUid.isEmpty
         ? <String>[]
         : _decodeFingerprintHistory(
@@ -7692,72 +7648,72 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       StatefulBuilder(
         builder: (BuildContext sheetContext, StateSetter setSheetState) =>
             _SheetFrame(
-          title: 'Gemini AI Setup',
-          beforeTitle: _ExternalAiConnectPrelude(
-            onTap: () => unawaited(_shareExternalAiPackage(sheetContext)),
-          ),
-          children: <Widget>[
-            TextField(
-              controller: key,
-              obscureText: obscure,
-              enableSuggestions: false,
-              autocorrect: false,
-              decoration: InputDecoration(
-                labelText: 'Gemini API key',
-                prefixIcon: const Icon(Icons.key_rounded),
-                suffixIcon: IconButton(
-                  onPressed: () {
-                    HapticFeedback.selectionClick();
-                    setSheetState(() => obscure = !obscure);
-                  },
-                  icon: Icon(
-                    obscure
-                        ? Icons.visibility_rounded
-                        : Icons.visibility_off_rounded,
+              title: 'Gemini AI Setup',
+              beforeTitle: _ExternalAiConnectPrelude(
+                onTap: () => unawaited(_shareExternalAiPackage(sheetContext)),
+              ),
+              children: <Widget>[
+                TextField(
+                  controller: key,
+                  obscureText: obscure,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  decoration: InputDecoration(
+                    labelText: 'Gemini API key',
+                    prefixIcon: const Icon(Icons.key_rounded),
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        HapticFeedback.selectionClick();
+                        setSheetState(() => obscure = !obscure);
+                      },
+                      icon: Icon(
+                        obscure
+                            ? Icons.visibility_rounded
+                            : Icons.visibility_off_rounded,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: model,
-              decoration: const InputDecoration(labelText: 'Model'),
-              items: const <DropdownMenuItem<String>>[
-                DropdownMenuItem(
-                  value: 'gemini-2.5-flash',
-                  child: Text('Gemini 2.5 Flash'),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: model,
+                  decoration: const InputDecoration(labelText: 'Model'),
+                  items: const <DropdownMenuItem<String>>[
+                    DropdownMenuItem(
+                      value: 'gemini-2.5-flash',
+                      child: Text('Gemini 2.5 Flash'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'gemini-2.0-flash',
+                      child: Text('Gemini 2.0 Flash'),
+                    ),
+                  ],
+                  onChanged: (String? value) {
+                    if (value != null) {
+                      HapticFeedback.selectionClick();
+                      setSheetState(() => model = value);
+                    }
+                  },
                 ),
-                DropdownMenuItem(
-                  value: 'gemini-2.0-flash',
-                  child: Text('Gemini 2.0 Flash'),
+                const SizedBox(height: 12),
+                const Text(
+                  'The key is stored in Android secure storage and sent only to Google Gemini. It is never uploaded to Firebase.',
+                  style: TextStyle(
+                    color: systemGray,
+                    fontSize: 11.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _PrimaryButton(
+                  label: 'Save AI Setup',
+                  icon: Icons.lock_rounded,
+                  color: const Color(0xFF8E62D9),
+                  onTap: () => Navigator.pop(sheetContext, true),
                 ),
               ],
-              onChanged: (String? value) {
-                if (value != null) {
-                  HapticFeedback.selectionClick();
-                  setSheetState(() => model = value);
-                }
-              },
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'The key is stored in Android secure storage and sent only to Google Gemini. It is never uploaded to Firebase.',
-              style: TextStyle(
-                color: systemGray,
-                fontSize: 11.5,
-                height: 1.4,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 20),
-            _PrimaryButton(
-              label: 'Save AI Setup',
-              icon: Icons.lock_rounded,
-              color: const Color(0xFF8E62D9),
-              onTap: () => Navigator.pop(sheetContext, true),
-            ),
-          ],
-        ),
       ),
     );
     if (save == true && mounted) {
@@ -7789,8 +7745,11 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
     }
     final String ownerUid = _currentOwnerUid;
     if (ownerUid.isEmpty) {
-      _toast(context, 'Please sign in before sharing ledger data.',
-          error: true);
+      _toast(
+        context,
+        'Please sign in before sharing ledger data.',
+        error: true,
+      );
       return;
     }
     final bool allowed = await _confirm(
@@ -7873,17 +7832,14 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
 
   Future<void> _pasteExternalResponse() async {
     if (_busy || _batchJob != null) return;
-    final ClipboardData? clipboard =
-        await Clipboard.getData(Clipboard.kTextPlain);
+    final ClipboardData? clipboard = await Clipboard.getData(
+      Clipboard.kTextPlain,
+    );
     if (!mounted) return;
     final String response = clipboard?.text?.trim() ?? '';
     if (response.isEmpty || !AiBridgeProtocol.looksLikeEnvelope(response)) {
       if (mounted) {
-        _toast(
-          context,
-          'Clipboard mein final AI JSON nahi mila.',
-          error: true,
-        );
+        _toast(context, 'Clipboard mein final AI JSON nahi mila.', error: true);
       }
       return;
     }
@@ -7892,8 +7848,9 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _clearExternalSnapshot() async {
-    final String ownerUid =
-        _externalOwnerUid.isNotEmpty ? _externalOwnerUid : _currentOwnerUid;
+    final String ownerUid = _externalOwnerUid.isNotEmpty
+        ? _externalOwnerUid
+        : _currentOwnerUid;
     if (ownerUid.isNotEmpty) {
       await widget.sync.writeSetting(
         _scopedSetting(_externalSnapshotIdSetting, ownerUid),
@@ -7953,8 +7910,9 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
         dangerous: false,
       );
     }
-    final String currentFingerprint =
-        AiBridgeProtocol.stateFingerprint(widget.sync.state);
+    final String currentFingerprint = AiBridgeProtocol.stateFingerprint(
+      widget.sync.state,
+    );
     if (_externalStateFingerprint.isNotEmpty &&
         currentFingerprint != _externalStateFingerprint) {
       if (!mounted) return false;
@@ -8050,8 +8008,8 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
           prompt,
           outcome.reply.isEmpty
               ? plan.actions.isEmpty
-                  ? 'No ledger change was needed.'
-                  : 'I proposed ${plan.actions.length} ledger change(s).'
+                    ? 'No ledger change was needed.'
+                    : 'I proposed ${plan.actions.length} ledger change(s).'
               : outcome.reply,
         );
       }
@@ -8062,8 +8020,9 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
         if (apply && mounted) {
           await _startAiBatch(
             plan,
-            fingerprint:
-                localEnvelope ? outcome.envelopeFingerprint : _newId('aijob'),
+            fingerprint: localEnvelope
+                ? outcome.envelopeFingerprint
+                : _newId('aijob'),
             snapshotId: outcome.snapshotId,
           );
           if (localEnvelope) await _clearExternalSnapshot();
@@ -8074,14 +8033,14 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       if (mounted) {
         final String? statusMessage = plan.actions.isEmpty
             ? outcome.reply.isEmpty
-                ? 'Koi change zaroori nahi tha.'
-                : outcome.reply
+                  ? 'Koi change zaroori nahi tha.'
+                  : outcome.reply
             : reviewCancelled
-                ? 'Review cancelled — koi change apply nahi hua.'
-                : _batchJob != null
-                    ? '${plan.actions.length} changes approved hain. Safe '
-                        '25-record batches mein process ho rahe hain.'
-                    : null;
+            ? 'Review cancelled — koi change apply nahi hua.'
+            : _batchJob != null
+            ? '${plan.actions.length} changes approved hain. Safe '
+                  '25-record batches mein process ho rahe hain.'
+            : null;
         if (statusMessage != null) {
           setState(() => _messages.add(_AiMessage(statusMessage, false)));
         }
@@ -8133,13 +8092,20 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
         'The signed-in account is no longer available.',
       );
     }
+    final String currentStateFingerprint = AiBridgeProtocol.stateFingerprint(
+      widget.sync.state,
+    );
+    if (currentStateFingerprint != plan.sourceStateFingerprint) {
+      throw const AiBridgeException(
+        'Review ke dauran ledger badal gaya. Naya response paste karke review karein.',
+      );
+    }
     final int now = DateTime.now().millisecondsSinceEpoch;
     final AiBatchJob job = AiBatchJob(
       id: _newId('batch'),
       ownerUid: ownerUid,
       fingerprint: fingerprint,
-      expectedStateFingerprint:
-          AiBridgeProtocol.stateFingerprint(widget.sync.state),
+      expectedStateFingerprint: currentStateFingerprint,
       actions: plan.actions,
       nextIndex: 0,
       nextRunAtMillis: now,
@@ -8152,10 +8118,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
     await _executeNextBatch();
   }
 
-  Future<void> _persistBatchJob(
-    AiBatchJob? job, {
-    String? ownerUid,
-  }) {
+  Future<void> _persistBatchJob(AiBatchJob? job, {String? ownerUid}) {
     final String owner =
         job?.ownerUid ?? ownerUid ?? _batchJob?.ownerUid ?? _currentOwnerUid;
     if (owner.isEmpty) {
@@ -8214,8 +8177,9 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       _armBatchTimers();
       return;
     }
-    final String currentStateFingerprint =
-        AiBridgeProtocol.stateFingerprint(widget.sync.state);
+    final String currentStateFingerprint = AiBridgeProtocol.stateFingerprint(
+      widget.sync.state,
+    );
     if (currentStateFingerprint != current.expectedStateFingerprint) {
       final AiBatchJob paused = current.copyWith(
         paused: true,
@@ -8237,10 +8201,13 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
     _countdownTimer?.cancel();
     if (mounted) setState(() => _batchWriting = true);
     final int candidate = current.nextIndex + AiBridgeProtocol.chunkSize;
-    final int end =
-        candidate < current.actions.length ? candidate : current.actions.length;
-    final List<Map<String, dynamic>> chunk =
-        current.actions.sublist(current.nextIndex, end);
+    final int end = candidate < current.actions.length
+        ? candidate
+        : current.actions.length;
+    final List<Map<String, dynamic>> chunk = current.actions.sublist(
+      current.nextIndex,
+      end,
+    );
     final Map<String, dynamic> writes = <String, dynamic>{
       for (final Map<String, dynamic> action in chunk)
         '${action['path']}': action['data'],
@@ -8272,7 +8239,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
           setState(() {
             _messages.add(
               _AiMessage(
-                '${current.actions.length} AI change(s) safely complete ho gayi.',
+                '${current.actions.length} बदलाव सुरक्षित रूप से लागू हो गए।',
                 false,
               ),
             );
@@ -8280,15 +8247,16 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
           HapticFeedback.successNotification();
           _toast(
             context,
-            '${current.actions.length} AI change(s) saved safely.',
+            '${current.actions.length} बदलाव सुरक्षित रूप से सेव हो गए।',
           );
           _scrollToEnd();
         }
       } else {
         final AiBatchJob waiting = current.copyWith(
           nextIndex: end,
-          expectedStateFingerprint:
-              AiBridgeProtocol.stateFingerprint(widget.sync.state),
+          expectedStateFingerprint: AiBridgeProtocol.stateFingerprint(
+            widget.sync.state,
+          ),
           nextRunAtMillis: DateTime.now()
               .add(AiBridgeProtocol.chunkCooldown)
               .millisecondsSinceEpoch,
@@ -8383,6 +8351,11 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
   Future<bool> _confirmAiActions(AiActionPlan plan) async {
     final bool reduceMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final List<String> summaryParts = <String>[
+      if (plan.createCount > 0) '${plan.createCount} जुड़ेंगे',
+      if (plan.updateCount > 0) '${plan.updateCount} बदलेंगे',
+      if (plan.deleteCount > 0) '${plan.deleteCount} हटेंगे',
+    ];
     final bool? result = await showDialog<bool>(
       context: context,
       requestFocus: true,
@@ -8393,24 +8366,46 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
               reverseDuration: Duration(milliseconds: 180),
             ),
       builder: (BuildContext dialogContext) => AlertDialog(
-        title: Text(
-          'Review ${plan.actions.length} AI change(s)',
-          style: const TextStyle(fontWeight: FontWeight.w900),
+        title: const Text(
+          'AI के बदलाव जाँचें',
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
         content: SizedBox(
           width: 420,
           height: math.min<double>(
-            520.0,
-            MediaQuery.sizeOf(context).height * .58,
+            610.0,
+            MediaQuery.sizeOf(context).height * .68,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               const Text(
-                'Nothing changes until you approve the complete list.',
+                'जब तक आप लागू नहीं करेंगे, कोई डेटा नहीं बदलेगा।',
                 style: TextStyle(
                   color: systemGray,
                   fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(dialogContext)
+                      .colorScheme
+                      .surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  '${plan.actions.length} बदलाव • ${summaryParts.join(' • ')}',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    height: 1.3,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
               if (plan.actions.length > AiBridgeProtocol.chunkSize) ...<Widget>[
@@ -8424,8 +8419,8 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
                     border: Border.all(color: appleBlue.withAlpha(45)),
                   ),
                   child: Text(
-                    '${plan.batchCount} safe batches: first 25 now, then up to '
-                    '25 every minute. You can cancel all remaining batches.',
+                    '${plan.batchCount} सुरक्षित हिस्से: पहले 25 अभी, फिर हर '
+                    'मिनट अधिकतम 25। बाकी बदलाव कभी भी रद्द कर सकते हैं।',
                     style: const TextStyle(
                       color: appleBlue,
                       fontSize: 12,
@@ -8438,8 +8433,8 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
               if (plan.dangerousProfileDeletes > 0) ...<Widget>[
                 const SizedBox(height: 14),
                 Text(
-                  '${plan.dangerousProfileDeletes} complete profile deletion(s) '
-                  'will remove every record inside those profiles.',
+                  '${plan.dangerousProfileDeletes} पूरे खाते हटेंगे। उन खातों '
+                  'के अंदर के सभी रिकॉर्ड भी स्थायी रूप से हट जाएँगे।',
                   style: const TextStyle(
                     color: appleRed,
                     fontSize: 12,
@@ -8454,30 +8449,87 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
                   itemCount: plan.actions.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 9),
                   itemBuilder: (BuildContext context, int index) {
-                    final Map<String, dynamic> action = plan.actions[index];
-                    final bool deleting = action['data'] == null;
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Icon(
-                          deleting
-                              ? Icons.delete_outline_rounded
-                              : Icons.edit_note_rounded,
-                          color: deleting ? appleRed : appleBlue,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 9),
-                        Expanded(
-                          child: Text(
-                            AiBridgeProtocol.describeAction(action),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              height: 1.35,
-                              fontWeight: FontWeight.w800,
+                    final AiReviewItem item = plan.reviewItems[index];
+                    final Color color = switch (item.operation) {
+                      AiReviewOperation.create => appleGreen,
+                      AiReviewOperation.update => appleBlue,
+                      AiReviewOperation.delete => appleRed,
+                    };
+                    final IconData icon = switch (item.operation) {
+                      AiReviewOperation.create => Icons.add_rounded,
+                      AiReviewOperation.update => Icons.edit_rounded,
+                      AiReviewOperation.delete => Icons.delete_outline_rounded,
+                    };
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: color.withAlpha(13),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: color.withAlpha(42)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: color.withAlpha(24),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(icon, color: color, size: 19),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  item.title,
+                                  style: TextStyle(
+                                    color: color,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  item.summary,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    height: 1.35,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                if (item.detail.isNotEmpty) ...<Widget>[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    item.detail,
+                                    style: const TextStyle(
+                                      color: systemGray,
+                                      fontSize: 11.5,
+                                      height: 1.35,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                                for (final String change
+                                    in item.changes) ...<Widget>[
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    change,
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      height: 1.35,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -8489,187 +8541,191 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
           TextButton(
             autofocus: true,
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            child: const Text('रद्द करें'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(
-              plan.actions.length > AiBridgeProtocol.chunkSize
-                  ? 'Apply All'
-                  : 'Apply',
+              '${plan.actions.length} बदलाव लागू करें',
               style: TextStyle(
-                color: plan.dangerousProfileDeletes > 0 ? appleRed : appleBlue,
+                color: plan.deleteCount > 0 ? appleRed : appleBlue,
+                fontWeight: FontWeight.w900,
               ),
             ),
           ),
         ],
       ),
     );
-    return result ?? false;
+    if (result != true) return false;
+    if (plan.dangerousProfileDeletes == 0 || !mounted) return true;
+    return _confirm(
+      context,
+      'पूरे खाते हटाएँ?',
+      '${plan.dangerousProfileDeletes} पूरे खाते और उनके सभी रिकॉर्ड '
+          'स्थायी रूप से हटेंगे। यह काम केवल तभी करें जब सूची सही हो।',
+      dangerous: true,
+    );
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        body: Column(
-          children: <Widget>[
-            _ScreenHeader(
-              leading: const _BackCircle(),
-              title: 'Gemini AI Hub',
+    body: Column(
+      children: <Widget>[
+        _ScreenHeader(
+          leading: const _BackCircle(),
+          title: 'Gemini AI Hub',
+          color: const Color(0xFF8E62D9),
+          actions: <Widget>[
+            _CircleAction(
+              icon: Icons.settings_rounded,
               color: const Color(0xFF8E62D9),
-              actions: <Widget>[
-                _CircleAction(
-                  icon: Icons.settings_rounded,
-                  color: const Color(0xFF8E62D9),
-                  onTap: () => unawaited(_configure()),
-                ),
-              ],
-            ),
-            Expanded(
-              child: ListView.builder(
-                controller: _scroll,
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
-                itemCount: _messages.length,
-                itemBuilder: (BuildContext context, int index) {
-                  final _AiMessage message = _messages[index];
-                  return Align(
-                    alignment: message.user
-                        ? Alignment.centerRight
-                        : Alignment.centerLeft,
-                    child: Container(
-                      constraints: BoxConstraints(
-                        maxWidth: MediaQuery.sizeOf(context).width * .82,
-                      ),
-                      margin: const EdgeInsets.only(bottom: 11),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 15,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: message.user
-                            ? const LinearGradient(
-                                colors: <Color>[appleBlue, Color(0xFF0056B3)],
-                              )
-                            : null,
-                        color: message.user
-                            ? null
-                            : Theme.of(context).brightness == Brightness.dark
-                                ? const Color(0xFF1C1C1E)
-                                : Colors.white,
-                        borderRadius: BorderRadius.only(
-                          topLeft: const Radius.circular(19),
-                          topRight: const Radius.circular(19),
-                          bottomLeft: Radius.circular(message.user ? 19 : 5),
-                          bottomRight: Radius.circular(message.user ? 5 : 19),
-                        ),
-                        boxShadow: <BoxShadow>[
-                          BoxShadow(
-                            color: Colors.black.withAlpha(15),
-                            blurRadius: 15,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        message.text,
-                        style: TextStyle(
-                          color: message.user ? Colors.white : null,
-                          fontSize: 14,
-                          height: 1.42,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            if (_batchJob != null)
-              _AiBatchProgressCard(
-                job: _batchJob!,
-                secondsRemaining: _batchSecondsRemaining,
-                writing: _batchWriting,
-                onCancel: _batchWriting
-                    ? null
-                    : () => unawaited(_cancelRemainingBatch()),
-                onRetry: () => unawaited(_retryBatch()),
-              )
-            else if (_externalSnapshotId.isNotEmpty)
-              _ExternalAiReadyCard(
-                onPaste: () => unawaited(_pasteExternalResponse()),
-                onDismiss: () => unawaited(_clearExternalSnapshot()),
-              ),
-            SafeArea(
-              top: false,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(12, 9, 10, 10),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? const Color(0xFF111113)
-                      : Colors.white,
-                  boxShadow: const <BoxShadow>[
-                    BoxShadow(color: Colors.black12, blurRadius: 18),
-                  ],
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: <Widget>[
-                    Expanded(
-                      child: TextField(
-                        controller: _input,
-                        enabled: _batchJob == null,
-                        minLines: 1,
-                        maxLines: 5,
-                        textCapitalization: TextCapitalization.sentences,
-                        onSubmitted: (_) => unawaited(_send()),
-                        decoration: const InputDecoration(
-                          hintText: 'Ask or paste AI JSON…',
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 15,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _Pressable(
-                      onTap: _busy || _batchJob != null
-                          ? null
-                          : () => unawaited(_send()),
-                      borderRadius: BorderRadius.circular(23),
-                      child: Container(
-                        width: 46,
-                        height: 46,
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: <Color>[
-                              Color(0xFF4285F4),
-                              Color(0xFF9B72CB)
-                            ],
-                          ),
-                          shape: BoxShape.circle,
-                        ),
-                        child: _busy
-                            ? const Padding(
-                                padding: EdgeInsets.all(13),
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.arrow_upward_rounded,
-                                color: Colors.white,
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              onTap: () => unawaited(_configure()),
             ),
           ],
         ),
-      );
+        Expanded(
+          child: ListView.builder(
+            controller: _scroll,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+            itemCount: _messages.length,
+            itemBuilder: (BuildContext context, int index) {
+              final _AiMessage message = _messages[index];
+              return Align(
+                alignment: message.user
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.sizeOf(context).width * .82,
+                  ),
+                  margin: const EdgeInsets.only(bottom: 11),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 15,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: message.user
+                        ? const LinearGradient(
+                            colors: <Color>[appleBlue, Color(0xFF0056B3)],
+                          )
+                        : null,
+                    color: message.user
+                        ? null
+                        : Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF1C1C1E)
+                        : Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(19),
+                      topRight: const Radius.circular(19),
+                      bottomLeft: Radius.circular(message.user ? 19 : 5),
+                      bottomRight: Radius.circular(message.user ? 5 : 19),
+                    ),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: Colors.black.withAlpha(15),
+                        blurRadius: 15,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    message.text,
+                    style: TextStyle(
+                      color: message.user ? Colors.white : null,
+                      fontSize: 14,
+                      height: 1.42,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (_batchJob != null)
+          _AiBatchProgressCard(
+            job: _batchJob!,
+            secondsRemaining: _batchSecondsRemaining,
+            writing: _batchWriting,
+            onCancel: _batchWriting
+                ? null
+                : () => unawaited(_cancelRemainingBatch()),
+            onRetry: () => unawaited(_retryBatch()),
+          )
+        else if (_externalSnapshotId.isNotEmpty)
+          _ExternalAiReadyCard(
+            onPaste: () => unawaited(_pasteExternalResponse()),
+            onDismiss: () => unawaited(_clearExternalSnapshot()),
+          ),
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 9, 10, 10),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF111113)
+                  : Colors.white,
+              boxShadow: const <BoxShadow>[
+                BoxShadow(color: Colors.black12, blurRadius: 18),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Expanded(
+                  child: TextField(
+                    controller: _input,
+                    enabled: _batchJob == null,
+                    minLines: 1,
+                    maxLines: 5,
+                    textCapitalization: TextCapitalization.sentences,
+                    onSubmitted: (_) => unawaited(_send()),
+                    decoration: const InputDecoration(
+                      hintText: 'Ask or paste AI JSON…',
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 15,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _Pressable(
+                  onTap: _busy || _batchJob != null
+                      ? null
+                      : () => unawaited(_send()),
+                  borderRadius: BorderRadius.circular(23),
+                  child: Container(
+                    width: 46,
+                    height: 46,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: <Color>[Color(0xFF4285F4), Color(0xFF9B72CB)],
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: _busy
+                        ? const Padding(
+                            padding: EdgeInsets.all(13),
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.arrow_upward_rounded,
+                            color: Colors.white,
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _GeminiLedgerClient {
@@ -8686,8 +8742,9 @@ class _GeminiLedgerClient {
       'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=${Uri.encodeQueryComponent(apiKey)}',
     );
     final String snapshot = jsonEncode(_compactState(state));
-    final String instruction =
-        AiBridgeProtocol.directGeminiInstruction(_today());
+    final String instruction = AiBridgeProtocol.directGeminiInstruction(
+      _today(),
+    );
     final http.Response response = await http
         .post(
           uri,
@@ -8785,8 +8842,8 @@ String _plainMoney(dynamic value) {
   final String sign = number < 0
       ? '-'
       : number > 0
-          ? '+'
-          : '';
+      ? '+'
+      : '';
   return '${sign}Rs ${NumberFormat('#,##,##0.##', 'en_IN').format(number.abs())}';
 }
 
@@ -8909,8 +8966,9 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color:
-                dark ? Colors.white.withAlpha(14) : Colors.black.withAlpha(10),
+            color: dark
+                ? Colors.white.withAlpha(14)
+                : Colors.black.withAlpha(10),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: dark
@@ -8998,8 +9056,9 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
   ) {
     final bool selected = _format == format;
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-    final Color idleColor =
-        dark ? Colors.white.withAlpha(175) : systemGray.withAlpha(235);
+    final Color idleColor = dark
+        ? Colors.white.withAlpha(175)
+        : systemGray.withAlpha(235);
     return _Pressable(
       semanticLabel: 'Select $label export format',
       onTap: () {
@@ -9063,12 +9122,12 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
   }
 
   Widget _scopePair(_ExportScopeSpec left, _ExportScopeSpec right) => Row(
-        children: <Widget>[
-          Expanded(child: _scopeButton(left)),
-          const SizedBox(width: 12),
-          Expanded(child: _scopeButton(right)),
-        ],
-      );
+    children: <Widget>[
+      Expanded(child: _scopeButton(left)),
+      const SizedBox(width: 12),
+      Expanded(child: _scopeButton(right)),
+    ],
+  );
 
   Widget _scopeButton(_ExportScopeSpec spec, {bool wide = false}) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
@@ -9123,19 +9182,19 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
   }
 
   String _formatHint() => switch (_format) {
-        _ExportFormat.pdf =>
-          'Premium PDF app ke current colors, borders, cards aur dark/light mode se banegi.',
-        _ExportFormat.csv =>
-          'CSV Backup clean spreadsheet-ready data ke saath banega.',
-        _ExportFormat.aiLedger =>
-          'AI Ledger AI-readable structured format me complete ledger banayega.',
-      };
+    _ExportFormat.pdf => 'Premium PDF app ke current colors, borders, cards aur dark/light mode se banegi.',
+    _ExportFormat.csv =>
+      'CSV Backup clean spreadsheet-ready data ke saath banega.',
+    _ExportFormat.aiLedger =>
+      'AI Ledger AI-readable structured format me complete ledger banayega.',
+  };
 
   List<Color> _scopeGradient(_ExportScopeSpec spec, bool dark) =>
       switch (spec.scope) {
-        _ExportScope.all => dark
-            ? const <Color>[Color(0xFF3A3A3C), Color(0xFF111111)]
-            : <Color>[spec.color, const Color(0xFF000000)],
+        _ExportScope.all =>
+          dark
+              ? const <Color>[Color(0xFF3A3A3C), Color(0xFF111111)]
+              : <Color>[spec.color, const Color(0xFF000000)],
         _ExportScope.milk => <Color>[const Color(0xFF2BA8FF), spec.color],
         _ExportScope.expenses => <Color>[const Color(0xFFFF554C), spec.color],
         _ExportScope.credit => <Color>[const Color(0xFFFFBC45), spec.color],
@@ -9369,8 +9428,8 @@ class _ExportService {
         final double signed = color == 'green'
             ? amount
             : color == 'red'
-                ? -amount
-                : 0;
+            ? -amount
+            : 0;
         rows.add(<String>[
           'Business',
           entry.key,
@@ -9379,8 +9438,8 @@ class _ExportService {
           color == 'green'
               ? 'Receive / Inflow'
               : color == 'red'
-                  ? 'Pay / Outflow'
-                  : 'Neutral / Informational',
+              ? 'Pay / Outflow'
+              : 'Neutral / Informational',
           _decimal(signed),
           'Original amount ${_decimal(amount)}; color $color',
         ]);
@@ -9461,17 +9520,18 @@ class _ExportService {
   }
 
   static _ExportDataset _creditDataset(Map<String, dynamic> state) {
-    final List<List<String>> rows =
-        _rows(state['udharDB']).map((Map<String, dynamic> row) {
-      final double signed = LedgerMath.creditSigned(row);
-      return <String>[
-        signed >= 0 ? 'Given / To Receive' : 'Taken / To Pay',
-        '${row['name'] ?? ''}',
-        '${row['date'] ?? ''}',
-        '${row['detail'] ?? row['note'] ?? row['description'] ?? ''}',
-        _decimal(signed),
-      ];
-    }).toList();
+    final List<List<String>> rows = _rows(state['udharDB'])
+        .map((Map<String, dynamic> row) {
+          final double signed = LedgerMath.creditSigned(row);
+          return <String>[
+            signed >= 0 ? 'Given / To Receive' : 'Taken / To Pay',
+            '${row['name'] ?? ''}',
+            '${row['date'] ?? ''}',
+            '${row['detail'] ?? row['note'] ?? row['description'] ?? ''}',
+            _decimal(signed),
+          ];
+        })
+        .toList();
     return _ExportDataset(
       title: 'Credit Ledger',
       headers: const <String>[
@@ -9545,8 +9605,8 @@ class _ExportService {
         final double signed = color == 'green'
             ? amount
             : color == 'red'
-                ? -amount
-                : 0;
+            ? -amount
+            : 0;
         rows.add(<String>[
           entry.key,
           '${row['date'] ?? ''}',
@@ -9554,8 +9614,8 @@ class _ExportService {
           color == 'green'
               ? 'Receive / Inflow'
               : color == 'red'
-                  ? 'Pay / Outflow'
-                  : 'Neutral / Informational',
+              ? 'Pay / Outflow'
+              : 'Neutral / Informational',
           _decimal(amount),
           _decimal(signed),
         ]);

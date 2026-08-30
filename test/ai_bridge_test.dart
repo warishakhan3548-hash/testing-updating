@@ -33,22 +33,27 @@ void main() {
       expect(package.fileContent, isNot(contains('_syncMeta')));
     });
 
-    test('prompt preserves contextual conversation and clarification rules',
-        () {
-      final AiBridgePackage package = AiBridgeProtocol.buildPackage(
-        state: LedgerCodec.emptyState(),
-        generatedAt: DateTime.utc(2026, 8, 30),
-        snapshotId: 'aip_context',
-      );
+    test(
+      'prompt preserves contextual conversation and clarification rules',
+      () {
+        final AiBridgePackage package = AiBridgeProtocol.buildPackage(
+          state: LedgerCodec.emptyState(),
+          generatedAt: DateTime.utc(2026, 8, 30),
+          snapshotId: 'aip_context',
+        );
 
-      expect(package.prompt, contains('does not need to say "JSON"'));
-      expect(package.prompt, contains('whole conversation'));
-      expect(package.prompt, contains('every still-pending real ledger entry'));
-      expect(package.prompt, contains('ask one short focused question'));
-      expect(package.prompt, contains('from whom, morning or evening'));
-      expect(package.prompt, contains('groups of 25'));
-      expect(package.prompt, contains('"snapshotId": "aip_context"'));
-    });
+        expect(package.prompt, contains('does not need to say "JSON"'));
+        expect(package.prompt, contains('whole conversation'));
+        expect(
+          package.prompt,
+          contains('every still-pending real ledger entry'),
+        );
+        expect(package.prompt, contains('ask one short focused question'));
+        expect(package.prompt, contains('from whom, morning or evening'));
+        expect(package.prompt, contains('groups of 25'));
+        expect(package.prompt, contains('"snapshotId": "aip_context"'));
+      },
+    );
 
     test('state fingerprint is stable across map insertion order', () {
       final Map<String, dynamic> first = LedgerCodec.emptyState();
@@ -126,15 +131,17 @@ Here is the reviewed result:
       expect(first.envelopeFingerprint, second.envelopeFingerprint);
     });
 
-    test('uses the final complete JSON object when prose contains an example',
-        () {
-      final AiBridgeEnvelope envelope = AiBridgeProtocol.parseEnvelope(
-        'Example: {"reply":"example","actions":[]}\n'
-        'Final: {"reply":"final","actions":[]}',
-      );
+    test(
+      'uses the final complete JSON object when prose contains an example',
+      () {
+        final AiBridgeEnvelope envelope = AiBridgeProtocol.parseEnvelope(
+          'Example: {"reply":"example","actions":[]}\n'
+          'Final: {"reply":"final","actions":[]}',
+        );
 
-      expect(envelope.reply, 'final');
-    });
+        expect(envelope.reply, 'final');
+      },
+    );
 
     test('rejects more than the reviewed-job limit', () {
       final String response = jsonEncode(<String, dynamic>{
@@ -182,8 +189,12 @@ Here is the reviewed result:
 
       expect(plan.actions, hasLength(100));
       expect(plan.batchCount, 4);
-      expect(plan.chunks.map((List<Map<String, dynamic>> c) => c.length),
-          <int>[25, 25, 25, 25]);
+      expect(plan.chunks.map((List<Map<String, dynamic>> c) => c.length), <int>[
+        25,
+        25,
+        25,
+        25,
+      ]);
       expect(
         plan.actions
             .map((Map<String, dynamic> action) => action['path'])
@@ -228,48 +239,48 @@ Here is the reviewed result:
       );
 
       expect(plan.actions, hasLength(2));
-      final Map<String, dynamic> milkProfile =
-          LedgerCodec.objectMap(plan.actions.first['data']);
+      final Map<String, dynamic> milkProfile = LedgerCodec.objectMap(
+        plan.actions.first['data'],
+      );
       expect(
         LedgerCodec.canonicalList(milkProfile['records']).single['id'],
         'mlk_0',
       );
       expect(plan.actions.last['path'], 'udharDB/udh_1');
-      expect(
-        LedgerCodec.objectMap(plan.actions.last['data'])['id'],
-        'udh_1',
-      );
+      expect(LedgerCodec.objectMap(plan.actions.last['data'])['id'], 'udh_1');
     });
 
-    test('an existing record literally named NEW is edited, not duplicated',
-        () {
-      final Map<String, dynamic> state = LedgerCodec.emptyState();
-      state['udharDB'] = <String, dynamic>{
-        'NEW': <String, dynamic>{
-          'id': 'NEW',
-          'date': '2026-08-29',
-          'name': 'Existing',
-          'amount': 100,
-          'type': 'credit',
-        },
-      };
-      final AiActionPlan plan = AiBridgeProtocol.validateAndNormalize(
-        rawActions: <Map<String, dynamic>>[
-          <String, dynamic>{
-            'path': 'udharDB/NEW',
-            'data': <String, dynamic>{'amount': 150},
+    test(
+      'an existing record literally named NEW is edited, not duplicated',
+      () {
+        final Map<String, dynamic> state = LedgerCodec.emptyState();
+        state['udharDB'] = <String, dynamic>{
+          'NEW': <String, dynamic>{
+            'id': 'NEW',
+            'date': '2026-08-29',
+            'name': 'Existing',
+            'amount': 100,
+            'type': 'credit',
           },
-        ],
-        state: state,
-        newId: (String prefix) => fail('Must not create a new ID.'),
-      );
+        };
+        final AiActionPlan plan = AiBridgeProtocol.validateAndNormalize(
+          rawActions: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'path': 'udharDB/NEW',
+              'data': <String, dynamic>{'amount': 150},
+            },
+          ],
+          state: state,
+          newId: (String prefix) => fail('Must not create a new ID.'),
+        );
 
-      expect(plan.actions.single['path'], 'udharDB/NEW');
-      expect(
-        LedgerCodec.objectMap(plan.actions.single['data'])['amount'],
-        150,
-      );
-    });
+        expect(plan.actions.single['path'], 'udharDB/NEW');
+        expect(
+          LedgerCodec.objectMap(plan.actions.single['data'])['amount'],
+          150,
+        );
+      },
+    );
 
     test('rejects a whole-root overwrite and a duplicate target', () {
       expect(
@@ -328,10 +339,7 @@ Here is the reviewed result:
         rawActions: <Map<String, dynamic>>[
           <String, dynamic>{
             'path': 'milkDB/Kabir',
-            'data': <String, dynamic>{
-              'rate': 65,
-              'type': 'lene_wala',
-            },
+            'data': <String, dynamic>{'rate': 65, 'type': 'lene_wala'},
           },
         ],
         state: _completeState(),
@@ -418,79 +426,76 @@ Here is the reviewed result:
     expect(source, contains('SharePlus.instance.share('));
     expect(source, contains("mimeType: 'text/plain'"));
     expect(source, contains("'Paste & Review'"));
-    expect(source, contains("'Apply All'"));
+    expect(source, contains('बदलाव लागू करें'));
     expect(source, contains("'Cancel'"));
   });
 }
 
-Map<String, dynamic> _completeState() => LedgerCodec.normalizeState(
-      <String, dynamic>{
-        '_syncMeta': <String, dynamic>{'uid': 'firebase-secret'},
-        'milkDB': <String, dynamic>{
-          'Kabir': <String, dynamic>{
-            'rate': 60,
-            'type': 'lene_wala',
-            'canonicalNameV18': 'kabir',
-            'records': <String, dynamic>{
-              'mlk_1': <String, dynamic>{
-                'id': 'mlk_1',
-                'date': '2026-08-29',
-                'morning': 5,
-                'evening': 0,
-                'flow': 'taken',
-                'type': 'taken',
-              },
-            },
-          },
-        },
-        'udharDB': <String, dynamic>{
-          'udh_1': <String, dynamic>{
-            'id': 'udh_1',
-            'date': '2026-08-29',
-            'name': 'Sameer',
-            'amount': 500,
-            'type': 'credit',
-          },
-        },
-        'expenseDB': <String, dynamic>{
-          'exp_1': <String, dynamic>{
-            'id': 'exp_1',
-            'date': '2026-08-29',
-            'category': 'Fuel',
-            'amount': 100,
-          },
-        },
-        'salaryDB': <String, dynamic>{
-          'Worker': <String, dynamic>{
-            'company': 'Dairy',
-            'type': 'dene_wala',
-            'records': <String, dynamic>{
-              'sal_1': <String, dynamic>{
-                'id': 'sal_1',
-                'date': '2026-08-29',
-                'amount': 1000,
-              },
-            },
-          },
-        },
-        'diaryDB': <String, dynamic>{
-          'dia_1': <String, dynamic>{
-            'id': 'dia_1',
-            'date': '2026-08-29',
-            'title': 'Reminder',
-            'content': 'Call supplier',
-            'updated': 1,
-          },
-        },
-        'projectDB': <String, dynamic>{
-          'Shop': <String, dynamic>{
-            'records': <String, dynamic>{
-              'prj_1': _businessRecord('prj_1', 500),
+Map<String, dynamic> _completeState() =>
+    LedgerCodec.normalizeState(<String, dynamic>{
+      '_syncMeta': <String, dynamic>{'uid': 'firebase-secret'},
+      'milkDB': <String, dynamic>{
+        'Kabir': <String, dynamic>{
+          'rate': 60,
+          'type': 'lene_wala',
+          'canonicalNameV18': 'kabir',
+          'records': <String, dynamic>{
+            'mlk_1': <String, dynamic>{
+              'id': 'mlk_1',
+              'date': '2026-08-29',
+              'morning': 5,
+              'evening': 0,
+              'flow': 'taken',
+              'type': 'taken',
             },
           },
         },
       },
-    );
+      'udharDB': <String, dynamic>{
+        'udh_1': <String, dynamic>{
+          'id': 'udh_1',
+          'date': '2026-08-29',
+          'name': 'Sameer',
+          'amount': 500,
+          'type': 'credit',
+        },
+      },
+      'expenseDB': <String, dynamic>{
+        'exp_1': <String, dynamic>{
+          'id': 'exp_1',
+          'date': '2026-08-29',
+          'category': 'Fuel',
+          'amount': 100,
+        },
+      },
+      'salaryDB': <String, dynamic>{
+        'Worker': <String, dynamic>{
+          'company': 'Dairy',
+          'type': 'dene_wala',
+          'records': <String, dynamic>{
+            'sal_1': <String, dynamic>{
+              'id': 'sal_1',
+              'date': '2026-08-29',
+              'amount': 1000,
+            },
+          },
+        },
+      },
+      'diaryDB': <String, dynamic>{
+        'dia_1': <String, dynamic>{
+          'id': 'dia_1',
+          'date': '2026-08-29',
+          'title': 'Reminder',
+          'content': 'Call supplier',
+          'updated': 1,
+        },
+      },
+      'projectDB': <String, dynamic>{
+        'Shop': <String, dynamic>{
+          'records': <String, dynamic>{'prj_1': _businessRecord('prj_1', 500)},
+        },
+      },
+    });
 
 Map<String, dynamic> _businessRecord(String id, num amount) =>
     <String, dynamic>{
