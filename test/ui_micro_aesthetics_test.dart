@@ -15,6 +15,10 @@ void main() {
     expect(source, contains('static List<BoxShadow> pressGlow('));
     expect(source, contains('final Color? resolvedGlowColor ='));
     expect(source, contains('shadowColor ?? tintColor ?? accentColor'));
+    expect(source, contains('blurRadius: strong ? 18 : 15'));
+    expect(source, contains('spreadRadius: strong ? -1.5 : -2'));
+    expect(source, contains('blurRadius: strong ? 38 : 32'));
+    expect(source, contains('spreadRadius: strong ? -6 : -5'));
 
     // Glass keeps directional surface light and opposing optical thickness.
     expect(source, contains('Colors.white.withAlpha(dark ? 15 : 31)'));

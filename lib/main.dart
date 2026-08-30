@@ -140,7 +140,9 @@ abstract final class AppStyles {
   static Color _ambientHue(BuildContext context, Color color) => Color.lerp(
     color,
     isDark(context) ? Colors.white : const Color(0xFF172033),
-    isDark(context) ? .055 : .075,
+    // Keep the source hue visually exact; this tiny blend only prevents very
+    // bright colors from looking fluorescent on either canvas.
+    isDark(context) ? .035 : .045,
   )!;
 
   static List<BoxShadow> glow(
@@ -151,38 +153,39 @@ abstract final class AppStyles {
     final bool dark = isDark(context);
     final Color ambient = _ambientHue(context, color);
     return <BoxShadow>[
-      // A centered halo reads as light radiating from behind the card.
+      // Dense near-edge corona: the approved mockup is darkest immediately
+      // behind the card, then loses energy smoothly in every direction.
       BoxShadow(
         color: ambient.withAlpha(
           _perceptualAlpha(
             ambient,
-            strong ? (dark ? 50 : 30) : (dark ? 38 : 23),
+            strong ? (dark ? 56 : 38) : (dark ? 43 : 28),
           ),
         ),
-        blurRadius: strong ? 42 : 34,
-        spreadRadius: strong ? -9 : -8,
-        offset: Offset(0, strong ? 4 : 3),
+        blurRadius: strong ? 18 : 15,
+        spreadRadius: strong ? -1.5 : -2,
+        offset: Offset.zero,
       ),
-      // A lower color pool reinforces elevation and the top-left light angle.
+      // Broad ambient falloff stays compact and symmetrical—light, not fire.
       BoxShadow(
         color: ambient.withAlpha(
           _perceptualAlpha(
             ambient,
-            strong ? (dark ? 30 : 19) : (dark ? 23 : 14),
+            strong ? (dark ? 32 : 22) : (dark ? 25 : 16),
           ),
         ),
-        blurRadius: strong ? 32 : 27,
-        spreadRadius: strong ? -8 : -7,
-        offset: Offset(0, strong ? 15 : 12),
+        blurRadius: strong ? 38 : 32,
+        spreadRadius: strong ? -6 : -5,
+        offset: Offset.zero,
       ),
       if (strong)
         BoxShadow(
           color: ambient.withAlpha(
-            _perceptualAlpha(ambient, dark ? 16 : 10),
+            _perceptualAlpha(ambient, dark ? 14 : 9),
           ),
-          blurRadius: 68,
-          spreadRadius: -19,
-          offset: const Offset(0, 25),
+          blurRadius: 56,
+          spreadRadius: -12,
+          offset: Offset.zero,
         ),
       ...surfaceDepth(context),
     ];
@@ -192,22 +195,22 @@ abstract final class AppStyles {
     final bool dark = isDark(context);
     final Color ambient = _ambientHue(context, color);
     return <BoxShadow>[
-      // The broad halo belongs to the whole card, not only its accent rail.
+      // Accent-rail cards use the same compact 360-degree light model.
       BoxShadow(
         color: ambient.withAlpha(
-          _perceptualAlpha(ambient, dark ? 42 : 27),
+          _perceptualAlpha(ambient, dark ? 48 : 32),
         ),
-        blurRadius: 38,
-        spreadRadius: -9,
-        offset: const Offset(0, 4),
+        blurRadius: 16,
+        spreadRadius: -1.5,
+        offset: Offset.zero,
       ),
       BoxShadow(
         color: ambient.withAlpha(
-          _perceptualAlpha(ambient, dark ? 27 : 17),
+          _perceptualAlpha(ambient, dark ? 28 : 18),
         ),
-        blurRadius: 26,
-        spreadRadius: -7,
-        offset: const Offset(-2, 12),
+        blurRadius: 34,
+        spreadRadius: -5,
+        offset: Offset.zero,
       ),
       ...surfaceDepth(context),
     ];
@@ -228,12 +231,12 @@ abstract final class AppStyles {
         color: ambient.withAlpha(
           _perceptualAlpha(
             ambient,
-            (eased * (dark ? 55 : 38)).round(),
+            (eased * (dark ? 60 : 42)).round(),
           ),
         ),
-        blurRadius: 40 - eased * 9,
-        spreadRadius: -10 + eased * 3,
-        offset: Offset(0, 8 - eased * 2),
+        blurRadius: 28 - eased * 8,
+        spreadRadius: -7 + eased * 4,
+        offset: Offset.zero,
       ),
     ];
   }
