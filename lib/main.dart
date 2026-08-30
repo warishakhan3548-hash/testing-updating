@@ -1867,12 +1867,23 @@ class _CardAccentPainter extends CustomPainter {
 
   Path _rail(Size size) {
     final double r = math.min(radius, size.height / 2);
-    final Path path = Path()
-      ..moveTo(r * .72, 0)
-      ..quadraticBezierTo(0, 0, 0, r)
-      ..lineTo(0, size.height - r)
-      ..quadraticBezierTo(0, size.height, r * .72, size.height);
-    return path;
+
+    // Keep the whole stroke inside the rounded clip and away from the avatar.
+    // Drawing on x=0 clips half of a stroked path and can make the rail look
+    // broken at the rounded turns on some pixel ratios.
+    final double inset = UIConstants.accentStroke / 2 + 3;
+    final double reach = math.min(6.5, math.max(4.5, r * .28));
+    final double top = inset;
+    final double bottom = math.max(top, size.height - inset);
+    final double upperTurn = math.min(bottom, math.max(top, r));
+    final double lowerTurn =
+        math.max(upperTurn, math.min(bottom, size.height - r));
+
+    return Path()
+      ..moveTo(inset + reach, top)
+      ..quadraticBezierTo(inset, top, inset, upperTurn)
+      ..lineTo(inset, lowerTurn)
+      ..quadraticBezierTo(inset, bottom, inset + reach, bottom);
   }
 
   @override

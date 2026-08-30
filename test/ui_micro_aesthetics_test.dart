@@ -23,7 +23,8 @@ void main() {
 
     // Direct manipulation stays brief, tactile and accessibility-aware.
     expect(source, contains('Duration(milliseconds: 55)'));
-    expect(source, contains('reverseDuration: const Duration(milliseconds: 180)'));
+    expect(
+        source, contains('reverseDuration: const Duration(milliseconds: 180)'));
     expect(source, contains('offset: Offset(0, motion * 1.1)'));
     expect(source, contains('scale: 1 - (motion * .017)'));
     expect(source, contains('MediaQuery.of(context).disableAnimations'));
@@ -35,7 +36,8 @@ void main() {
 
     // Cross-system motion keeps auth handoffs calm and all route motion optional.
     expect(source, contains('class _RootStage extends StatelessWidget'));
-    expect(source, contains('FadeTransition(opacity: animation, child: child)'));
+    expect(
+        source, contains('FadeTransition(opacity: animation, child: child)'));
     expect(
       source,
       contains('MediaQuery.maybeOf(context)?.disableAnimations ?? false'),
@@ -51,6 +53,15 @@ void main() {
     // Destructive confirmation defaults keyboard focus to the safe action.
     expect(source, contains('autofocus: dangerous'));
     expect(source, contains('autofocus: !dangerous'));
+
+    // Card accent rail stays fully inside the clip and remains uninterrupted.
+    expect(
+      source,
+      contains('final double inset = UIConstants.accentStroke / 2 + 3;'),
+    );
+    expect(source, contains('final double reach = math.min(6.5'));
+    expect(source, contains('..lineTo(inset, lowerTurn)'));
+    expect(source, isNot(contains('..lineTo(0, size.height - r)')));
 
     // Brand/state color logic and Firebase integration must stay untouched.
     expect(source, contains("import 'firebase_sync.dart';"));
