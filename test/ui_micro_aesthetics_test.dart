@@ -7,30 +7,40 @@ void main() {
     final String source = File('lib/main.dart').readAsStringSync();
 
     // Three-frequency depth physics: contact, ambient and long falloff.
-    expect(source, contains('spreadRadius: -2.2'));
-    expect(source, contains('blurRadius: 44'));
+    expect(source, contains('spreadRadius: -1.25'));
+    expect(source, contains('blurRadius: 40'));
+    expect(source, contains('withAlpha(dark ? 30 : 10)'));
 
     // Glass keeps a restrained top specular and opposing bottom lowlight.
     expect(source, contains('Colors.white.withAlpha(dark ? 64 : 176)'));
     expect(source, contains('Colors.black.withAlpha(dark ? 48 : 10)'));
 
-    // Fintech actions retain the researched optical icon choices.
-    expect(source, contains('Icons.ios_share_rounded'));
+    // The icon family stays semantic, optically consistent and platform-native.
+    expect(source, contains('Icons.share_rounded'));
+    expect(source, contains('Icons.water_drop_rounded'));
+    expect(source, contains('Icons.water_drop_outlined'));
+    expect(source, contains('Icons.handshake_rounded'));
+    expect(source, contains('Icons.handshake_outlined'));
+    expect(source, contains('Icons.savings_rounded'));
+    expect(source, isNot(contains('Icons.ios_share_rounded')));
+    expect(source, isNot(contains('Icons.local_drink_rounded')));
+    expect(source, isNot(contains('Icons.volunteer_activism_rounded')));
+    expect(source, isNot(contains('class _BottomNavGlyphPainter')));
     expect(source, contains('size: micro ? 19 : 21.5'));
     expect(source, contains('Icons.delete_outline_rounded'));
     expect(source, isNot(contains('Icons.delete_rounded')));
     expect(source, contains('this.icon = Icons.add_rounded'));
 
     // Direct manipulation stays brief, tactile and accessibility-aware.
-    expect(source, contains('Duration(milliseconds: 55)'));
-    expect(
-        source, contains('reverseDuration: const Duration(milliseconds: 180)'));
-    expect(source, contains('offset: Offset(0, motion * 1.1)'));
-    expect(source, contains('scale: 1 - (motion * .017)'));
+    expect(source, contains('Duration pressIn = Duration(milliseconds: 70)'));
+    expect(source, contains('Duration pressOut = Duration(milliseconds: 210)'));
+    expect(source, contains('curve: UIConstants.motionOut'));
+    expect(source, contains('offset: Offset(0, motion * .8)'));
+    expect(source, contains('scale: 1 - (motion * .015)'));
     expect(source, contains('MediaQuery.of(context).disableAnimations'));
 
     // Navigation and pull-to-refresh keep the snappier feedback model.
-    expect(source, contains('Duration(milliseconds: 250)'));
+    expect(source, contains('duration: UIConstants.motion'));
     expect(source, contains('RefreshIndicator.adaptive('));
     expect(source, contains('HapticFeedback.lightImpact();'));
 
@@ -48,7 +58,8 @@ void main() {
     expect(source, contains('animationStyle: reduceMotion'));
     expect(source, contains('snackBarAnimationStyle: reduceMotion'));
     expect(source, contains('duration: Duration(milliseconds: 240)'));
-    expect(source, contains('reverseDuration: Duration(milliseconds: 190)'));
+    expect(source, contains('duration: UIConstants.routeIn'));
+    expect(source, contains('reverseDuration: UIConstants.routeOut'));
 
     // Destructive confirmation defaults keyboard focus to the safe action.
     expect(source, contains('autofocus: dangerous'));

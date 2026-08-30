@@ -58,7 +58,16 @@ abstract final class UIConstants {
   static const EdgeInsets actionPadding = EdgeInsets.symmetric(horizontal: 20);
   static const EdgeInsets screenPadding = EdgeInsets.fromLTRB(20, 8, 20, 32);
 
-  static const Duration motion = Duration(milliseconds: 240);
+  static const Duration pressIn = Duration(milliseconds: 70);
+  static const Duration pressOut = Duration(milliseconds: 210);
+  static const Duration motion = Duration(milliseconds: 260);
+  static const Duration routeIn = Duration(milliseconds: 280);
+  static const Duration routeOut = Duration(milliseconds: 220);
+
+  // Fast initial response with a long, calm deceleration. These stay inside
+  // the unit interval, so buttons and routes never wobble past their target.
+  static const Curve motionOut = Cubic(0.16, 1, 0.3, 1);
+  static const Curve motionIn = Cubic(0.32, 0, 0.67, 0);
 }
 
 abstract final class AppStyles {
@@ -84,26 +93,26 @@ abstract final class AppStyles {
   static List<BoxShadow> surfaceDepth(BuildContext context) {
     final bool dark = isDark(context);
     return <BoxShadow>[
-      // Contact shadow: tiny and close, like ambient occlusion at the edge.
+      // Tight contact occlusion anchors the card without drawing a dark halo.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 38 : 9),
-        blurRadius: 4,
-        spreadRadius: -2.2,
-        offset: const Offset(0, 1.2),
+        color: Colors.black.withAlpha(dark ? 44 : 10),
+        blurRadius: 3,
+        spreadRadius: -1.25,
+        offset: const Offset(0, 1.25),
       ),
-      // Mid-frequency ambient shadow gives readable lift without a dark ring.
+      // A small key shadow defines elevation at normal viewing distance.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 44 : 11),
-        blurRadius: 18,
-        spreadRadius: -6,
+        color: Colors.black.withAlpha(dark ? 40 : 10),
+        blurRadius: 16,
+        spreadRadius: -5,
         offset: const Offset(0, 6),
       ),
-      // Long soft falloff keeps the surface floating while staying calm.
+      // Four-percent ambient falloff supplies depth without muddying the UI.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 34 : 9),
-        blurRadius: 44,
-        spreadRadius: -12,
-        offset: const Offset(0, 18),
+        color: Colors.black.withAlpha(dark ? 30 : 10),
+        blurRadius: 40,
+        spreadRadius: -10,
+        offset: const Offset(0, 14),
       ),
     ];
   }
@@ -551,14 +560,14 @@ class _PremiumTransitionsBuilder extends PageTransitionsBuilder {
     }
     final Animation<double> curved = CurvedAnimation(
       parent: animation,
-      curve: const Cubic(0.2, 0.8, 0.2, 1),
-      reverseCurve: Curves.easeInCubic,
+      curve: UIConstants.motionOut,
+      reverseCurve: UIConstants.motionIn,
     );
     return FadeTransition(
       opacity: curved,
       child: SlideTransition(
         position: Tween<Offset>(
-          begin: const Offset(0.018, 0),
+          begin: const Offset(0.015, 0),
           end: Offset.zero,
         ).animate(curved),
         child: child,
@@ -840,21 +849,21 @@ class _LoginScreenState extends State<_LoginScreen> {
 }
 
 class _TabSpec {
-  const _TabSpec(this.label, this.icon, this.color);
+  const _TabSpec(this.label, this.activeIcon, this.inactiveIcon);
 
   final String label;
-  final IconData icon;
-  final Color color;
+  final IconData activeIcon;
+  final IconData inactiveIcon;
 }
 
 const List<_TabSpec> _tabs = <_TabSpec>[
-  _TabSpec('Home', Icons.home_rounded, appleBlue),
-  _TabSpec('Milk', Icons.local_drink_rounded, appleGreen),
-  _TabSpec('Credit', Icons.volunteer_activism_rounded, appleGreen),
-  _TabSpec('Expenses', Icons.receipt_long_rounded, appleBlue),
-  _TabSpec('Salary', Icons.payments_rounded, salaryGreen),
-  _TabSpec('Diary', Icons.menu_book_rounded, diaryOrange),
-  _TabSpec('Business', Icons.work_rounded, appleBlue),
+  _TabSpec('Home', Icons.home_rounded, Icons.home_outlined),
+  _TabSpec('Milk', Icons.water_drop_rounded, Icons.water_drop_outlined),
+  _TabSpec('Credit', Icons.handshake_rounded, Icons.handshake_outlined),
+  _TabSpec('Expenses', Icons.receipt_long_rounded, Icons.receipt_long_outlined),
+  _TabSpec('Salary', Icons.savings_rounded, Icons.savings_outlined),
+  _TabSpec('Diary', Icons.menu_book_rounded, Icons.menu_book_outlined),
+  _TabSpec('Business', Icons.work_rounded, Icons.work_outline_rounded),
 ];
 
 class AppShell extends StatefulWidget {
@@ -899,8 +908,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (_pageController.hasClients) {
       _pageController.animateToPage(
         index,
-        duration: const Duration(milliseconds: 250),
-        curve: const Cubic(0.2, 0.82, 0.2, 1),
+        duration: UIConstants.motion,
+        curve: UIConstants.motionOut,
       );
     }
   }
@@ -917,8 +926,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (_navController.hasClients) {
       _navController.animateTo(
         math.min(target, _navController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 235),
-        curve: const Cubic(0.2, 0.82, 0.2, 1),
+        duration: UIConstants.motion,
+        curve: UIConstants.motionOut,
       );
     }
   }
@@ -1185,10 +1194,10 @@ class _BottomLedgerNav extends StatelessWidget {
                             offset:
                                 active ? const Offset(0, -.025) : Offset.zero,
                             duration: UIConstants.motion,
-                            curve: const Cubic(0.32, 0.72, 0, 1),
+                            curve: UIConstants.motionOut,
                             child: AnimatedContainer(
                               duration: UIConstants.motion,
-                              curve: const Cubic(0.32, 0.72, 0, 1),
+                              curve: UIConstants.motionOut,
                               width: 84,
                               height: 70,
                               margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -1201,14 +1210,16 @@ class _BottomLedgerNav extends StatelessWidget {
                                   AnimatedScale(
                                     scale: active ? 1.045 : 1,
                                     duration: UIConstants.motion,
-                                    curve: const Cubic(0.34, 1.18, 0.64, 1),
+                                    curve: UIConstants.motionOut,
                                     child: _PremiumNavIconFrame(
                                       color: color,
                                       active: active,
                                       dark: dark,
                                       child: _BottomNavGlyph(
-                                        label: spec.label,
-                                        size: active ? 30 : 27.5,
+                                        icon: active
+                                            ? spec.activeIcon
+                                            : spec.inactiveIcon,
+                                        size: active ? 25 : 23.5,
                                         color: active
                                             ? color
                                             : color.withAlpha(dark ? 164 : 160),
@@ -1220,7 +1231,7 @@ class _BottomLedgerNav extends StatelessWidget {
                                   const SizedBox(height: 3),
                                   AnimatedDefaultTextStyle(
                                     duration: UIConstants.motion,
-                                    curve: const Cubic(0.32, 0.72, 0, 1),
+                                    curve: UIConstants.motionOut,
                                     style: TextStyle(
                                       color: active
                                           ? color
@@ -1239,7 +1250,7 @@ class _BottomLedgerNav extends StatelessWidget {
                                   const SizedBox(height: 4),
                                   AnimatedContainer(
                                     duration: UIConstants.motion,
-                                    curve: const Cubic(0.32, 0.72, 0, 1),
+                                    curve: UIConstants.motionOut,
                                     width: active ? 24 : 0,
                                     height: 2.5,
                                     decoration: BoxDecoration(
@@ -1292,7 +1303,7 @@ class _PremiumNavIconFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedContainer(
         duration: UIConstants.motion,
-        curve: const Cubic(0.32, 0.72, 0, 1),
+        curve: UIConstants.motionOut,
         width: active ? 46 : 39,
         height: active ? 39 : 35,
         alignment: Alignment.center,
@@ -1331,18 +1342,16 @@ class _PremiumNavIconFrame extends StatelessWidget {
       );
 }
 
-enum _BottomNavGlyphKind { milk, credit, salary }
-
 class _BottomNavGlyph extends StatelessWidget {
   const _BottomNavGlyph({
-    required this.label,
+    required this.icon,
     required this.size,
     required this.color,
     required this.active,
     required this.dark,
   });
 
-  final String label;
+  final IconData icon;
   final double size;
   final Color color;
   final bool active;
@@ -1359,243 +1368,12 @@ class _BottomNavGlyph extends StatelessWidget {
       : <Shadow>[Shadow(color: color.withAlpha(dark ? 40 : 28), blurRadius: 5)];
 
   @override
-  Widget build(BuildContext context) {
-    switch (label) {
-      case 'Home':
-        return Icon(
-          active ? Icons.home_rounded : Icons.home_outlined,
-          size: size,
-          color: color,
-          shadows: _shadows,
-        );
-      case 'Expenses':
-        return Icon(
-          active ? Icons.receipt_long_rounded : Icons.receipt_long_outlined,
-          size: size,
-          color: color,
-          shadows: _shadows,
-        );
-      case 'Diary':
-        return Icon(
-          active ? Icons.menu_book_rounded : Icons.menu_book_outlined,
-          size: size,
-          color: color,
-          shadows: _shadows,
-        );
-      case 'Business':
-        return Icon(
-          active ? Icons.work_rounded : Icons.work_outline_rounded,
-          size: size,
-          color: color,
-          shadows: _shadows,
-        );
-      case 'Milk':
-        return _custom(_BottomNavGlyphKind.milk);
-      case 'Credit':
-        return _custom(_BottomNavGlyphKind.credit);
-      case 'Salary':
-        return _custom(_BottomNavGlyphKind.salary);
-      default:
-        return const SizedBox.shrink();
-    }
-  }
-
-  Widget _custom(_BottomNavGlyphKind kind) => SizedBox.square(
-        dimension: size,
-        child: CustomPaint(
-          painter: _BottomNavGlyphPainter(
-            kind: kind,
-            color: color,
-            active: active,
-            dark: dark,
-          ),
-        ),
+  Widget build(BuildContext context) => Icon(
+        icon,
+        size: size,
+        color: color,
+        shadows: _shadows,
       );
-}
-
-class _BottomNavGlyphPainter extends CustomPainter {
-  const _BottomNavGlyphPainter({
-    required this.kind,
-    required this.color,
-    required this.active,
-    required this.dark,
-  });
-
-  final _BottomNavGlyphKind kind;
-  final Color color;
-  final bool active;
-  final bool dark;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
-    final double scale = size.shortestSide / 28;
-    canvas.save();
-    canvas.translate(
-      (size.width - 28 * scale) / 2,
-      (size.height - 28 * scale) / 2,
-    );
-    canvas.scale(scale);
-
-    final Paint wash = Paint()
-      ..color = color.withAlpha(active ? (dark ? 34 : 24) : (dark ? 18 : 12))
-      ..style = PaintingStyle.fill;
-    final Paint aura = Paint()
-      ..color = color.withAlpha(active ? (dark ? 84 : 62) : (dark ? 42 : 30))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = active ? 2.35 : 2.15
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..maskFilter = ui.MaskFilter.blur(
-        ui.BlurStyle.normal,
-        active ? 3.7 : 2.1,
-      );
-    final Paint ink = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = active ? 2.12 : 1.98
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final Paint detail = Paint()
-      ..color = color.withAlpha(active ? 210 : 170)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.15
-      ..strokeCap = StrokeCap.round;
-
-    switch (kind) {
-      case _BottomNavGlyphKind.milk:
-        _paintMilk(canvas, wash, aura, ink, detail);
-        break;
-      case _BottomNavGlyphKind.credit:
-        _paintCredit(canvas, wash, aura, ink, detail);
-        break;
-      case _BottomNavGlyphKind.salary:
-        _paintSalary(canvas, wash, aura, ink, detail);
-        break;
-    }
-    canvas.restore();
-  }
-
-  void _paintMilk(
-    Canvas canvas,
-    Paint wash,
-    Paint aura,
-    Paint ink,
-    Paint detail,
-  ) {
-    final RRect body = RRect.fromRectAndRadius(
-      const Rect.fromLTWH(6.2, 7.1, 15.6, 17.2),
-      const Radius.circular(3.5),
-    );
-    canvas.drawRRect(body, wash);
-    canvas.drawRRect(body, aura);
-    canvas.drawRRect(body, ink);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(10, 3.2, 8, 4.7),
-        const Radius.circular(1.45),
-      ),
-      ink,
-    );
-    canvas.drawLine(const Offset(8.7, 11), const Offset(19.3, 11), detail);
-    canvas.drawLine(const Offset(9.1, 21), const Offset(18.9, 21), detail);
-    final Path drop = Path()
-      ..moveTo(14, 13.05)
-      ..cubicTo(12.55, 14.95, 11.75, 16.05, 11.75, 17.3)
-      ..cubicTo(11.75, 18.8, 12.72, 19.85, 14, 19.85)
-      ..cubicTo(15.28, 19.85, 16.25, 18.8, 16.25, 17.3)
-      ..cubicTo(16.25, 16.05, 15.45, 14.95, 14, 13.05);
-    canvas.drawPath(drop, ink);
-  }
-
-  void _paintCredit(
-    Canvas canvas,
-    Paint wash,
-    Paint aura,
-    Paint ink,
-    Paint detail,
-  ) {
-    const Offset coinCenter = Offset(16.2, 7.1);
-    canvas.drawCircle(coinCenter, 5.05, wash);
-    canvas.drawCircle(coinCenter, 5.05, aura);
-    canvas.drawCircle(coinCenter, 5.05, ink);
-    _paintDollar(canvas, const Offset(13.25, 2.25), 9.5);
-
-    final Path palm = Path()
-      ..moveTo(2.4, 18.1)
-      ..lineTo(7.1, 18.1)
-      ..cubicTo(8.6, 18.1, 9.45, 19.35, 11.2, 19.35)
-      ..lineTo(15.6, 19.35)
-      ..cubicTo(17.05, 19.35, 17.2, 17.35, 15.6, 17.35)
-      ..lineTo(12.25, 17.35)
-      ..cubicTo(10.9, 17.35, 10.2, 16.6, 9.05, 15.8)
-      ..lineTo(7.3, 14.65);
-    canvas.drawPath(palm, aura);
-    canvas.drawPath(palm, ink);
-
-    final Path support = Path()
-      ..moveTo(15.5, 17.45)
-      ..lineTo(21.15, 14.55)
-      ..cubicTo(22.65, 13.8, 24.15, 14.55, 23.25, 16)
-      ..cubicTo(21.2, 19.05, 17.65, 22.75, 13.6, 23.3)
-      ..lineTo(7.2, 23.3)
-      ..lineTo(3.35, 21.55);
-    canvas.drawPath(support, aura);
-    canvas.drawPath(support, ink);
-    canvas.drawLine(const Offset(4.2, 20), const Offset(7.1, 20), detail);
-  }
-
-  void _paintSalary(
-    Canvas canvas,
-    Paint wash,
-    Paint aura,
-    Paint ink,
-    Paint detail,
-  ) {
-    final Path bag = Path()
-      ..moveTo(10.2, 7.4)
-      ..cubicTo(6.7, 9.8, 5.1, 13.05, 5.1, 17.25)
-      ..cubicTo(5.1, 21.7, 8.3, 24.1, 14, 24.1)
-      ..cubicTo(19.7, 24.1, 22.9, 21.7, 22.9, 17.25)
-      ..cubicTo(22.9, 13.05, 21.3, 9.8, 17.8, 7.4)
-      ..close();
-    canvas.drawPath(bag, wash);
-    canvas.drawPath(bag, aura);
-    canvas.drawPath(bag, ink);
-    canvas.drawLine(const Offset(10.15, 4.15), const Offset(17.85, 4.15), ink);
-    canvas.drawLine(const Offset(11.1, 4.15), const Offset(10.2, 7.35), ink);
-    canvas.drawLine(const Offset(16.9, 4.15), const Offset(17.8, 7.35), ink);
-    canvas.drawLine(const Offset(9.5, 9.8), const Offset(18.5, 9.8), detail);
-    _paintDollar(canvas, const Offset(10.35, 11.45), 11.25);
-  }
-
-  void _paintDollar(Canvas canvas, Offset offset, double fontSize) {
-    final TextPainter painter = TextPainter(
-      textDirection: ui.TextDirection.ltr,
-      text: TextSpan(
-        text: r'$',
-        style: TextStyle(
-          color: color,
-          fontSize: fontSize,
-          fontWeight: FontWeight.w900,
-          height: 1,
-          shadows: active
-              ? <Shadow>[
-                  Shadow(color: color.withAlpha(dark ? 92 : 66), blurRadius: 5),
-                ]
-              : null,
-        ),
-      ),
-    )..layout();
-    painter.paint(canvas, offset);
-  }
-
-  @override
-  bool shouldRepaint(covariant _BottomNavGlyphPainter oldDelegate) =>
-      oldDelegate.kind != kind ||
-      oldDelegate.color != color ||
-      oldDelegate.active != active ||
-      oldDelegate.dark != dark;
 }
 
 class _Pressable extends StatefulWidget {
@@ -1624,8 +1402,8 @@ class _PressableState extends State<_Pressable>
     super.initState();
     _pressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 55),
-      reverseDuration: const Duration(milliseconds: 180),
+      duration: UIConstants.pressIn,
+      reverseDuration: UIConstants.pressOut,
     );
   }
 
@@ -1633,8 +1411,8 @@ class _PressableState extends State<_Pressable>
     if (widget.onTap == null) return;
     _pressController.animateTo(
       1,
-      duration: const Duration(milliseconds: 55),
-      curve: const Cubic(0.18, 0.72, 0.2, 1),
+      duration: UIConstants.pressIn,
+      curve: Curves.easeOutCubic,
     );
   }
 
@@ -1642,8 +1420,8 @@ class _PressableState extends State<_Pressable>
     if (widget.onTap == null) return;
     _pressController.animateBack(
       0,
-      duration: const Duration(milliseconds: 180),
-      curve: const Cubic(0.2, 1.08, 0.3, 1),
+      duration: UIConstants.pressOut,
+      curve: UIConstants.motionOut,
     );
   }
 
@@ -1683,14 +1461,12 @@ class _PressableState extends State<_Pressable>
               final bool dark = Theme.of(context).brightness == Brightness.dark;
               final bool reduceMotion =
                   MediaQuery.of(context).disableAnimations;
-              final double feedback = Curves.easeOutCubic.transform(
-                _pressController.value,
-              );
+              final double feedback = _pressController.value;
               final double motion = reduceMotion ? 0 : feedback;
               return Transform.translate(
-                offset: Offset(0, motion * 1.1),
+                offset: Offset(0, motion * .8),
                 child: Transform.scale(
-                  scale: 1 - (motion * .017),
+                  scale: 1 - (motion * .015),
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: <Widget>[
@@ -2831,8 +2607,8 @@ Future<T?> _openSheet<T>(BuildContext context, Widget child) {
     sheetAnimationStyle: reduceMotion
         ? AnimationStyle.noAnimation
         : const AnimationStyle(
-            duration: Duration(milliseconds: 250),
-            reverseDuration: Duration(milliseconds: 190),
+            duration: UIConstants.routeIn,
+            reverseDuration: UIConstants.routeOut,
           ),
     builder: (BuildContext context) => child,
   );
@@ -3030,8 +2806,8 @@ List<Color> _moduleTabColors(Map<String, dynamic> state) => <Color>[
     ];
 
 PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
-      transitionDuration: const Duration(milliseconds: 235),
-      reverseTransitionDuration: const Duration(milliseconds: 195),
+      transitionDuration: UIConstants.routeIn,
+      reverseTransitionDuration: UIConstants.routeOut,
       pageBuilder: (_, __, ___) => child,
       transitionsBuilder: (
         BuildContext context,
@@ -3044,14 +2820,14 @@ PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
         }
         final Animation<double> curved = CurvedAnimation(
           parent: animation,
-          curve: const Cubic(0.32, 0.72, 0, 1),
-          reverseCurve: const Cubic(0.25, 1, 0.5, 1),
+          curve: UIConstants.motionOut,
+          reverseCurve: UIConstants.motionIn,
         );
         return FadeTransition(
           opacity: curved,
           child: SlideTransition(
             position: Tween<Offset>(
-              begin: const Offset(.032, 0),
+              begin: const Offset(.024, 0),
               end: Offset.zero,
             ).animate(curved),
             child: child,
@@ -3182,7 +2958,7 @@ class DashboardScreen extends StatelessWidget {
                   childAspectRatio: 1.0,
                   children: <Widget>[
                     _MetricCard(
-                      icon: Icons.volunteer_activism_rounded,
+                      icon: Icons.handshake_rounded,
                       label: 'To Receive (+)',
                       value: _money(totals.toReceive),
                       color: appleGreen,
@@ -3677,7 +3453,7 @@ class _MilkScreenState extends State<MilkScreen> {
               const SizedBox(height: 16),
               if (names.isEmpty)
                 const _EmptyState(
-                  Icons.local_drink_rounded,
+                  Icons.water_drop_rounded,
                   'No customers found',
                   color: appleBlue,
                   prominent: true,
@@ -4111,7 +3887,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                         actions: <Widget>[
                           _SoftShareButton(
                             label: 'Share',
-                            icon: Icons.ios_share_rounded,
+                            icon: Icons.share_rounded,
                             color: appleBlue,
                             onTap: () => unawaited(
                               _ExportService.sharePdf(
@@ -4222,7 +3998,7 @@ class _MilkDetailHero extends StatelessWidget {
             children: <Widget>[
               if (!compact) ...<Widget>[
                 _LedgerIcon(
-                  icon: Icons.local_drink_rounded,
+                  icon: Icons.water_drop_rounded,
                   color: color,
                   size: 54,
                 ),
@@ -4318,7 +4094,7 @@ class _SoftShareButton extends StatelessWidget {
   const _SoftShareButton({
     required this.onTap,
     this.label = 'Share',
-    this.icon = Icons.ios_share_rounded,
+    this.icon = Icons.share_rounded,
     this.color = appleBlue,
     this.semanticLabel,
     this.compact = false,
@@ -5475,7 +5251,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                         actions: <Widget>[
                           _SoftShareButton(
                             label: 'Share',
-                            icon: Icons.ios_share_rounded,
+                            icon: Icons.share_rounded,
                             color: appleBlue,
                             onTap: () => unawaited(
                               _ExportService.sharePdf(
@@ -5979,7 +5755,7 @@ class CreditDetailScreen extends StatelessWidget {
                         actions: <Widget>[
                           _SoftShareButton(
                             label: 'Share',
-                            icon: Icons.ios_share_rounded,
+                            icon: Icons.share_rounded,
                             color: appleBlue,
                             onTap: () => unawaited(
                               _ExportService.sharePdf(
@@ -6210,7 +5986,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           actions: <Widget>[
             _SoftShareButton(
               compact: true,
-              icon: Icons.ios_share_rounded,
+              icon: Icons.share_rounded,
               color: appleBlue,
               semanticLabel: 'Share this month expenses',
               onTap: () => unawaited(_shareCurrentMonthExpenses()),
@@ -6467,7 +6243,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                         actions: <Widget>[
                           _SoftShareButton(
                             label: 'Share',
-                            icon: Icons.ios_share_rounded,
+                            icon: Icons.share_rounded,
                             color: appleBlue,
                             onTap: () => unawaited(
                               _ExportService.sharePdf(
@@ -6836,7 +6612,7 @@ class DiaryDetailScreen extends StatelessWidget {
                     ),
                     _SoftShareButton(
                       compact: true,
-                      icon: Icons.ios_share_rounded,
+                      icon: Icons.share_rounded,
                       color: appleBlue,
                       onTap: () => unawaited(
                         _ExportService.sharePdf(
@@ -7371,7 +7147,7 @@ class BusinessDetailScreen extends StatelessWidget {
                         actions: <Widget>[
                           _SoftShareButton(
                             label: 'Share',
-                            icon: Icons.ios_share_rounded,
+                            icon: Icons.share_rounded,
                             color: appleBlue,
                             onTap: () => unawaited(
                               _ExportService.sharePdf(
@@ -8132,7 +7908,7 @@ const List<_ExportScopeSpec> _exportScopes = <_ExportScopeSpec>[
   _ExportScopeSpec(
     scope: _ExportScope.milk,
     label: 'Milk Records',
-    icon: Icons.local_drink_rounded,
+    icon: Icons.water_drop_rounded,
     color: appleBlue,
   ),
   _ExportScopeSpec(
