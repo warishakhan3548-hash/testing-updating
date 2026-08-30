@@ -190,9 +190,7 @@ abstract final class AppStyles {
       ),
       if (strong)
         BoxShadow(
-          color: ambient.withAlpha(
-            _perceptualAlpha(ambient, dark ? 14 : 9),
-          ),
+          color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 14 : 9)),
           blurRadius: 44,
           spreadRadius: -16,
           offset: Offset.zero,
@@ -207,17 +205,13 @@ abstract final class AppStyles {
     return <BoxShadow>[
       // Accent-rail cards use the same compact 360-degree light model.
       BoxShadow(
-        color: ambient.withAlpha(
-          _perceptualAlpha(ambient, dark ? 48 : 32),
-        ),
+        color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 48 : 32)),
         blurRadius: 14,
         spreadRadius: -1.25,
         offset: Offset.zero,
       ),
       BoxShadow(
-        color: ambient.withAlpha(
-          _perceptualAlpha(ambient, dark ? 28 : 18),
-        ),
+        color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 28 : 18)),
         blurRadius: 26,
         spreadRadius: -7,
         offset: Offset.zero,
@@ -239,10 +233,7 @@ abstract final class AppStyles {
     return <BoxShadow>[
       BoxShadow(
         color: ambient.withAlpha(
-          _perceptualAlpha(
-            ambient,
-            (eased * (dark ? 60 : 42)).round(),
-          ),
+          _perceptualAlpha(ambient, (eased * (dark ? 60 : 42)).round()),
         ),
         blurRadius: 28 - eased * 8,
         spreadRadius: -7 + eased * 4,
@@ -1753,10 +1744,7 @@ class _GlassCard extends StatelessWidget {
         : AppStyles.surfaceDepth(context);
     final BorderRadius radius = BorderRadius.circular(borderRadius);
     return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: radius,
-        boxShadow: shadows,
-      ),
+      decoration: BoxDecoration(borderRadius: radius, boxShadow: shadows),
       child: ClipRRect(
         borderRadius: radius,
         clipBehavior: Clip.antiAlias,
@@ -3163,11 +3151,7 @@ class _AiHubButton extends StatelessWidget {
             const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Icon(
-                  Icons.auto_awesome_rounded,
-                  color: Colors.white,
-                  size: 15,
-                ),
+                Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 15),
                 SizedBox(width: 5),
                 Text(
                   'AI HUB',
@@ -3271,9 +3255,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           title: 'Dashboard',
           subtitle: 'AARISH DAIRY',
           subtitleTrailing: _AiHubButton(
-            onTap: () => Navigator.of(
-              context,
-            ).push(_premiumRoute<void>(AiHubScreen(sync: sync))),
+            onTap: () =>
+                Navigator.of(context)
+                    .push(_premiumRoute<void>(AiHubScreen(sync: sync))),
           ),
           actions: <Widget>[
             _CircleAction(
@@ -3375,9 +3359,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   animation: _revealController,
                   order: 4,
                   child: _Pressable(
-                    onTap: () => Navigator.of(context).push(
-                      _premiumRoute<void>(PartyLedgerScreen(sync: sync)),
-                    ),
+                    onTap: () => Navigator.of(
+                      context,
+                    ).push(_premiumRoute<void>(PartyLedgerScreen(sync: sync))),
                     borderRadius: BorderRadius.circular(24),
                     feedbackColor: const Color(0xFF9333EA),
                     child: const _GlassCard(
@@ -5062,10 +5046,8 @@ class _LedgerDeleteAction extends StatelessWidget {
   final String semanticLabel;
 
   @override
-  Widget build(BuildContext context) => _DeleteActionButton(
-    onTap: onTap,
-    semanticLabel: semanticLabel,
-  );
+  Widget build(BuildContext context) =>
+      _DeleteActionButton(onTap: onTap, semanticLabel: semanticLabel);
 }
 
 class _LedgerDateCell extends StatelessWidget {
@@ -6382,10 +6364,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               const SizedBox(height: 24),
               const _SectionTitle('Categories'),
               if (groups.isEmpty)
-                const _EmptyState(
-                  premiumExpenseIcon,
-                  'No expenses this month',
-                )
+                const _EmptyState(premiumExpenseIcon, 'No expenses this month')
               else
                 ...groups.map(
                   (_ExpenseGroup group) => _ListCard(
