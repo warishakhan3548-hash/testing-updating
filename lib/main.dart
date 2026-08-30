@@ -2741,68 +2741,100 @@ class _MonthYearPicker extends StatelessWidget {
   const _MonthYearPicker({
     required this.month,
     required this.year,
+    required this.availablePeriods,
     required this.onChanged,
   });
 
   final int month;
   final int year;
+  final List<DateTime> availablePeriods;
   final void Function(int month, int year) onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final int currentYear = DateTime.now().year;
+    final List<int> years =
+        availablePeriods.map((DateTime period) => period.year).toSet().toList()
+          ..sort((int a, int b) => b.compareTo(a));
+    final int? selectedYear = years.contains(year)
+        ? year
+        : (years.isEmpty ? null : years.first);
+    final List<int> months = selectedYear == null
+        ? <int>[]
+        : (availablePeriods
+              .where((DateTime period) => period.year == selectedYear)
+              .map((DateTime period) => period.month)
+              .toSet()
+              .toList()
+            ..sort());
+    final int? selectedMonth = months.contains(month)
+        ? month
+        : (months.isEmpty ? null : months.last);
     return Row(
       children: <Widget>[
         Expanded(
           child: DropdownButtonFormField<int>(
-            key: ValueKey<String>('month-$month'),
-            initialValue: month,
+            key: ValueKey<String>('month-$selectedYear-$selectedMonth'),
+            initialValue: selectedMonth,
+            hint: const Text('No month'),
             style: const TextStyle(
               color: appleBlue,
               fontWeight: FontWeight.w800,
             ),
             iconEnabledColor: appleBlue,
             decoration: _pickerDecoration(),
-            items: List<DropdownMenuItem<int>>.generate(
-              12,
-              (int index) => DropdownMenuItem<int>(
-                value: index + 1,
-                child: Text(
-                  DateFormat.MMMM().format(DateTime(2024, index + 1)),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-            onChanged: (int? value) {
-              if (value != null) {
-                HapticFeedback.selectionClick();
-                onChanged(value, year);
-              }
-            },
+            items: months
+                .map(
+                  (int item) => DropdownMenuItem<int>(
+                    value: item,
+                    child: Text(
+                      DateFormat.MMMM().format(DateTime(2024, item)),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: selectedYear == null
+                ? null
+                : (int? value) {
+                    if (value != null) {
+                      HapticFeedback.selectionClick();
+                      onChanged(value, selectedYear);
+                    }
+                  },
           ),
         ),
         const SizedBox(width: 12),
         SizedBox(
           width: 118,
           child: DropdownButtonFormField<int>(
-            key: ValueKey<String>('year-$year'),
-            initialValue: year,
+            key: ValueKey<String>('year-$selectedYear'),
+            initialValue: selectedYear,
+            hint: const Text('No year'),
             style: const TextStyle(
               color: appleBlue,
               fontWeight: FontWeight.w800,
             ),
             iconEnabledColor: appleBlue,
             decoration: _pickerDecoration(),
-            items: List<DropdownMenuItem<int>>.generate(12, (int index) {
-              final int item = currentYear + 2 - index;
-              return DropdownMenuItem<int>(value: item, child: Text('$item'));
-            }),
-            onChanged: (int? value) {
-              if (value != null) {
-                HapticFeedback.selectionClick();
-                onChanged(month, value);
-              }
-            },
+            items: years
+                .map(
+                  (int item) =>
+                      DropdownMenuItem<int>(value: item, child: Text('$item')),
+                )
+                .toList(),
+            onChanged: years.isEmpty
+                ? null
+                : (int? value) {
+                    if (value == null) return;
+                    final DateTime? target = LedgerMath.resolveRecordPeriod(
+                      availablePeriods,
+                      month: month,
+                      year: value,
+                    );
+                    if (target == null || target.year != value) return;
+                    HapticFeedback.selectionClick();
+                    onChanged(target.month, target.year);
+                  },
           ),
         ),
       ],
@@ -4319,11 +4351,22 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
           ),
         );
       }
+      final List<Map<String, dynamic>> allRecords = _rows(profile['records']);
+      final List<DateTime> availablePeriods = LedgerMath.recordPeriods(
+        allRecords,
+      );
+      final DateTime? selectedPeriod = LedgerMath.resolveRecordPeriod(
+        availablePeriods,
+        month: _month,
+        year: _year,
+      );
+      final int selectedMonth = selectedPeriod?.month ?? _month;
+      final int selectedYear = selectedPeriod?.year ?? _year;
       final List<Map<String, dynamic>> records =
-          _rows(profile['records'])
+          allRecords
               .where(
                 (Map<String, dynamic> row) =>
-                    LedgerMath.inMonth(row, _month, _year),
+                    LedgerMath.inMonth(row, selectedMonth, selectedYear),
               )
               .toList()
             ..sort(
@@ -4332,8 +4375,8 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
             );
       final MilkTotals totals = LedgerMath.milkTotals(
         profile,
-        month: _month,
-        year: _year,
+        month: selectedMonth,
+        year: selectedYear,
       );
       final Color color = _tone(totals.netAmount);
       return Scaffold(
@@ -4357,8 +4400,9 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                 padding: UIConstants.screenPadding,
                 children: <Widget>[
                   _MonthYearPicker(
-                    month: _month,
-                    year: _year,
+                    month: selectedMonth,
+                    year: selectedYear,
+                    availablePeriods: availablePeriods,
                     onChanged: (int month, int year) => setState(() {
                       _month = month;
                       _year = year;
@@ -4420,7 +4464,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                   if (records.isEmpty)
                     const _EmptyState(
                       Icons.water_drop_outlined,
-                      'No entries for this month',
+                      'No milk entries yet',
                     )
                   else
                     _MilkRecordsTable(
@@ -5628,11 +5672,22 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
         );
       }
       final Map<String, dynamic> profile = _map(database[widget.personName]);
+      final List<Map<String, dynamic>> allRecords = _rows(profile['records']);
+      final List<DateTime> availablePeriods = LedgerMath.recordPeriods(
+        allRecords,
+      );
+      final DateTime? selectedPeriod = LedgerMath.resolveRecordPeriod(
+        availablePeriods,
+        month: _month,
+        year: _year,
+      );
+      final int selectedMonth = selectedPeriod?.month ?? _month;
+      final int selectedYear = selectedPeriod?.year ?? _year;
       final List<Map<String, dynamic>> records =
-          _rows(profile['records'])
+          allRecords
               .where(
                 (Map<String, dynamic> row) =>
-                    LedgerMath.inMonth(row, _month, _year),
+                    LedgerMath.inMonth(row, selectedMonth, selectedYear),
               )
               .toList()
             ..sort(
@@ -5667,8 +5722,9 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                 padding: UIConstants.screenPadding,
                 children: <Widget>[
                   _MonthYearPicker(
-                    month: _month,
-                    year: _year,
+                    month: selectedMonth,
+                    year: selectedYear,
+                    availablePeriods: availablePeriods,
                     onChanged: (int month, int year) => setState(() {
                       _month = month;
                       _year = year;
@@ -5721,7 +5777,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                   if (records.isEmpty)
                     const _EmptyState(
                       Icons.currency_rupee_rounded,
-                      'No salary entries for this month',
+                      'No salary entries yet',
                     )
                   else
                     _LedgerTableCard(
@@ -5993,7 +6049,7 @@ class _CreditScreenState extends State<CreditScreen> {
   }
 }
 
-class CreditDetailScreen extends StatelessWidget {
+class CreditDetailScreen extends StatefulWidget {
   const CreditDetailScreen({
     required this.sync,
     required this.personName,
@@ -6003,14 +6059,22 @@ class CreditDetailScreen extends StatelessWidget {
   final LedgerSyncService sync;
   final String personName;
 
-  Future<void> _addEntry(BuildContext context) async {
+  @override
+  State<CreditDetailScreen> createState() => _CreditDetailScreenState();
+}
+
+class _CreditDetailScreenState extends State<CreditDetailScreen> {
+  int _month = DateTime.now().month;
+  int _year = DateTime.now().year;
+
+  Future<void> _addEntry() async {
     final TextEditingController date = TextEditingController(text: _today());
     final TextEditingController amount = TextEditingController();
     final String? type = await _openSheet<String>(
       context,
       Builder(
         builder: (BuildContext sheetContext) => _SheetFrame(
-          title: '$personName Credit Entry',
+          title: '${widget.personName} Credit Entry',
           children: <Widget>[
             _DateField(controller: date),
             const SizedBox(height: 12),
@@ -6078,18 +6142,25 @@ class CreditDetailScreen extends StatelessWidget {
     final String id = _newId('udh');
     await _runMutation(
       context,
-      () => sync.write('udharDB/$id', <String, dynamic>{
+      () => widget.sync.write('udharDB/$id', <String, dynamic>{
         'id': id,
         'date': entryDate,
-        'name': personName,
+        'name': widget.personName,
         'amount': entryAmount,
         'type': type,
       }, reason: 'credit-entry-save'),
       type == 'credit' ? 'Given entry saved!' : 'Taken entry saved!',
     );
+    final DateTime parsed = LedgerMath.strictDate(entryDate)!;
+    if (mounted) {
+      setState(() {
+        _month = parsed.month;
+        _year = parsed.year;
+      });
+    }
   }
 
-  Future<void> _deleteEntry(BuildContext context, String id) async {
+  Future<void> _deleteEntry(String id) async {
     if (!await _confirm(
       context,
       'Delete credit entry?',
@@ -6100,18 +6171,16 @@ class CreditDetailScreen extends StatelessWidget {
     if (!context.mounted) return;
     await _runMutation(
       context,
-      () => sync.write('udharDB/$id', null, reason: 'credit-entry-delete'),
+      () =>
+          widget.sync.write('udharDB/$id', null, reason: 'credit-entry-delete'),
       'Entry deleted!',
     );
   }
 
-  Future<void> _deleteProfile(
-    BuildContext context,
-    List<Map<String, dynamic>> records,
-  ) async {
+  Future<void> _deleteProfile(List<Map<String, dynamic>> records) async {
     if (!await _confirm(
       context,
-      'Delete $personName?',
+      'Delete ${widget.personName}?',
       'Every credit entry for this person will be permanently deleted.',
     )) {
       return;
@@ -6123,7 +6192,7 @@ class CreditDetailScreen extends StatelessWidget {
     };
     try {
       if (deletes.isNotEmpty) {
-        await sync.writeBatch(deletes, reason: 'credit-profile-delete');
+        await widget.sync.writeBatch(deletes, reason: 'credit-profile-delete');
       }
       if (context.mounted) Navigator.pop(context);
     } catch (error) {
@@ -6133,13 +6202,30 @@ class CreditDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: sync,
+    animation: widget.sync,
     builder: (BuildContext context, Widget? child) {
-      final List<Map<String, dynamic>> records =
-          _rows(sync.state['udharDB'])
+      final List<Map<String, dynamic>> allRecords =
+          _rows(widget.sync.state['udharDB'])
               .where(
                 (Map<String, dynamic> row) =>
-                    LedgerMath.cleanName(row['name']) == personName,
+                    LedgerMath.cleanName(row['name']) == widget.personName,
+              )
+              .toList();
+      final List<DateTime> availablePeriods = LedgerMath.recordPeriods(
+        allRecords,
+      );
+      final DateTime? selectedPeriod = LedgerMath.resolveRecordPeriod(
+        availablePeriods,
+        month: _month,
+        year: _year,
+      );
+      final int selectedMonth = selectedPeriod?.month ?? _month;
+      final int selectedYear = selectedPeriod?.year ?? _year;
+      final List<Map<String, dynamic>> records =
+          allRecords
+              .where(
+                (Map<String, dynamic> row) =>
+                    LedgerMath.inMonth(row, selectedMonth, selectedYear),
               )
               .toList()
             ..sort(
@@ -6157,13 +6243,13 @@ class CreditDetailScreen extends StatelessWidget {
           children: <Widget>[
             _ScreenHeader(
               leading: const _BackCircle(),
-              title: personName,
+              title: widget.personName,
               color: color,
               actions: <Widget>[
                 _DeleteActionButton(
                   padding: const EdgeInsets.only(left: 6),
                   semanticLabel: 'Delete credit profile',
-                  onTap: () => unawaited(_deleteProfile(context, records)),
+                  onTap: () => unawaited(_deleteProfile(allRecords)),
                 ),
               ],
             ),
@@ -6172,6 +6258,16 @@ class CreditDetailScreen extends StatelessWidget {
                 physics: const BouncingScrollPhysics(),
                 padding: UIConstants.screenPadding,
                 children: <Widget>[
+                  _MonthYearPicker(
+                    month: selectedMonth,
+                    year: selectedYear,
+                    availablePeriods: availablePeriods,
+                    onChanged: (int month, int year) => setState(() {
+                      _month = month;
+                      _year = year;
+                    }),
+                  ),
+                  const SizedBox(height: 16),
                   _AmountHero(
                     label: net > 0
                         ? 'To Receive'
@@ -6183,7 +6279,7 @@ class CreditDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   _SectionTitle(
-                    'All Entries',
+                    'Credit Entries',
                     color: appleBlue,
                     actions: <Widget>[
                       _SoftShareButton(
@@ -6192,7 +6288,7 @@ class CreditDetailScreen extends StatelessWidget {
                         color: appleBlue,
                         onTap: () => unawaited(
                           _ExportService.sharePdf(
-                            '$personName Credit Ledger',
+                            '${widget.personName} Credit Ledger',
                             <String>['Date', 'Type', 'Amount'],
                             records
                                 .map(
@@ -6213,14 +6309,14 @@ class CreditDetailScreen extends StatelessWidget {
                         label: 'Add',
                         icon: Icons.add_rounded,
                         color: appleGreen,
-                        onTap: () => unawaited(_addEntry(context)),
+                        onTap: () => unawaited(_addEntry()),
                       ),
                     ],
                   ),
                   if (records.isEmpty)
                     const _EmptyState(
                       Icons.account_balance_wallet_outlined,
-                      'No entries found',
+                      'No credit entries yet',
                     )
                   else
                     _LedgerTableCard(
@@ -6242,7 +6338,7 @@ class CreditDetailScreen extends StatelessWidget {
                             ),
                           ],
                           onDelete: () =>
-                              unawaited(_deleteEntry(context, '${row['id']}')),
+                              unawaited(_deleteEntry('${row['id']}')),
                           semanticLabel:
                               'Delete ${_displayDate(row['date'])} credit entry',
                         );
@@ -6384,7 +6480,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     for (final Map<String, dynamic> row in _rows(
       widget.sync.state['expenseDB'],
     )) {
-      if (!LedgerMath.inMonth(row, now.month, now.year)) continue;
       final String name = _cleanKey(row['category']).isEmpty
           ? 'Other'
           : _cleanKey(row['category']);
@@ -6392,7 +6487,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         name,
         () => _ExpenseGroup(name),
       );
-      group.total += LedgerMath.number(row['amount']).abs();
+      if (LedgerMath.inMonth(row, now.month, now.year)) {
+        group.total += LedgerMath.number(row['amount']).abs();
+      }
       final String rowDate = '${row['date'] ?? ''}';
       if (rowDate.compareTo(group.lastDate) > 0) group.lastDate = rowDate;
     }
@@ -6446,10 +6543,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 ...groups.map(
                   (_ExpenseGroup group) => _ListCard(
                     title: group.category,
-                    subtitle: 'Last entry ${_displayDate(group.lastDate)}',
+                    subtitle: group.total > 0
+                        ? 'This month • Last ${_displayDate(group.lastDate)}'
+                        : 'No expense this month • Last ${_displayDate(group.lastDate)}',
                     icon: premiumExpenseIcon,
                     color: semanticRed,
-                    trailing: '-${_money(group.total)}',
+                    trailing: group.total > 0 ? '-${_money(group.total)}' : '—',
                     onTap: () => Navigator.of(context).push(
                       _premiumRoute<void>(
                         ExpenseDetailScreen(
@@ -6608,11 +6707,21 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                     widget.category.toLowerCase(),
               )
               .toList();
+      final List<DateTime> availablePeriods = LedgerMath.recordPeriods(
+        allRecords,
+      );
+      final DateTime? selectedPeriod = LedgerMath.resolveRecordPeriod(
+        availablePeriods,
+        month: _month,
+        year: _year,
+      );
+      final int selectedMonth = selectedPeriod?.month ?? _month;
+      final int selectedYear = selectedPeriod?.year ?? _year;
       final List<Map<String, dynamic>> records =
           allRecords
               .where(
                 (Map<String, dynamic> row) =>
-                    LedgerMath.inMonth(row, _month, _year),
+                    LedgerMath.inMonth(row, selectedMonth, selectedYear),
               )
               .toList()
             ..sort(
@@ -6646,8 +6755,9 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                 padding: UIConstants.screenPadding,
                 children: <Widget>[
                   _MonthYearPicker(
-                    month: _month,
-                    year: _year,
+                    month: selectedMonth,
+                    year: selectedYear,
+                    availablePeriods: availablePeriods,
                     onChanged: (int month, int year) => setState(() {
                       _month = month;
                       _year = year;
@@ -6695,7 +6805,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                   if (records.isEmpty)
                     const _EmptyState(
                       premiumExpenseIcon,
-                      'No expenses for this month',
+                      'No expense entries yet',
                     )
                   else
                     _LedgerTableCard(

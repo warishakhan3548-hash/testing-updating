@@ -525,6 +525,44 @@ class LedgerMath {
     return parsed != null && parsed.month == month && parsed.year == year;
   }
 
+  /// Returns only the distinct year/month pairs that contain a valid record.
+  /// The newest period is first so callers have a deterministic fallback when
+  /// the requested period is empty or its final record has just been deleted.
+  static List<DateTime> recordPeriods(dynamic records) {
+    final Map<int, DateTime> periods = <int, DateTime>{};
+    final Iterable<dynamic> source = records is List
+        ? records
+        : LedgerCodec.canonicalList(records);
+    for (final dynamic value in source) {
+      if (value is! Map) continue;
+      final Map<String, dynamic> row = LedgerCodec.objectMap(value);
+      final DateTime? parsed = date(row['date']);
+      if (parsed == null) continue;
+      final int key = parsed.year * 100 + parsed.month;
+      periods[key] = DateTime(parsed.year, parsed.month);
+    }
+    final List<DateTime> result = periods.values.toList()
+      ..sort((DateTime a, DateTime b) => b.compareTo(a));
+    return result;
+  }
+
+  /// Keeps the requested period when it contains data. Otherwise it stays in
+  /// the requested year when possible, then falls back to the latest period.
+  /// No synthetic empty period is returned.
+  static DateTime? resolveRecordPeriod(
+    List<DateTime> periods, {
+    required int month,
+    required int year,
+  }) {
+    for (final DateTime period in periods) {
+      if (period.month == month && period.year == year) return period;
+    }
+    for (final DateTime period in periods) {
+      if (period.year == year) return period;
+    }
+    return periods.isEmpty ? null : periods.first;
+  }
+
   static String milkFlow(dynamic record, dynamic customer) {
     final Map<String, dynamic> row = LedgerCodec.objectMap(record);
     final Map<String, dynamic> profile = LedgerCodec.objectMap(customer);

@@ -175,6 +175,53 @@ void main() {
   });
 
   group('Ledger calculations', () {
+    test('record periods contain only months with data in newest-first order', () {
+      final List<DateTime> periods = LedgerMath.recordPeriods(
+        <String, dynamic>{
+          'jan': <String, dynamic>{'date': '2026-01-05'},
+          'mar-a': <String, dynamic>{'date': '2026-03-01'},
+          'mar-b': <String, dynamic>{'date': '2026-03-29'},
+          'future': <String, dynamic>{'date': '2035-06-14'},
+          'invalid': <String, dynamic>{'date': 'not-a-date'},
+        },
+      );
+
+      expect(periods, <DateTime>[
+        DateTime(2035, 6),
+        DateTime(2026, 3),
+        DateTime(2026, 1),
+      ]);
+    });
+
+    test('record period selection keeps data periods and falls back safely', () {
+      final List<DateTime> periods = <DateTime>[
+        DateTime(2035, 6),
+        DateTime(2026, 3),
+        DateTime(2026, 1),
+      ];
+
+      expect(
+        LedgerMath.resolveRecordPeriod(periods, month: 3, year: 2026),
+        DateTime(2026, 3),
+      );
+      expect(
+        LedgerMath.resolveRecordPeriod(periods, month: 2, year: 2026),
+        DateTime(2026, 3),
+      );
+      expect(
+        LedgerMath.resolveRecordPeriod(periods, month: 8, year: 2030),
+        DateTime(2035, 6),
+      );
+      expect(
+        LedgerMath.resolveRecordPeriod(
+          const <DateTime>[],
+          month: 8,
+          year: 2026,
+        ),
+        isNull,
+      );
+    });
+
     test('strict input dates reject normalized impossible dates', () {
       expect(LedgerMath.strictDate('2024-02-29'), DateTime(2024, 2, 29));
       expect(LedgerMath.strictDate('2026-02-29'), isNull);
