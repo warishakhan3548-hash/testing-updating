@@ -6,15 +6,24 @@ void main() {
   test('premium micro-aesthetics remain surgical and semantic', () {
     final String source = File('lib/main.dart').readAsStringSync();
 
-    // Three-frequency depth physics: contact, ambient and long falloff.
-    expect(source, contains('spreadRadius: -1.5'));
-    expect(source, contains('blurRadius: 44'));
-    expect(source, contains('withAlpha(dark ? 32 : 8)'));
+    // Multi-frequency depth physics: contact, key, ambient and themed light.
+    expect(source, contains('spreadRadius: -1.25'));
+    expect(source, contains('blurRadius: 52'));
+    expect(source, contains('withAlpha(dark ? 34 : 9)'));
     expect(source, contains("const Color(0xFF172033)"));
+    expect(source, contains('color.computeLuminance()'));
+    expect(source, contains('static List<BoxShadow> pressGlow('));
+    expect(source, contains('final Color? resolvedGlowColor ='));
+    expect(source, contains('shadowColor ?? tintColor ?? accentColor'));
 
-    // Glass keeps a restrained top specular and opposing bottom lowlight.
-    expect(source, contains('Colors.white.withAlpha(dark ? 64 : 176)'));
-    expect(source, contains('Colors.black.withAlpha(dark ? 48 : 10)'));
+    // Glass keeps directional surface light and opposing optical thickness.
+    expect(source, contains('Colors.white.withAlpha(dark ? 15 : 31)'));
+    expect(source, contains('Colors.white.withAlpha(dark ? 82 : 198)'));
+    expect(source, contains('Colors.black.withAlpha(dark ? 58 : 14)'));
+
+    // Base card fills remain byte-for-byte unchanged by the depth treatment.
+    expect(source, contains('Color(0xFAFFFFFF), Color(0xF2FFFFFF)'));
+    expect(source, contains('Color(0xF0121826), Color(0xE3080C18)'));
 
     // The icon family stays semantic, optically consistent and platform-native.
     expect(source, contains('Icons.share_rounded'));
@@ -61,6 +70,9 @@ void main() {
     expect(source, contains('offset: Offset(0, motion * 1.1)'));
     expect(source, contains('scale: 1 - (motion * .018)'));
     expect(source, contains('MediaQuery.of(context).disableAnimations'));
+    expect(source, contains('this.feedbackColor'));
+    expect(source, contains('feedbackColor: color'));
+    expect(source, contains('feedbackColor: diaryOrange'));
 
     // The dashboard AI entry reads as a real, labeled premium control.
     expect(source, contains('class _AiHubButton extends StatelessWidget'));

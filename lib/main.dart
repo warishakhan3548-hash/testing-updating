@@ -104,29 +104,44 @@ abstract final class AppStyles {
     final bool dark = isDark(context);
     final Color depthInk = dark ? Colors.black : const Color(0xFF172033);
     return <BoxShadow>[
-      // Tight contact occlusion makes the surface feel physically grounded.
+      // A tight contact layer anchors the card without flattening its edges.
       BoxShadow(
-        color: depthInk.withAlpha(dark ? 52 : 14),
-        blurRadius: 4,
-        spreadRadius: -1.5,
-        offset: const Offset(0, 2),
+        color: depthInk.withAlpha(dark ? 68 : 18),
+        blurRadius: 5,
+        spreadRadius: -1.25,
+        offset: const Offset(0, 2.5),
       ),
-      // The key shadow defines the card edge without a heavy grey halo.
+      // The directional key shadow establishes a clear virtual light source.
       BoxShadow(
-        color: depthInk.withAlpha(dark ? 42 : 11),
-        blurRadius: 18,
-        spreadRadius: -5.5,
-        offset: const Offset(0, 7),
+        color: depthInk.withAlpha(dark ? 48 : 14),
+        blurRadius: 22,
+        spreadRadius: -6,
+        offset: const Offset(0, 9),
       ),
-      // A broad ambient falloff supplies calm lift on the app canvas.
+      // The very soft ambient layer creates lift without a grey muddy ring.
       BoxShadow(
-        color: depthInk.withAlpha(dark ? 32 : 8),
-        blurRadius: 44,
-        spreadRadius: -11,
-        offset: const Offset(0, 16),
+        color: depthInk.withAlpha(dark ? 34 : 9),
+        blurRadius: 52,
+        spreadRadius: -12,
+        offset: const Offset(0, 20),
       ),
     ];
   }
+
+  // Equal raw opacity makes yellow/green glows look much louder than blue or
+  // purple. Luminance compensation keeps every module equally premium.
+  static int _perceptualAlpha(Color color, int alpha) {
+    final double gain = (1.04 - color.computeLuminance() * .26)
+        .clamp(.78, 1.04)
+        .toDouble();
+    return (alpha * gain).round().clamp(0, 255).toInt();
+  }
+
+  static Color _ambientHue(BuildContext context, Color color) => Color.lerp(
+    color,
+    isDark(context) ? Colors.white : const Color(0xFF172033),
+    isDark(context) ? .055 : .075,
+  )!;
 
   static List<BoxShadow> glow(
     BuildContext context,
@@ -134,20 +149,40 @@ abstract final class AppStyles {
     bool strong = false,
   }) {
     final bool dark = isDark(context);
+    final Color ambient = _ambientHue(context, color);
     return <BoxShadow>[
-      // Environmental color spill, deliberately softer than the neutral depth.
+      // A centered halo reads as light radiating from behind the card.
       BoxShadow(
-        color: color.withAlpha(strong ? (dark ? 38 : 24) : (dark ? 28 : 17)),
-        blurRadius: strong ? 34 : 26,
+        color: ambient.withAlpha(
+          _perceptualAlpha(
+            ambient,
+            strong ? (dark ? 50 : 30) : (dark ? 38 : 23),
+          ),
+        ),
+        blurRadius: strong ? 42 : 34,
+        spreadRadius: strong ? -9 : -8,
+        offset: Offset(0, strong ? 4 : 3),
+      ),
+      // A lower color pool reinforces elevation and the top-left light angle.
+      BoxShadow(
+        color: ambient.withAlpha(
+          _perceptualAlpha(
+            ambient,
+            strong ? (dark ? 30 : 19) : (dark ? 23 : 14),
+          ),
+        ),
+        blurRadius: strong ? 32 : 27,
         spreadRadius: strong ? -8 : -7,
-        offset: Offset(0, strong ? 10 : 8),
+        offset: Offset(0, strong ? 15 : 12),
       ),
       if (strong)
         BoxShadow(
-          color: color.withAlpha(dark ? 17 : 10),
-          blurRadius: 58,
-          spreadRadius: -18,
-          offset: const Offset(0, 22),
+          color: ambient.withAlpha(
+            _perceptualAlpha(ambient, dark ? 16 : 10),
+          ),
+          blurRadius: 68,
+          spreadRadius: -19,
+          offset: const Offset(0, 25),
         ),
       ...surfaceDepth(context),
     ];
@@ -155,20 +190,51 @@ abstract final class AppStyles {
 
   static List<BoxShadow> railDepth(BuildContext context, Color color) {
     final bool dark = isDark(context);
+    final Color ambient = _ambientHue(context, color);
     return <BoxShadow>[
+      // The broad halo belongs to the whole card, not only its accent rail.
       BoxShadow(
-        color: color.withAlpha(dark ? 34 : 22),
-        blurRadius: 22,
-        spreadRadius: -6,
-        offset: const Offset(-2, 1),
+        color: ambient.withAlpha(
+          _perceptualAlpha(ambient, dark ? 42 : 27),
+        ),
+        blurRadius: 38,
+        spreadRadius: -9,
+        offset: const Offset(0, 4),
       ),
       BoxShadow(
-        color: color.withAlpha(dark ? 19 : 12),
-        blurRadius: 42,
-        spreadRadius: -12,
-        offset: const Offset(0, 14),
+        color: ambient.withAlpha(
+          _perceptualAlpha(ambient, dark ? 27 : 17),
+        ),
+        blurRadius: 26,
+        spreadRadius: -7,
+        offset: const Offset(-2, 12),
       ),
       ...surfaceDepth(context),
+    ];
+  }
+
+  static List<BoxShadow> pressGlow(
+    BuildContext context,
+    Color color,
+    double progress,
+  ) {
+    final bool dark = isDark(context);
+    final Color ambient = _ambientHue(context, color);
+    final double eased = Curves.easeOutCubic.transform(
+      progress.clamp(0.0, 1.0).toDouble(),
+    );
+    return <BoxShadow>[
+      BoxShadow(
+        color: ambient.withAlpha(
+          _perceptualAlpha(
+            ambient,
+            (eased * (dark ? 55 : 38)).round(),
+          ),
+        ),
+        blurRadius: 40 - eased * 9,
+        spreadRadius: -10 + eased * 3,
+        offset: Offset(0, 8 - eased * 2),
+      ),
     ];
   }
 
@@ -1408,12 +1474,14 @@ class _Pressable extends StatefulWidget {
     required this.child,
     required this.onTap,
     this.borderRadius,
+    this.feedbackColor,
     this.semanticLabel,
   });
 
   final Widget child;
   final VoidCallback? onTap;
   final BorderRadius? borderRadius;
+  final Color? feedbackColor;
   final String? semanticLabel;
 
   @override
@@ -1500,6 +1568,22 @@ class _PressableState extends State<_Pressable>
               child: Stack(
                 clipBehavior: Clip.none,
                 children: <Widget>[
+                  if (widget.feedbackColor != null)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius:
+                                widget.borderRadius ?? BorderRadius.zero,
+                            boxShadow: AppStyles.pressGlow(
+                              context,
+                              widget.feedbackColor!,
+                              pressed,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   child!,
                   Positioned.fill(
                     child: IgnorePointer(
@@ -1575,10 +1659,15 @@ class _GlassCard extends StatelessWidget {
     final Border border = borderColor != null
         ? Border.all(color: borderColor!, width: UIConstants.borderWidth)
         : AppStyles.glassBorder(context, accent: accentColor);
-    final List<BoxShadow> shadows = shadowColor != null
+    final Color? resolvedGlowColor = shadowColor ?? tintColor ?? accentColor;
+    final List<BoxShadow> shadows = resolvedGlowColor != null
         ? accentColor != null
-              ? AppStyles.railDepth(context, shadowColor!)
-              : AppStyles.glow(context, shadowColor!, strong: tintColor != null)
+              ? AppStyles.railDepth(context, resolvedGlowColor)
+              : AppStyles.glow(
+                  context,
+                  resolvedGlowColor,
+                  strong: tintColor != null,
+                )
         : AppStyles.surfaceDepth(context);
     final BorderRadius radius = BorderRadius.circular(borderRadius);
     return DecoratedBox(
@@ -1597,20 +1686,41 @@ class _GlassCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: <Widget>[
+            // Directional light and opposing shade add curvature while the
+            // underlying card fill and semantic color remain unchanged.
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      stops: const <double>[0, .32, .68, 1],
+                      colors: <Color>[
+                        Colors.white.withAlpha(dark ? 15 : 31),
+                        Colors.transparent,
+                        Colors.transparent,
+                        Colors.black.withAlpha(dark ? 22 : 7),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
             // Specular highlight: strongest near the top-center and feathered
             // toward the rounded corners so the card reads as a physical layer.
             Positioned(
               left: math.max(10, borderRadius * .48),
               right: math.max(10, borderRadius * .48),
               top: 0,
-              height: 1,
+              height: 1.35,
               child: IgnorePointer(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: <Color>[
                         Colors.transparent,
-                        Colors.white.withAlpha(dark ? 64 : 176),
+                        Colors.white.withAlpha(dark ? 82 : 198),
                         Colors.transparent,
                       ],
                     ),
@@ -1624,14 +1734,14 @@ class _GlassCard extends StatelessWidget {
               left: math.max(12, borderRadius * .55),
               right: math.max(12, borderRadius * .55),
               bottom: 0,
-              height: 1,
+              height: 1.25,
               child: IgnorePointer(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: <Color>[
                         Colors.transparent,
-                        Colors.black.withAlpha(dark ? 48 : 10),
+                        Colors.black.withAlpha(dark ? 58 : 14),
                         Colors.transparent,
                       ],
                     ),
@@ -2378,6 +2488,7 @@ class _ListCard extends StatelessWidget {
     child: _Pressable(
       onTap: onTap,
       borderRadius: BorderRadius.circular(UIConstants.cardRadius),
+      feedbackColor: color,
       child: _GlassCard(
         borderRadius: UIConstants.cardRadius,
         padding: UIConstants.compactCardPadding,
@@ -3160,7 +3271,9 @@ class DashboardScreen extends StatelessWidget {
                   onTap: () => Navigator.of(context)
                       .push(_premiumRoute<void>(PartyLedgerScreen(sync: sync))),
                   borderRadius: BorderRadius.circular(24),
+                  feedbackColor: const Color(0xFF9333EA),
                   child: const _GlassCard(
+                    shadowColor: Color(0xFF9333EA),
                     child: Row(
                       children: <Widget>[
                         _LedgerIcon(
@@ -6587,6 +6700,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
                         ),
                       ),
                       borderRadius: BorderRadius.circular(23),
+                      feedbackColor: diaryOrange,
                       child: _GlassCard(
                         borderRadius: 23,
                         accentColor: diaryOrange,
@@ -7370,6 +7484,7 @@ class _ExternalAiConnectPrelude extends StatelessWidget {
           semanticLabel: 'Connect with Other AI',
           onTap: onTap,
           borderRadius: BorderRadius.circular(22),
+          feedbackColor: purple,
           child: Container(
             constraints: const BoxConstraints(minHeight: 96),
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
