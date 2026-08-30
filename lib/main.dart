@@ -40,6 +40,11 @@ const Color exportIndigo = Color(0xFF5E5CE6);
 const Color themeAmber = Color(0xFFFF9F0A);
 const Color themeIndigo = Color(0xFF6366F1);
 const Color sessionSlate = Color(0xFF64748B);
+const IconData premiumHomeIcon = Icons.space_dashboard_rounded;
+const IconData premiumHomeInactiveIcon = Icons.space_dashboard_outlined;
+const IconData premiumExpenseIcon = Icons.shopping_bag_rounded;
+const IconData premiumExpenseInactiveIcon = Icons.shopping_bag_outlined;
+const IconData premiumDeleteIcon = Icons.delete_outline_rounded;
 
 abstract final class UIConstants {
   static const double minTapTarget = 48;
@@ -867,14 +872,14 @@ class _TabSpec {
 }
 
 const List<_TabSpec> _tabs = <_TabSpec>[
-  _TabSpec('Home', Icons.home_rounded, Icons.home_outlined),
+  _TabSpec('Home', premiumHomeIcon, premiumHomeInactiveIcon),
   _TabSpec('Milk', Icons.water_drop_rounded, Icons.water_drop_outlined),
   _TabSpec('Credit', Icons.handshake_rounded, Icons.handshake_outlined),
   _TabSpec(
     'Expenses',
-    Icons.receipt_long_rounded,
-    Icons.receipt_long_outlined,
-    opticalScale: .95,
+    premiumExpenseIcon,
+    premiumExpenseInactiveIcon,
+    opticalScale: .96,
   ),
   _TabSpec('Salary', Icons.payments_rounded, Icons.payments_outlined),
   _TabSpec(
@@ -1906,6 +1911,77 @@ class _CircleAction extends StatelessWidget {
   }
 }
 
+class _DeleteActionButton extends StatelessWidget {
+  const _DeleteActionButton({
+    required this.onTap,
+    required this.semanticLabel,
+    this.padding = EdgeInsets.zero,
+  });
+
+  final VoidCallback onTap;
+  final String semanticLabel;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    const BorderRadius radius = BorderRadius.all(Radius.circular(15));
+    return Padding(
+      padding: padding,
+      child: _Pressable(
+        onTap: onTap,
+        semanticLabel: semanticLabel,
+        borderRadius: radius,
+        child: Container(
+          width: UIConstants.minTapTarget,
+          height: UIConstants.minTapTarget,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[
+                dark ? appleRed.withAlpha(34) : Colors.white,
+                appleRed.withAlpha(dark ? 25 : 21),
+              ],
+            ),
+            borderRadius: radius,
+            border: Border.all(color: appleRed.withAlpha(dark ? 62 : 46)),
+            boxShadow: AppStyles.jewelDepth(context, appleRed),
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              Positioned(
+                left: 13,
+                right: 13,
+                top: 0,
+                height: 1,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(dark ? 42 : 150),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const Center(
+                child: Icon(
+                  premiumDeleteIcon,
+                  color: appleRed,
+                  size: 19.5,
+                  shadows: <Shadow>[
+                    Shadow(color: Color(0x2EFF3B30), blurRadius: 6),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BackCircle extends StatelessWidget {
   const _BackCircle();
 
@@ -2389,35 +2465,9 @@ class _ListCard extends StatelessWidget {
             if (onDelete != null)
               Padding(
                 padding: const EdgeInsets.only(left: 9),
-                child: _Pressable(
-                  onTap: onDelete,
+                child: _DeleteActionButton(
+                  onTap: onDelete!,
                   semanticLabel: 'Delete $title',
-                  borderRadius: BorderRadius.circular(
-                    UIConstants.compactRadius,
-                  ),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: appleRed.withAlpha(24),
-                      borderRadius: BorderRadius.circular(
-                        UIConstants.compactRadius,
-                      ),
-                      border: Border.fromBorderSide(
-                        AppStyles.hairline(
-                          context,
-                          accent: appleRed,
-                          active: true,
-                        ),
-                      ),
-                      boxShadow: AppStyles.glow(context, appleRed),
-                    ),
-                    child: const Icon(
-                      Icons.delete_outline_rounded,
-                      color: appleRed,
-                      size: 20,
-                    ),
-                  ),
                 ),
               )
             else
@@ -2889,6 +2939,95 @@ PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
       },
 );
 
+class _AiHubButton extends StatelessWidget {
+  const _AiHubButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    const BorderRadius radius = BorderRadius.all(Radius.circular(20));
+    return _Pressable(
+      onTap: onTap,
+      semanticLabel: 'Open AI Hub',
+      borderRadius: radius,
+      child: Container(
+        width: 68,
+        height: 40,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[
+              Color(0xFF397BFF),
+              Color(0xFF7957E8),
+              Color(0xFFB64FD2),
+            ],
+          ),
+          borderRadius: radius,
+          border: Border.all(
+            color: Colors.white.withAlpha(dark ? 48 : 124),
+            width: .8,
+          ),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: const Color(0xFF7957E8).withAlpha(dark ? 76 : 54),
+              blurRadius: 18,
+              spreadRadius: -5,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: Colors.black.withAlpha(dark ? 34 : 12),
+              blurRadius: 6,
+              spreadRadius: -2,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            Positioned(
+              left: 16,
+              right: 16,
+              top: 0,
+              height: 1,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(150),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.white,
+                  size: 15,
+                ),
+                SizedBox(width: 5),
+                Text(
+                  'AI HUB',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .35,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({required this.sync, super.key});
 
@@ -2933,33 +3072,10 @@ class DashboardScreen extends StatelessWidget {
         _ScreenHeader(
           title: 'Dashboard',
           subtitle: 'AARISH DAIRY',
-          subtitleTrailing: _Pressable(
-            onTap: () =>
-                Navigator.of(context)
-                    .push(_premiumRoute<void>(AiHubScreen(sync: sync))),
-            semanticLabel: 'AI Hub',
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: 34,
-              height: 28,
-              child: ShaderMask(
-                blendMode: BlendMode.srcIn,
-                shaderCallback: (Rect bounds) => const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: <Color>[
-                    Color(0xFF4285F4),
-                    Color(0xFF9B72CB),
-                    Color(0xFFD96570),
-                  ],
-                ).createShader(bounds),
-                child: const Icon(
-                  Icons.auto_awesome_rounded,
-                  color: Colors.white,
-                  size: 27,
-                ),
-              ),
-            ),
+          subtitleTrailing: _AiHubButton(
+            onTap: () => Navigator.of(
+              context,
+            ).push(_premiumRoute<void>(AiHubScreen(sync: sync))),
           ),
           actions: <Widget>[
             _CircleAction(
@@ -3026,7 +3142,7 @@ class DashboardScreen extends StatelessWidget {
                       color: appleRed,
                     ),
                     _MetricCard(
-                      icon: Icons.receipt_long_rounded,
+                      icon: premiumExpenseIcon,
                       label: 'Month Expense',
                       value: _money(totals.monthExpense),
                       color: diaryOrange,
@@ -3910,9 +4026,8 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
               title: widget.customerName,
               color: color,
               actions: <Widget>[
-                _CircleAction(
-                  icon: Icons.delete_forever_rounded,
-                  color: appleRed,
+                _DeleteActionButton(
+                  padding: const EdgeInsets.only(left: 6),
                   semanticLabel: 'Delete customer and milk records',
                   onTap: () => unawaited(_deleteProfile()),
                 ),
@@ -4296,7 +4411,7 @@ class _MilkRecordsTable extends StatelessWidget {
                       flex: 21,
                       child: _MilkTableHeader('TOTAL', compact: compact),
                     ),
-                    SizedBox(width: compact ? 44 : 50),
+                    const SizedBox(width: UIConstants.minTapTarget),
                   ],
                 ),
               ),
@@ -4459,35 +4574,12 @@ class _MilkTableRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: compact ? 44 : 50,
+            width: UIConstants.minTapTarget,
             child: Align(
               alignment: Alignment.centerRight,
-              child: _Pressable(
+              child: _DeleteActionButton(
                 onTap: () => onDelete('${row['id']}'),
                 semanticLabel: 'Delete ${_displayDate(row['date'])} milk entry',
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: <Color>[
-                        dark ? appleRed.withAlpha(29) : Colors.white,
-                        appleRed.withAlpha(dark ? 23 : 20),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: appleRed.withAlpha(42)),
-                    boxShadow: AppStyles.jewelDepth(context, appleRed),
-                  ),
-                  child: const Icon(
-                    Icons.delete_outline_rounded,
-                    color: appleRed,
-                    size: 18.5,
-                  ),
-                ),
               ),
             ),
           ),
@@ -4662,7 +4754,7 @@ class _LedgerTableCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                    SizedBox(width: compact ? 46 : 52),
+                    const SizedBox(width: UIConstants.minTapTarget),
                   ],
                 ),
               ),
@@ -4686,7 +4778,7 @@ class _LedgerTableCard extends StatelessWidget {
                           child: rows[rowIndex].cells[i],
                         ),
                       SizedBox(
-                        width: compact ? 46 : 52,
+                        width: UIConstants.minTapTarget,
                         child: Align(
                           alignment: Alignment.centerRight,
                           child: _LedgerDeleteAction(
@@ -4713,37 +4805,10 @@ class _LedgerDeleteAction extends StatelessWidget {
   final String semanticLabel;
 
   @override
-  Widget build(BuildContext context) {
-    final bool dark = Theme.of(context).brightness == Brightness.dark;
-    const double size = UIConstants.minTapTarget;
-    return _Pressable(
-      onTap: onTap,
-      semanticLabel: semanticLabel,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: <Color>[
-              dark ? appleRed.withAlpha(29) : Colors.white,
-              appleRed.withAlpha(dark ? 23 : 20),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: appleRed.withAlpha(42)),
-          boxShadow: AppStyles.jewelDepth(context, appleRed),
-        ),
-        child: const Icon(
-          Icons.delete_outline_rounded,
-          color: appleRed,
-          size: 18.5,
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _DeleteActionButton(
+    onTap: onTap,
+    semanticLabel: semanticLabel,
+  );
 }
 
 class _LedgerDateCell extends StatelessWidget {
@@ -5273,9 +5338,8 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
               title: widget.personName,
               color: color,
               actions: <Widget>[
-                _CircleAction(
-                  icon: Icons.delete_forever_rounded,
-                  color: appleRed,
+                _DeleteActionButton(
+                  padding: const EdgeInsets.only(left: 6),
                   semanticLabel: 'Delete salary profile',
                   onTap: () => unawaited(_deleteProfile()),
                 ),
@@ -5780,9 +5844,8 @@ class CreditDetailScreen extends StatelessWidget {
               title: personName,
               color: color,
               actions: <Widget>[
-                _CircleAction(
-                  icon: Icons.delete_forever_rounded,
-                  color: appleRed,
+                _DeleteActionButton(
+                  padding: const EdgeInsets.only(left: 6),
                   semanticLabel: 'Delete credit profile',
                   onTap: () => unawaited(_deleteProfile(context, records)),
                 ),
@@ -6063,7 +6126,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               const _SectionTitle('Categories'),
               if (groups.isEmpty)
                 const _EmptyState(
-                  Icons.receipt_long_rounded,
+                  premiumExpenseIcon,
                   'No expenses this month',
                 )
               else
@@ -6071,7 +6134,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                   (_ExpenseGroup group) => _ListCard(
                     title: group.category,
                     subtitle: 'Last entry ${_displayDate(group.lastDate)}',
-                    icon: Icons.receipt_long_rounded,
+                    icon: premiumExpenseIcon,
                     color: semanticRed,
                     trailing: '-${_money(group.total)}',
                     onTap: () => Navigator.of(context).push(
@@ -6257,9 +6320,8 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
               title: widget.category,
               color: detailColor,
               actions: <Widget>[
-                _CircleAction(
-                  icon: Icons.delete_forever_rounded,
-                  color: appleRed,
+                _DeleteActionButton(
+                  padding: const EdgeInsets.only(left: 6),
                   semanticLabel: 'Delete expense category',
                   onTap: () => unawaited(_deleteCategory(allRecords)),
                 ),
@@ -6319,7 +6381,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                   ),
                   if (records.isEmpty)
                     const _EmptyState(
-                      Icons.receipt_long_rounded,
+                      premiumExpenseIcon,
                       'No expenses for this month',
                     )
                   else
@@ -6671,9 +6733,8 @@ class DiaryDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                _CircleAction(
-                  icon: Icons.delete_forever_rounded,
-                  color: appleRed,
+                _DeleteActionButton(
+                  padding: const EdgeInsets.only(left: 6),
                   semanticLabel: 'Delete diary page',
                   onTap: () => unawaited(_delete(context)),
                 ),
@@ -7121,9 +7182,8 @@ class BusinessDetailScreen extends StatelessWidget {
                   icon: Icons.add_rounded,
                   onTap: () => unawaited(_addEntry(context)),
                 ),
-                _CircleAction(
-                  icon: Icons.delete_forever_rounded,
-                  color: appleRed,
+                _DeleteActionButton(
+                  padding: const EdgeInsets.only(left: 6),
                   semanticLabel: 'Delete business account',
                   onTap: () => unawaited(_deleteProject(context)),
                 ),
@@ -8530,7 +8590,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
                     final IconData icon = switch (item.operation) {
                       AiReviewOperation.create => Icons.add_rounded,
                       AiReviewOperation.update => Icons.edit_rounded,
-                      AiReviewOperation.delete => Icons.delete_outline_rounded,
+                      AiReviewOperation.delete => premiumDeleteIcon,
                     };
                     return Container(
                       padding: const EdgeInsets.all(12),
@@ -8960,7 +9020,7 @@ const List<_ExportScopeSpec> _exportScopes = <_ExportScopeSpec>[
   _ExportScopeSpec(
     scope: _ExportScope.expenses,
     label: 'Expenses',
-    icon: Icons.receipt_long_rounded,
+    icon: premiumExpenseIcon,
     color: appleRed,
   ),
   _ExportScopeSpec(

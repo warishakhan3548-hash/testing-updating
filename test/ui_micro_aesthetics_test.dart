@@ -30,13 +30,23 @@ void main() {
     expect(source, contains('Icons.storefront_outlined'));
     expect(source, contains('Icons.picture_as_pdf_rounded'));
     expect(source, contains('color: exportIndigo'));
+    expect(source, contains('Icons.space_dashboard_rounded'));
+    expect(source, contains('Icons.space_dashboard_outlined'));
+    expect(source, contains('Icons.shopping_bag_rounded'));
+    expect(source, contains('Icons.shopping_bag_outlined'));
+    expect(source, isNot(contains('Icons.receipt_long_rounded')));
     expect(source, isNot(contains('Icons.ios_share_rounded')));
     expect(source, isNot(contains('Icons.local_drink_rounded')));
     expect(source, isNot(contains('Icons.volunteer_activism_rounded')));
     expect(source, isNot(contains('class _BottomNavGlyphPainter')));
     expect(source, contains('size: micro ? 19 : 21.5'));
-    expect(source, contains('Icons.delete_outline_rounded'));
-    expect(source, contains('Icons.delete_forever_rounded'));
+    expect(source, contains('const IconData premiumDeleteIcon'));
+    expect(source, contains('class _DeleteActionButton extends StatelessWidget'));
+    expect(
+      RegExp(r'Icons\.delete_outline_rounded').allMatches(source),
+      hasLength(1),
+    );
+    expect(source, isNot(contains('Icons.delete_forever_rounded')));
     expect(source, contains('color: appleRed'));
     expect(source, isNot(contains('Icons.delete_rounded')));
     expect(source, contains('this.icon = Icons.add_rounded'));
@@ -51,6 +61,12 @@ void main() {
     expect(source, contains('offset: Offset(0, motion * 1.1)'));
     expect(source, contains('scale: 1 - (motion * .018)'));
     expect(source, contains('MediaQuery.of(context).disableAnimations'));
+
+    // The dashboard AI entry reads as a real, labeled premium control.
+    expect(source, contains('class _AiHubButton extends StatelessWidget'));
+    expect(source, contains("semanticLabel: 'Open AI Hub'"));
+    expect(source, contains("'AI HUB'"));
+    expect(source, contains('Color(0xFF7957E8)'));
 
     // Navigation and pull-to-refresh keep the snappier feedback model.
     expect(source, contains('duration: UIConstants.motion'));
