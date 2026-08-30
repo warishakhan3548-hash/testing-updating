@@ -9,7 +9,9 @@ void main() {
     // Multi-frequency depth physics: contact, key, ambient and themed light.
     expect(source, contains('spreadRadius: -1.25'));
     expect(source, contains('blurRadius: 52'));
-    expect(source, contains('withAlpha(dark ? 34 : 9)'));
+    expect(source, contains('withAlpha(dark ? 76 : 22)'));
+    expect(source, contains('withAlpha(dark ? 56 : 18)'));
+    expect(source, contains('withAlpha(dark ? 40 : 12)'));
     expect(source, contains("const Color(0xFF172033)"));
     expect(source, contains('color.computeLuminance()'));
     expect(source, contains('static List<BoxShadow> pressGlow('));
@@ -19,6 +21,13 @@ void main() {
     expect(source, contains('spreadRadius: strong ? -1.25 : -1.5'));
     expect(source, contains('blurRadius: strong ? 28 : 24'));
     expect(source, contains('spreadRadius: strong ? -7 : -6'));
+
+    // The app mark is the website's exact Font Awesome 6.6 solid leaf path.
+    expect(source, contains('class _FontAwesomeLeafPainter'));
+    expect(source, contains('..moveTo(272, 96)'));
+    expect(source, contains('..cubicTo(455.9, 72.1, 418.7, 96, 376, 96)'));
+    expect(source, contains('dimension: size * .52'));
+    expect(source, isNot(contains('Icons.eco_rounded')));
 
     // Glass uses one continuous clipped face and one foreground edge, avoiding
     // short highlight strips that visually chop rounded corners.

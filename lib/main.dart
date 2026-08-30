@@ -126,21 +126,21 @@ abstract final class AppStyles {
     return <BoxShadow>[
       // A tight contact layer anchors the card without flattening its edges.
       BoxShadow(
-        color: depthInk.withAlpha(dark ? 68 : 18),
+        color: depthInk.withAlpha(dark ? 76 : 22),
         blurRadius: 5,
         spreadRadius: -1.25,
         offset: const Offset(0, 2.5),
       ),
       // The directional key shadow establishes a clear virtual light source.
       BoxShadow(
-        color: depthInk.withAlpha(dark ? 48 : 14),
+        color: depthInk.withAlpha(dark ? 56 : 18),
         blurRadius: 22,
         spreadRadius: -6,
         offset: const Offset(0, 9),
       ),
       // The very soft ambient layer creates lift without a grey muddy ring.
       BoxShadow(
-        color: depthInk.withAlpha(dark ? 34 : 9),
+        color: depthInk.withAlpha(dark ? 40 : 12),
         blurRadius: 52,
         spreadRadius: -12,
         offset: const Offset(0, 20),
@@ -707,8 +707,59 @@ class _AppMark extends StatelessWidget {
         BoxShadow(color: appleBlue.withAlpha(76), blurRadius: 22),
       ],
     ),
-    child: Icon(Icons.eco_rounded, color: appleBlue2, size: size * .52),
+    alignment: Alignment.center,
+    child: SizedBox.square(
+      dimension: size * .52,
+      child: const CustomPaint(painter: _FontAwesomeLeafPainter()),
+    ),
   );
+}
+
+class _FontAwesomeLeafPainter extends CustomPainter {
+  const _FontAwesomeLeafPainter();
+
+  // The reference website uses Font Awesome Free 6.6.0 `fa-solid fa-leaf`.
+  // This is its exact 512 x 512 vector path, kept local so the mark remains
+  // crisp and identical without adding a runtime font or package dependency.
+  // Source: https://fontawesome.com/icons/leaf (CC BY 4.0, Fonticons, Inc.).
+  static final Path _leaf = Path()
+    ..moveTo(272, 96)
+    ..relativeCubicTo(-78.6, 0, -145.1, 51.5, -167.7, 122.5)
+    ..relativeCubicTo(33.6, -17, 71.5, -26.5, 111.7, -26.5)
+    ..relativeLineTo(88, 0)
+    ..relativeCubicTo(8.8, 0, 16, 7.2, 16, 16)
+    ..cubicTo(320, 216.8, 312.8, 224, 304, 224)
+    ..relativeLineTo(-16, 0)
+    ..relativeLineTo(-72, 0)
+    ..relativeCubicTo(-16.6, 0, -32.7, 1.9, -48.3, 5.4)
+    ..relativeCubicTo(-25.9, 5.9, -49.9, 16.4, -71.4, 30.7)
+    ..cubicTo(38.3, 298.8, 0, 364.9, 0, 440)
+    ..relativeLineTo(0, 16)
+    ..relativeCubicTo(0, 13.3, 10.7, 24, 24, 24)
+    ..cubicTo(37.3, 480, 48, 469.3, 48, 456)
+    ..relativeLineTo(0, -16)
+    ..relativeCubicTo(0, -48.7, 20.7, -92.5, 53.8, -123.2)
+    ..cubicTo(121.6, 392.3, 190.3, 448, 272, 448)
+    ..relativeLineTo(1, 0)
+    ..relativeCubicTo(132.1, -.7, 239, -130.9, 239, -291.4)
+    ..relativeCubicTo(0, -42.6, -7.5, -83.1, -21.1, -119.6)
+    ..relativeCubicTo(-2.6, -6.9, -12.7, -6.6, -16.2, -.1)
+    ..cubicTo(455.9, 72.1, 418.7, 96, 376, 96)
+    ..lineTo(272, 96)
+    ..close();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    canvas
+      ..save()
+      ..scale(size.width / 512, size.height / 512)
+      ..drawPath(_leaf, Paint()..color = appleBlue2)
+      ..restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _FontAwesomeLeafPainter oldDelegate) => false;
 }
 
 class _LoginScreen extends StatefulWidget {
