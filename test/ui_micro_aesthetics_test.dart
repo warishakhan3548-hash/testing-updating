@@ -103,6 +103,23 @@ void main() {
     expect(source, contains('feedbackColor: color'));
     expect(source, contains('feedbackColor: diaryOrange'));
 
+    // Dashboard cards reveal once with a short, direction-neutral stagger.
+    // Data-driven list rows deliberately avoid repeated decorative motion.
+    expect(source, contains('static const Duration dashboardReveal'));
+    expect(source, contains('Duration(milliseconds: 520)'));
+    expect(source, contains('class DashboardScreen extends StatefulWidget'));
+    expect(
+      source,
+      contains('class _DashboardCardReveal extends StatelessWidget'),
+    );
+    expect(
+      source,
+      contains('final double start = math.min(order * .06, .30).toDouble()'),
+    );
+    expect(source, contains('begin: const Offset(0, .045)'));
+    expect(source, contains('child: RepaintBoundary(child: child)'));
+    expect(source, contains('_revealController.value = 1'));
+
     // The dashboard AI entry reads as a real, labeled premium control.
     expect(source, contains('class _AiHubButton extends StatelessWidget'));
     expect(source, contains("semanticLabel: 'Open AI Hub'"));

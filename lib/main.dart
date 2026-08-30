@@ -72,6 +72,7 @@ abstract final class UIConstants {
   static const Duration pressIn = Duration(milliseconds: 70);
   static const Duration pressOut = Duration(milliseconds: 210);
   static const Duration motion = Duration(milliseconds: 260);
+  static const Duration dashboardReveal = Duration(milliseconds: 520);
   static const Duration routeIn = Duration(milliseconds: 280);
   static const Duration routeOut = Duration(milliseconds: 220);
 
@@ -3186,10 +3187,49 @@ class _AiHubButton extends StatelessWidget {
   }
 }
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({required this.sync, super.key});
 
   final LedgerSyncService sync;
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _revealController;
+  bool _revealConfigured = false;
+
+  LedgerSyncService get sync => widget.sync;
+
+  @override
+  void initState() {
+    super.initState();
+    _revealController = AnimationController(
+      vsync: this,
+      duration: UIConstants.dashboardReveal,
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final bool reduceMotion = MediaQuery.of(context).disableAnimations;
+    if (reduceMotion) {
+      _revealController.value = 1;
+      _revealConfigured = true;
+    } else if (!_revealConfigured) {
+      _revealConfigured = true;
+      _revealController.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _revealController.dispose();
+    super.dispose();
+  }
 
   Future<void> _logout(BuildContext context) async {
     if (sync.pendingWrites > 0) {
@@ -3288,73 +3328,94 @@ class DashboardScreen extends StatelessWidget {
                   clipBehavior: Clip.none,
                   childAspectRatio: 1.0,
                   children: <Widget>[
-                    _MetricCard(
-                      icon: Icons.handshake_rounded,
-                      label: 'To Receive (+)',
-                      value: _money(totals.toReceive),
-                      color: appleGreen,
+                    _DashboardCardReveal(
+                      animation: _revealController,
+                      order: 0,
+                      child: _MetricCard(
+                        icon: Icons.handshake_rounded,
+                        label: 'To Receive (+)',
+                        value: _money(totals.toReceive),
+                        color: appleGreen,
+                      ),
                     ),
-                    _MetricCard(
-                      icon: Icons.request_quote_rounded,
-                      label: 'To Pay (-)',
-                      value: _money(totals.toPay),
-                      color: appleRed,
+                    _DashboardCardReveal(
+                      animation: _revealController,
+                      order: 1,
+                      child: _MetricCard(
+                        icon: Icons.request_quote_rounded,
+                        label: 'To Pay (-)',
+                        value: _money(totals.toPay),
+                        color: appleRed,
+                      ),
                     ),
-                    _MetricCard(
-                      icon: premiumExpenseIcon,
-                      label: 'Month Expense',
-                      value: _money(totals.monthExpense),
-                      color: diaryOrange,
+                    _DashboardCardReveal(
+                      animation: _revealController,
+                      order: 2,
+                      child: _MetricCard(
+                        icon: premiumExpenseIcon,
+                        label: 'Month Expense',
+                        value: _money(totals.monthExpense),
+                        color: diaryOrange,
+                      ),
                     ),
-                    _MetricCard(
-                      icon: Icons.trending_up_rounded,
-                      label: 'Month Profit',
-                      value: _signedMoney(totals.monthProfit),
-                      color: appleBlue,
+                    _DashboardCardReveal(
+                      animation: _revealController,
+                      order: 3,
+                      child: _MetricCard(
+                        icon: Icons.trending_up_rounded,
+                        label: 'Month Profit',
+                        value: _signedMoney(totals.monthProfit),
+                        color: appleBlue,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                _Pressable(
-                  onTap: () => Navigator.of(context)
-                      .push(_premiumRoute<void>(PartyLedgerScreen(sync: sync))),
-                  borderRadius: BorderRadius.circular(24),
-                  feedbackColor: const Color(0xFF9333EA),
-                  child: const _GlassCard(
-                    shadowColor: Color(0xFF9333EA),
-                    child: Row(
-                      children: <Widget>[
-                        _LedgerIcon(
-                          icon: Icons.contact_page_rounded,
-                          color: Color(0xFF9333EA),
-                        ),
-                        SizedBox(width: 15),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                'Party Ledger',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              SizedBox(height: 3),
-                              Text(
-                                'COMBINED MILK & CREDIT',
-                                style: TextStyle(
-                                  color: systemGray,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: .8,
-                                ),
-                              ),
-                            ],
+                _DashboardCardReveal(
+                  animation: _revealController,
+                  order: 4,
+                  child: _Pressable(
+                    onTap: () => Navigator.of(context).push(
+                      _premiumRoute<void>(PartyLedgerScreen(sync: sync)),
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    feedbackColor: const Color(0xFF9333EA),
+                    child: const _GlassCard(
+                      shadowColor: Color(0xFF9333EA),
+                      child: Row(
+                        children: <Widget>[
+                          _LedgerIcon(
+                            icon: Icons.contact_page_rounded,
+                            color: Color(0xFF9333EA),
                           ),
-                        ),
-                        Icon(Icons.chevron_right_rounded, color: systemGray),
-                      ],
+                          SizedBox(width: 15),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  'Party Ledger',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                SizedBox(height: 3),
+                                Text(
+                                  'COMBINED MILK & CREDIT',
+                                  style: TextStyle(
+                                    color: systemGray,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: .8,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_right_rounded, color: systemGray),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -3363,6 +3424,41 @@ class DashboardScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _DashboardCardReveal extends StatelessWidget {
+  const _DashboardCardReveal({
+    required this.animation,
+    required this.order,
+    required this.child,
+  });
+
+  final Animation<double> animation;
+  final int order;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final double start = math.min(order * .06, .30).toDouble();
+    final Animation<double> reveal = CurvedAnimation(
+      parent: animation,
+      curve: Interval(
+        start,
+        math.min(start + .58, 1.0),
+        curve: UIConstants.motionOut,
+      ),
+    );
+    return FadeTransition(
+      opacity: reveal,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, .045),
+          end: Offset.zero,
+        ).animate(reveal),
+        child: RepaintBoundary(child: child),
+      ),
     );
   }
 }
