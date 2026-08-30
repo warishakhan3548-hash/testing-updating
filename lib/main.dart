@@ -36,6 +36,10 @@ const Color systemGray = Color(0xFF8E8E93);
 const Color lightCanvas = Color(0xFFF5F5F7);
 const Color darkGlassTop = Color(0xFF121826);
 const Color darkGlassBottom = Color(0xFF080C18);
+const Color exportIndigo = Color(0xFF5E5CE6);
+const Color themeAmber = Color(0xFFFF9F0A);
+const Color themeIndigo = Color(0xFF6366F1);
+const Color sessionSlate = Color(0xFF64748B);
 
 abstract final class UIConstants {
   static const double minTapTarget = 48;
@@ -93,27 +97,28 @@ abstract final class AppStyles {
 
   static List<BoxShadow> surfaceDepth(BuildContext context) {
     final bool dark = isDark(context);
+    final Color depthInk = dark ? Colors.black : const Color(0xFF172033);
     return <BoxShadow>[
-      // Tight contact occlusion anchors the card without drawing a dark halo.
+      // Tight contact occlusion makes the surface feel physically grounded.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 44 : 10),
-        blurRadius: 3,
-        spreadRadius: -1.25,
-        offset: const Offset(0, 1.25),
+        color: depthInk.withAlpha(dark ? 52 : 14),
+        blurRadius: 4,
+        spreadRadius: -1.5,
+        offset: const Offset(0, 2),
       ),
-      // A small key shadow defines elevation at normal viewing distance.
+      // The key shadow defines the card edge without a heavy grey halo.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 40 : 10),
-        blurRadius: 16,
-        spreadRadius: -5,
-        offset: const Offset(0, 6),
+        color: depthInk.withAlpha(dark ? 42 : 11),
+        blurRadius: 18,
+        spreadRadius: -5.5,
+        offset: const Offset(0, 7),
       ),
-      // Four-percent ambient falloff supplies depth without muddying the UI.
+      // A broad ambient falloff supplies calm lift on the app canvas.
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 30 : 10),
-        blurRadius: 40,
-        spreadRadius: -10,
-        offset: const Offset(0, 14),
+        color: depthInk.withAlpha(dark ? 32 : 8),
+        blurRadius: 44,
+        spreadRadius: -11,
+        offset: const Offset(0, 16),
       ),
     ];
   }
@@ -848,21 +853,42 @@ class _LoginScreenState extends State<_LoginScreen> {
 }
 
 class _TabSpec {
-  const _TabSpec(this.label, this.activeIcon, this.inactiveIcon);
+  const _TabSpec(
+    this.label,
+    this.activeIcon,
+    this.inactiveIcon, {
+    this.opticalScale = 1,
+  });
 
   final String label;
   final IconData activeIcon;
   final IconData inactiveIcon;
+  final double opticalScale;
 }
 
 const List<_TabSpec> _tabs = <_TabSpec>[
   _TabSpec('Home', Icons.home_rounded, Icons.home_outlined),
   _TabSpec('Milk', Icons.water_drop_rounded, Icons.water_drop_outlined),
   _TabSpec('Credit', Icons.handshake_rounded, Icons.handshake_outlined),
-  _TabSpec('Expenses', Icons.receipt_long_rounded, Icons.receipt_long_outlined),
-  _TabSpec('Salary', Icons.savings_rounded, Icons.savings_outlined),
-  _TabSpec('Diary', Icons.menu_book_rounded, Icons.menu_book_outlined),
-  _TabSpec('Business', Icons.work_rounded, Icons.work_outline_rounded),
+  _TabSpec(
+    'Expenses',
+    Icons.receipt_long_rounded,
+    Icons.receipt_long_outlined,
+    opticalScale: .95,
+  ),
+  _TabSpec('Salary', Icons.payments_rounded, Icons.payments_outlined),
+  _TabSpec(
+    'Diary',
+    Icons.auto_stories_rounded,
+    Icons.auto_stories_outlined,
+    opticalScale: .96,
+  ),
+  _TabSpec(
+    'Business',
+    Icons.storefront_rounded,
+    Icons.storefront_outlined,
+    opticalScale: .97,
+  ),
 ];
 
 class AppShell extends StatefulWidget {
@@ -1218,7 +1244,9 @@ class _BottomLedgerNav extends StatelessWidget {
                                         icon: active
                                             ? spec.activeIcon
                                             : spec.inactiveIcon,
-                                        size: active ? 25 : 23.5,
+                                        size:
+                                            (active ? 24 : 22.5) *
+                                            spec.opticalScale,
                                         color: active
                                             ? color
                                             : color.withAlpha(dark ? 164 : 160),
@@ -1396,6 +1424,9 @@ class _PressableState extends State<_Pressable>
     super.initState();
     _pressController = AnimationController(
       vsync: this,
+      value: 0,
+      lowerBound: -.18,
+      upperBound: 1,
       duration: UIConstants.pressIn,
       reverseDuration: UIConstants.pressOut,
     );
@@ -1415,7 +1446,7 @@ class _PressableState extends State<_Pressable>
     _pressController.animateBack(
       0,
       duration: UIConstants.pressOut,
-      curve: UIConstants.motionOut,
+      curve: const Cubic(0.34, 1.42, 0.64, 1),
     );
   }
 
@@ -1455,11 +1486,12 @@ class _PressableState extends State<_Pressable>
           final bool dark = Theme.of(context).brightness == Brightness.dark;
           final bool reduceMotion = MediaQuery.of(context).disableAnimations;
           final double feedback = _pressController.value;
+          final double pressed = feedback.clamp(0.0, 1.0).toDouble();
           final double motion = reduceMotion ? 0 : feedback;
           return Transform.translate(
-            offset: Offset(0, motion * .8),
+            offset: Offset(0, motion * 1.1),
             child: Transform.scale(
-              scale: 1 - (motion * .015),
+              scale: 1 - (motion * .018),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: <Widget>[
@@ -1475,10 +1507,10 @@ class _PressableState extends State<_Pressable>
                               end: Alignment.bottomCenter,
                               colors: <Color>[
                                 Colors.white.withAlpha(
-                                  (feedback * (dark ? 12 : 20)).round(),
+                                  (pressed * (dark ? 12 : 20)).round(),
                                 ),
                                 Colors.black.withAlpha(
-                                  (feedback * (dark ? 7 : 10)).round(),
+                                  (pressed * (dark ? 7 : 10)).round(),
                                 ),
                               ],
                             ),
@@ -1816,32 +1848,62 @@ class _CircleAction extends StatelessWidget {
   final String? semanticLabel;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(left: 6),
-    child: _Pressable(
-      onTap: onTap,
-      semanticLabel: semanticLabel,
-      borderRadius: BorderRadius.circular(24),
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color.withAlpha(23),
-          border: Border.fromBorderSide(
-            AppStyles.hairline(context, accent: color, active: true),
+  Widget build(BuildContext context) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: _Pressable(
+        onTap: onTap,
+        semanticLabel: semanticLabel,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          width: 48,
+          height: 48,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[
+                color.withAlpha(dark ? 42 : 29),
+                color.withAlpha(dark ? 18 : 10),
+              ],
+            ),
+            border: Border.fromBorderSide(
+              AppStyles.hairline(context, accent: color, active: true),
+            ),
+            boxShadow: AppStyles.jewelDepth(context, color),
           ),
-          boxShadow: AppStyles.jewelDepth(context, color),
-        ),
-        child: Icon(
-          icon,
-          size: 22,
-          color: color,
-          shadows: AppStyles.inkGlow(color),
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              Positioned(
+                left: 13,
+                right: 13,
+                top: 0,
+                height: 1,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(dark ? 44 : 142),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              Center(
+                child: Icon(
+                  icon,
+                  size: 21.5,
+                  color: color,
+                  shadows: AppStyles.inkGlow(color),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _BackCircle extends StatelessWidget {
@@ -2901,22 +2963,24 @@ class DashboardScreen extends StatelessWidget {
           ),
           actions: <Widget>[
             _CircleAction(
-              icon: Icons.file_download_rounded,
-              color: appleGreen,
-              semanticLabel: 'Export Center',
+              icon: Icons.picture_as_pdf_rounded,
+              color: exportIndigo,
+              semanticLabel: 'Export reports',
               onTap: () => unawaited(_showExportCenter(context, sync)),
             ),
             _CircleAction(
               icon: sync.darkMode
                   ? Icons.light_mode_rounded
                   : Icons.dark_mode_rounded,
-              color: sync.darkMode ? Colors.amber : const Color(0xFF374151),
-              semanticLabel: 'Theme',
+              color: sync.darkMode ? themeAmber : themeIndigo,
+              semanticLabel: sync.darkMode
+                  ? 'Switch to light theme'
+                  : 'Switch to dark theme',
               onTap: () => unawaited(sync.setDarkMode(!sync.darkMode)),
             ),
             _CircleAction(
               icon: Icons.logout_rounded,
-              color: appleRed,
+              color: sessionSlate,
               semanticLabel: 'Logout',
               onTap: () => unawaited(_logout(context)),
             ),
@@ -3222,6 +3286,8 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
             actions: <Widget>[
               _CircleAction(
                 icon: Icons.picture_as_pdf_rounded,
+                color: exportIndigo,
+                semanticLabel: 'Share Party Ledger PDF',
                 onTap: () => unawaited(
                   _ExportService.sharePdf(
                     'Party Ledger',
@@ -3845,8 +3911,9 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
               color: color,
               actions: <Widget>[
                 _CircleAction(
-                  icon: Icons.delete_outline_rounded,
+                  icon: Icons.delete_forever_rounded,
                   color: appleRed,
+                  semanticLabel: 'Delete customer and milk records',
                   onTap: () => unawaited(_deleteProfile()),
                 ),
               ],
@@ -5207,8 +5274,9 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
               color: color,
               actions: <Widget>[
                 _CircleAction(
-                  icon: Icons.delete_outline_rounded,
+                  icon: Icons.delete_forever_rounded,
                   color: appleRed,
+                  semanticLabel: 'Delete salary profile',
                   onTap: () => unawaited(_deleteProfile()),
                 ),
               ],
@@ -5713,8 +5781,9 @@ class CreditDetailScreen extends StatelessWidget {
               color: color,
               actions: <Widget>[
                 _CircleAction(
-                  icon: Icons.delete_outline_rounded,
+                  icon: Icons.delete_forever_rounded,
                   color: appleRed,
+                  semanticLabel: 'Delete credit profile',
                   onTap: () => unawaited(_deleteProfile(context, records)),
                 ),
               ],
@@ -6189,8 +6258,9 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
               color: detailColor,
               actions: <Widget>[
                 _CircleAction(
-                  icon: Icons.delete_outline_rounded,
+                  icon: Icons.delete_forever_rounded,
                   color: appleRed,
+                  semanticLabel: 'Delete expense category',
                   onTap: () => unawaited(_deleteCategory(allRecords)),
                 ),
               ],
@@ -6602,8 +6672,9 @@ class DiaryDetailScreen extends StatelessWidget {
                   ),
                 ),
                 _CircleAction(
-                  icon: Icons.delete_outline_rounded,
+                  icon: Icons.delete_forever_rounded,
                   color: appleRed,
+                  semanticLabel: 'Delete diary page',
                   onTap: () => unawaited(_delete(context)),
                 ),
               ],
@@ -7051,8 +7122,9 @@ class BusinessDetailScreen extends StatelessWidget {
                   onTap: () => unawaited(_addEntry(context)),
                 ),
                 _CircleAction(
-                  icon: Icons.delete_outline_rounded,
+                  icon: Icons.delete_forever_rounded,
                   color: appleRed,
+                  semanticLabel: 'Delete business account',
                   onTap: () => unawaited(_deleteProject(context)),
                 ),
               ],

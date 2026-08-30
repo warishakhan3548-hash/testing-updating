@@ -7,9 +7,10 @@ void main() {
     final String source = File('lib/main.dart').readAsStringSync();
 
     // Three-frequency depth physics: contact, ambient and long falloff.
-    expect(source, contains('spreadRadius: -1.25'));
-    expect(source, contains('blurRadius: 40'));
-    expect(source, contains('withAlpha(dark ? 30 : 10)'));
+    expect(source, contains('spreadRadius: -1.5'));
+    expect(source, contains('blurRadius: 44'));
+    expect(source, contains('withAlpha(dark ? 32 : 8)'));
+    expect(source, contains("const Color(0xFF172033)"));
 
     // Glass keeps a restrained top specular and opposing bottom lowlight.
     expect(source, contains('Colors.white.withAlpha(dark ? 64 : 176)'));
@@ -21,13 +22,22 @@ void main() {
     expect(source, contains('Icons.water_drop_outlined'));
     expect(source, contains('Icons.handshake_rounded'));
     expect(source, contains('Icons.handshake_outlined'));
-    expect(source, contains('Icons.savings_rounded'));
+    expect(source, contains('Icons.payments_rounded'));
+    expect(source, contains('Icons.payments_outlined'));
+    expect(source, contains('Icons.auto_stories_rounded'));
+    expect(source, contains('Icons.auto_stories_outlined'));
+    expect(source, contains('Icons.storefront_rounded'));
+    expect(source, contains('Icons.storefront_outlined'));
+    expect(source, contains('Icons.picture_as_pdf_rounded'));
+    expect(source, contains('color: exportIndigo'));
     expect(source, isNot(contains('Icons.ios_share_rounded')));
     expect(source, isNot(contains('Icons.local_drink_rounded')));
     expect(source, isNot(contains('Icons.volunteer_activism_rounded')));
     expect(source, isNot(contains('class _BottomNavGlyphPainter')));
     expect(source, contains('size: micro ? 19 : 21.5'));
     expect(source, contains('Icons.delete_outline_rounded'));
+    expect(source, contains('Icons.delete_forever_rounded'));
+    expect(source, contains('color: appleRed'));
     expect(source, isNot(contains('Icons.delete_rounded')));
     expect(source, contains('this.icon = Icons.add_rounded'));
 
@@ -35,8 +45,11 @@ void main() {
     expect(source, contains('Duration pressIn = Duration(milliseconds: 70)'));
     expect(source, contains('Duration pressOut = Duration(milliseconds: 210)'));
     expect(source, contains('curve: UIConstants.motionOut'));
-    expect(source, contains('offset: Offset(0, motion * .8)'));
-    expect(source, contains('scale: 1 - (motion * .015)'));
+    expect(source, contains('lowerBound: -.18'));
+    expect(source, contains('Cubic(0.34, 1.42, 0.64, 1)'));
+    expect(source, contains('feedback.clamp(0.0, 1.0).toDouble()'));
+    expect(source, contains('offset: Offset(0, motion * 1.1)'));
+    expect(source, contains('scale: 1 - (motion * .018)'));
     expect(source, contains('MediaQuery.of(context).disableAnimations'));
 
     // Navigation and pull-to-refresh keep the snappier feedback model.
