@@ -192,6 +192,85 @@ Here is the reviewed result:
       );
     });
 
+    test('accepts AI-stripped NEW aliases for safe record creation', () {
+      int sequence = 0;
+      final AiActionPlan plan = AiBridgeProtocol.validateAndNormalize(
+        rawActions: <Map<String, dynamic>>[
+          <String, dynamic>{
+            'path': 'milkDB/Aaris',
+            'data': <String, dynamic>{
+              'rate': 80,
+              'type': 'lene_wala',
+              'records': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'id': 'NEW',
+                  'date': '2026-08-30',
+                  'morning': 5,
+                  'evening': 0,
+                  'flow': 'taken',
+                },
+              ],
+            },
+          },
+          <String, dynamic>{
+            'path': 'udharDB/NEW',
+            'data': <String, dynamic>{
+              'id': 'NEW',
+              'date': '2026-08-30',
+              'name': 'Kollu',
+              'amount': 400,
+              'type': 'credit',
+            },
+          },
+        ],
+        state: LedgerCodec.emptyState(),
+        newId: (String prefix) => '${prefix}_${sequence++}',
+      );
+
+      expect(plan.actions, hasLength(2));
+      final Map<String, dynamic> milkProfile =
+          LedgerCodec.objectMap(plan.actions.first['data']);
+      expect(
+        LedgerCodec.canonicalList(milkProfile['records']).single['id'],
+        'mlk_0',
+      );
+      expect(plan.actions.last['path'], 'udharDB/udh_1');
+      expect(
+        LedgerCodec.objectMap(plan.actions.last['data'])['id'],
+        'udh_1',
+      );
+    });
+
+    test('an existing record literally named NEW is edited, not duplicated',
+        () {
+      final Map<String, dynamic> state = LedgerCodec.emptyState();
+      state['udharDB'] = <String, dynamic>{
+        'NEW': <String, dynamic>{
+          'id': 'NEW',
+          'date': '2026-08-29',
+          'name': 'Existing',
+          'amount': 100,
+          'type': 'credit',
+        },
+      };
+      final AiActionPlan plan = AiBridgeProtocol.validateAndNormalize(
+        rawActions: <Map<String, dynamic>>[
+          <String, dynamic>{
+            'path': 'udharDB/NEW',
+            'data': <String, dynamic>{'amount': 150},
+          },
+        ],
+        state: state,
+        newId: (String prefix) => fail('Must not create a new ID.'),
+      );
+
+      expect(plan.actions.single['path'], 'udharDB/NEW');
+      expect(
+        LedgerCodec.objectMap(plan.actions.single['data'])['amount'],
+        150,
+      );
+    });
+
     test('rejects a whole-root overwrite and a duplicate target', () {
       expect(
         () => AiBridgeProtocol.validateAndNormalize(

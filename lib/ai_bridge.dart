@@ -469,7 +469,7 @@ Understand intent from the complete conversation, not from magic keywords such a
 Allowed roots: milkDB, udharDB, expenseDB, salaryDB, diaryDB, projectDB.
 Never write an entire root. List records use udharDB/{id}, expenseDB/{id}, diaryDB/{id}.
 Grouped records use milkDB/{exact profile}/records/{id}, salaryDB/{exact profile}/records/{id}, projectDB/{exact profile}/records/{id}.
-Use __NEW__ only as the final record ID for a new record. The app creates the real ID.
+Use __NEW__ only as the final record ID for a new record. The app creates the real ID. If your interface strips the underscores, plain NEW is also accepted.
 For a new grouped profile, set milkDB/{new name}, salaryDB/{new name}, or projectDB/{new name} with profile data and at most one initial record.
 For delete, data is null. Never delete a complete profile unless the user explicitly and unmistakably asks for the whole profile and all its records.
 Never invent an existing ID, profile, name, amount, direction, rate, or date. Ask one focused question with actions:[] when required information is missing or ambiguous.
@@ -493,17 +493,22 @@ Required new-record fields: credit=id,date,name,amount,type; expense=id,date,cat
     final List<Map<String, dynamic>> records =
         LedgerCodec.canonicalList(state[root]);
     String id = parts[1];
-    final bool creating = id == '__NEW__';
+    Map<String, dynamic>? existing = _findRecord(records, id);
+    // Some AI chat UIs interpret double underscores as Markdown emphasis and
+    // return NEW even when the prompt says __NEW__. Treat only that narrow,
+    // unambiguous alias as a create request. An actual existing record named
+    // NEW still wins, so it remains editable and is never duplicated.
+    final bool creating = existing == null && _isNewRecordToken(id);
     if (creating) {
       if (value == null) {
         throw const AiBridgeException('A new record cannot be deleted.');
       }
       id = newId(_prefix(root));
+      existing = null;
     }
-    final Map<String, dynamic>? existing = _findRecord(records, id);
     if (!creating && existing == null) {
       throw AiBridgeException(
-        'Record $id does not exist. New records must use __NEW__.',
+        'Record $id does not exist. New records must use __NEW__ or NEW.',
       );
     }
     if (value == null) {
@@ -605,9 +610,9 @@ Required new-record fields: credit=id,date,name,amount,type; expense=id,date,cat
         }
         final Map<String, dynamic> record = LedgerCodec.objectMap(rawRecord);
         final String requestedId = '${record['id'] ?? record['key'] ?? ''}';
-        if (requestedId.isNotEmpty && requestedId != '__NEW__') {
+        if (requestedId.isNotEmpty && !_isNewRecordToken(requestedId)) {
           throw const AiBridgeException(
-            'A new profile record ID must be __NEW__.',
+            'A new profile record ID must be __NEW__ or NEW.',
           );
         }
         final String id = newId(_prefix(root));
@@ -635,17 +640,18 @@ Required new-record fields: credit=id,date,name,amount,type; expense=id,date,cat
     final List<Map<String, dynamic>> records =
         LedgerCodec.canonicalList(profile['records']);
     String id = parts[3];
-    final bool creating = id == '__NEW__';
+    Map<String, dynamic>? existing = _findRecord(records, id);
+    final bool creating = existing == null && _isNewRecordToken(id);
     if (creating) {
       if (value == null) {
         throw const AiBridgeException('A new record cannot be deleted.');
       }
       id = newId(_prefix(root));
+      existing = null;
     }
-    final Map<String, dynamic>? existing = _findRecord(records, id);
     if (!creating && existing == null) {
       throw AiBridgeException(
-        'Record $id does not exist. New records must use __NEW__.',
+        'Record $id does not exist. New records must use __NEW__ or NEW.',
       );
     }
     if (value == null) {
@@ -893,6 +899,11 @@ Required new-record fields: credit=id,date,name,amount,type; expense=id,date,cat
       if ('${record['id'] ?? record['key'] ?? ''}' == id) return record;
     }
     return null;
+  }
+
+  static bool _isNewRecordToken(String value) {
+    final String token = value.trim().toUpperCase();
+    return token == '__NEW__' || token == 'NEW';
   }
 
   static String? _caseInsensitiveKey(
@@ -1192,10 +1203,10 @@ When the user's intended changes are complete and all required information is kn
 PATH AND DATA RULES
 - Allowed roots only: milkDB, udharDB, expenseDB, salaryDB, diaryDB, projectDB.
 - Never set or delete a complete root such as "udharDB".
-- New list record: udharDB/__NEW__, expenseDB/__NEW__, or diaryDB/__NEW__. Put "id":"__NEW__" in data.
+- New list record: udharDB/__NEW__, expenseDB/__NEW__, or diaryDB/__NEW__. Put "id":"__NEW__" in data. Use that exact quoted token; if the chat UI strips its underscores, plain "NEW" is also accepted.
 - Existing list edit/delete: use the exact attachment ID. Delete uses data:null.
 - Existing grouped record: milkDB/{exact profile}/records/{id}, salaryDB/{exact profile}/records/{id}, or projectDB/{exact profile}/records/{id}.
-- New grouped record uses __NEW__ as only the final ID. New grouped profile uses milkDB/{new name}, salaryDB/{new name}, or projectDB/{new name}, with profile data and at most one initial record.
+- New grouped record uses __NEW__ as only the final ID (plain NEW is the safe fallback). New grouped profile uses milkDB/{new name}, salaryDB/{new name}, or projectDB/{new name}, with profile data and at most one initial record.
 - Editing a record may provide changed fields; preserve its identity. Never replace a grouped profile's records array.
 - Complete profile deletion is allowed only when the user unmistakably requests the whole profile/khata and all its records; use the profile path with data:null.
 - Maximum $maxActionCount actions in one final response. Include all approved actions together; the app safely executes them in groups of $chunkSize.
