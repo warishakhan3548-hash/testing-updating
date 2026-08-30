@@ -171,8 +171,8 @@ abstract final class AppStyles {
             strong ? (dark ? 56 : 38) : (dark ? 43 : 28),
           ),
         ),
-        blurRadius: strong ? 18 : 15,
-        spreadRadius: strong ? -1.5 : -2,
+        blurRadius: strong ? 16 : 14,
+        spreadRadius: strong ? -1.25 : -1.5,
         offset: Offset.zero,
       ),
       // Broad ambient falloff stays compact and symmetrical—light, not fire.
@@ -183,8 +183,8 @@ abstract final class AppStyles {
             strong ? (dark ? 32 : 22) : (dark ? 25 : 16),
           ),
         ),
-        blurRadius: strong ? 38 : 32,
-        spreadRadius: strong ? -6 : -5,
+        blurRadius: strong ? 28 : 24,
+        spreadRadius: strong ? -7 : -6,
         offset: Offset.zero,
       ),
       if (strong)
@@ -192,8 +192,8 @@ abstract final class AppStyles {
           color: ambient.withAlpha(
             _perceptualAlpha(ambient, dark ? 14 : 9),
           ),
-          blurRadius: 56,
-          spreadRadius: -12,
+          blurRadius: 44,
+          spreadRadius: -16,
           offset: Offset.zero,
         ),
       ...surfaceDepth(context),
@@ -209,16 +209,16 @@ abstract final class AppStyles {
         color: ambient.withAlpha(
           _perceptualAlpha(ambient, dark ? 48 : 32),
         ),
-        blurRadius: 16,
-        spreadRadius: -1.5,
+        blurRadius: 14,
+        spreadRadius: -1.25,
         offset: Offset.zero,
       ),
       BoxShadow(
         color: ambient.withAlpha(
           _perceptualAlpha(ambient, dark ? 28 : 18),
         ),
-        blurRadius: 34,
-        spreadRadius: -5,
+        blurRadius: 26,
+        spreadRadius: -7,
         offset: Offset.zero,
       ),
       ...surfaceDepth(context),
@@ -1753,97 +1753,63 @@ class _GlassCard extends StatelessWidget {
     final BorderRadius radius = BorderRadius.circular(borderRadius);
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: surfaceColors,
-        ),
         borderRadius: radius,
-        border: border,
         boxShadow: shadows,
       ),
       child: ClipRRect(
         borderRadius: radius,
         clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: <Widget>[
-            // Directional light and opposing shade add curvature while the
-            // underlying card fill and semantic color remain unchanged.
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      stops: const <double>[0, .32, .68, 1],
-                      colors: <Color>[
-                        Colors.white.withAlpha(dark ? 15 : 31),
-                        Colors.transparent,
-                        Colors.transparent,
-                        Colors.black.withAlpha(dark ? 22 : 7),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: surfaceColors,
             ),
-            // Specular highlight: strongest near the top-center and feathered
-            // toward the rounded corners so the card reads as a physical layer.
-            Positioned(
-              left: math.max(10, borderRadius * .48),
-              right: math.max(10, borderRadius * .48),
-              top: 0,
-              height: 1.35,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: <Color>[
-                        Colors.transparent,
-                        Colors.white.withAlpha(dark ? 82 : 198),
-                        Colors.transparent,
-                      ],
+            borderRadius: radius,
+          ),
+          child: DecoratedBox(
+            position: DecorationPosition.foreground,
+            decoration: BoxDecoration(borderRadius: radius, border: border),
+            child: Stack(
+              children: <Widget>[
+                // One continuous lighting field replaces the short straight
+                // edge strips that terminated before the rounded corners.
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          stops: const <double>[0, .32, .68, 1],
+                          colors: <Color>[
+                            Colors.white.withAlpha(dark ? 15 : 31),
+                            Colors.transparent,
+                            Colors.transparent,
+                            Colors.black.withAlpha(dark ? 22 : 7),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+                if (accentColor != null)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _CardAccentPainter(
+                          color: accentColor!,
+                          radius: borderRadius,
+                          dark: dark,
+                        ),
+                      ),
+                    ),
+                  ),
+                Padding(padding: padding, child: child),
+              ],
             ),
-            // Opposing lowlight gives the surface a thin optical thickness
-            // without changing its base color or layout.
-            Positioned(
-              left: math.max(12, borderRadius * .55),
-              right: math.max(12, borderRadius * .55),
-              bottom: 0,
-              height: 1.25,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: <Color>[
-                        Colors.transparent,
-                        Colors.black.withAlpha(dark ? 58 : 14),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            if (accentColor != null)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _CardAccentPainter(
-                      color: accentColor!,
-                      radius: borderRadius,
-                      dark: dark,
-                    ),
-                  ),
-                ),
-              ),
-            Padding(padding: padding, child: child),
-          ],
+          ),
         ),
       ),
     );
@@ -3319,6 +3285,7 @@ class DashboardScreen extends StatelessWidget {
                   mainAxisSpacing: 13,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
+                  clipBehavior: Clip.none,
                   childAspectRatio: 1.0,
                   children: <Widget>[
                     _MetricCard(
@@ -7396,6 +7363,7 @@ class BusinessDetailScreen extends StatelessWidget {
                       mainAxisSpacing: 11,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
+                      clipBehavior: Clip.none,
                       childAspectRatio: 1.55,
                       children: totals.entries
                           .where(

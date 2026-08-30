@@ -15,15 +15,29 @@ void main() {
     expect(source, contains('static List<BoxShadow> pressGlow('));
     expect(source, contains('final Color? resolvedGlowColor ='));
     expect(source, contains('shadowColor ?? tintColor ?? accentColor'));
-    expect(source, contains('blurRadius: strong ? 18 : 15'));
-    expect(source, contains('spreadRadius: strong ? -1.5 : -2'));
-    expect(source, contains('blurRadius: strong ? 38 : 32'));
-    expect(source, contains('spreadRadius: strong ? -6 : -5'));
+    expect(source, contains('blurRadius: strong ? 16 : 14'));
+    expect(source, contains('spreadRadius: strong ? -1.25 : -1.5'));
+    expect(source, contains('blurRadius: strong ? 28 : 24'));
+    expect(source, contains('spreadRadius: strong ? -7 : -6'));
 
-    // Glass keeps directional surface light and opposing optical thickness.
+    // Glass uses one continuous clipped face and one foreground edge, avoiding
+    // short highlight strips that visually chop rounded corners.
     expect(source, contains('Colors.white.withAlpha(dark ? 15 : 31)'));
-    expect(source, contains('Colors.white.withAlpha(dark ? 82 : 198)'));
-    expect(source, contains('Colors.black.withAlpha(dark ? 58 : 14)'));
+    expect(source, contains('Colors.black.withAlpha(dark ? 22 : 7)'));
+    expect(source, contains('position: DecorationPosition.foreground'));
+    expect(
+      source,
+      isNot(contains('Colors.white.withAlpha(dark ? 82 : 198)')),
+    );
+    expect(
+      source,
+      isNot(contains('Colors.black.withAlpha(dark ? 58 : 14)')),
+    );
+    expect(
+      RegExp(r'GridView\.count\([\s\S]*?clipBehavior: Clip\.none,')
+          .allMatches(source),
+      hasLength(2),
+    );
 
     // Base card fills remain byte-for-byte unchanged by the depth treatment.
     expect(source, contains('Color(0xFAFFFFFF), Color(0xF2FFFFFF)'));
