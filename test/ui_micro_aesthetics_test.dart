@@ -100,7 +100,10 @@ void main() {
       source,
       contains('MediaQuery.maybeDisableAnimationsOf(context) ?? false'),
     );
-    expect(source, contains('!reduce(context) && TickerMode.of(context)'));
+    expect(
+      source,
+      contains('!reduce(context) && TickerMode.valuesOf(context).enabled'),
+    );
     expect(source, isNot(contains('.disableAnimations ?? false')));
     expect(source, contains('oldWidget.onTap != null && widget.onTap == null'));
     expect(source, contains('this.feedbackColor'));

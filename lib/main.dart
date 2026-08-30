@@ -97,7 +97,7 @@ abstract final class AppMotion {
       MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
   static bool enabled(BuildContext context) =>
-      !reduce(context) && TickerMode.of(context);
+      !reduce(context) && TickerMode.valuesOf(context).enabled;
 }
 
 abstract final class AppStyles {
@@ -3225,7 +3225,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (!mounted) return;
       if (AppMotion.reduce(context)) {
         _revealController.value = 1;
-      } else if (TickerMode.of(context)) {
+      } else if (TickerMode.valuesOf(context).enabled) {
         _revealController.forward();
       } else {
         // The dashboard became off-screen before its first frame. Let the
