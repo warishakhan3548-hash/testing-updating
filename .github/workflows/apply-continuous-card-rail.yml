@@ -1,0 +1,56 @@
+name: Apply continuous card accent rail
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-continuous-card-rail.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Apply continuous rail patch
+        run: dart run tool/apply_continuous_card_rail.dart
+
+      - name: Format changed Dart
+        run: dart format lib/main.dart test/ui_micro_aesthetics_test.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Commit verified UI fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/main.dart test/ui_micro_aesthetics_test.dart
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Make card accent rail continuous"
+          git push origin main
