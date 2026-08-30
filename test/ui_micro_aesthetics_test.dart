@@ -25,14 +25,8 @@ void main() {
     expect(source, contains('Colors.white.withAlpha(dark ? 15 : 31)'));
     expect(source, contains('Colors.black.withAlpha(dark ? 22 : 7)'));
     expect(source, contains('position: DecorationPosition.foreground'));
-    expect(
-      source,
-      isNot(contains('Colors.white.withAlpha(dark ? 82 : 198)')),
-    );
-    expect(
-      source,
-      isNot(contains('Colors.black.withAlpha(dark ? 58 : 14)')),
-    );
+    expect(source, isNot(contains('Colors.white.withAlpha(dark ? 82 : 198)')));
+    expect(source, isNot(contains('Colors.black.withAlpha(dark ? 58 : 14)')));
     expect(
       RegExp(r'GridView\.count\([\s\S]*?clipBehavior: Clip\.none,')
           .allMatches(source),
@@ -68,7 +62,10 @@ void main() {
     expect(source, isNot(contains('class _BottomNavGlyphPainter')));
     expect(source, contains('size: micro ? 19 : 21.5'));
     expect(source, contains('const IconData premiumDeleteIcon'));
-    expect(source, contains('class _DeleteActionButton extends StatelessWidget'));
+    expect(
+      source,
+      contains('class _DeleteActionButton extends StatelessWidget'),
+    );
     expect(
       RegExp(r'Icons\.delete_outline_rounded').allMatches(source),
       hasLength(1),
@@ -98,7 +95,14 @@ void main() {
     expect(source, contains('..rotateY(_touchAlignment.x * cardTilt)'));
     expect(source, contains('gradient: RadialGradient('));
     expect(source, contains('HapticFeedback.lightImpact();'));
-    expect(source, contains('MediaQuery.of(context).disableAnimations'));
+    expect(source, contains('abstract final class AppMotion'));
+    expect(
+      source,
+      contains('MediaQuery.maybeDisableAnimationsOf(context) ?? false'),
+    );
+    expect(source, contains('!reduce(context) && TickerMode.of(context)'));
+    expect(source, isNot(contains('.disableAnimations ?? false')));
+    expect(source, contains('oldWidget.onTap != null && widget.onTap == null'));
     expect(source, contains('this.feedbackColor'));
     expect(source, contains('feedbackColor: color'));
     expect(source, contains('feedbackColor: diaryOrange'));
@@ -119,6 +123,8 @@ void main() {
     expect(source, contains('begin: const Offset(0, .045)'));
     expect(source, contains('child: RepaintBoundary(child: child)'));
     expect(source, contains('_revealController.value = 1'));
+    expect(source, contains('WidgetsBinding.instance.addPostFrameCallback'));
+    expect(source, contains('_revealScheduled = false'));
 
     // The dashboard AI entry reads as a real, labeled premium control.
     expect(source, contains('class _AiHubButton extends StatelessWidget'));
@@ -134,10 +140,12 @@ void main() {
     // Cross-system motion keeps auth handoffs calm and all route motion optional.
     expect(source, contains('class _RootStage extends StatelessWidget'));
     expect(
-        source, contains('FadeTransition(opacity: animation, child: child)'));
+      source,
+      contains('FadeTransition(opacity: animation, child: child)'),
+    );
     expect(
       source,
-      contains('MediaQuery.maybeOf(context)?.disableAnimations ?? false'),
+      contains('final bool reduceMotion = AppMotion.reduce(context)'),
     );
 
     // Sheets, dialogs and toasts use explicit native AnimationStyle timings.

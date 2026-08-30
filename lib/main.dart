@@ -90,6 +90,16 @@ abstract final class UIConstants {
   static const Curve motionIn = Cubic(0.32, 0, 0.67, 0);
 }
 
+abstract final class AppMotion {
+  // Subscribe only to the platform's motion preference instead of rebuilding
+  // motion-aware widgets for every unrelated MediaQuery change.
+  static bool reduce(BuildContext context) =>
+      MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+  static bool enabled(BuildContext context) =>
+      !reduce(context) && TickerMode.of(context);
+}
+
 abstract final class AppStyles {
   static const List<FontFeature> tabularFigures = <FontFeature>[
     FontFeature.tabularFigures(),
@@ -389,8 +399,7 @@ class _RootStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool reduceMotion =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final bool reduceMotion = AppMotion.reduce(context);
     final Widget stage;
     final String stageKey;
     if (booting) {
@@ -634,7 +643,7 @@ class _PremiumTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+    if (AppMotion.reduce(context)) {
       return child;
     }
     final Animation<double> curved = CurvedAnimation(
@@ -1510,6 +1519,15 @@ class _PressableState extends State<_Pressable>
     );
   }
 
+  @override
+  void didUpdateWidget(covariant _Pressable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.onTap != null && widget.onTap == null) {
+      _pressController.stop();
+      _pressController.value = 0;
+    }
+  }
+
   void _captureTouch(TapDownDetails details) {
     final RenderBox? box = context.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize || box.size.isEmpty) return;
@@ -1585,7 +1603,7 @@ class _PressableState extends State<_Pressable>
         child: widget.child,
         builder: (BuildContext context, Widget? child) {
           final bool dark = Theme.of(context).brightness == Brightness.dark;
-          final bool reduceMotion = MediaQuery.of(context).disableAnimations;
+          final bool reduceMotion = AppMotion.reduce(context);
           final double feedback = _pressController.value;
           final double pressed = feedback.clamp(0.0, 1.0).toDouble();
           final double motion = reduceMotion ? 0 : feedback;
@@ -2843,8 +2861,7 @@ class _SheetFrame extends StatelessWidget {
 }
 
 Future<T?> _openSheet<T>(BuildContext context, Widget child) {
-  final bool reduceMotion =
-      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+  final bool reduceMotion = AppMotion.reduce(context);
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
@@ -2869,8 +2886,7 @@ Future<bool> _confirm(
   String message, {
   bool dangerous = true,
 }) async {
-  final bool reduceMotion =
-      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+  final bool reduceMotion = AppMotion.reduce(context);
   final bool? result = await showDialog<bool>(
     context: context,
     requestFocus: true,
@@ -2908,8 +2924,7 @@ Future<bool> _confirm(
 
 void _toast(BuildContext context, String message, {bool error = false}) {
   if (error) HapticFeedback.errorNotification();
-  final bool reduceMotion =
-      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+  final bool reduceMotion = AppMotion.reduce(context);
   final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentSnackBar();
   messenger.showSnackBar(
@@ -3065,7 +3080,7 @@ PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
         Animation<double> secondaryAnimation,
         Widget child,
       ) {
-        if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+        if (AppMotion.reduce(context)) {
           return child;
         }
         final Animation<double> curved = CurvedAnimation(
@@ -3183,7 +3198,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _revealController;
-  bool _revealConfigured = false;
+  bool _revealScheduled = false;
 
   LedgerSyncService get sync => widget.sync;
 
@@ -3199,14 +3214,25 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final bool reduceMotion = MediaQuery.of(context).disableAnimations;
-    if (reduceMotion) {
+    if (AppMotion.reduce(context)) {
       _revealController.value = 1;
-      _revealConfigured = true;
-    } else if (!_revealConfigured) {
-      _revealConfigured = true;
-      _revealController.forward();
+      _revealScheduled = true;
+      return;
     }
+    if (_revealScheduled || !AppMotion.enabled(context)) return;
+    _revealScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (AppMotion.reduce(context)) {
+        _revealController.value = 1;
+      } else if (TickerMode.of(context)) {
+        _revealController.forward();
+      } else {
+        // The dashboard became off-screen before its first frame. Let the
+        // next enabled TickerMode dependency change schedule it once.
+        _revealScheduled = false;
+      }
+    });
   }
 
   @override
@@ -8720,8 +8746,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
   }
 
   Future<bool> _confirmAiActions(AiActionPlan plan) async {
-    final bool reduceMotion =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final bool reduceMotion = AppMotion.reduce(context);
     final List<String> summaryParts = <String>[
       if (plan.createCount > 0) '${plan.createCount} जुड़ेंगे',
       if (plan.updateCount > 0) '${plan.updateCount} बदलेंगे',
