@@ -6126,7 +6126,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
         ),
       ),
     );
-    if (type == null || !context.mounted) {
+    if (type == null || !mounted) {
       date.dispose();
       amount.dispose();
       return;
@@ -6168,7 +6168,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
     )) {
       return;
     }
-    if (!context.mounted) return;
+    if (!mounted) return;
     await _runMutation(
       context,
       () =>
@@ -6185,7 +6185,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
     )) {
       return;
     }
-    if (!context.mounted) return;
+    if (!mounted) return;
     final Map<String, dynamic> deletes = <String, dynamic>{
       for (final Map<String, dynamic> row in records)
         'udharDB/${row['id']}': null,
@@ -6194,9 +6194,9 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
       if (deletes.isNotEmpty) {
         await widget.sync.writeBatch(deletes, reason: 'credit-profile-delete');
       }
-      if (context.mounted) Navigator.pop(context);
+      if (mounted) Navigator.pop(context);
     } catch (error) {
-      if (context.mounted) _toast(context, '$error', error: true);
+      if (mounted) _toast(context, '$error', error: true);
     }
   }
 
