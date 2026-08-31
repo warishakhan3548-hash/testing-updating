@@ -27,11 +27,10 @@ function userRoot(uid) {
   return getDatabase().ref(`users/${uid}`);
 }
 
-async function projectEntry(root, entryId) {
-  const sourceSnapshot = await root.child(`appData/diaryDB/${entryId}`).get();
+async function projectEntryValue(root, entryId, sourceValue) {
   const projectedRef = root.child(`ledgerV2/diaryEntries/${entryId}`);
   const transaction = await projectedRef.transaction(
-    (current) => forceProjectedEntry(current, sourceSnapshot.val(), entryId),
+    (current) => forceProjectedEntry(current, sourceValue, entryId),
     undefined,
     false,
   );
@@ -51,10 +50,18 @@ async function projectEntry(root, entryId) {
   );
 }
 
-async function projectEntryIds(root, ids) {
+async function projectEntry(root, entryId) {
+  const sourceSnapshot = await root.child(`appData/diaryDB/${entryId}`).get();
+  await projectEntryValue(root, entryId, sourceSnapshot.val());
+}
+
+async function projectEntryIds(root, ids, sourceValues) {
+  const hasSourceSnapshot = sourceValues !== undefined;
   for (let offset = 0; offset < ids.length; offset += 20) {
     await Promise.all(ids.slice(offset, offset + 20).map(
-      (entryId) => projectEntry(root, entryId),
+      (entryId) => hasSourceSnapshot
+        ? projectEntryValue(root, entryId, sourceValues[entryId])
+        : projectEntry(root, entryId),
     ));
   }
 }
@@ -85,7 +92,9 @@ async function stableFullRebuild(root) {
     const deletedIds = Object.keys(projected)
       .filter((entryId) => !sourceIdSet.has(entryId))
       .sort();
-    await projectEntryIds(root, sourceIds);
+    // Reuse the authoritative snapshot already fetched above. Reading every
+    // source entry again would turn a full rebuild into N+1 RTDB reads.
+    await projectEntryIds(root, sourceIds, source);
     await removeProjectedEntryIds(root, deletedIds);
     const afterMeta = await root.child('appData/_syncMeta').get();
     const confirmed = sourceVersion(afterMeta.val());

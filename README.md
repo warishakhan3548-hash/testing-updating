@@ -105,7 +105,10 @@ Record identity always comes from the authoritative RTDB child key, preventing
 malformed embedded IDs from creating undeletable ghost rows. Repeated offline
 edits to one exact path are compacted to their final value, while parent/child
 operations retain ordering. Paths and nested values are validated against RTDB
-key, depth and UTF-8 limits before the durable outbox accepts them.
+key, depth and UTF-8 limits before the durable outbox accepts them and again
+before upload. Outgoing multi-location writes are split by encoded bytes and
+the same 24-path limit used by delta metadata, so large queues do not become
+stuck on one oversized request or force an avoidable full-table fallback.
 
 Firebase reads are cost-conscious: one small change-token listener while signed
 in, compact delta application when safe, targeted changed-record reads for
@@ -113,6 +116,9 @@ large values, changed-table fallback fetches when necessary, and an automatic
 full integrity audit no more than once every seven days. Dashboard, navigation
 tones, party balances and module summary cards share one immutable monthly
 projection, so connection/status repaints never rescan the complete ledger.
+Reconciliation and uncached month reads wait for a positive
+`.info/connected` signal, preventing Firebase's offline `get()` fallback from
+mistaking a stale SDK cache entry for current server state.
 
 ## Guarded monthly Diary projection
 
@@ -131,8 +137,12 @@ AI snapshot, so those completeness guarantees do not silently change.
 The Firebase function consumes V12 metadata in revision order, projects only
 the changed Diary IDs for normal writes, and performs a stable full rebuild for
 first migration, an oversized batch, or a broken/out-of-order revision chain.
+Full rebuilds reuse their single source snapshot instead of rereading every
+Diary entry, keeping RTDB read amplification bounded as a ledger grows.
 The database rules keep `ledgerV2` client read-only and index `_period`; deploy
-the function and rules together. An admin-only `backfillDiaryV2` callable can
+the function and rules together. The checked-in Firebase project alias targets
+`diary-book-21a91`, reducing accidental deployment to a different project. An
+admin-only `backfillDiaryV2` callable can
 prebuild an existing user's projection, while the first later Diary mutation
 also bootstraps it automatically.
 

@@ -18,6 +18,8 @@ const List<String> ledgerRoots = <String>[
   'projectDB',
 ];
 
+const int ledgerDeltaPathLimit = 24;
+
 const Set<String> _listRoots = <String>{
   'udharDB',
   'expenseDB',
@@ -524,6 +526,10 @@ class DiaryMonthCodec {
 class OutboxPlanner {
   OutboxPlanner._();
 
+  // Keep multi-location SDK writes comfortably below the transport ceiling,
+  // including the sync metadata that is added immediately before upload.
+  static const int maxBatchBytes = 12 * 1024 * 1024;
+
   static bool overlaps(String left, String right) =>
       left == right ||
       left.startsWith('$right/') ||
@@ -531,9 +537,11 @@ class OutboxPlanner {
 
   static List<PendingWrite> nextCompatibleBatch(
     List<PendingWrite> queue, {
-    int limit = 75,
+    int limit = ledgerDeltaPathLimit,
+    int maxBytes = maxBatchBytes,
   }) {
     final List<PendingWrite> batch = <PendingWrite>[];
+    int batchBytes = 0;
     for (final PendingWrite write in queue) {
       if (batch.length >= limit) break;
       if (batch.any(
@@ -541,10 +549,22 @@ class OutboxPlanner {
       )) {
         break;
       }
+      final int writeBytes = estimatedMutationBytes(write);
+      if (batch.isNotEmpty && batchBytes + writeBytes > maxBytes) break;
+      if (batch.isEmpty && writeBytes > maxBytes) {
+        throw LedgerSyncException(
+          'A pending Firebase write exceeds the safe batch size.',
+        );
+      }
       batch.add(write);
+      batchBytes += writeBytes;
     }
     return batch;
   }
+
+  static int estimatedMutationBytes(PendingWrite write) => utf8
+      .encode(jsonEncode(<String, dynamic>{write.path: write.value}))
+      .length;
 
   static void addCompacted(List<PendingWrite> queue, PendingWrite next) {
     queue.removeWhere((PendingWrite pending) => pending.path == next.path);
@@ -671,13 +691,22 @@ class SyncAuditPolicy {
       now - lastFullAuditAt >= interval.inMilliseconds;
 }
 
+class SyncConnectionPolicy {
+  SyncConnectionPolicy._();
+
+  /// Firebase `get()` may fall back to its local persistence cache. Network
+  /// reconciliation is therefore safe only after `.info/connected` has
+  /// positively confirmed this client is connected, not while it is unknown.
+  static bool canContactServer(bool? connected) => connected == true;
+}
+
 /// Keeps the sync metadata small while allowing another device to fetch only
 /// the records touched by a write whose value is too large for `deltaWrites`.
 /// Older clients can ignore this optional field and keep using table reads.
 class DeltaPathCodec {
   DeltaPathCodec._();
 
-  static const int maxPaths = 24;
+  static const int maxPaths = ledgerDeltaPathLimit;
   static const int maxEncodedLength = 1800;
 
   static String? encode(Iterable<String> paths) {
@@ -1500,7 +1529,7 @@ class LedgerSyncService extends ChangeNotifier {
   bool get booting => _booting;
   bool get syncing => _syncing;
   bool get darkMode => _darkMode;
-  bool get isConnected => _connected != false;
+  bool get isConnected => SyncConnectionPolicy.canContactServer(_connected);
   int get pendingWrites => _outbox.length;
   Object? get lastError => _lastError;
   Map<String, dynamic> get state => _state;
@@ -2015,6 +2044,11 @@ class LedgerSyncService extends ChangeNotifier {
     if (uid == null || projection == null || auth.currentUser?.uid != uid) {
       return;
     }
+    if (!SyncConnectionPolicy.canContactServer(_connected)) {
+      throw const LedgerSyncException(
+        'Connect to Firebase before loading an uncached Diary month.',
+      );
+    }
     try {
       final Query query = projection
           .child('diaryEntries')
@@ -2024,6 +2058,11 @@ class LedgerSyncService extends ChangeNotifier {
         query.get(),
         projection.child('meta/diary').get(),
       ]);
+      if (!SyncConnectionPolicy.canContactServer(_connected)) {
+        throw const LedgerSyncException(
+          'Firebase disconnected while loading this Diary month.',
+        );
+      }
       final DiaryProjectionMetadata confirmed =
           DiaryProjectionMetadata.fromValue(snapshots[1].value);
       if (!confirmed.matchesSource(source)) {
@@ -2174,7 +2213,7 @@ class LedgerSyncService extends ChangeNotifier {
     final String? uid = _activeUid;
     final DatabaseReference? reference = _appDataRef;
     if (uid == null || reference == null || _outbox.isEmpty) return true;
-    if (_connected == false) return false;
+    if (!SyncConnectionPolicy.canContactServer(_connected)) return false;
     _syncing = true;
     _notify();
 
@@ -2189,9 +2228,17 @@ class LedgerSyncService extends ChangeNotifier {
         final Map<String, dynamic> delta = <String, dynamic>{};
         final Set<String> touchedRoots = <String>{};
         for (final PendingWrite write in batch) {
-          payload[write.path] = write.value;
-          delta[write.path] = write.value;
-          touchedRoots.add(write.path.split('/').first);
+          // Revalidate persisted operations at upload time as well. This
+          // protects upgrades from malformed legacy or tampered local queues.
+          final String safePath =
+              LedgerFirebasePolicy.validatePath(write.path);
+          final dynamic safeValue = LedgerFirebasePolicy.sanitizeValue(
+            write.value,
+            safePath,
+          );
+          payload[safePath] = safeValue;
+          delta[safePath] = safeValue;
+          touchedRoots.add(safePath.split('/').first);
         }
 
         final int previousRevision = _revision;
@@ -2309,7 +2356,7 @@ class LedgerSyncService extends ChangeNotifier {
     if (uid == null || reference == null || auth.currentUser?.uid != uid) {
       return false;
     }
-    if (_connected == false) return false;
+    if (!SyncConnectionPolicy.canContactServer(_connected)) return false;
     final int startedAt = DateTime.now().millisecondsSinceEpoch;
     final bool passive = reason == 'connection' || reason == 'lifecycle-resume';
     final int passiveElapsed = startedAt - _lastMetadataReadAt;
@@ -2325,7 +2372,11 @@ class LedgerSyncService extends ChangeNotifier {
     _notify();
     try {
       final DataSnapshot metaSnapshot = await reference.child('_syncMeta').get();
-      if (uid != _activeUid || auth.currentUser?.uid != uid) return false;
+      if (uid != _activeUid ||
+          auth.currentUser?.uid != uid ||
+          !SyncConnectionPolicy.canContactServer(_connected)) {
+        return false;
+      }
       _lastMetadataReadAt = DateTime.now().millisecondsSinceEpoch;
       final Map<String, dynamic> meta =
           LedgerCodec.objectMap(metaSnapshot.value);
@@ -2370,6 +2421,7 @@ class LedgerSyncService extends ChangeNotifier {
           uid,
           remoteDiarySource,
         );
+        if (!SyncConnectionPolicy.canContactServer(_connected)) return false;
       }
 
       if (!requireFull && !cloudChanged) {
@@ -2461,7 +2513,11 @@ class LedgerSyncService extends ChangeNotifier {
                 .toList(growable: false);
             final List<MapEntry<String, dynamic>> values =
                 await Future.wait(reads);
-            if (uid != _activeUid || auth.currentUser?.uid != uid) return false;
+            if (uid != _activeUid ||
+                auth.currentUser?.uid != uid ||
+                !SyncConnectionPolicy.canContactServer(_connected)) {
+              return false;
+            }
             for (final MapEntry<String, dynamic> entry in values) {
               if (!LedgerCodec.applyPath(base, entry.key, entry.value)) {
                 valid = false;
@@ -2490,11 +2546,14 @@ class LedgerSyncService extends ChangeNotifier {
                       month: currentMonth.month,
                     )
                   : null;
+          if (!SyncConnectionPolicy.canContactServer(_connected)) return false;
           if (projectedState != null) {
             base = projectedState;
           } else {
             final DataSnapshot fullSnapshot = await reference.get();
-            if (uid != _activeUid || auth.currentUser?.uid != uid) {
+            if (uid != _activeUid ||
+                auth.currentUser?.uid != uid ||
+                !SyncConnectionPolicy.canContactServer(_connected)) {
               return false;
             }
             base = LedgerCodec.normalizeState(fullSnapshot.value);
@@ -2513,7 +2572,14 @@ class LedgerSyncService extends ChangeNotifier {
                 ),
               )
               .toList();
-          for (final MapEntry<String, dynamic> entry in await Future.wait(reads)) {
+          final List<MapEntry<String, dynamic>> values =
+              await Future.wait(reads);
+          if (uid != _activeUid ||
+              auth.currentUser?.uid != uid ||
+              !SyncConnectionPolicy.canContactServer(_connected)) {
+            return false;
+          }
+          for (final MapEntry<String, dynamic> entry in values) {
             final Map<String, dynamic> oneRoot = LedgerCodec.normalizeState(
               <String, dynamic>{entry.key: entry.value},
             );

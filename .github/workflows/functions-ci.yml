@@ -7,6 +7,7 @@ on:
       - "functions/**"
       - "database.rules.json"
       - "firebase.json"
+      - ".firebaserc"
       - ".github/workflows/functions-ci.yml"
   workflow_dispatch:
 
@@ -26,8 +27,14 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Parse function entrypoint
-        run: node --check functions/index.js
+      - name: Install exact production dependencies
+        run: npm install --prefix functions --omit=dev --ignore-scripts --no-audit --no-fund
+
+      - name: Validate Firebase configuration JSON
+        run: node -e "const fs = require('node:fs'); for (const file of ['firebase.json', 'database.rules.json', '.firebaserc']) JSON.parse(fs.readFileSync(file, 'utf8'));"
+
+      - name: Load function entrypoint
+        run: node -e "require('./functions/index.js')"
 
       - name: Test projection invariants
         run: npm test --prefix functions

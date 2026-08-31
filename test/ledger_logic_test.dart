@@ -4,6 +4,12 @@ import 'package:aarish_diary/firebase_sync.dart';
 
 void main() {
   group('Firebase schema compatibility', () {
+    test('network reads wait for a confirmed Firebase connection', () {
+      expect(SyncConnectionPolicy.canContactServer(null), isFalse);
+      expect(SyncConnectionPolicy.canContactServer(false), isFalse);
+      expect(SyncConnectionPolicy.canContactServer(true), isTrue);
+    });
+
     test('compact delta paths round-trip without duplicate ambiguity', () {
       final String? encoded = DeltaPathCodec.encode(<String>[
         'diaryDB/dia_1',
@@ -207,7 +213,10 @@ void main() {
       );
 
       expect(first, second);
-      expect(first, matches(RegExp(r'^[a-f0-9]{64}$')));
+      expect(
+        first,
+        '7b9345b4738c69c4c378f449e654fb709886df64add20973866e6ad63d47abf0',
+      );
     });
 
     test('monthly diary codec replaces only the requested month', () {
@@ -374,6 +383,29 @@ void main() {
         OutboxPlanner.overlaps('milkDB/Ali', 'milkDB/Ali/records/mlk_1'),
         isTrue,
       );
+    });
+
+    test('large non-overlapping writes are split by encoded byte size', () {
+      const PendingWrite first = PendingWrite(
+        id: '1',
+        path: 'expenseDB/exp_1',
+        value: <String, dynamic>{'note': 'first payload'},
+        createdAt: 1,
+        reason: 'create',
+      );
+      const PendingWrite second = PendingWrite(
+        id: '2',
+        path: 'expenseDB/exp_2',
+        value: <String, dynamic>{'note': 'second payload'},
+        createdAt: 2,
+        reason: 'create',
+      );
+
+      final List<PendingWrite> batch = OutboxPlanner.nextCompatibleBatch(
+        <PendingWrite>[first, second],
+        maxBytes: OutboxPlanner.estimatedMutationBytes(first),
+      );
+      expect(batch.map((PendingWrite write) => write.id), <String>['1']);
     });
 
     test('offline queue keeps only the final exact-path mutation', () {

@@ -188,5 +188,8 @@ test('diary clock hash is deterministic and ignores malformed metadata', () => {
     writer_device_bravo: 'b1',
   });
   assert.equal(diaryClockHash(first), diaryClockHash(second));
-  assert.match(diaryClockHash(first), /^[a-f0-9]{64}$/);
+  assert.equal(
+    diaryClockHash(first),
+    '7b9345b4738c69c4c378f449e654fb709886df64add20973866e6ad63d47abf0',
+  );
 });
