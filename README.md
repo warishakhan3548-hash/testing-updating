@@ -131,8 +131,10 @@ preserving existing website and older-client behavior.
 
 When active, startup downloads only the current Diary month. The compact period
 index drives the month picker and an older month is fetched only when selected.
-Full Diary history is hydrated explicitly before an All Data/Diary export or an
-AI snapshot, so those completeness guarantees do not silently change.
+An All Data/Diary export or AI snapshot explicitly reads one stable,
+authoritative `diaryDB` snapshot, checks the source metadata before and after
+the read, and replays pending local writes over it. This keeps normal browsing
+month-scoped without ever silently producing a partial full-history export.
 
 The Firebase function consumes V12 metadata in revision order, projects only
 the changed Diary IDs for normal writes, and performs a stable full rebuild for

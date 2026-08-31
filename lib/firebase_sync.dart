@@ -352,10 +352,43 @@ class DiarySourceVersion {
     required this.clockHash,
   });
 
+  factory DiarySourceVersion.fromMetadata(dynamic value) {
+    final Map<String, dynamic> metadata = LedgerCodec.objectMap(value);
+    final Map<String, dynamic> tables = LedgerCodec.objectMap(
+      metadata['tables'],
+    );
+    final Map<String, Map<String, String>> clocks =
+        LedgerCodec.canonicalTableClocks(metadata['tableClocks']);
+    return DiarySourceVersion(
+      revision: _asInt(tables['diaryDB']),
+      clockHash: LedgerDeltaPolicy.tableClockHash(
+        clocks['diaryDB'] ?? const <String, String>{},
+      ),
+    );
+  }
+
   final int revision;
   final String clockHash;
 
   String get cacheKey => '$revision:$clockHash';
+}
+
+class DiaryReadConsistency {
+  DiaryReadConsistency._();
+
+  static bool sameSource(
+    DiarySourceVersion left,
+    DiarySourceVersion right,
+  ) =>
+      left.cacheKey == right.cacheKey;
+
+  static bool canApplyProjectedMonth({
+    required DiaryProjectionMetadata projection,
+    required DiarySourceVersion requestedSource,
+    required DiarySourceVersion currentSource,
+  }) =>
+      projection.matchesSource(requestedSource) &&
+      sameSource(requestedSource, currentSource);
 }
 
 class DiaryProjectionMetadata {
@@ -1523,6 +1556,7 @@ class LedgerSyncService extends ChangeNotifier {
   final Map<String, Future<void>> _diaryMonthLoads = <String, Future<void>>{};
   final Map<String, Object> _diaryMonthErrors = <String, Object>{};
   String _lastDiaryProjectionProbeSource = '';
+  String? _completeDiarySourceKey;
   int _diaryPeriodVersion = 0;
 
   User? get user => auth.currentUser;
@@ -1712,6 +1746,7 @@ class LedgerSyncService extends ChangeNotifier {
     _diaryMonthLoads.clear();
     _diaryMonthErrors.clear();
     _lastDiaryProjectionProbeSource = '';
+    _completeDiarySourceKey = null;
     _diaryPeriodVersion++;
   }
 
@@ -2020,17 +2055,124 @@ class LedgerSyncService extends ChangeNotifier {
   }
 
   Future<void> ensureAllDiaryMonthsLoaded() async {
-    if (!diaryMonthlyMode) return;
-    final List<DateTime> periods = diaryAvailablePeriods;
-    for (int offset = 0; offset < periods.length; offset += 3) {
-      final int end = math.min(offset + 3, periods.length);
-      await Future.wait(
-        periods.sublist(offset, end).map(
-              (DateTime period) =>
-                  ensureDiaryMonthLoaded(period.year, period.month),
-            ),
+    if (_disposed) {
+      throw const LedgerSyncException('Sync service is no longer available.');
+    }
+    final String? uid = _activeUid;
+    final DatabaseReference? appData = _appDataRef;
+    if (uid == null || appData == null || auth.currentUser?.uid != uid) {
+      throw const LedgerSyncException(
+        'Please sign in before loading Diary history.',
       );
     }
+
+    final DiarySourceVersion localSource = _diarySourceVersion();
+    if (!SyncConnectionPolicy.canContactServer(_connected)) {
+      if (_completeDiarySourceKey == localSource.cacheKey) return;
+      throw const LedgerSyncException(
+        'Connect to Firebase before exporting complete Diary history.',
+      );
+    }
+
+    Object? lastFailure;
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        final DataSnapshot beforeSnapshot =
+            await appData.child('_syncMeta').get();
+        if (uid != _activeUid || auth.currentUser?.uid != uid) {
+          throw const LedgerSyncException(
+            'Account changed while loading Diary history.',
+          );
+        }
+        if (!SyncConnectionPolicy.canContactServer(_connected)) {
+          throw const LedgerSyncException(
+            'Firebase disconnected while loading Diary history.',
+          );
+        }
+        final DiarySourceVersion before =
+            DiarySourceVersion.fromMetadata(beforeSnapshot.value);
+        final DiarySourceVersion current = _diarySourceVersion();
+        if (!DiaryReadConsistency.sameSource(before, current)) {
+          await reconcile(reason: 'diary-history-refresh');
+          continue;
+        }
+        // A revision of zero is legacy metadata and cannot prove that an older
+        // client updated the change token. Re-read that history conservatively.
+        if (before.revision > 0 &&
+            _completeDiarySourceKey == before.cacheKey) {
+          return;
+        }
+
+        final DataSnapshot diarySnapshot = await appData.child('diaryDB').get();
+        final DataSnapshot afterSnapshot =
+            await appData.child('_syncMeta').get();
+        if (uid != _activeUid || auth.currentUser?.uid != uid) {
+          throw const LedgerSyncException(
+            'Account changed while loading Diary history.',
+          );
+        }
+        if (!SyncConnectionPolicy.canContactServer(_connected)) {
+          throw const LedgerSyncException(
+            'Firebase disconnected while loading Diary history.',
+          );
+        }
+        final DiarySourceVersion after =
+            DiarySourceVersion.fromMetadata(afterSnapshot.value);
+        if (!DiaryReadConsistency.sameSource(before, after)) continue;
+
+        bool applied = false;
+        await _locked<void>(() async {
+          if (_disposed ||
+              uid != _activeUid ||
+              auth.currentUser?.uid != uid ||
+              !SyncConnectionPolicy.canContactServer(_connected)) {
+            return;
+          }
+          final DiarySourceVersion latestLocal = _diarySourceVersion();
+          if (!DiaryReadConsistency.sameSource(after, latestLocal)) return;
+
+          final Map<String, dynamic> nextState =
+              LedgerCodec.normalizeState(_state);
+          nextState['diaryDB'] = LedgerCodec.canonicalList(
+            diarySnapshot.value,
+          );
+          // Writes made while the network snapshot was in flight must remain
+          // visible and win over that snapshot, including pending deletes.
+          for (final PendingWrite write in _outbox) {
+            LedgerCodec.applyPath(nextState, write.path, write.value);
+          }
+          final SyncEnvelope envelope = _currentEnvelope(state: nextState);
+          await _persistEnvelope(uid, envelope);
+          if (uid != _activeUid) return;
+
+          _state = nextState;
+          _invalidateProjectionCache();
+          _completeDiarySourceKey = after.cacheKey;
+          _loadedDiaryMonthVersions.clear();
+          for (final DateTime period
+              in LedgerMath.recordPeriods(nextState['diaryDB'])) {
+            _loadedDiaryMonthVersions[
+              DiaryMonthCodec.periodKey(period.year, period.month)
+            ] = after.cacheKey;
+          }
+          _lastError = null;
+          applied = true;
+          _notify();
+        });
+        if (applied) return;
+      } catch (error) {
+        lastFailure = error;
+        if (uid != _activeUid ||
+            auth.currentUser?.uid != uid ||
+            !SyncConnectionPolicy.canContactServer(_connected)) {
+          break;
+        }
+      }
+    }
+    if (lastFailure is LedgerSyncException) throw lastFailure;
+    throw const LedgerSyncException(
+      'Diary changed while its complete history was loading. Please try again.',
+    );
   }
 
   Future<void> _loadDiaryMonth({
@@ -2079,7 +2221,14 @@ class LedgerSyncService extends ChangeNotifier {
 
       await _locked<void>(() async {
         if (uid != _activeUid || auth.currentUser?.uid != uid) return;
-        if (!_diaryProjection.matchesSource(source)) return;
+        final DiarySourceVersion currentSource = _diarySourceVersion();
+        if (!DiaryReadConsistency.canApplyProjectedMonth(
+          projection: _diaryProjection,
+          requestedSource: source,
+          currentSource: currentSource,
+        )) {
+          return;
+        }
         final Map<String, dynamic> nextState =
             LedgerCodec.normalizeState(_state);
         DiaryMonthCodec.replaceMonth(

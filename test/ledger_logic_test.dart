@@ -197,6 +197,54 @@ void main() {
       );
     });
 
+    test('stale projected month cannot overwrite a newer Diary source', () {
+      final DiarySourceVersion requested = DiarySourceVersion.fromMetadata(
+        <String, dynamic>{
+          'tables': <String, dynamic>{'diaryDB': 42},
+          'tableClocks': <String, dynamic>{
+            'diaryDB': <String, dynamic>{
+              'writer_device_alpha': 'writer_device_alpha:42:a',
+            },
+          },
+        },
+      );
+      final DiaryProjectionMetadata projection =
+          DiaryProjectionMetadata.fromValue(<String, dynamic>{
+        'schemaVersion': 2,
+        'ready': true,
+        'sourceRevision': requested.revision,
+        'sourceClockHash': requested.clockHash,
+      });
+      final DiarySourceVersion newer = DiarySourceVersion.fromMetadata(
+        <String, dynamic>{
+          'tables': <String, dynamic>{'diaryDB': 43},
+          'tableClocks': <String, dynamic>{
+            'diaryDB': <String, dynamic>{
+              'writer_device_alpha': 'writer_device_alpha:43:b',
+            },
+          },
+        },
+      );
+
+      expect(
+        DiaryReadConsistency.canApplyProjectedMonth(
+          projection: projection,
+          requestedSource: requested,
+          currentSource: requested,
+        ),
+        isTrue,
+      );
+      expect(
+        DiaryReadConsistency.canApplyProjectedMonth(
+          projection: projection,
+          requestedSource: requested,
+          currentSource: newer,
+        ),
+        isFalse,
+      );
+      expect(DiaryReadConsistency.sameSource(requested, newer), isFalse);
+    });
+
     test('diary vector clock hash is deterministic across writer order', () {
       final String first = LedgerDeltaPolicy.tableClockHash(
         const <String, String>{
