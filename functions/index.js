@@ -17,8 +17,11 @@ const {
 initializeApp();
 
 const REGION = 'us-central1';
-const LOCK_MILLIS = 9 * 60 * 1000;
+// The lease outlives the 540-second function timeout, so a replacement worker
+// can never overlap a still-running projection at the timeout boundary.
+const LOCK_MILLIS = 11 * 60 * 1000;
 const MAX_REBUILD_ATTEMPTS = 3;
+const MAX_QUEUE_PASSES = 100;
 
 function userRoot(uid) {
   return getDatabase().ref(`users/${uid}`);
@@ -134,7 +137,7 @@ async function drainQueue(uid, owner) {
   const lockRef = await acquireLock(root, owner);
   if (lockRef === null) return false;
   try {
-    for (let pass = 0; pass < 100; pass += 1) {
+    for (let pass = 0; pass < MAX_QUEUE_PASSES; pass += 1) {
       const [queueSnapshot, projectionMetaSnapshot] = await Promise.all([
         root.child('ledgerV2/_projectionQueue/diary').get(),
         root.child('ledgerV2/meta/diary').get(),
@@ -181,6 +184,10 @@ async function drainQueue(uid, owner) {
         'meta/diary/updatedAt': ServerValue.TIMESTAMP,
       });
     }
+    const remaining = await root.child(
+      'ledgerV2/_projectionQueue/diary',
+    ).get();
+    if (!remaining.exists()) return true;
     throw new Error('Diary projection queue exceeded its safe drain limit');
   } finally {
     await releaseLock(lockRef, owner);

@@ -68,6 +68,79 @@ void main() {
       expect(milkRows.single['id'], 'mlk_1');
     });
 
+    test(
+      'Firebase child key overrides conflicting embedded record identity',
+      () {
+        final List<Map<String, dynamic>> rows = LedgerCodec.canonicalList(
+          <String, dynamic>{
+            'real_remote_key': <String, dynamic>{
+              'id': 'wrong_inner_id',
+              'key': 'another_wrong_key',
+              'amount': 100,
+            },
+          },
+        );
+
+        expect(rows.single['id'], 'real_remote_key');
+        expect(rows.single['key'], 'real_remote_key');
+        final Map<String, dynamic> state = LedgerCodec.normalizeState(
+          <String, dynamic>{'udharDB': rows},
+        );
+        expect(
+          LedgerCodec.applyPath(state, 'udharDB/real_remote_key', null),
+          isTrue,
+        );
+        expect(LedgerCodec.canonicalList(state['udharDB']), isEmpty);
+      },
+    );
+
+    test(
+      'Firebase paths and nested values fail locally before outbox storage',
+      () {
+        expect(
+          LedgerFirebasePolicy.validatePath('//expenseDB//exp_1//'),
+          'expenseDB/exp_1',
+        );
+        expect(
+          () => LedgerFirebasePolicy.validatePath('expenseDB/bad.key'),
+          throwsA(isA<LedgerSyncException>()),
+        );
+        expect(
+          () => LedgerFirebasePolicy.validatePath('milkDB/__proto__'),
+          throwsA(isA<LedgerSyncException>()),
+        );
+        final String wide = List<String>.filled(180, '界').join();
+        expect(
+          () => LedgerFirebasePolicy.validatePath('milkDB/$wide/records/$wide'),
+          throwsA(isA<LedgerSyncException>()),
+        );
+        expect(
+          LedgerFirebasePolicy.sanitizeValue(<String, dynamic>{
+            'date': '2026-08-31',
+            'amount': 10.5,
+            'tags': <String>['safe'],
+          }, 'expenseDB/exp_1'),
+          isA<Map<String, dynamic>>(),
+        );
+        expect(
+          () => LedgerFirebasePolicy.sanitizeValue(<String, dynamic>{
+            '__proto__': 'blocked',
+          }, 'diaryDB/dia_1'),
+          throwsA(isA<LedgerSyncException>()),
+        );
+        dynamic deeplyNested = 'value';
+        for (int index = 0;
+            index <= LedgerFirebasePolicy.maxValueNesting;
+            index++) {
+          deeplyNested = <String, dynamic>{'child': deeplyNested};
+        }
+        expect(
+          () =>
+              LedgerFirebasePolicy.sanitizeValue(deeplyNested, 'diaryDB/dia_1'),
+          throwsA(isA<LedgerSyncException>()),
+        );
+    });
+
     test('monthly diary projection is fail-closed by schema and revision', () {
       final String clockHash = LedgerDeltaPolicy.tableClockHash(
         const <String, String>{
@@ -299,6 +372,65 @@ void main() {
       expect(first.map((PendingWrite item) => item.id), <String>['1', '2']);
       expect(
         OutboxPlanner.overlaps('milkDB/Ali', 'milkDB/Ali/records/mlk_1'),
+        isTrue,
+      );
+    });
+
+    test('offline queue keeps only the final exact-path mutation', () {
+      final List<PendingWrite> queue = <PendingWrite>[
+        const PendingWrite(
+          id: 'old',
+          path: 'expenseDB/exp_1',
+          value: <String, dynamic>{'amount': 10},
+          createdAt: 1,
+          reason: 'create',
+        ),
+        const PendingWrite(
+          id: 'other',
+          path: 'expenseDB/exp_2',
+          value: <String, dynamic>{'amount': 20},
+          createdAt: 2,
+          reason: 'create',
+        ),
+      ];
+      OutboxPlanner.addCompacted(
+        queue,
+        const PendingWrite(
+          id: 'latest',
+          path: 'expenseDB/exp_1',
+          value: null,
+          createdAt: 3,
+          reason: 'delete',
+        ),
+      );
+
+      expect(queue.map((PendingWrite write) => write.id), <String>[
+        'other',
+        'latest',
+      ]);
+    });
+
+    test('full audit policy respects cooldown and repairs future clocks', () {
+      const Duration interval = Duration(days: 7);
+      const int now = 1000000000;
+      expect(
+        SyncAuditPolicy.isDue(now: now, lastFullAuditAt: 0, interval: interval),
+        isTrue,
+      );
+      expect(
+        SyncAuditPolicy.isDue(
+          now: now,
+          lastFullAuditAt: now - const Duration(days: 1).inMilliseconds,
+          interval: interval,
+        ),
+        isFalse,
+      );
+      expect(
+        SyncAuditPolicy.isDue(
+          now: now,
+          lastFullAuditAt: now + 1,
+          interval: interval,
+        ),
         isTrue,
       );
     });

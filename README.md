@@ -101,6 +101,12 @@ cache cannot resurrect a deleted item. The sync metadata remains compatible
 with the website's `AARISH_FIREBASE_COST_CORE_V12_VECTOR` protocol, including
 change tokens, table revisions and compact deltas.
 
+Record identity always comes from the authoritative RTDB child key, preventing
+malformed embedded IDs from creating undeletable ghost rows. Repeated offline
+edits to one exact path are compacted to their final value, while parent/child
+operations retain ordering. Paths and nested values are validated against RTDB
+key, depth and UTF-8 limits before the durable outbox accepts them.
+
 Firebase reads are cost-conscious: one small change-token listener while signed
 in, compact delta application when safe, targeted changed-record reads for
 large values, changed-table fallback fetches when necessary, and an automatic

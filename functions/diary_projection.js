@@ -4,11 +4,17 @@ const crypto = require('node:crypto');
 
 const SCHEMA_VERSION = 2;
 const WRITER_ID = /^writer_[A-Za-z0-9_-]{10,40}$/;
+const UNSAFE_OBJECT_KEYS = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+]);
 const RESERVED_FIELDS = new Set([
   '_deleted',
   '_period',
   '_sourceHash',
   '_version',
+  ...UNSAFE_OBJECT_KEYS,
 ]);
 
 function isPlainObject(value) {
@@ -18,8 +24,9 @@ function isPlainObject(value) {
 function stableValue(value) {
   if (Array.isArray(value)) return value.map(stableValue);
   if (!isPlainObject(value)) return value;
-  const result = {};
+  const result = Object.create(null);
   for (const key of Object.keys(value).sort()) {
+    if (UNSAFE_OBJECT_KEYS.has(key)) continue;
     result[key] = stableValue(value[key]);
   }
   return result;

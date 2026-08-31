@@ -7,6 +7,7 @@ const {
   diaryClockHash,
   extractDiaryPaths,
   forceProjectedEntry,
+  normalizeSourceEntry,
   projectionTask,
   sourceHash,
   sourceVersion,
@@ -62,6 +63,20 @@ test('projected entry is absolute, idempotent, and leaves a tombstone', () => {
     _sourceHash: sourceHash(null),
     _version: 4,
   });
+});
+
+test('projection strips prototype-pollution field names', () => {
+  const malicious = JSON.parse(
+    '{"date":"2026-08-31","title":"Safe","__proto__":{"polluted":true},' +
+    '"constructor":{"polluted":true},"prototype":{"polluted":true}}',
+  );
+  const normalized = normalizeSourceEntry(malicious, 'dia_safe');
+  assert.equal(normalized.id, 'dia_safe');
+  assert.equal(normalized.title, 'Safe');
+  assert.equal(Object.hasOwn(normalized, '__proto__'), false);
+  assert.equal(Object.hasOwn(normalized, 'constructor'), false);
+  assert.equal(Object.hasOwn(normalized, 'prototype'), false);
+  assert.equal({}.polluted, undefined);
 });
 
 test('period index cannot be rolled back by a late projection event', () => {
