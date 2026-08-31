@@ -27,6 +27,10 @@ void main() {
     expect(diarySource, contains('ListView.builder('));
     expect(diarySource, contains('LedgerMath.inMonth('));
     expect(diarySource, isNot(contains('...entries.map(')));
+    expect(diarySource, contains('PAGES NEEDING A VALID DATE'));
+    expect(diarySource, contains('itemCount: contentItemCount + 2'));
+    expect(source, contains('class DiaryDetailScreen extends StatefulWidget'));
+    expect(source, contains("'Diary PDF sharing failed. Please try again.'"));
     expect(source, contains('static List<List<String>> _pdfSafeRows('));
     expect(source, contains('maxPages: 1000'));
     expect(source, contains('repeat: true'));

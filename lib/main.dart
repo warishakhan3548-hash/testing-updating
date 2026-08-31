@@ -6952,6 +6952,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
   List<Map<String, dynamic>> _allEntries = const <Map<String, dynamic>>[];
   List<DateTime> _availablePeriods = const <DateTime>[];
   List<Map<String, dynamic>> _visibleEntries = const <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> _visibleNeedsDateEntries =
+      const <Map<String, dynamic>>[];
 
   void _refreshDiaryCache() {
     final Object? source = widget.sync.state['diaryDB'];
@@ -6988,25 +6990,39 @@ class _DiaryScreenState extends State<DiaryScreen> {
         .split(RegExp(r'\s+'))
         .where((String word) => word.isNotEmpty)
         .toList(growable: false);
-    _visibleEntries =
-        _allEntries.where((Map<String, dynamic> row) {
-          if (usePeriod && !LedgerMath.inMonth(row, month, year)) return false;
-          final String haystack =
-              '${row['title'] ?? ''} ${row['content'] ?? ''} '
-                      '${row['date'] ?? ''} ${_displayDate(row['date'])}'
-                  .toLowerCase();
-          return words.every(haystack.contains);
-        }).toList()..sort((Map<String, dynamic> a, Map<String, dynamic> b) {
-          final int byDate =
-              (LedgerMath.date(b['date'])?.millisecondsSinceEpoch ?? -1)
-                  .compareTo(
-                    LedgerMath.date(a['date'])?.millisecondsSinceEpoch ?? -1,
-                  );
-          return byDate != 0
-              ? byDate
-              : LedgerMath.number(b['updated'])
-                    .compareTo(LedgerMath.number(a['updated']));
-        });
+    final List<Map<String, dynamic>> dated = <Map<String, dynamic>>[];
+    final List<Map<String, dynamic>> needsDate = <Map<String, dynamic>>[];
+    for (final Map<String, dynamic> row in _allEntries) {
+      final String haystack =
+          '${row['title'] ?? ''} ${row['content'] ?? ''} '
+                  '${row['date'] ?? ''} ${_displayDate(row['date'])}'
+              .toLowerCase();
+      if (!words.every(haystack.contains)) continue;
+      if (LedgerMath.strictDate(row['date']) == null) {
+        needsDate.add(row);
+      } else if (!usePeriod || LedgerMath.inMonth(row, month, year)) {
+        dated.add(row);
+      }
+    }
+    dated.sort((Map<String, dynamic> a, Map<String, dynamic> b) {
+      final int byDate =
+          (LedgerMath.date(b['date'])?.millisecondsSinceEpoch ?? -1).compareTo(
+            LedgerMath.date(a['date'])?.millisecondsSinceEpoch ?? -1,
+          );
+      return byDate != 0
+          ? byDate
+          : LedgerMath.number(b['updated'])
+                .compareTo(LedgerMath.number(a['updated']));
+    });
+    needsDate.sort((Map<String, dynamic> a, Map<String, dynamic> b) {
+      final int byUpdated = LedgerMath.number(b['updated'])
+          .compareTo(LedgerMath.number(a['updated']));
+      return byUpdated != 0
+          ? byUpdated
+          : '${a['id'] ?? ''}'.compareTo('${b['id'] ?? ''}');
+    });
+    _visibleEntries = dated;
+    _visibleNeedsDateEntries = needsDate;
     _visibleDiarySource = _cachedDiarySource;
     _visibleUsesPeriod = usePeriod;
     _visibleMonth = month;
@@ -7037,6 +7053,106 @@ class _DiaryScreenState extends State<DiaryScreen> {
     }
   }
 
+  Widget _diaryEntryCard(Map<String, dynamic> entry, {bool needsDate = false}) {
+    final String preview = '${entry['content'] ?? ''}'
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final String entryTitle = '${entry['title'] ?? 'Untitled'}';
+    final String dateLabel = needsDate
+        ? 'DATE NEEDS CORRECTION'
+        : _displayDate(entry['date']).toUpperCase();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: _Pressable(
+        semanticLabel: needsDate
+            ? '$entryTitle, date needs correction'
+            : '$entryTitle, ${_displayDate(entry['date'])}',
+        onTap: () => Navigator.of(context).push(
+          _premiumRoute<void>(
+            DiaryDetailScreen(
+              sync: widget.sync,
+              entryId: '${entry['id']}',
+              onDateChanged: (DateTime date) {
+                if (!mounted) return;
+                setState(() {
+                  _month = date.month;
+                  _year = date.year;
+                });
+              },
+            ),
+          ),
+        ),
+        borderRadius: BorderRadius.circular(23),
+        feedbackColor: diaryOrange,
+        child: _GlassCard(
+          borderRadius: 23,
+          accentColor: diaryOrange,
+          shadowColor: diaryOrange.withAlpha(72),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      entryTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: diaryOrange,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: diaryOrange),
+                ],
+              ),
+              if (preview.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 8),
+                Text(
+                  '“${preview.length > 90 ? '${preview.substring(0, 90)}…' : preview}”',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: diaryOrange,
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  if (needsDate) ...<Widget>[
+                    const Icon(
+                      Icons.event_busy_rounded,
+                      color: diaryOrange,
+                      size: 15,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  Expanded(
+                    child: Text(
+                      dateLabel,
+                      style: const TextStyle(
+                        color: diaryOrange,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .8,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     _refreshDiaryCache();
@@ -7054,10 +7170,20 @@ class _DiaryScreenState extends State<DiaryScreen> {
       month: selectedMonth,
       year: selectedYear,
     );
+    final List<Map<String, dynamic>> needsDateEntries =
+        _visibleNeedsDateEntries;
     final bool loading = widget.sync.isDiaryMonthLoading(
       selectedYear,
       selectedMonth,
     );
+    final bool hasVisibleEntries =
+        entries.isNotEmpty || needsDateEntries.isNotEmpty;
+    final int contentItemCount = loading
+        ? 1
+        : hasVisibleEntries
+        ? entries.length +
+              (needsDateEntries.isEmpty ? 0 : needsDateEntries.length + 1)
+        : 1;
     final String emptyMessage = allEntries.isEmpty
         ? 'No diary pages yet'
         : _query.trim().isNotEmpty
@@ -7083,7 +7209,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
             physics: const BouncingScrollPhysics(),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: UIConstants.screenPadding,
-            itemCount: entries.isEmpty ? 3 : entries.length + 2,
+            itemCount: contentItemCount + 2,
             itemBuilder: (BuildContext context, int index) {
               if (index == 0) {
                 return _MonthYearPicker(
@@ -7115,94 +7241,50 @@ class _DiaryScreenState extends State<DiaryScreen> {
                   ),
                 );
               }
-              if (entries.isEmpty) {
+              if (!hasVisibleEntries) {
                 return _EmptyState(
                   Icons.auto_stories_rounded,
                   emptyMessage,
                   color: diaryOrange,
                 );
               }
-              final Map<String, dynamic> entry = entries[index - 2];
-              final String preview = '${entry['content'] ?? ''}'
-                  .replaceAll(RegExp(r'\s+'), ' ')
-                  .trim();
-              final String entryTitle = '${entry['title'] ?? 'Untitled'}';
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: _Pressable(
-                  semanticLabel: '$entryTitle, ${_displayDate(entry['date'])}',
-                  onTap: () => Navigator.of(context).push(
-                    _premiumRoute<void>(
-                      DiaryDetailScreen(
-                        sync: widget.sync,
-                        entryId: '${entry['id']}',
-                        onDateChanged: (DateTime date) {
-                          if (!mounted) return;
-                          setState(() {
-                            _month = date.month;
-                            _year = date.year;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                  borderRadius: BorderRadius.circular(23),
-                  feedbackColor: diaryOrange,
-                  child: _GlassCard(
-                    borderRadius: 23,
-                    accentColor: diaryOrange,
-                    shadowColor: diaryOrange.withAlpha(72),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              final int contentIndex = index - 2;
+              if (contentIndex < entries.length) {
+                return _diaryEntryCard(entries[contentIndex]);
+              }
+              final int needsDateIndex = contentIndex - entries.length;
+              if (needsDateIndex == 0) {
+                return const Padding(
+                  padding: EdgeInsets.only(top: 4, bottom: 12),
+                  child: Semantics(
+                    header: true,
+                    child: Row(
                       children: <Widget>[
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: Text(
-                                entryTitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: diaryOrange,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                            const Icon(
-                              Icons.chevron_right_rounded,
-                              color: diaryOrange,
-                            ),
-                          ],
+                        Icon(
+                          Icons.event_busy_rounded,
+                          color: diaryOrange,
+                          size: 18,
                         ),
-                        if (preview.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            '“${preview.length > 90 ? '${preview.substring(0, 90)}…' : preview}”',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'PAGES NEEDING A VALID DATE',
+                            style: TextStyle(
                               color: diaryOrange,
-                              fontSize: 14,
-                              fontStyle: FontStyle.italic,
-                              height: 1.35,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: .8,
                             ),
-                          ),
-                        ],
-                        const SizedBox(height: 12),
-                        Text(
-                          _displayDate(entry['date']).toUpperCase(),
-                          style: const TextStyle(
-                            color: diaryOrange,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: .8,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
+                );
+              }
+              return _diaryEntryCard(
+                needsDateEntries[needsDateIndex - 1],
+                needsDate: true,
               );
             },
           ),
@@ -7212,7 +7294,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
   }
 }
 
-class DiaryDetailScreen extends StatelessWidget {
+class DiaryDetailScreen extends StatefulWidget {
   const DiaryDetailScreen({
     required this.sync,
     required this.entryId,
@@ -7224,39 +7306,86 @@ class DiaryDetailScreen extends StatelessWidget {
   final String entryId;
   final ValueChanged<DateTime> onDateChanged;
 
+  @override
+  State<DiaryDetailScreen> createState() => _DiaryDetailScreenState();
+}
+
+class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
+  bool _actionInFlight = false;
+
   Future<void> _edit(BuildContext context, Map<String, dynamic> entry) async {
-    final DateTime? savedDate = await _saveDiarySheet(
-      context,
-      sync,
-      existing: entry,
-    );
-    if (savedDate != null) onDateChanged(savedDate);
+    if (_actionInFlight) return;
+    setState(() => _actionInFlight = true);
+    try {
+      final DateTime? savedDate = await _saveDiarySheet(
+        context,
+        widget.sync,
+        existing: entry,
+      );
+      if (savedDate != null) widget.onDateChanged(savedDate);
+    } finally {
+      if (mounted) setState(() => _actionInFlight = false);
+    }
   }
 
   Future<void> _delete(BuildContext context) async {
-    if (!await _confirm(
-      context,
-      'Delete diary page?',
-      'This page will be permanently deleted.',
-    )) {
-      return;
-    }
-    if (!context.mounted) return;
+    if (_actionInFlight) return;
+    setState(() => _actionInFlight = true);
     try {
-      await sync.write('diaryDB/$entryId', null, reason: 'diary-entry-delete');
+      if (!await _confirm(
+        context,
+        'Delete diary page?',
+        'This page will be permanently deleted.',
+      )) {
+        return;
+      }
+      if (!context.mounted) return;
+      await widget.sync.write(
+        'diaryDB/${widget.entryId}',
+        null,
+        reason: 'diary-entry-delete',
+      );
       if (context.mounted) Navigator.pop(context);
     } catch (error) {
       if (context.mounted) _toast(context, '$error', error: true);
+    } finally {
+      if (mounted) setState(() => _actionInFlight = false);
+    }
+  }
+
+  Future<void> _share(BuildContext context, Map<String, dynamic> entry) async {
+    if (_actionInFlight) return;
+    setState(() => _actionInFlight = true);
+    try {
+      await _ExportService.sharePdf(
+        '${entry['title'] ?? 'Diary'}',
+        <String>['Date', 'Content'],
+        <List<String>>[
+          <String>[_displayDate(entry['date']), '${entry['content'] ?? ''}'],
+        ],
+      );
+    } catch (_) {
+      if (context.mounted) {
+        _toast(
+          context,
+          'Diary PDF sharing failed. Please try again.',
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _actionInFlight = false);
     }
   }
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: sync,
+    animation: widget.sync,
     builder: (BuildContext context, Widget? child) {
       Map<String, dynamic>? entry;
-      for (final Map<String, dynamic> row in _rows(sync.state['diaryDB'])) {
-        if ('${row['id']}' == entryId) {
+      for (final Map<String, dynamic> row in _rows(
+        widget.sync.state['diaryDB'],
+      )) {
+        if ('${row['id']}' == widget.entryId) {
           entry = row;
           break;
         }
@@ -7290,18 +7419,7 @@ class DiaryDetailScreen extends StatelessWidget {
                   icon: Icons.share_rounded,
                   color: appleBlue,
                   semanticLabel: 'Share diary page',
-                  onTap: () => unawaited(
-                    _ExportService.sharePdf(
-                      '${current['title'] ?? 'Diary'}',
-                      <String>['Date', 'Content'],
-                      <List<String>>[
-                        <String>[
-                          _displayDate(current['date']),
-                          '${current['content'] ?? ''}',
-                        ],
-                      ],
-                    ),
-                  ),
+                  onTap: () => unawaited(_share(context, current)),
                 ),
                 _DeleteActionButton(
                   padding: const EdgeInsets.only(left: 6),
