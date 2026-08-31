@@ -77,7 +77,7 @@ function forceProjectedEntry(storedValue, sourceValue, entryId) {
   return {
     ...source,
     _deleted: false,
-    _period: strictPeriod(source.date),
+    _period: strictPeriod(source.date) || '_invalid',
     _sourceHash: nextHash,
     _version: version,
   };
@@ -91,8 +91,11 @@ function updatePeriodIndex(storedValue, projectedValue) {
     ? projected._version
     : 0;
   if (storedVersion > projectedVersion) return stored;
-  const period = typeof projected._period === 'string'
+  const rawPeriod = typeof projected._period === 'string'
     ? projected._period
+    : null;
+  const period = /^\d{4}-(0[1-9]|1[0-2])$/.test(rawPeriod || '')
+    ? rawPeriod
     : null;
   return period === null
     ? {v: projectedVersion}

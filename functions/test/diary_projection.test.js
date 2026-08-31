@@ -46,12 +46,18 @@ test('projected entry is absolute, idempotent, and leaves a tombstone', () => {
   assert.equal(moved._period, '2026-09');
   assert.equal(moved._version, 2);
 
-  const deleted = forceProjectedEntry(moved, null, 'dia_1');
+  const invalid = forceProjectedEntry(moved, {
+    date: '2026-02-29',
+    title: 'Legacy invalid date',
+  }, 'dia_1');
+  assert.equal(invalid._period, '_invalid');
+
+  const deleted = forceProjectedEntry(invalid, null, 'dia_1');
   assert.deepEqual(deleted, {
     _deleted: true,
     _period: null,
     _sourceHash: sourceHash(null),
-    _version: 3,
+    _version: 4,
   });
 });
 
@@ -64,6 +70,10 @@ test('period index cannot be rolled back by a late projection event', () => {
     _period: null,
     _version: 8,
   }), {v: 8});
+  assert.deepEqual(updatePeriodIndex({p: '2026-08', v: 8}, {
+    _period: '_invalid',
+    _version: 9,
+  }), {v: 9});
 });
 
 test('delta metadata accepts only exact diary record paths', () => {

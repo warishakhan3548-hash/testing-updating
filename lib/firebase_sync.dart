@@ -376,6 +376,7 @@ class DiaryProjectionMetadata {
 class DiaryMonthCodec {
   DiaryMonthCodec._();
 
+  static const String invalidPeriodKey = '_invalid';
   static final RegExp _periodPattern = RegExp(r'^(\d{4})-(\d{2})$');
 
   static String periodKey(int year, int month) =>
@@ -425,18 +426,35 @@ class DiaryMonthCodec {
       if (raw['_deleted'] == true || '${raw['_period']}' != expectedPeriod) {
         continue;
       }
-      final Map<String, dynamic> entry = Map<String, dynamic>.from(raw)
+      final Map<String, dynamic> entry = _publicEntry(raw);
+      if (LedgerMath.strictDate(entry['date']) == null) continue;
+      result.add(entry);
+    }
+    return result;
+  }
+
+  static List<Map<String, dynamic>> decodeInvalidEntries(dynamic value) {
+    final List<Map<String, dynamic>> result = <Map<String, dynamic>>[];
+    for (final Map<String, dynamic> raw
+        in LedgerCodec.canonicalList(value)) {
+      if (raw['_deleted'] == true ||
+          '${raw['_period']}' != invalidPeriodKey) {
+        continue;
+      }
+      final Map<String, dynamic> entry = _publicEntry(raw);
+      if (LedgerMath.strictDate(entry['date']) == null) result.add(entry);
+    }
+    return result;
+  }
+
+  static Map<String, dynamic> _publicEntry(Map<String, dynamic> raw) =>
+      Map<String, dynamic>.from(raw)
         ..remove('_period')
         ..remove('_sourceHash')
         ..remove('_version')
         ..remove('_deleted')
         ..remove('_pending')
         ..remove('_seen');
-      if (LedgerMath.strictDate(entry['date']) == null) continue;
-      result.add(entry);
-    }
-    return result;
-  }
 
   static void replaceMonth(
     Map<String, dynamic> state, {
@@ -454,6 +472,26 @@ class DiaryMonthCodec {
     }
     for (final Map<String, dynamic> row in entries) {
       if (periodForRecord(row) != target) continue;
+      final String id = '${row['id'] ?? row['key'] ?? ''}';
+      if (id.isEmpty) continue;
+      byId[id] = LedgerCodec.objectMap(LedgerCodec.clone(row));
+    }
+    state['diaryDB'] = byId.values.toList(growable: false);
+  }
+
+  static void replaceInvalidEntries(
+    Map<String, dynamic> state,
+    List<Map<String, dynamic>> entries,
+  ) {
+    final Map<String, Map<String, dynamic>> byId =
+        <String, Map<String, dynamic>>{};
+    for (final Map<String, dynamic> row
+        in LedgerCodec.canonicalList(state['diaryDB'])) {
+      if (periodForRecord(row) == null) continue;
+      byId['${row['id'] ?? row['key']}'] = row;
+    }
+    for (final Map<String, dynamic> row in entries) {
+      if (periodForRecord(row) != null) continue;
       final String id = '${row['id'] ?? row['key'] ?? ''}';
       if (id.isEmpty) continue;
       byId[id] = LedgerCodec.objectMap(LedgerCodec.clone(row));
@@ -1593,11 +1631,18 @@ class LedgerSyncService extends ChangeNotifier {
           .child('diaryEntries')
           .orderByChild('_period')
           .equalTo(DiaryMonthCodec.periodKey(year, month));
+      final Query invalidDiaryQuery = projection
+          .child('diaryEntries')
+          .orderByChild('_period')
+          .equalTo(DiaryMonthCodec.invalidPeriodKey);
       final Future<DataSnapshot> diaryRead = diaryQuery.get();
+      final Future<DataSnapshot> invalidDiaryRead = invalidDiaryQuery.get();
+      final Future<DataSnapshot> metadataRead =
+          projection.child('meta/diary').get();
       final List<DataSnapshot> rootSnapshots = await Future.wait(rootReads);
       final DataSnapshot diarySnapshot = await diaryRead;
-      final DataSnapshot metadataSnapshot =
-          await projection.child('meta/diary').get();
+      final DataSnapshot invalidDiarySnapshot = await invalidDiaryRead;
+      final DataSnapshot metadataSnapshot = await metadataRead;
       if (uid != _activeUid || auth.currentUser?.uid != uid) return null;
       final DiaryProjectionMetadata confirmed =
           DiaryProjectionMetadata.fromValue(metadataSnapshot.value);
@@ -1609,6 +1654,10 @@ class LedgerSyncService extends ChangeNotifier {
       }
       final Map<String, dynamic> state = LedgerCodec.normalizeState(source);
       state['diaryDB'] = LedgerCodec.canonicalList(_state['diaryDB']);
+      DiaryMonthCodec.replaceInvalidEntries(
+        state,
+        DiaryMonthCodec.decodeInvalidEntries(invalidDiarySnapshot.value),
+      );
       DiaryMonthCodec.replaceMonth(
         state,
         year: year,

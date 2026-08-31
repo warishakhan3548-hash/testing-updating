@@ -117,6 +117,11 @@ void main() {
             '_period': '2026-08',
             '_deleted': true,
           },
+          'invalid_projected': <String, dynamic>{
+            'date': 'not-a-date',
+            'title': 'Projected invalid date',
+            '_period': '_invalid',
+          },
         },
         year: 2026,
         month: 8,
@@ -124,6 +129,15 @@ void main() {
       expect(august, hasLength(1));
       expect(august.single['title'], 'Projected August');
       expect(august.single.containsKey('_sourceHash'), isFalse);
+      final List<Map<String, dynamic>> invalidProjected =
+          DiaryMonthCodec.decodeInvalidEntries(<String, dynamic>{
+        'invalid_projected': <String, dynamic>{
+          'date': 'not-a-date',
+          'title': 'Projected invalid date',
+          '_period': '_invalid',
+        },
+      });
+      expect(invalidProjected, hasLength(1));
 
       final Map<String, dynamic> state = LedgerCodec.normalizeState(
         <String, dynamic>{
@@ -155,6 +169,19 @@ void main() {
           containsAll(<String>['aug', 'july', 'invalid']));
       expect(
         rows.any((Map<String, dynamic> row) => row['id'] == 'old_aug'),
+        isFalse,
+      );
+      DiaryMonthCodec.replaceInvalidEntries(state, invalidProjected);
+      final List<Map<String, dynamic>> afterInvalidReplacement =
+          LedgerCodec.canonicalList(state['diaryDB']);
+      expect(
+        afterInvalidReplacement
+            .map((Map<String, dynamic> row) => row['id']),
+        containsAll(<String>['aug', 'july', 'invalid_projected']),
+      );
+      expect(
+        afterInvalidReplacement
+            .any((Map<String, dynamic> row) => row['id'] == 'invalid'),
         isFalse,
       );
       expect(
