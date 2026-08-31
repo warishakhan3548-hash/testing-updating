@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('record-backed selectors stay wired to every dated ledger detail', () {
     final String source = File('lib/main.dart').readAsStringSync();
+    final String pubspec = File('pubspec.yaml').readAsStringSync();
 
     expect(source, contains('required this.availablePeriods'));
     expect(
@@ -26,6 +27,14 @@ void main() {
     expect(diarySource, contains('ListView.builder('));
     expect(diarySource, contains('LedgerMath.inMonth('));
     expect(diarySource, isNot(contains('...entries.map(')));
+    expect(source, contains('static List<List<String>> _pdfSafeRows('));
+    expect(source, contains('maxPages: 1000'));
+    expect(source, contains('repeat: true'));
+    expect(source, contains('NotoSansDevanagari-Regular.ttf'));
+    expect(source, contains('NotoSansDevanagari-Bold.ttf'));
+    expect(pubspec, contains('assets/fonts/NotoSansDevanagari-Regular.ttf'));
+    expect(pubspec, contains('assets/fonts/NotoSansDevanagari-Bold.ttf'));
+    expect(pubspec, contains('assets/fonts/OFL.txt'));
     expect(source, isNot(contains('currentYear + 2 - index')));
     expect(
       source,

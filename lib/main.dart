@@ -10010,16 +10010,107 @@ class _ExportDataset {
 class _ExportService {
   _ExportService._();
 
+  static List<String> _pdfCellChunks(String value, int maxCharacters) {
+    final String text = value.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    if (text.isEmpty) return const <String>[''];
+    const int maxLinesPerRow = 32;
+    final List<String> chunks = <String>[];
+    int start = 0;
+    while (start < text.length) {
+      int end = math.min(start + maxCharacters, text.length);
+      bool limitedByLines = false;
+      int lines = 1;
+      for (int index = start; index < end; index++) {
+        if (text.codeUnitAt(index) == 0x0A && ++lines > maxLinesPerRow) {
+          end = index + 1;
+          limitedByLines = true;
+          break;
+        }
+      }
+      if (!limitedByLines && end < text.length) {
+        final int minimumBreak = start + (maxCharacters * 3 ~/ 5);
+        for (int index = end; index > minimumBreak; index--) {
+          final int unit = text.codeUnitAt(index - 1);
+          if (unit == 0x20 || unit == 0x09 || unit == 0x0A) {
+            end = index;
+            break;
+          }
+        }
+      }
+      if (end < text.length && end > start) {
+        final int previous = text.codeUnitAt(end - 1);
+        final int next = text.codeUnitAt(end);
+        if (previous >= 0xD800 &&
+            previous <= 0xDBFF &&
+            next >= 0xDC00 &&
+            next <= 0xDFFF) {
+          end--;
+        }
+      }
+      if (end <= start) end = math.min(start + 1, text.length);
+      chunks.add(text.substring(start, end));
+      start = end;
+    }
+    return chunks;
+  }
+
+  static List<List<String>> _pdfSafeRows(
+    List<String> headers,
+    List<List<String>> rows,
+  ) {
+    if (headers.isEmpty) return rows;
+    final int maxCharacters = (1400 ~/ headers.length).clamp(160, 700).toInt();
+    final List<List<String>> safeRows = <List<String>>[];
+    for (final List<String> row in rows) {
+      final List<List<String>> chunks = List<List<String>>.generate(
+        headers.length,
+        (int index) =>
+            _pdfCellChunks(index < row.length ? row[index] : '', maxCharacters),
+        growable: false,
+      );
+      final int rowCount = chunks.fold<int>(
+        1,
+        (int count, List<String> cell) => math.max(count, cell.length),
+      );
+      for (int chunkIndex = 0; chunkIndex < rowCount; chunkIndex++) {
+        safeRows.add(
+          chunks
+              .map(
+                (List<String> cell) =>
+                    chunkIndex < cell.length ? cell[chunkIndex] : '',
+              )
+              .toList(growable: false),
+        );
+      }
+    }
+    return safeRows;
+  }
+
   static Future<void> sharePdf(
     String title,
     List<String> headers,
     List<List<String>> rows,
   ) async {
+    final pw.Font pdfRegular = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/NotoSansDevanagari-Regular.ttf'),
+    );
+    final pw.Font pdfBold = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/NotoSansDevanagari-Bold.ttf'),
+    );
     final pw.Document document = pw.Document();
+    final List<List<String>> safeRows = _pdfSafeRows(headers, rows);
     document.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
+        maxPages: 1000,
+        theme: pw.ThemeData.withFont(
+          base: pw.Font.helvetica(),
+          bold: pw.Font.helveticaBold(),
+          italic: pw.Font.helveticaOblique(),
+          boldItalic: pw.Font.helveticaBoldOblique(),
+          fontFallback: <pw.Font>[pdfRegular],
+        ),
         build: (pw.Context context) => <pw.Widget>[
           pw.Text(
             title,
@@ -10027,6 +10118,7 @@ class _ExportService {
               fontSize: 22,
               fontWeight: pw.FontWeight.bold,
               color: PdfColors.blue800,
+              fontFallback: <pw.Font>[pdfBold],
             ),
           ),
           pw.SizedBox(height: 5),
@@ -10035,13 +10127,14 @@ class _ExportService {
             style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
           ),
           pw.SizedBox(height: 18),
-          if (rows.isEmpty)
+          if (safeRows.isEmpty)
             pw.Text('No records available.')
           else
             pw.Table(
               border: pw.TableBorder.all(color: PdfColors.grey300, width: .5),
               children: <pw.TableRow>[
                 pw.TableRow(
+                  repeat: true,
                   decoration: const pw.BoxDecoration(color: PdfColors.blue50),
                   children: headers
                       .map(
@@ -10052,13 +10145,14 @@ class _ExportService {
                             style: pw.TextStyle(
                               fontSize: 9,
                               fontWeight: pw.FontWeight.bold,
+                              fontFallback: <pw.Font>[pdfBold],
                             ),
                           ),
                         ),
                       )
                       .toList(),
                 ),
-                ...rows.map(
+                ...safeRows.map(
                   (List<String> row) => pw.TableRow(
                     children: List<pw.Widget>.generate(headers.length, (
                       int index,

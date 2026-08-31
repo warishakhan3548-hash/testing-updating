@@ -12,7 +12,7 @@ so Codemagic project path `.` resolves this `pubspec.yaml` directly.
 - Milk, Credit, Expenses, Salary, Personal Diary and Business Hub
 - Create, search, filter, detail, export and permanent delete flows
 - Direct Gemini AI Hub with explicit user confirmation before every mutation
-- Export Center with PDF, complete CSV and AI-readable ledger for all seven scopes
+- Export Center with paginated Hindi/English PDF, complete CSV and AI-readable ledger for all seven scopes
 - Light/dark themes and native haptics
 - Native date picker, debounced search and active-tab-only Firebase repainting
 - Durable offline state + outbox, reconnect replay and cross-device reconciliation
@@ -102,8 +102,9 @@ with the website's `AARISH_FIREBASE_COST_CORE_V12_VECTOR` protocol, including
 change tokens, table revisions and compact deltas.
 
 Firebase reads are cost-conscious: one small change-token listener while signed
-in, changed-table fetches when necessary, compact delta application when safe,
-and a full integrity audit no more than once per 24 hours.
+in, compact delta application when safe, targeted changed-record reads for
+large values, changed-table fallback fetches when necessary, and an automatic
+full integrity audit no more than once every seven days.
 
 The supplied iOS Firebase plist is preserved at
 `firebase/GoogleService-Info.plist` for a future iOS scaffold. It is not needed
