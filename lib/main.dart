@@ -2743,12 +2743,14 @@ class _MonthYearPicker extends StatelessWidget {
     required this.year,
     required this.availablePeriods,
     required this.onChanged,
+    this.color = appleBlue,
   });
 
   final int month;
   final int year;
   final List<DateTime> availablePeriods;
   final void Function(int month, int year) onChanged;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -2776,12 +2778,9 @@ class _MonthYearPicker extends StatelessWidget {
             key: ValueKey<String>('month-$selectedYear-$selectedMonth'),
             initialValue: selectedMonth,
             hint: const Text('No month'),
-            style: const TextStyle(
-              color: appleBlue,
-              fontWeight: FontWeight.w800,
-            ),
-            iconEnabledColor: appleBlue,
-            decoration: _pickerDecoration(),
+            style: TextStyle(color: color, fontWeight: FontWeight.w800),
+            iconEnabledColor: color,
+            decoration: _pickerDecoration(color),
             items: months
                 .map(
                   (int item) => DropdownMenuItem<int>(
@@ -2810,12 +2809,9 @@ class _MonthYearPicker extends StatelessWidget {
             key: ValueKey<String>('year-$selectedYear'),
             initialValue: selectedYear,
             hint: const Text('No year'),
-            style: const TextStyle(
-              color: appleBlue,
-              fontWeight: FontWeight.w800,
-            ),
-            iconEnabledColor: appleBlue,
-            decoration: _pickerDecoration(),
+            style: TextStyle(color: color, fontWeight: FontWeight.w800),
+            iconEnabledColor: color,
+            decoration: _pickerDecoration(color),
             items: years
                 .map(
                   (int item) =>
@@ -2842,18 +2838,18 @@ class _MonthYearPicker extends StatelessWidget {
   }
 }
 
-InputDecoration _pickerDecoration() => InputDecoration(
+InputDecoration _pickerDecoration([Color color = appleBlue]) => InputDecoration(
   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
   enabledBorder: OutlineInputBorder(
     borderRadius: BorderRadius.circular(UIConstants.inputRadius),
     borderSide: BorderSide(
-      color: appleBlue.withAlpha(55),
+      color: color.withAlpha(55),
       width: UIConstants.borderWidth,
     ),
   ),
   focusedBorder: OutlineInputBorder(
     borderRadius: BorderRadius.circular(UIConstants.inputRadius),
-    borderSide: const BorderSide(color: appleBlue, width: 1.4),
+    borderSide: BorderSide(color: color, width: 1.4),
   ),
 );
 
@@ -6842,91 +6838,202 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
   );
 }
 
-Future<void> _saveDiarySheet(
+const int _diaryTitleMaxLength = 500;
+const int _diaryContentMaxLength = 20000;
+
+String _cleanDiaryContent(String value) => value
+    .replaceAll('\r\n', '\n')
+    .replaceAll('\r', '\n')
+    .replaceAll(RegExp(r'[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]'), '')
+    .trim();
+
+class _DiaryEditorSheet extends StatefulWidget {
+  const _DiaryEditorSheet({required this.sync, this.existing});
+
+  final LedgerSyncService sync;
+  final Map<String, dynamic>? existing;
+
+  @override
+  State<_DiaryEditorSheet> createState() => _DiaryEditorSheetState();
+}
+
+class _DiaryEditorSheetState extends State<_DiaryEditorSheet> {
+  late final TextEditingController _date;
+  late final TextEditingController _title;
+  late final TextEditingController _content;
+  late final String _entryId;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _date = TextEditingController(
+      text: '${widget.existing?['date'] ?? _today()}',
+    );
+    _title = TextEditingController(text: '${widget.existing?['title'] ?? ''}');
+    _content = TextEditingController(
+      text: '${widget.existing?['content'] ?? ''}',
+    );
+    _entryId = widget.existing == null
+        ? _newId('dia')
+        : '${widget.existing!['id']}';
+  }
+
+  @override
+  void dispose() {
+    _date.dispose();
+    _title.dispose();
+    _content.dispose();
+    super.dispose();
+  }
+
+  String? _editConflict() {
+    final Map<String, dynamic>? original = widget.existing;
+    if (original == null) return null;
+    Map<String, dynamic>? current;
+    for (final Map<String, dynamic> row in _rows(
+      widget.sync.state['diaryDB'],
+    )) {
+      if ('${row['id']}' == _entryId) {
+        current = row;
+        break;
+      }
+    }
+    if (current == null) {
+      return 'This page was deleted on another device. Your draft is still here.';
+    }
+    if ('${current['date'] ?? ''}' != '${original['date'] ?? ''}' ||
+        '${current['title'] ?? ''}' != '${original['title'] ?? ''}' ||
+        '${current['content'] ?? ''}' != '${original['content'] ?? ''}') {
+      return 'This page changed on another device. Reopen it before saving; your draft is still here.';
+    }
+    return null;
+  }
+
+  Future<void> _submit() async {
+    if (_saving) return;
+    FocusScope.of(context).unfocus();
+    final String entryDate = _date.text.trim();
+    final DateTime? parsedDate = LedgerMath.strictDate(entryDate);
+    final String entryTitle = _title.text
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final String entryContent = _cleanDiaryContent(_content.text);
+    if (parsedDate == null || entryContent.isEmpty) {
+      setState(() {
+        _error = 'Choose a valid date and write something before saving.';
+      });
+      return;
+    }
+    final String? conflict = _editConflict();
+    if (conflict != null) {
+      setState(() => _error = conflict);
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.sync.write(
+        'diaryDB/$_entryId',
+        <String, dynamic>{
+          'id': _entryId,
+          'date': entryDate,
+          'title': entryTitle.isEmpty ? 'Untitled' : entryTitle,
+          'content': entryContent,
+          'updated': DateTime.now().millisecondsSinceEpoch,
+        },
+        reason: widget.existing == null
+            ? 'diary-entry-save'
+            : 'diary-entry-update',
+      );
+      HapticFeedback.successNotification();
+      if (mounted) Navigator.pop(context, parsedDate);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = '$error';
+      });
+      HapticFeedback.errorNotification();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _SheetFrame(
+    title: widget.existing == null ? 'New Diary Page' : 'Edit Page',
+    children: <Widget>[
+      _DateField(controller: _date),
+      const SizedBox(height: 12),
+      TextField(
+        controller: _title,
+        textCapitalization: TextCapitalization.sentences,
+        textInputAction: TextInputAction.next,
+        inputFormatters: <TextInputFormatter>[
+          LengthLimitingTextInputFormatter(_diaryTitleMaxLength),
+        ],
+        decoration: const InputDecoration(
+          labelText: 'Title',
+          prefixIcon: Icon(Icons.title_rounded),
+        ),
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: _content,
+        autofocus: widget.existing == null,
+        minLines: 7,
+        maxLines: 14,
+        textCapitalization: TextCapitalization.sentences,
+        inputFormatters: <TextInputFormatter>[
+          LengthLimitingTextInputFormatter(_diaryContentMaxLength),
+        ],
+        decoration: const InputDecoration(
+          labelText: 'Write your diary…',
+          alignLabelWithHint: true,
+        ),
+      ),
+      if (_error != null) ...<Widget>[
+        const SizedBox(height: 12),
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            _error!,
+            style: const TextStyle(
+              color: appleRed,
+              fontSize: 12,
+              height: 1.35,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+      const SizedBox(height: 20),
+      IgnorePointer(
+        ignoring: _saving,
+        child: _PrimaryButton(
+          label: _saving ? 'Saving…' : 'Save Page',
+          color: diaryOrange,
+          icon: _saving ? Icons.sync_rounded : Icons.save_rounded,
+          onTap: () => unawaited(_submit()),
+        ),
+      ),
+    ],
+  );
+}
+
+Future<DateTime?> _saveDiarySheet(
   BuildContext context,
   LedgerSyncService sync, {
   Map<String, dynamic>? existing,
 }) async {
-  final TextEditingController date = TextEditingController(
-    text: '${existing?['date'] ?? _today()}',
-  );
-  final TextEditingController title = TextEditingController(
-    text: '${existing?['title'] ?? ''}',
-  );
-  final TextEditingController content = TextEditingController(
-    text: '${existing?['content'] ?? ''}',
-  );
-  final bool? save = await _openSheet<bool>(
+  final DateTime? savedDate = await _openSheet<DateTime>(
     context,
-    _SheetFrame(
-      title: existing == null ? 'New Diary Page' : 'Edit Page',
-      children: <Widget>[
-        _DateField(controller: date),
-        const SizedBox(height: 12),
-        TextField(
-          controller: title,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            labelText: 'Title',
-            prefixIcon: Icon(Icons.title_rounded),
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: content,
-          autofocus: existing == null,
-          minLines: 7,
-          maxLines: 14,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            labelText: 'Write your diary…',
-            alignLabelWithHint: true,
-          ),
-        ),
-        const SizedBox(height: 20),
-        _PrimaryButton(
-          label: 'Save Page',
-          color: diaryOrange,
-          icon: Icons.save_rounded,
-          onTap: () => Navigator.pop(context, true),
-        ),
-      ],
-    ),
+    _DiaryEditorSheet(sync: sync, existing: existing),
   );
-  if (save != true || !context.mounted) {
-    date.dispose();
-    title.dispose();
-    content.dispose();
-    return;
-  }
-  final String entryDate = date.text.trim();
-  final String entryTitle = title.text.trim().isEmpty
-      ? 'Untitled'
-      : title.text.trim();
-  final String entryContent = content.text.trim();
-  date.dispose();
-  title.dispose();
-  content.dispose();
-  if (LedgerMath.strictDate(entryDate) == null || entryContent.isEmpty) {
-    _toast(
-      context,
-      'Please enter a valid date and write something.',
-      error: true,
-    );
-    return;
-  }
-  final String id = existing == null ? _newId('dia') : '${existing['id']}';
-  await _runMutation(
-    context,
-    () => sync.write('diaryDB/$id', <String, dynamic>{
-      'id': id,
-      'date': entryDate,
-      'title': entryTitle,
-      'content': entryContent,
-      'updated': DateTime.now().millisecondsSinceEpoch,
-    }, reason: existing == null ? 'diary-entry-save' : 'diary-entry-update'),
-    'Diary saved!',
-  );
+  if (savedDate != null && context.mounted) _toast(context, 'Diary saved!');
+  return savedDate;
 }
 
 class DiaryScreen extends StatefulWidget {
@@ -6940,27 +7047,108 @@ class DiaryScreen extends StatefulWidget {
 
 class _DiaryScreenState extends State<DiaryScreen> {
   String _query = '';
+  int _month = DateTime.now().month;
+  int _year = DateTime.now().year;
+  Object? _cachedDiarySource;
+  Object? _visibleDiarySource;
+  bool _hasDiaryCache = false;
+  bool _hasVisibleCache = false;
+  bool _visibleUsesPeriod = false;
+  int _visibleMonth = 0;
+  int _visibleYear = 0;
+  String _visibleQuery = '';
+  List<Map<String, dynamic>> _allEntries = const <Map<String, dynamic>>[];
+  List<DateTime> _availablePeriods = const <DateTime>[];
+  List<Map<String, dynamic>> _visibleEntries = const <Map<String, dynamic>>[];
 
-  @override
-  Widget build(BuildContext context) {
+  void _refreshDiaryCache() {
+    final Object? source = widget.sync.state['diaryDB'];
+    if (_hasDiaryCache && identical(source, _cachedDiarySource)) return;
+    _cachedDiarySource = source;
+    _allEntries = _rows(source);
+    _availablePeriods = LedgerMath.recordPeriods(_allEntries);
+    _hasDiaryCache = true;
+    _hasVisibleCache = false;
+  }
+
+  List<Map<String, dynamic>> _filteredEntries({
+    required DateTime? selectedPeriod,
+    required int month,
+    required int year,
+  }) {
+    final bool usePeriod = selectedPeriod != null;
+    if (_hasVisibleCache &&
+        identical(_visibleDiarySource, _cachedDiarySource) &&
+        _visibleUsesPeriod == usePeriod &&
+        _visibleMonth == month &&
+        _visibleYear == year &&
+        _visibleQuery == _query) {
+      return _visibleEntries;
+    }
     final List<String> words = _query
         .toLowerCase()
         .split(RegExp(r'\s+'))
         .where((String word) => word.isNotEmpty)
-        .toList();
-    final List<Map<String, dynamic>> entries =
-        _rows(widget.sync.state['diaryDB']).where((Map<String, dynamic> row) {
+        .toList(growable: false);
+    _visibleEntries =
+        _allEntries.where((Map<String, dynamic> row) {
+          if (usePeriod && !LedgerMath.inMonth(row, month, year)) return false;
           final String haystack =
-              '${row['title'] ?? ''} ${row['content'] ?? ''} ${row['date'] ?? ''}'
+              '${row['title'] ?? ''} ${row['content'] ?? ''} '
+                      '${row['date'] ?? ''} ${_displayDate(row['date'])}'
                   .toLowerCase();
           return words.every(haystack.contains);
         }).toList()..sort((Map<String, dynamic> a, Map<String, dynamic> b) {
-          final int byDate = '${b['date']}'.compareTo('${a['date']}');
+          final int byDate =
+              (LedgerMath.date(b['date'])?.millisecondsSinceEpoch ?? -1)
+                  .compareTo(
+                    LedgerMath.date(a['date'])?.millisecondsSinceEpoch ?? -1,
+                  );
           return byDate != 0
               ? byDate
               : LedgerMath.number(b['updated'])
                     .compareTo(LedgerMath.number(a['updated']));
         });
+    _visibleDiarySource = _cachedDiarySource;
+    _visibleUsesPeriod = usePeriod;
+    _visibleMonth = month;
+    _visibleYear = year;
+    _visibleQuery = _query;
+    _hasVisibleCache = true;
+    return _visibleEntries;
+  }
+
+  Future<void> _createEntry() async {
+    final DateTime? savedDate = await _saveDiarySheet(context, widget.sync);
+    if (!mounted || savedDate == null) return;
+    setState(() {
+      _month = savedDate.month;
+      _year = savedDate.year;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _refreshDiaryCache();
+    final List<Map<String, dynamic>> allEntries = _allEntries;
+    final List<DateTime> availablePeriods = _availablePeriods;
+    final DateTime? selectedPeriod = LedgerMath.resolveRecordPeriod(
+      availablePeriods,
+      month: _month,
+      year: _year,
+    );
+    final int selectedMonth = selectedPeriod?.month ?? _month;
+    final int selectedYear = selectedPeriod?.year ?? _year;
+    final List<Map<String, dynamic>> entries = _filteredEntries(
+      selectedPeriod: selectedPeriod,
+      month: selectedMonth,
+      year: selectedYear,
+    );
+    final String emptyMessage = allEntries.isEmpty
+        ? 'No diary pages yet'
+        : _query.trim().isNotEmpty
+        ? 'No matching diary pages'
+        : 'No diary pages found';
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -6971,104 +7159,130 @@ class _DiaryScreenState extends State<DiaryScreen> {
               label: 'New',
               color: diaryOrange,
               compact: true,
-              onTap: () => unawaited(_saveDiarySheet(context, widget.sync)),
+              onTap: () => unawaited(_createEntry()),
             ),
           ],
         ),
         Expanded(
-          child: ListView(
+          child: ListView.builder(
             key: const PageStorageKey<String>('diary-scroll'),
             physics: const BouncingScrollPhysics(),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: UIConstants.screenPadding,
-            children: <Widget>[
-              _SearchBox(
-                hint: 'Search diary…',
-                color: diaryOrange,
-                onChanged: (String value) => setState(() => _query = value),
-              ),
-              const SizedBox(height: 16),
-              if (entries.isEmpty)
-                const _EmptyState(
-                  Icons.auto_stories_rounded,
-                  'No diary pages found',
+            itemCount: entries.isEmpty ? 3 : entries.length + 2,
+            itemBuilder: (BuildContext context, int index) {
+              if (index == 0) {
+                return _MonthYearPicker(
+                  month: selectedMonth,
+                  year: selectedYear,
+                  availablePeriods: availablePeriods,
                   color: diaryOrange,
-                )
-              else
-                ...entries.map((Map<String, dynamic> entry) {
-                  final String preview = '${entry['content'] ?? ''}'
-                      .replaceAll(RegExp(r'\s+'), ' ')
-                      .trim();
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: _Pressable(
-                      onTap: () => Navigator.of(context).push(
-                        _premiumRoute<void>(
-                          DiaryDetailScreen(
-                            sync: widget.sync,
-                            entryId: '${entry['id']}',
-                          ),
-                        ),
+                  onChanged: (int month, int year) => setState(() {
+                    _month = month;
+                    _year = year;
+                  }),
+                );
+              }
+              if (index == 1) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 14, bottom: 16),
+                  child: _SearchBox(
+                    hint: 'Search diary…',
+                    color: diaryOrange,
+                    onChanged: (String value) => setState(() => _query = value),
+                  ),
+                );
+              }
+              if (entries.isEmpty) {
+                return _EmptyState(
+                  Icons.auto_stories_rounded,
+                  emptyMessage,
+                  color: diaryOrange,
+                );
+              }
+              final Map<String, dynamic> entry = entries[index - 2];
+              final String preview = '${entry['content'] ?? ''}'
+                  .replaceAll(RegExp(r'\s+'), ' ')
+                  .trim();
+              final String entryTitle = '${entry['title'] ?? 'Untitled'}';
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: _Pressable(
+                  semanticLabel: '$entryTitle, ${_displayDate(entry['date'])}',
+                  onTap: () => Navigator.of(context).push(
+                    _premiumRoute<void>(
+                      DiaryDetailScreen(
+                        sync: widget.sync,
+                        entryId: '${entry['id']}',
+                        onDateChanged: (DateTime date) {
+                          if (!mounted) return;
+                          setState(() {
+                            _month = date.month;
+                            _year = date.year;
+                          });
+                        },
                       ),
-                      borderRadius: BorderRadius.circular(23),
-                      feedbackColor: diaryOrange,
-                      child: _GlassCard(
-                        borderRadius: 23,
-                        accentColor: diaryOrange,
-                        shadowColor: diaryOrange.withAlpha(72),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    ),
+                  ),
+                  borderRadius: BorderRadius.circular(23),
+                  feedbackColor: diaryOrange,
+                  child: _GlassCard(
+                    borderRadius: 23,
+                    accentColor: diaryOrange,
+                    shadowColor: diaryOrange.withAlpha(72),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
                           children: <Widget>[
-                            Row(
-                              children: <Widget>[
-                                Expanded(
-                                  child: Text(
-                                    '${entry['title'] ?? 'Untitled'}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: diaryOrange,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                ),
-                                const Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: diaryOrange,
-                                ),
-                              ],
-                            ),
-                            if (preview.isNotEmpty) ...<Widget>[
-                              const SizedBox(height: 8),
-                              Text(
-                                '“${preview.length > 90 ? '${preview.substring(0, 90)}…' : preview}”',
-                                maxLines: 2,
+                            Expanded(
+                              child: Text(
+                                entryTitle,
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: diaryOrange,
-                                  fontSize: 14,
-                                  fontStyle: FontStyle.italic,
-                                  height: 1.35,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
                                 ),
                               ),
-                            ],
-                            const SizedBox(height: 12),
-                            Text(
-                              _displayDate(entry['date']).toUpperCase(),
-                              style: const TextStyle(
-                                color: diaryOrange,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: .8,
-                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: diaryOrange,
                             ),
                           ],
                         ),
-                      ),
+                        if (preview.isNotEmpty) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            '“${preview.length > 90 ? '${preview.substring(0, 90)}…' : preview}”',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: diaryOrange,
+                              fontSize: 14,
+                              fontStyle: FontStyle.italic,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        Text(
+                          _displayDate(entry['date']).toUpperCase(),
+                          style: const TextStyle(
+                            color: diaryOrange,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: .8,
+                          ),
+                        ),
+                      ],
                     ),
-                  );
-                }),
-            ],
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ],
@@ -7080,11 +7294,22 @@ class DiaryDetailScreen extends StatelessWidget {
   const DiaryDetailScreen({
     required this.sync,
     required this.entryId,
+    required this.onDateChanged,
     super.key,
   });
 
   final LedgerSyncService sync;
   final String entryId;
+  final ValueChanged<DateTime> onDateChanged;
+
+  Future<void> _edit(BuildContext context, Map<String, dynamic> entry) async {
+    final DateTime? savedDate = await _saveDiarySheet(
+      context,
+      sync,
+      existing: entry,
+    );
+    if (savedDate != null) onDateChanged(savedDate);
+  }
 
   Future<void> _delete(BuildContext context) async {
     if (!await _confirm(
@@ -7136,14 +7361,13 @@ class DiaryDetailScreen extends StatelessWidget {
                 _CircleAction(
                   icon: Icons.edit_rounded,
                   color: diaryOrange,
-                  onTap: () => unawaited(
-                    _saveDiarySheet(context, sync, existing: current),
-                  ),
+                  semanticLabel: 'Edit diary page',
+                  onTap: () => unawaited(_edit(context, current)),
                 ),
-                _SoftShareButton(
-                  compact: true,
+                _CircleAction(
                   icon: Icons.share_rounded,
                   color: appleBlue,
+                  semanticLabel: 'Share diary page',
                   onTap: () => unawaited(
                     _ExportService.sharePdf(
                       '${current['title'] ?? 'Diary'}',
@@ -7175,6 +7399,16 @@ class DiaryDetailScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
+                      Text(
+                        '${current['title'] ?? 'Untitled'}',
+                        style: const TextStyle(
+                          color: diaryOrange,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -.35,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       Text(
                         _displayDate(current['date']).toUpperCase(),
                         style: const TextStyle(
