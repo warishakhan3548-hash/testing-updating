@@ -8,7 +8,8 @@ const {
   SCHEMA_VERSION,
   forceProjectedEntry,
   projectionTask,
-  revisionFrom,
+  sameSourceVersion,
+  sourceVersion,
   taskKey,
   updatePeriodIndex,
 } = require('./diary_projection');
@@ -69,7 +70,7 @@ async function removeProjectedEntryIds(root, ids) {
 async function stableFullRebuild(root) {
   for (let attempt = 0; attempt < MAX_REBUILD_ATTEMPTS; attempt += 1) {
     const beforeMeta = await root.child('appData/_syncMeta').get();
-    const sourceRevision = revisionFrom(beforeMeta.val());
+    const sourceVersionBefore = sourceVersion(beforeMeta.val());
     const [sourceSnapshot, projectedSnapshot] = await Promise.all([
       root.child('appData/diaryDB').get(),
       root.child('ledgerV2/diaryEntries').get(),
@@ -84,15 +85,16 @@ async function stableFullRebuild(root) {
     await projectEntryIds(root, sourceIds);
     await removeProjectedEntryIds(root, deletedIds);
     const afterMeta = await root.child('appData/_syncMeta').get();
-    const confirmedRevision = revisionFrom(afterMeta.val());
-    if (confirmedRevision !== sourceRevision) continue;
+    const confirmed = sourceVersion(afterMeta.val());
+    if (!sameSourceVersion(confirmed, sourceVersionBefore)) continue;
     await root.child('ledgerV2/meta/diary').update({
       ready: true,
       schemaVersion: SCHEMA_VERSION,
-      sourceRevision,
+      sourceRevision: sourceVersionBefore.revision,
+      sourceClockHash: sourceVersionBefore.clockHash,
       updatedAt: ServerValue.TIMESTAMP,
     });
-    return sourceRevision;
+    return sourceVersionBefore;
   }
   await root.child('ledgerV2/meta/diary').update({
     ready: false,
@@ -149,10 +151,17 @@ async function drainQueue(uid, owner) {
 
       const projectionMeta = projectionMetaSnapshot.val() || {};
       const sourceRevision = Number(projectionMeta.sourceRevision) || 0;
+      const sourceClockHash = typeof projectionMeta.sourceClockHash === 'string'
+        ? projectionMeta.sourceClockHash
+        : '';
       const ready = projectionMeta.ready === true &&
-        projectionMeta.schemaVersion === SCHEMA_VERSION;
+        projectionMeta.schemaVersion === SCHEMA_VERSION &&
+        /^[a-f0-9]{64}$/.test(sourceClockHash);
       const next = ready
-        ? tasks.find((task) => Number(task.previousRevision) === sourceRevision)
+        ? tasks.find((task) =>
+          Number(task.previousRevision) === sourceRevision &&
+          task.previousClockHash === sourceClockHash,
+        )
         : null;
 
       if (!next || next.full === true || !Array.isArray(next.paths)) {
@@ -168,6 +177,7 @@ async function drainQueue(uid, owner) {
         'meta/diary/ready': true,
         'meta/diary/schemaVersion': SCHEMA_VERSION,
         'meta/diary/sourceRevision': Number(next.revision),
+        'meta/diary/sourceClockHash': next.clockHash,
         'meta/diary/updatedAt': ServerValue.TIMESTAMP,
       });
     }
@@ -226,9 +236,13 @@ exports.backfillDiaryV2 = onCall({
       .get();
     const queuedKeys = [];
     queuedBefore.forEach((child) => queuedKeys.push(child.key));
-    const sourceRevision = await stableFullRebuild(root);
+    const source = await stableFullRebuild(root);
     await clearQueuedTasks(root, queuedKeys);
-    return {schemaVersion: SCHEMA_VERSION, sourceRevision};
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      sourceRevision: source.revision,
+      sourceClockHash: source.clockHash,
+    };
   } finally {
     await releaseLock(lockRef, `backfill:${request.auth.uid}`);
   }

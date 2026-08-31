@@ -2,7 +2,8 @@
 
 const crypto = require('node:crypto');
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
+const WRITER_ID = /^writer_[A-Za-z0-9_-]{10,40}$/;
 const RESERVED_FIELDS = new Set([
   '_deleted',
   '_period',
@@ -30,6 +31,28 @@ function stableStringify(value) {
 
 function sourceHash(value) {
   return crypto.createHash('sha256').update(stableStringify(value)).digest('hex');
+}
+
+function canonicalDiaryClocks(metadata) {
+  const meta = isPlainObject(metadata) ? metadata : {};
+  const tableClocks = isPlainObject(meta.tableClocks) ? meta.tableClocks : {};
+  const rawDiary = isPlainObject(tableClocks.diaryDB)
+    ? tableClocks.diaryDB
+    : {};
+  const result = {};
+  for (const writer of Object.keys(rawDiary).sort()) {
+    const token = typeof rawDiary[writer] === 'string'
+      ? rawDiary[writer]
+      : '';
+    if (WRITER_ID.test(writer) && token && token.length <= 120) {
+      result[writer] = token;
+    }
+  }
+  return result;
+}
+
+function diaryClockHash(metadata) {
+  return sourceHash(canonicalDiaryClocks(metadata));
 }
 
 function normalizeSourceEntry(value, entryId) {
@@ -165,34 +188,53 @@ function revisionFrom(metadata) {
   return Number.isSafeInteger(revision) && revision >= 0 ? revision : 0;
 }
 
+function sourceVersion(metadata) {
+  return {
+    revision: revisionFrom(metadata),
+    clockHash: diaryClockHash(metadata),
+  };
+}
+
+function sameSourceVersion(left, right) {
+  return left.revision === right.revision && left.clockHash === right.clockHash;
+}
+
 function projectionTask(beforeMetadata, afterMetadata, eventId, now) {
-  const previousRevision = revisionFrom(beforeMetadata);
-  const revision = revisionFrom(afterMetadata);
-  if (revision === previousRevision) return null;
+  const previous = sourceVersion(beforeMetadata);
+  const next = sourceVersion(afterMetadata);
+  if (sameSourceVersion(previous, next)) return null;
   const token = String(afterMetadata && afterMetadata.changeToken || '');
+  const paths = extractDiaryPaths(afterMetadata);
   return {
     createdAt: now,
     eventId: String(eventId || ''),
-    full: extractDiaryPaths(afterMetadata) === null,
-    paths: extractDiaryPaths(afterMetadata) || [],
-    previousRevision,
-    revision,
+    full: paths === null,
+    paths: paths || [],
+    previousRevision: previous.revision,
+    previousClockHash: previous.clockHash,
+    revision: next.revision,
+    clockHash: next.clockHash,
     tokenHash: sourceHash(token).slice(0, 16),
   };
 }
 
 function taskKey(task) {
-  return `${String(task.revision).padStart(16, '0')}_${task.tokenHash}`;
+  return `${String(task.revision).padStart(16, '0')}_` +
+    `${String(task.clockHash || '').slice(0, 16)}_${task.tokenHash}`;
 }
 
 module.exports = {
   SCHEMA_VERSION,
+  canonicalDiaryClocks,
+  diaryClockHash,
   extractDiaryPaths,
   forceProjectedEntry,
   normalizeSourceEntry,
   projectionTask,
   revisionFrom,
   sourceHash,
+  sourceVersion,
+  sameSourceVersion,
   stableStringify,
   strictPeriod,
   taskKey,

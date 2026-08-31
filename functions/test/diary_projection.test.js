@@ -3,10 +3,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  canonicalDiaryClocks,
+  diaryClockHash,
   extractDiaryPaths,
   forceProjectedEntry,
   projectionTask,
   sourceHash,
+  sourceVersion,
   strictPeriod,
   taskKey,
   updatePeriodIndex,
@@ -103,13 +106,72 @@ test('projection task chains on diary table revisions, not global revisions', ()
   }, 'event-1', 1234);
   assert.equal(task.previousRevision, 40);
   assert.equal(task.revision, 42);
+  assert.equal(task.previousClockHash, diaryClockHash({}));
+  assert.equal(task.clockHash, diaryClockHash({}));
   assert.equal(task.full, false);
   assert.deepEqual(task.paths, ['diaryDB/dia_1']);
-  assert.match(taskKey(task), /^0+42_[a-f0-9]{16}$/);
+  assert.match(taskKey(task), /^0+42_[a-f0-9]{16}_[a-f0-9]{16}$/);
   assert.equal(projectionTask(
     {tables: {diaryDB: 42}},
     {tables: {diaryDB: 42}},
     'same',
     1,
   ), null);
+});
+
+test('same numeric revision still projects a concurrent writer clock change', () => {
+  const before = {
+    tables: {diaryDB: 42},
+    tableClocks: {
+      diaryDB: {writer_device_alpha: 'writer_device_alpha:42:a'},
+    },
+  };
+  const after = {
+    ...before,
+    changeToken: 'writer_device_bravo:42:b',
+    deltaPaths: JSON.stringify(['diaryDB/dia_2']),
+    tableClocks: {
+      diaryDB: {
+        writer_device_alpha: 'writer_device_alpha:42:a',
+        writer_device_bravo: 'writer_device_bravo:42:b',
+      },
+    },
+  };
+
+  const task = projectionTask(before, after, 'same-revision-event', 5000);
+  assert.notEqual(task, null);
+  assert.equal(task.previousRevision, 42);
+  assert.equal(task.revision, 42);
+  assert.notEqual(task.previousClockHash, task.clockHash);
+  assert.deepEqual(task.paths, ['diaryDB/dia_2']);
+  assert.deepEqual(sourceVersion(after), {
+    revision: 42,
+    clockHash: diaryClockHash(after),
+  });
+});
+
+test('diary clock hash is deterministic and ignores malformed metadata', () => {
+  const first = {
+    tableClocks: {
+      diaryDB: {
+        writer_device_bravo: 'b1',
+        invalid: 'ignored',
+        writer_device_alpha: 'a1',
+      },
+    },
+  };
+  const second = {
+    tableClocks: {
+      diaryDB: {
+        writer_device_alpha: 'a1',
+        writer_device_bravo: 'b1',
+      },
+    },
+  };
+  assert.deepEqual(canonicalDiaryClocks(first), {
+    writer_device_alpha: 'a1',
+    writer_device_bravo: 'b1',
+  });
+  assert.equal(diaryClockHash(first), diaryClockHash(second));
+  assert.match(diaryClockHash(first), /^[a-f0-9]{64}$/);
 });

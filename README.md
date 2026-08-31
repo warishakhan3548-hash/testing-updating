@@ -111,9 +111,11 @@ projection, so connection/status repaints never rescan the complete ledger.
 ## Guarded monthly Diary projection
 
 `ledgerV2` is an opt-in server-owned read model. The Flutter app uses it only
-when `meta/diary` reports schema version 1 and its `sourceRevision` exactly
-matches the legacy V12 `diaryDB` table revision. Otherwise the app fails closed
-to `users/{uid}/appData`, preserving existing website and older-client behavior.
+when `meta/diary` reports schema version 2 and both its `sourceRevision` and
+per-writer `sourceClockHash` exactly match the legacy V12 `diaryDB` source.
+The vector-clock hash also distinguishes concurrent writes that happen to use
+the same numeric revision. Any mismatch fails closed to `users/{uid}/appData`,
+preserving existing website and older-client behavior.
 
 When active, startup downloads only the current Diary month. The compact period
 index drives the month picker and an older month is fetched only when selected.

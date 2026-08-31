@@ -69,30 +69,72 @@ void main() {
     });
 
     test('monthly diary projection is fail-closed by schema and revision', () {
+      final String clockHash = LedgerDeltaPolicy.tableClockHash(
+        const <String, String>{
+          'writer_device_alpha': 'writer_device_alpha:42:a',
+        },
+      );
+      final DiarySourceVersion source = DiarySourceVersion(
+        revision: 42,
+        clockHash: clockHash,
+      );
       final DiaryProjectionMetadata ready =
           DiaryProjectionMetadata.fromValue(<String, dynamic>{
-        'schemaVersion': 1,
+        'schemaVersion': 2,
         'ready': true,
         'sourceRevision': 42,
+        'sourceClockHash': clockHash,
       });
-      expect(ready.matchesSourceRevision(42), isTrue);
-      expect(ready.matchesSourceRevision(41), isFalse);
+      expect(ready.matchesSource(source), isTrue);
       expect(
-        DiaryProjectionMetadata.fromValue(<String, dynamic>{
-          'schemaVersion': 2,
-          'ready': true,
-          'sourceRevision': 42,
-        }).matchesSourceRevision(42),
+        ready.matchesSource(
+          DiarySourceVersion(revision: 41, clockHash: clockHash),
+        ),
+        isFalse,
+      );
+      expect(
+        ready.matchesSource(
+          const DiarySourceVersion(revision: 42, clockHash: 'stale'),
+        ),
         isFalse,
       );
       expect(
         DiaryProjectionMetadata.fromValue(<String, dynamic>{
           'schemaVersion': 1,
-          'ready': false,
+          'ready': true,
           'sourceRevision': 42,
-        }).matchesSourceRevision(42),
+          'sourceClockHash': clockHash,
+        }).matchesSource(source),
         isFalse,
       );
+      expect(
+        DiaryProjectionMetadata.fromValue(<String, dynamic>{
+          'schemaVersion': 2,
+          'ready': false,
+          'sourceRevision': 42,
+          'sourceClockHash': clockHash,
+        }).matchesSource(source),
+        isFalse,
+      );
+    });
+
+    test('diary vector clock hash is deterministic across writer order', () {
+      final String first = LedgerDeltaPolicy.tableClockHash(
+        const <String, String>{
+          'writer_device_bravo': 'b1',
+          'invalid': 'ignored',
+          'writer_device_alpha': 'a1',
+        },
+      );
+      final String second = LedgerDeltaPolicy.tableClockHash(
+        const <String, String>{
+          'writer_device_alpha': 'a1',
+          'writer_device_bravo': 'b1',
+        },
+      );
+
+      expect(first, second);
+      expect(first, matches(RegExp(r'^[a-f0-9]{64}$')));
     });
 
     test('monthly diary codec replaces only the requested month', () {

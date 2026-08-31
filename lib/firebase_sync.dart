@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
@@ -340,17 +341,31 @@ class LedgerCodec {
   }
 }
 
+class DiarySourceVersion {
+  const DiarySourceVersion({
+    required this.revision,
+    required this.clockHash,
+  });
+
+  final int revision;
+  final String clockHash;
+
+  String get cacheKey => '$revision:$clockHash';
+}
+
 class DiaryProjectionMetadata {
   const DiaryProjectionMetadata({
     required this.schemaVersion,
     required this.ready,
     required this.sourceRevision,
+    required this.sourceClockHash,
   });
 
   const DiaryProjectionMetadata.unavailable()
       : schemaVersion = 0,
         ready = false,
-        sourceRevision = -1;
+        sourceRevision = -1,
+        sourceClockHash = '';
 
   factory DiaryProjectionMetadata.fromValue(dynamic value) {
     final Map<String, dynamic> map = LedgerCodec.objectMap(value);
@@ -358,19 +373,22 @@ class DiaryProjectionMetadata {
       schemaVersion: _asInt(map['schemaVersion']),
       ready: map['ready'] == true,
       sourceRevision: _asInt(map['sourceRevision']),
+      sourceClockHash: '${map['sourceClockHash'] ?? ''}',
     );
   }
 
-  static const int supportedSchemaVersion = 1;
+  static const int supportedSchemaVersion = 2;
 
   final int schemaVersion;
   final bool ready;
   final int sourceRevision;
+  final String sourceClockHash;
 
-  bool matchesSourceRevision(int revision) =>
+  bool matchesSource(DiarySourceVersion source) =>
       ready &&
       schemaVersion == supportedSchemaVersion &&
-      sourceRevision == revision;
+      sourceRevision == source.revision &&
+      sourceClockHash == source.clockHash;
 }
 
 class DiaryMonthCodec {
@@ -569,6 +587,20 @@ class DeltaPathCodec {
 
 class LedgerDeltaPolicy {
   LedgerDeltaPolicy._();
+
+  static String tableClockHash(Map<String, String> clocks) {
+    final Map<String, String> canonical = <String, String>{};
+    final List<String> writers = clocks.keys.toList()..sort();
+    for (final String writer in writers) {
+      final String token = clocks[writer] ?? '';
+      if (ledgerWriterIdPattern.hasMatch(writer) &&
+          token.isNotEmpty &&
+          token.length <= 120) {
+        canonical[writer] = token;
+      }
+    }
+    return crypto.sha256.convert(utf8.encode(jsonEncode(canonical))).toString();
+  }
 
   static Set<String> changedRoots({
     required Map<String, int> remoteRevisions,
@@ -1331,10 +1363,10 @@ class LedgerSyncService extends ChangeNotifier {
   DiaryProjectionMetadata _diaryProjection =
       const DiaryProjectionMetadata.unavailable();
   Map<String, dynamic> _diaryPeriodsByEntry = <String, dynamic>{};
-  final Map<String, int> _loadedDiaryMonthRevisions = <String, int>{};
+  final Map<String, String> _loadedDiaryMonthVersions = <String, String>{};
   final Map<String, Future<void>> _diaryMonthLoads = <String, Future<void>>{};
   final Map<String, Object> _diaryMonthErrors = <String, Object>{};
-  int _lastDiaryProjectionProbeRevision = -1;
+  String _lastDiaryProjectionProbeSource = '';
   int _diaryPeriodVersion = 0;
 
   User? get user => auth.currentUser;
@@ -1368,9 +1400,23 @@ class LedgerSyncService extends ChangeNotifier {
 
   LedgerProjection get currentProjection => projectionAt(DateTime.now());
 
-  bool get diaryMonthlyMode => _diaryProjection.matchesSourceRevision(
-        _tableRevisions['diaryDB'] ?? 0,
-      );
+  DiarySourceVersion _diarySourceVersion({
+    Map<String, int>? tableRevisions,
+    Map<String, Map<String, String>>? tableClocks,
+  }) {
+    final Map<String, int> revisions = tableRevisions ?? _tableRevisions;
+    final Map<String, Map<String, String>> clocks =
+        tableClocks ?? _tableClocks;
+    return DiarySourceVersion(
+      revision: revisions['diaryDB'] ?? 0,
+      clockHash: LedgerDeltaPolicy.tableClockHash(
+        clocks['diaryDB'] ?? const <String, String>{},
+      ),
+    );
+  }
+
+  bool get diaryMonthlyMode =>
+      _diaryProjection.matchesSource(_diarySourceVersion());
 
   int get diaryPeriodVersion => _diaryPeriodVersion;
 
@@ -1490,10 +1536,10 @@ class LedgerSyncService extends ChangeNotifier {
         const DiaryProjectionMetadata.unavailable();
     _diaryProjection = const DiaryProjectionMetadata.unavailable();
     _diaryPeriodsByEntry = <String, dynamic>{};
-    _loadedDiaryMonthRevisions.clear();
+    _loadedDiaryMonthVersions.clear();
     _diaryMonthLoads.clear();
     _diaryMonthErrors.clear();
-    _lastDiaryProjectionProbeRevision = -1;
+    _lastDiaryProjectionProbeSource = '';
     _diaryPeriodVersion++;
   }
 
@@ -1560,17 +1606,17 @@ class LedgerSyncService extends ChangeNotifier {
 
   Future<bool> _refreshDiaryProjection(
     String uid,
-    int sourceRevision,
+    DiarySourceVersion source,
   ) async {
     final DatabaseReference? reference = _ledgerV2Ref;
     if (reference == null || uid != _activeUid) return false;
-    if (_diaryProjection.matchesSourceRevision(sourceRevision)) return true;
+    if (_diaryProjection.matchesSource(source)) return true;
 
     DiaryProjectionMetadata metadata = _advertisedDiaryProjection;
     final bool shouldProbe = metadata.ready ||
-        _lastDiaryProjectionProbeRevision != sourceRevision;
+        _lastDiaryProjectionProbeSource != source.cacheKey;
     if (!shouldProbe) return false;
-    _lastDiaryProjectionProbeRevision = sourceRevision;
+    _lastDiaryProjectionProbeSource = source.cacheKey;
 
     try {
       final DataSnapshot metadataSnapshot =
@@ -1578,7 +1624,7 @@ class LedgerSyncService extends ChangeNotifier {
       if (uid != _activeUid) return false;
       metadata = DiaryProjectionMetadata.fromValue(metadataSnapshot.value);
       _advertisedDiaryProjection = metadata;
-      if (!metadata.matchesSourceRevision(sourceRevision)) {
+      if (!metadata.matchesSource(source)) {
         if (_diaryProjection.ready) _diaryPeriodVersion++;
         _diaryProjection = metadata;
         return false;
@@ -1591,8 +1637,9 @@ class LedgerSyncService extends ChangeNotifier {
       if (uid != _activeUid) return false;
       final DiaryProjectionMetadata confirmed =
           DiaryProjectionMetadata.fromValue(confirmationSnapshot.value);
-      if (!confirmed.matchesSourceRevision(sourceRevision) ||
-          confirmed.sourceRevision != metadata.sourceRevision) {
+      if (!confirmed.matchesSource(source) ||
+          confirmed.sourceRevision != metadata.sourceRevision ||
+          confirmed.sourceClockHash != metadata.sourceClockHash) {
         _advertisedDiaryProjection = confirmed;
         _diaryProjection = confirmed;
         return false;
@@ -1614,7 +1661,7 @@ class LedgerSyncService extends ChangeNotifier {
   Future<Map<String, dynamic>?> _readStateWithProjectedDiary({
     required String uid,
     required DatabaseReference appData,
-    required int sourceRevision,
+    required DiarySourceVersion sourceVersion,
     required int year,
     required int month,
   }) async {
@@ -1646,7 +1693,7 @@ class LedgerSyncService extends ChangeNotifier {
       if (uid != _activeUid || auth.currentUser?.uid != uid) return null;
       final DiaryProjectionMetadata confirmed =
           DiaryProjectionMetadata.fromValue(metadataSnapshot.value);
-      if (!confirmed.matchesSourceRevision(sourceRevision)) return null;
+      if (!confirmed.matchesSource(sourceVersion)) return null;
 
       final Map<String, dynamic> source = <String, dynamic>{};
       for (int index = 0; index < roots.length; index++) {
@@ -1668,9 +1715,9 @@ class LedgerSyncService extends ChangeNotifier {
           month: month,
         ),
       );
-      _loadedDiaryMonthRevisions[
+      _loadedDiaryMonthVersions[
         DiaryMonthCodec.periodKey(year, month)
-      ] = sourceRevision;
+      ] = sourceVersion.cacheKey;
       return state;
     } catch (_) {
       // Missing rules, index or projection data must never block legacy V12.
@@ -1724,7 +1771,9 @@ class LedgerSyncService extends ChangeNotifier {
       final bool changed =
           next.ready != _advertisedDiaryProjection.ready ||
               next.schemaVersion != _advertisedDiaryProjection.schemaVersion ||
-              next.sourceRevision != _advertisedDiaryProjection.sourceRevision;
+              next.sourceRevision != _advertisedDiaryProjection.sourceRevision ||
+              next.sourceClockHash !=
+                  _advertisedDiaryProjection.sourceClockHash;
       _advertisedDiaryProjection = next;
       if (changed &&
           (next.ready || _diaryProjection.ready) &&
@@ -1771,8 +1820,8 @@ class LedgerSyncService extends ChangeNotifier {
       return Future<void>.value();
     }
     final String period = DiaryMonthCodec.periodKey(year, month);
-    final int sourceRevision = _diaryProjection.sourceRevision;
-    if (_loadedDiaryMonthRevisions[period] == sourceRevision) {
+    final DiarySourceVersion source = _diarySourceVersion();
+    if (_loadedDiaryMonthVersions[period] == source.cacheKey) {
       return Future<void>.value();
     }
     final Future<void>? active = _diaryMonthLoads[period];
@@ -1782,7 +1831,7 @@ class LedgerSyncService extends ChangeNotifier {
     tracked = _loadDiaryMonth(
       year: year,
       month: month,
-      sourceRevision: sourceRevision,
+      source: source,
     ).whenComplete(() {
       if (identical(_diaryMonthLoads[period], tracked)) {
         _diaryMonthLoads.remove(period);
@@ -1812,7 +1861,7 @@ class LedgerSyncService extends ChangeNotifier {
   Future<void> _loadDiaryMonth({
     required int year,
     required int month,
-    required int sourceRevision,
+    required DiarySourceVersion source,
   }) async {
     final String? uid = _activeUid;
     final DatabaseReference? projection = _ledgerV2Ref;
@@ -1831,7 +1880,7 @@ class LedgerSyncService extends ChangeNotifier {
       ]);
       final DiaryProjectionMetadata confirmed =
           DiaryProjectionMetadata.fromValue(snapshots[1].value);
-      if (!confirmed.matchesSourceRevision(sourceRevision)) {
+      if (!confirmed.matchesSource(source)) {
         throw const LedgerSyncException(
           'Diary changed while loading. Please try this month again.',
         );
@@ -1845,7 +1894,7 @@ class LedgerSyncService extends ChangeNotifier {
 
       await _locked<void>(() async {
         if (uid != _activeUid || auth.currentUser?.uid != uid) return;
-        if (!_diaryProjection.matchesSourceRevision(sourceRevision)) return;
+        if (!_diaryProjection.matchesSource(source)) return;
         final Map<String, dynamic> nextState =
             LedgerCodec.normalizeState(_state);
         DiaryMonthCodec.replaceMonth(
@@ -1861,7 +1910,7 @@ class LedgerSyncService extends ChangeNotifier {
         await _persistEnvelope(uid, envelope);
         if (uid != _activeUid) return;
         _state = nextState;
-        _loadedDiaryMonthRevisions[period] = sourceRevision;
+        _loadedDiaryMonthVersions[period] = source.cacheKey;
         _diaryMonthErrors.remove(period);
         if (!_disposed) notifyListeners();
       });
@@ -2201,15 +2250,18 @@ class LedgerSyncService extends ChangeNotifier {
           (remoteToken.isEmpty && remoteRevision != _revision);
       final bool cloudChanged = tokenChanged || changedRoots.isNotEmpty;
       final bool requireFull = force || fullAuditDue || noKnownCloudState;
-      final int remoteDiaryRevision = remoteTables['diaryDB'] ?? 0;
+      final DiarySourceVersion remoteDiarySource = _diarySourceVersion(
+        tableRevisions: remoteTables,
+        tableClocks: remoteTableClocks,
+      );
       bool diaryProjectionAvailable =
-          _diaryProjection.matchesSourceRevision(remoteDiaryRevision);
+          _diaryProjection.matchesSource(remoteDiarySource);
       if (requireFull ||
           changedRoots.contains('diaryDB') ||
           reason == 'diary-projection') {
         diaryProjectionAvailable = await _refreshDiaryProjection(
           uid,
-          remoteDiaryRevision,
+          remoteDiarySource,
         );
       }
 
@@ -2325,7 +2377,7 @@ class LedgerSyncService extends ChangeNotifier {
                   ? await _readStateWithProjectedDiary(
                       uid: uid,
                       appData: reference,
-                      sourceRevision: remoteDiaryRevision,
+                      sourceVersion: remoteDiarySource,
                       year: currentMonth.year,
                       month: currentMonth.month,
                     )
@@ -2338,7 +2390,7 @@ class LedgerSyncService extends ChangeNotifier {
               return false;
             }
             base = LedgerCodec.normalizeState(fullSnapshot.value);
-            _loadedDiaryMonthRevisions.clear();
+            _loadedDiaryMonthVersions.clear();
           }
           nextFullAuditAt = now;
         } else {
