@@ -3,9 +3,10 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:animations/animations.dart'
+    show ContainerTransitionType, OpenContainer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/cupertino.dart' show CupertinoPageTransition;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
@@ -76,6 +77,7 @@ abstract final class UIConstants {
   static const Duration dashboardReveal = Duration(milliseconds: 520);
   static const Duration routeIn = Duration(milliseconds: 280);
   static const Duration routeOut = Duration(milliseconds: 220);
+  static const Duration containerTransform = Duration(milliseconds: 420);
 
   // A lightly under-damped release: quick enough for repeated ledger work,
   // with one restrained rebound instead of a decorative wobble.
@@ -526,12 +528,12 @@ ThemeData _theme(Brightness brightness) {
     ),
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: <TargetPlatform, PageTransitionsBuilder>{
-        TargetPlatform.android: _PremiumTransitionsBuilder(),
-        TargetPlatform.iOS: _PremiumTransitionsBuilder(),
-        TargetPlatform.macOS: _PremiumTransitionsBuilder(),
-        TargetPlatform.windows: _PremiumTransitionsBuilder(),
-        TargetPlatform.linux: _PremiumTransitionsBuilder(),
-        TargetPlatform.fuchsia: _PremiumTransitionsBuilder(),
+        TargetPlatform.android: _OpaqueContentTransitionsBuilder(),
+        TargetPlatform.iOS: _OpaqueContentTransitionsBuilder(),
+        TargetPlatform.macOS: _OpaqueContentTransitionsBuilder(),
+        TargetPlatform.windows: _OpaqueContentTransitionsBuilder(),
+        TargetPlatform.linux: _OpaqueContentTransitionsBuilder(),
+        TargetPlatform.fuchsia: _OpaqueContentTransitionsBuilder(),
       },
     ),
   );
@@ -633,8 +635,8 @@ class _AmbientPainter extends CustomPainter {
       oldDelegate.dark != dark;
 }
 
-class _PremiumTransitionsBuilder extends PageTransitionsBuilder {
-  const _PremiumTransitionsBuilder();
+class _OpaqueContentTransitionsBuilder extends PageTransitionsBuilder {
+  const _OpaqueContentTransitionsBuilder();
 
   @override
   Widget buildTransitions<T>(
@@ -643,36 +645,85 @@ class _PremiumTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> animation,
     Animation<double> secondaryAnimation,
     Widget child,
-  ) => _opaquePageTransition(
-    context: context,
-    animation: animation,
-    secondaryAnimation: secondaryAnimation,
-    child: child,
-  );
+  ) {
+    // A route-local canvas stays fully opaque for the whole transition. Only
+    // the incoming content dissolves, so transparent Scaffolds can never blend
+    // two pages' text together. Card-to-detail navigation uses the richer
+    // source-matched transform below; this is the safe fallback for framework
+    // routes such as the licenses page.
+    final Widget surface = _AmbientBackground(child: child);
+    if (AppMotion.reduce(context)) return surface;
+    final Animation<double> contentAnimation = CurvedAnimation(
+      parent: animation,
+      curve: const Interval(.12, 1, curve: UIConstants.motionOut),
+      reverseCurve: const Interval(0, .82, curve: UIConstants.motionIn),
+    );
+    return _AmbientBackground(
+      child: FadeTransition(
+        opacity: contentAnimation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: .985, end: 1).animate(contentAnimation),
+          child: child,
+        ),
+      ),
+    );
+  }
 }
 
-Widget _opaquePageTransition({
-  required BuildContext context,
-  required Animation<double> animation,
-  required Animation<double> secondaryAnimation,
-  required Widget child,
-}) {
-  // Every app Scaffold intentionally inherits a transparent background so the
-  // branded ambient canvas stays continuous. Give each full-screen route its
-  // own identical canvas during navigation; fading the transparent Scaffold
-  // would otherwise composite both routes' text and cards together.
-  final Widget surface = _AmbientBackground(child: child);
-  if (AppMotion.reduce(context)) return surface;
+class _PremiumOpenContainer extends StatefulWidget {
+  const _PremiumOpenContainer({
+    required this.sourceBuilder,
+    required this.destinationBuilder,
+    required this.borderRadius,
+  });
 
-  // This Flutter-owned transition moves two solid pages as a compositor-layer
-  // curtain. It provides directional push/pop motion, restrained parallax and
-  // the separating edge shadow without ever fading one page through another.
-  return CupertinoPageTransition(
-    primaryRouteAnimation: animation,
-    secondaryRouteAnimation: secondaryAnimation,
-    linearTransition: false,
-    child: surface,
-  );
+  final Widget Function(VoidCallback openContainer) sourceBuilder;
+  final WidgetBuilder destinationBuilder;
+  final double borderRadius;
+
+  @override
+  State<_PremiumOpenContainer> createState() => _PremiumOpenContainerState();
+}
+
+class _PremiumOpenContainerState extends State<_PremiumOpenContainer> {
+  bool _routeOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color pageColor = Theme.of(context).brightness == Brightness.dark
+        ? Colors.black
+        : lightCanvas;
+    return OpenContainer<Object?>(
+      transitionType: ContainerTransitionType.fadeThrough,
+      transitionDuration: AppMotion.reduce(context)
+          ? Duration.zero
+          : UIConstants.containerTransform,
+      tappable: false,
+      closedColor: Colors.transparent,
+      middleColor: pageColor,
+      openColor: pageColor,
+      closedElevation: 0,
+      openElevation: 0,
+      closedShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(widget.borderRadius),
+      ),
+      openShape: const RoundedRectangleBorder(),
+      clipBehavior: Clip.none,
+      onClosed: (_) => _routeOpen = false,
+      closedBuilder: (_, VoidCallback openContainer) => RepaintBoundary(
+        child: widget.sourceBuilder(() {
+          if (_routeOpen) return;
+          _routeOpen = true;
+          openContainer();
+        }),
+      ),
+      openBuilder: (BuildContext routeContext, _) => RepaintBoundary(
+        child: _AmbientBackground(
+          child: widget.destinationBuilder(routeContext),
+        ),
+      ),
+    );
+  }
 }
 
 class _LaunchScreen extends StatelessWidget {
@@ -2583,26 +2634,30 @@ class _ListCard extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     required this.color,
-    required this.onTap,
+    this.onTap,
+    this.destinationBuilder,
     this.trailing,
     this.onDelete,
     this.avatarText,
-  });
+  }) : assert(
+         (onTap == null) != (destinationBuilder == null),
+         'Provide either onTap or destinationBuilder.',
+       );
 
   final String title;
   final String subtitle;
   final IconData icon;
   final Color color;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final WidgetBuilder? destinationBuilder;
   final String? trailing;
   final VoidCallback? onDelete;
   final String? avatarText;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: _Pressable(
-      onTap: onTap,
+  Widget build(BuildContext context) {
+    Widget buildCard(VoidCallback action) => _Pressable(
+      onTap: action,
       borderRadius: BorderRadius.circular(UIConstants.cardRadius),
       feedbackColor: color,
       child: _GlassCard(
@@ -2706,8 +2761,17 @@ class _ListCard extends StatelessWidget {
           ],
         ),
       ),
-    ),
-  );
+    );
+
+    final Widget card = destinationBuilder == null
+        ? buildCard(onTap!)
+        : _PremiumOpenContainer(
+            borderRadius: UIConstants.cardRadius,
+            destinationBuilder: destinationBuilder!,
+            sourceBuilder: buildCard,
+          );
+    return Padding(padding: const EdgeInsets.only(bottom: 12), child: card);
+  }
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -3114,26 +3178,6 @@ List<Color> _moduleTabColors(LedgerProjection projection) => <Color>[
   appleBlue,
 ];
 
-PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
-  opaque: true,
-  allowSnapshotting: true,
-  transitionDuration: UIConstants.routeIn,
-  reverseTransitionDuration: UIConstants.routeOut,
-  pageBuilder: (_, __, ___) => child,
-  transitionsBuilder:
-      (
-        BuildContext context,
-        Animation<double> animation,
-        Animation<double> secondaryAnimation,
-        Widget child,
-      ) => _opaquePageTransition(
-        context: context,
-        animation: animation,
-        secondaryAnimation: secondaryAnimation,
-        child: child,
-      ),
-);
-
 class _AiHubButton extends StatelessWidget {
   const _AiHubButton({required this.onTap});
 
@@ -3308,10 +3352,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         _ScreenHeader(
           title: 'Dashboard',
           subtitle: 'AARISH DAIRY',
-          subtitleTrailing: _AiHubButton(
-            onTap: () =>
-                Navigator.of(context)
-                    .push(_premiumRoute<void>(AiHubScreen(sync: sync))),
+          subtitleTrailing: _PremiumOpenContainer(
+            borderRadius: 20,
+            destinationBuilder: (_) => AiHubScreen(sync: sync),
+            sourceBuilder: (VoidCallback openContainer) =>
+                _AiHubButton(onTap: openContainer),
           ),
           actions: <Widget>[
             _CircleAction(
@@ -3412,47 +3457,52 @@ class _DashboardScreenState extends State<DashboardScreen>
                 _DashboardCardReveal(
                   animation: _revealController,
                   order: 4,
-                  child: _Pressable(
-                    onTap: () => Navigator.of(
-                      context,
-                    ).push(_premiumRoute<void>(PartyLedgerScreen(sync: sync))),
-                    borderRadius: BorderRadius.circular(24),
-                    feedbackColor: const Color(0xFF9333EA),
-                    child: const _GlassCard(
-                      shadowColor: Color(0xFF9333EA),
-                      child: Row(
-                        children: <Widget>[
-                          _LedgerIcon(
-                            icon: Icons.contact_page_rounded,
-                            color: Color(0xFF9333EA),
-                          ),
-                          SizedBox(width: 15),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  'Party Ledger',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                SizedBox(height: 3),
-                                Text(
-                                  'COMBINED MILK & CREDIT',
-                                  style: TextStyle(
-                                    color: systemGray,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: .8,
-                                  ),
-                                ),
-                              ],
+                  child: _PremiumOpenContainer(
+                    borderRadius: 24,
+                    destinationBuilder: (_) => PartyLedgerScreen(sync: sync),
+                    sourceBuilder: (VoidCallback openContainer) => _Pressable(
+                      onTap: openContainer,
+                      borderRadius: BorderRadius.circular(24),
+                      feedbackColor: const Color(0xFF9333EA),
+                      child: const _GlassCard(
+                        shadowColor: Color(0xFF9333EA),
+                        child: Row(
+                          children: <Widget>[
+                            _LedgerIcon(
+                              icon: Icons.contact_page_rounded,
+                              color: Color(0xFF9333EA),
                             ),
-                          ),
-                          Icon(Icons.chevron_right_rounded, color: systemGray),
-                        ],
+                            SizedBox(width: 15),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    'Party Ledger',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  SizedBox(height: 3),
+                                  Text(
+                                    'COMBINED MILK & CREDIT',
+                                    style: TextStyle(
+                                      color: systemGray,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: .8,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: systemGray,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -3945,11 +3995,8 @@ class _MilkScreenState extends State<MilkScreen> {
                         ? 'M'
                         : name.trim()[0].toUpperCase(),
                     trailing: _signedMoney(totals.netAmount),
-                    onTap: () => Navigator.of(context).push(
-                      _premiumRoute<void>(
+                    destinationBuilder: (_) =>
                         MilkDetailScreen(sync: widget.sync, customerName: name),
-                      ),
-                    ),
                   );
                 }),
             ],
@@ -5459,11 +5506,8 @@ class _SalaryScreenState extends State<SalaryScreen> {
                         ? 'S'
                         : name.trim()[0].toUpperCase(),
                     trailing: _signedMoney(net),
-                    onTap: () => Navigator.of(context).push(
-                      _premiumRoute<void>(
+                    destinationBuilder: (_) =>
                         SalaryDetailScreen(sync: widget.sync, personName: name),
-                      ),
-                    ),
                   );
                 }),
             ],
@@ -5947,13 +5991,9 @@ class _CreditScreenState extends State<CreditScreen> {
                         ? 'C'
                         : group.name.trim()[0].toUpperCase(),
                     trailing: _signedMoney(group.net),
-                    onTap: () => Navigator.of(context).push(
-                      _premiumRoute<void>(
-                        CreditDetailScreen(
-                          sync: widget.sync,
-                          personName: group.name,
-                        ),
-                      ),
+                    destinationBuilder: (_) => CreditDetailScreen(
+                      sync: widget.sync,
+                      personName: group.name,
                     ),
                   );
                 }),
@@ -6435,13 +6475,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     trailing: group.monthTotal > 0
                         ? '-${_money(group.monthTotal)}'
                         : '—',
-                    onTap: () => Navigator.of(context).push(
-                      _premiumRoute<void>(
-                        ExpenseDetailScreen(
-                          sync: widget.sync,
-                          category: group.category,
-                        ),
-                      ),
+                    destinationBuilder: (_) => ExpenseDetailScreen(
+                      sync: widget.sync,
+                      category: group.category,
                     ),
                   ),
                 ),
@@ -7062,90 +7098,90 @@ class _DiaryScreenState extends State<DiaryScreen> {
         : _displayDate(entry['date']).toUpperCase();
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: _Pressable(
-        semanticLabel: needsDate
-            ? '$entryTitle, date needs correction'
-            : '$entryTitle, ${_displayDate(entry['date'])}',
-        onTap: () => Navigator.of(context).push(
-          _premiumRoute<void>(
-            DiaryDetailScreen(
-              sync: widget.sync,
-              entryId: '${entry['id']}',
-              onDateChanged: (DateTime date) {
-                if (!mounted) return;
-                setState(() {
-                  _month = date.month;
-                  _year = date.year;
-                });
-              },
-            ),
-          ),
+      child: _PremiumOpenContainer(
+        borderRadius: 23,
+        destinationBuilder: (_) => DiaryDetailScreen(
+          sync: widget.sync,
+          entryId: '${entry['id']}',
+          onDateChanged: (DateTime date) {
+            if (!mounted) return;
+            setState(() {
+              _month = date.month;
+              _year = date.year;
+            });
+          },
         ),
-        borderRadius: BorderRadius.circular(23),
-        feedbackColor: diaryOrange,
-        child: _GlassCard(
-          borderRadius: 23,
-          accentColor: diaryOrange,
-          shadowColor: diaryOrange.withAlpha(72),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      entryTitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: diaryOrange,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
+        sourceBuilder: (VoidCallback openContainer) => _Pressable(
+          semanticLabel: needsDate
+              ? '$entryTitle, date needs correction'
+              : '$entryTitle, ${_displayDate(entry['date'])}',
+          onTap: openContainer,
+          borderRadius: BorderRadius.circular(23),
+          feedbackColor: diaryOrange,
+          child: _GlassCard(
+            borderRadius: 23,
+            accentColor: diaryOrange,
+            shadowColor: diaryOrange.withAlpha(72),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        entryTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: diaryOrange,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
+                    const Icon(Icons.chevron_right_rounded, color: diaryOrange),
+                  ],
+                ),
+                if (preview.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Text(
+                    '“${preview.length > 90 ? '${preview.substring(0, 90)}…' : preview}”',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: diaryOrange,
+                      fontSize: 14,
+                      fontStyle: FontStyle.italic,
+                      height: 1.35,
+                    ),
                   ),
-                  const Icon(Icons.chevron_right_rounded, color: diaryOrange),
                 ],
-              ),
-              if (preview.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 8),
-                Text(
-                  '“${preview.length > 90 ? '${preview.substring(0, 90)}…' : preview}”',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: diaryOrange,
-                    fontSize: 14,
-                    fontStyle: FontStyle.italic,
-                    height: 1.35,
-                  ),
+                const SizedBox(height: 12),
+                Row(
+                  children: <Widget>[
+                    if (needsDate) ...<Widget>[
+                      const Icon(
+                        Icons.event_busy_rounded,
+                        color: diaryOrange,
+                        size: 15,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: Text(
+                        dateLabel,
+                        style: const TextStyle(
+                          color: diaryOrange,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .8,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-              const SizedBox(height: 12),
-              Row(
-                children: <Widget>[
-                  if (needsDate) ...<Widget>[
-                    const Icon(
-                      Icons.event_busy_rounded,
-                      color: diaryOrange,
-                      size: 15,
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                  Expanded(
-                    child: Text(
-                      dateLabel,
-                      style: const TextStyle(
-                        color: diaryOrange,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .8,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -7657,13 +7693,9 @@ class _BusinessScreenState extends State<BusinessScreen> {
                     icon: Icons.business_center_rounded,
                     color: appleBlue,
                     onDelete: () => unawaited(_deleteProject(name)),
-                    onTap: () => Navigator.of(context).push(
-                      _premiumRoute<void>(
-                        BusinessDetailScreen(
-                          sync: widget.sync,
-                          projectName: name,
-                        ),
-                      ),
+                    destinationBuilder: (_) => BusinessDetailScreen(
+                      sync: widget.sync,
+                      projectName: name,
                     ),
                   );
                 }),

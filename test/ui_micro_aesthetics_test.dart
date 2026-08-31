@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('premium micro-aesthetics remain surgical and semantic', () {
     final String source = File('lib/main.dart').readAsStringSync();
+    final String manifest = File('pubspec.yaml').readAsStringSync();
 
     // Multi-frequency depth physics: contact, key, ambient and themed light.
     expect(source, contains('spreadRadius: -1.25'));
@@ -160,25 +161,19 @@ void main() {
       contains('final bool reduceMotion = AppMotion.reduce(context)'),
     );
 
-    // Full-screen navigation must move an opaque branded surface. Applying a
-    // FadeTransition to transparent Scaffolds composites both pages and causes
-    // the visible text/card ghosting that this guard prevents.
-    expect(
-      source,
-      contains(
-        "import 'package:flutter/cupertino.dart' show CupertinoPageTransition;",
-      ),
-    );
-    expect(source, contains('Widget _opaquePageTransition({'));
-    expect(
-      source,
-      contains('final Widget surface = _AmbientBackground(child: child);'),
-    );
+    // Card navigation uses Flutter's maintained source-matched container
+    // transform. Fade-through separates the two content phases, while a solid
+    // route-local canvas keeps transparent Scaffolds from ghosting together.
+    expect(source, contains("import 'package:animations/animations.dart'"));
+    expect(manifest, contains('animations: 2.0.11'));
+    expect(source, isNot(contains('CupertinoPageTransition')));
+    expect(source, isNot(contains('_premiumRoute')));
+
     final int transitionStart = source.indexOf(
-      'Widget _opaquePageTransition({',
+      'class _OpaqueContentTransitionsBuilder',
     );
     final int transitionEnd = source.indexOf(
-      'class _LaunchScreen',
+      'class _PremiumOpenContainer',
       transitionStart,
     );
     expect(transitionStart, greaterThanOrEqualTo(0));
@@ -187,22 +182,56 @@ void main() {
       transitionStart,
       transitionEnd,
     );
-    expect(transitionSource, contains('CupertinoPageTransition('));
-    expect(transitionSource, contains('linearTransition: false'));
-    expect(transitionSource, contains('child: surface'));
-    expect(transitionSource, isNot(contains('FadeTransition(')));
-
-    final int routeStart = source.indexOf(
-      'PageRoute<T> _premiumRoute<T>(Widget child)',
+    expect(
+      transitionSource,
+      contains('final Widget surface = _AmbientBackground(child: child);'),
     );
-    final int routeEnd = source.indexOf('class _AiHubButton', routeStart);
-    expect(routeStart, greaterThanOrEqualTo(0));
-    expect(routeEnd, greaterThan(routeStart));
-    final String routeSource = source.substring(routeStart, routeEnd);
-    expect(routeSource, contains('opaque: true'));
-    expect(routeSource, contains('allowSnapshotting: true'));
-    expect(routeSource, contains('_opaquePageTransition('));
-    expect(routeSource, isNot(contains('FadeTransition(')));
+    expect(transitionSource, contains('return _AmbientBackground('));
+    expect(transitionSource, contains('child: FadeTransition('));
+
+    final int containerStart = source.indexOf(
+      'class _PremiumOpenContainer extends StatefulWidget',
+    );
+    final int containerEnd = source.indexOf(
+      'class _LaunchScreen',
+      containerStart,
+    );
+    expect(containerStart, greaterThanOrEqualTo(0));
+    expect(containerEnd, greaterThan(containerStart));
+    final String containerSource = source.substring(
+      containerStart,
+      containerEnd,
+    );
+    expect(containerSource, contains('OpenContainer<Object?>('));
+    expect(
+      containerSource,
+      contains('transitionType: ContainerTransitionType.fadeThrough'),
+    );
+    expect(containerSource, contains('closedColor: Colors.transparent'));
+    expect(containerSource, contains('middleColor: pageColor'));
+    expect(containerSource, contains('openColor: pageColor'));
+    expect(containerSource, contains('tappable: false'));
+    expect(containerSource, contains('? Duration.zero'));
+    expect(containerSource, contains('bool _routeOpen = false'));
+    expect(containerSource, contains('if (_routeOpen) return'));
+    expect(containerSource, contains('RepaintBoundary('));
+
+    expect(
+      RegExp(r'destinationBuilder:\s*\(_\)\s*=>').allMatches(source),
+      hasLength(8),
+    );
+    for (final String destination in <String>[
+      'AiHubScreen(sync: sync)',
+      'PartyLedgerScreen(sync: sync)',
+      'MilkDetailScreen(sync: widget.sync, customerName: name)',
+      'SalaryDetailScreen(sync: widget.sync, personName: name)',
+      'CreditDetailScreen(',
+      'ExpenseDetailScreen(',
+      'DiaryDetailScreen(',
+      'BusinessDetailScreen(',
+    ]) {
+      expect(source, contains(destination));
+    }
 
     // Sheets, dialogs and toasts use explicit native AnimationStyle timings.
     expect(source, contains('sheetAnimationStyle: reduceMotion'));
