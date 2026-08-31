@@ -1,0 +1,33 @@
+name: Firebase Functions CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "functions/**"
+      - "database.rules.json"
+      - "firebase.json"
+      - ".github/workflows/functions-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Parse function entrypoint
+        run: node --check functions/index.js
+
+      - name: Test projection invariants
+        run: npm test --prefix functions

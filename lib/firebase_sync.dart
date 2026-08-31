@@ -340,6 +340,128 @@ class LedgerCodec {
   }
 }
 
+class DiaryProjectionMetadata {
+  const DiaryProjectionMetadata({
+    required this.schemaVersion,
+    required this.ready,
+    required this.sourceRevision,
+  });
+
+  const DiaryProjectionMetadata.unavailable()
+      : schemaVersion = 0,
+        ready = false,
+        sourceRevision = -1;
+
+  factory DiaryProjectionMetadata.fromValue(dynamic value) {
+    final Map<String, dynamic> map = LedgerCodec.objectMap(value);
+    return DiaryProjectionMetadata(
+      schemaVersion: _asInt(map['schemaVersion']),
+      ready: map['ready'] == true,
+      sourceRevision: _asInt(map['sourceRevision']),
+    );
+  }
+
+  static const int supportedSchemaVersion = 1;
+
+  final int schemaVersion;
+  final bool ready;
+  final int sourceRevision;
+
+  bool matchesSourceRevision(int revision) =>
+      ready &&
+      schemaVersion == supportedSchemaVersion &&
+      sourceRevision == revision;
+}
+
+class DiaryMonthCodec {
+  DiaryMonthCodec._();
+
+  static final RegExp _periodPattern = RegExp(r'^(\d{4})-(\d{2})$');
+
+  static String periodKey(int year, int month) =>
+      '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}';
+
+  static DateTime? parsePeriod(dynamic value) {
+    final RegExpMatch? match = _periodPattern.firstMatch('$value');
+    if (match == null) return null;
+    final int year = int.parse(match.group(1)!);
+    final int month = int.parse(match.group(2)!);
+    if (year < 1 || month < 1 || month > 12) return null;
+    return DateTime(year, month);
+  }
+
+  static String? periodForRecord(dynamic value) {
+    final DateTime? date = LedgerMath.strictDate(
+      LedgerCodec.objectMap(value)['date'],
+    );
+    return date == null ? null : periodKey(date.year, date.month);
+  }
+
+  static List<DateTime> periodsFromIndex(dynamic value) {
+    final Set<String> keys = <String>{};
+    for (final dynamic raw in LedgerCodec.objectMap(value).values) {
+      final String key = raw is Map
+          ? '${LedgerCodec.objectMap(raw)['p'] ?? ''}'
+          : '$raw';
+      if (parsePeriod(key) != null) keys.add(key);
+    }
+    final List<DateTime> result = keys
+        .map(parsePeriod)
+        .whereType<DateTime>()
+        .toList(growable: false);
+    result.sort((DateTime a, DateTime b) => b.compareTo(a));
+    return result;
+  }
+
+  static List<Map<String, dynamic>> decodeMonthEntries(
+    dynamic value, {
+    required int year,
+    required int month,
+  }) {
+    final String expectedPeriod = periodKey(year, month);
+    final List<Map<String, dynamic>> result = <Map<String, dynamic>>[];
+    for (final Map<String, dynamic> raw
+        in LedgerCodec.canonicalList(value)) {
+      if (raw['_deleted'] == true || '${raw['_period']}' != expectedPeriod) {
+        continue;
+      }
+      final Map<String, dynamic> entry = Map<String, dynamic>.from(raw)
+        ..remove('_period')
+        ..remove('_sourceHash')
+        ..remove('_version')
+        ..remove('_deleted')
+        ..remove('_pending')
+        ..remove('_seen');
+      if (LedgerMath.strictDate(entry['date']) == null) continue;
+      result.add(entry);
+    }
+    return result;
+  }
+
+  static void replaceMonth(
+    Map<String, dynamic> state, {
+    required int year,
+    required int month,
+    required List<Map<String, dynamic>> entries,
+  }) {
+    final String target = periodKey(year, month);
+    final Map<String, Map<String, dynamic>> byId =
+        <String, Map<String, dynamic>>{};
+    for (final Map<String, dynamic> row
+        in LedgerCodec.canonicalList(state['diaryDB'])) {
+      if (periodForRecord(row) == target) continue;
+      byId['${row['id'] ?? row['key']}'] = row;
+    }
+    for (final Map<String, dynamic> row in entries) {
+      if (periodForRecord(row) != target) continue;
+      final String id = '${row['id'] ?? row['key'] ?? ''}';
+      if (id.isEmpty) continue;
+      byId[id] = LedgerCodec.objectMap(LedgerCodec.clone(row));
+    }
+    state['diaryDB'] = byId.values.toList(growable: false);
+  }
+}
+
 class OutboxPlanner {
   OutboxPlanner._();
 
@@ -1150,9 +1272,11 @@ class LedgerSyncService extends ChangeNotifier {
   String _writerId = '';
   String? _activeUid;
   DatabaseReference? _appDataRef;
+  DatabaseReference? _ledgerV2Ref;
   StreamSubscription<User?>? _authSubscription;
   StreamSubscription<DatabaseEvent>? _connectionSubscription;
   StreamSubscription<DatabaseEvent>? _tokenSubscription;
+  StreamSubscription<DatabaseEvent>? _diaryProjectionSubscription;
   Timer? _flushTimer;
   Timer? _reconcileTimer;
   Timer? _retryTimer;
@@ -1161,8 +1285,19 @@ class LedgerSyncService extends ChangeNotifier {
   bool _booting = true;
   bool _syncing = false;
   bool _darkMode = false;
+  bool _disposed = false;
   bool? _connected;
   Object? _lastError;
+  DiaryProjectionMetadata _advertisedDiaryProjection =
+      const DiaryProjectionMetadata.unavailable();
+  DiaryProjectionMetadata _diaryProjection =
+      const DiaryProjectionMetadata.unavailable();
+  Map<String, dynamic> _diaryPeriodsByEntry = <String, dynamic>{};
+  final Map<String, int> _loadedDiaryMonthRevisions = <String, int>{};
+  final Map<String, Future<void>> _diaryMonthLoads = <String, Future<void>>{};
+  final Map<String, Object> _diaryMonthErrors = <String, Object>{};
+  int _lastDiaryProjectionProbeRevision = -1;
+  int _diaryPeriodVersion = 0;
 
   User? get user => auth.currentUser;
   bool get booting => _booting;
@@ -1194,6 +1329,35 @@ class LedgerSyncService extends ChangeNotifier {
   }
 
   LedgerProjection get currentProjection => projectionAt(DateTime.now());
+
+  bool get diaryMonthlyMode => _diaryProjection.matchesSourceRevision(
+        _tableRevisions['diaryDB'] ?? 0,
+      );
+
+  int get diaryPeriodVersion => _diaryPeriodVersion;
+
+  List<DateTime> get diaryAvailablePeriods {
+    final Map<int, DateTime> periods = <int, DateTime>{};
+    for (final DateTime period
+        in LedgerMath.recordPeriods(_state['diaryDB'])) {
+      periods[period.year * 100 + period.month] = period;
+    }
+    if (diaryMonthlyMode) {
+      for (final DateTime period
+          in DiaryMonthCodec.periodsFromIndex(_diaryPeriodsByEntry)) {
+        periods[period.year * 100 + period.month] = period;
+      }
+    }
+    final List<DateTime> result = periods.values.toList()
+      ..sort((DateTime a, DateTime b) => b.compareTo(a));
+    return result;
+  }
+
+  bool isDiaryMonthLoading(int year, int month) =>
+      _diaryMonthLoads.containsKey(DiaryMonthCodec.periodKey(year, month));
+
+  Object? diaryMonthError(int year, int month) =>
+      _diaryMonthErrors[DiaryMonthCodec.periodKey(year, month)];
 
   Future<void> initialize() async {
     await Hive.initFlutter();
@@ -1244,6 +1408,7 @@ class LedgerSyncService extends ChangeNotifier {
       _lastError = null;
       _retryAttempt = 0;
       _lastMetadataReadAt = 0;
+      _resetDiaryProjection();
 
       if (nextUid == null || nextUid.isEmpty) {
         _state = LedgerCodec.emptyState();
@@ -1254,6 +1419,7 @@ class LedgerSyncService extends ChangeNotifier {
         _revision = 0;
         _lastFullAuditAt = 0;
         _appDataRef = null;
+        _ledgerV2Ref = null;
         _connected = null;
         _booting = false;
         notifyListeners();
@@ -1269,6 +1435,8 @@ class LedgerSyncService extends ChangeNotifier {
       _revision = envelope.revision;
       _lastFullAuditAt = envelope.lastFullAuditAt;
       _appDataRef = database.ref('users/$nextUid/appData');
+      _ledgerV2Ref = database.ref('users/$nextUid/ledgerV2');
+      _readDiaryProjectionCache(nextUid);
       _booting = false;
       _attachUserStreams(nextUid);
       notifyListeners();
@@ -1277,6 +1445,42 @@ class LedgerSyncService extends ChangeNotifier {
     if (shouldReconcile) {
       unawaited(reconcile(reason: 'auth-ready', force: _lastFullAuditAt == 0));
     }
+  }
+
+  void _resetDiaryProjection() {
+    _advertisedDiaryProjection =
+        const DiaryProjectionMetadata.unavailable();
+    _diaryProjection = const DiaryProjectionMetadata.unavailable();
+    _diaryPeriodsByEntry = <String, dynamic>{};
+    _loadedDiaryMonthRevisions.clear();
+    _diaryMonthLoads.clear();
+    _diaryMonthErrors.clear();
+    _lastDiaryProjectionProbeRevision = -1;
+    _diaryPeriodVersion++;
+  }
+
+  void _readDiaryProjectionCache(String uid) {
+    final String? raw = _box.get('diaryProjection.$uid');
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final dynamic decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      final Map<String, dynamic> cache = LedgerCodec.objectMap(decoded);
+      _diaryPeriodsByEntry = LedgerCodec.objectMap(cache['periods']);
+      _diaryPeriodVersion++;
+    } catch (_) {
+      // Projection cache is only an optimization; V12 remains authoritative.
+    }
+  }
+
+  Future<void> _persistDiaryProjectionCache(String uid) async {
+    await _box.put(
+      'diaryProjection.$uid',
+      jsonEncode(<String, dynamic>{
+        'version': 1,
+        'periods': _diaryPeriodsByEntry,
+      }),
+    );
   }
 
   SyncEnvelope _readEnvelope(String uid) {
@@ -1316,6 +1520,119 @@ class LedgerSyncService extends ChangeNotifier {
     await _box.put('ledger.$uid', jsonEncode(envelope.toJson()));
   }
 
+  Future<bool> _refreshDiaryProjection(
+    String uid,
+    int sourceRevision,
+  ) async {
+    final DatabaseReference? reference = _ledgerV2Ref;
+    if (reference == null || uid != _activeUid) return false;
+    if (_diaryProjection.matchesSourceRevision(sourceRevision)) return true;
+
+    DiaryProjectionMetadata metadata = _advertisedDiaryProjection;
+    final bool shouldProbe = metadata.ready ||
+        _lastDiaryProjectionProbeRevision != sourceRevision;
+    if (!shouldProbe) return false;
+    _lastDiaryProjectionProbeRevision = sourceRevision;
+
+    try {
+      final DataSnapshot metadataSnapshot =
+          await reference.child('meta/diary').get();
+      if (uid != _activeUid) return false;
+      metadata = DiaryProjectionMetadata.fromValue(metadataSnapshot.value);
+      _advertisedDiaryProjection = metadata;
+      if (!metadata.matchesSourceRevision(sourceRevision)) {
+        if (_diaryProjection.ready) _diaryPeriodVersion++;
+        _diaryProjection = metadata;
+        return false;
+      }
+
+      final DataSnapshot periodsSnapshot =
+          await reference.child('diaryPeriods').get();
+      final DataSnapshot confirmationSnapshot =
+          await reference.child('meta/diary').get();
+      if (uid != _activeUid) return false;
+      final DiaryProjectionMetadata confirmed =
+          DiaryProjectionMetadata.fromValue(confirmationSnapshot.value);
+      if (!confirmed.matchesSourceRevision(sourceRevision) ||
+          confirmed.sourceRevision != metadata.sourceRevision) {
+        _advertisedDiaryProjection = confirmed;
+        _diaryProjection = confirmed;
+        return false;
+      }
+
+      _diaryProjection = confirmed;
+      _advertisedDiaryProjection = confirmed;
+      _diaryPeriodsByEntry =
+          LedgerCodec.objectMap(periodsSnapshot.value);
+      _diaryPeriodVersion++;
+      await _persistDiaryProjectionCache(uid);
+      return true;
+    } catch (_) {
+      _diaryProjection = const DiaryProjectionMetadata.unavailable();
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> _readStateWithProjectedDiary({
+    required String uid,
+    required DatabaseReference appData,
+    required int sourceRevision,
+    required int year,
+    required int month,
+  }) async {
+    final DatabaseReference? projection = _ledgerV2Ref;
+    if (projection == null) return null;
+    try {
+      final List<String> roots = ledgerRoots
+          .where((String root) => root != 'diaryDB')
+          .toList(growable: false);
+      final List<Future<DataSnapshot>> rootReads = roots
+          .map((String root) => appData.child(root).get())
+          .toList(growable: false);
+      final Query diaryQuery = projection
+          .child('diaryEntries')
+          .orderByChild('_period')
+          .equalTo(DiaryMonthCodec.periodKey(year, month));
+      final Future<DataSnapshot> diaryRead = diaryQuery.get();
+      final List<DataSnapshot> rootSnapshots = await Future.wait(rootReads);
+      final DataSnapshot diarySnapshot = await diaryRead;
+      final DataSnapshot metadataSnapshot =
+          await projection.child('meta/diary').get();
+      if (uid != _activeUid || auth.currentUser?.uid != uid) return null;
+      final DiaryProjectionMetadata confirmed =
+          DiaryProjectionMetadata.fromValue(metadataSnapshot.value);
+      if (!confirmed.matchesSourceRevision(sourceRevision)) return null;
+
+      final Map<String, dynamic> source = <String, dynamic>{};
+      for (int index = 0; index < roots.length; index++) {
+        source[roots[index]] = rootSnapshots[index].value;
+      }
+      final Map<String, dynamic> state = LedgerCodec.normalizeState(source);
+      state['diaryDB'] = LedgerCodec.canonicalList(_state['diaryDB']);
+      DiaryMonthCodec.replaceMonth(
+        state,
+        year: year,
+        month: month,
+        entries: DiaryMonthCodec.decodeMonthEntries(
+          diarySnapshot.value,
+          year: year,
+          month: month,
+        ),
+      );
+      _loadedDiaryMonthRevisions[
+        DiaryMonthCodec.periodKey(year, month)
+      ] = sourceRevision;
+      return state;
+    } catch (_) {
+      // Missing rules, index or projection data must never block legacy V12.
+      if (uid == _activeUid) {
+        _diaryProjection = const DiaryProjectionMetadata.unavailable();
+        _diaryPeriodVersion++;
+      }
+      return null;
+    }
+  }
+
   void _attachUserStreams(String uid) {
     _connectionSubscription = database.ref('.info/connected').onValue.listen(
       (DatabaseEvent event) {
@@ -1348,13 +1665,40 @@ class LedgerSyncService extends ChangeNotifier {
       _lastError = error;
       notifyListeners();
     });
+    _diaryProjectionSubscription = _ledgerV2Ref!
+        .child('meta/diary')
+        .onValue
+        .listen((DatabaseEvent event) {
+      if (uid != _activeUid) return;
+      final DiaryProjectionMetadata next =
+          DiaryProjectionMetadata.fromValue(event.snapshot.value);
+      final bool changed =
+          next.ready != _advertisedDiaryProjection.ready ||
+              next.schemaVersion != _advertisedDiaryProjection.schemaVersion ||
+              next.sourceRevision != _advertisedDiaryProjection.sourceRevision;
+      _advertisedDiaryProjection = next;
+      if (changed &&
+          (next.ready || _diaryProjection.ready) &&
+          !_booting) {
+        _scheduleReconcile(
+          const Duration(milliseconds: 260),
+          'diary-projection',
+        );
+      }
+    }, onError: (_) {
+      if (uid != _activeUid) return;
+      _advertisedDiaryProjection =
+          const DiaryProjectionMetadata.unavailable();
+    });
   }
 
   Future<void> _detachUserStreams() async {
     await _connectionSubscription?.cancel();
     await _tokenSubscription?.cancel();
+    await _diaryProjectionSubscription?.cancel();
     _connectionSubscription = null;
     _tokenSubscription = null;
+    _diaryProjectionSubscription = null;
   }
 
   Future<void> setDarkMode(bool value) async {
@@ -1370,6 +1714,113 @@ class LedgerSyncService extends ChangeNotifier {
       await _box.delete('setting.$key');
     } else {
       await _box.put('setting.$key', value);
+    }
+  }
+
+  Future<void> ensureDiaryMonthLoaded(int year, int month) {
+    if (month < 1 || month > 12 || year < 1 || !diaryMonthlyMode) {
+      return Future<void>.value();
+    }
+    final String period = DiaryMonthCodec.periodKey(year, month);
+    final int sourceRevision = _diaryProjection.sourceRevision;
+    if (_loadedDiaryMonthRevisions[period] == sourceRevision) {
+      return Future<void>.value();
+    }
+    final Future<void>? active = _diaryMonthLoads[period];
+    if (active != null) return active;
+
+    late final Future<void> tracked;
+    tracked = _loadDiaryMonth(
+      year: year,
+      month: month,
+      sourceRevision: sourceRevision,
+    ).whenComplete(() {
+      if (identical(_diaryMonthLoads[period], tracked)) {
+        _diaryMonthLoads.remove(period);
+        if (!_disposed && _activeUid != null) notifyListeners();
+      }
+    });
+    _diaryMonthLoads[period] = tracked;
+    _diaryMonthErrors.remove(period);
+    notifyListeners();
+    return tracked;
+  }
+
+  Future<void> ensureAllDiaryMonthsLoaded() async {
+    if (!diaryMonthlyMode) return;
+    final List<DateTime> periods = diaryAvailablePeriods;
+    for (int offset = 0; offset < periods.length; offset += 3) {
+      final int end = math.min(offset + 3, periods.length);
+      await Future.wait(
+        periods.sublist(offset, end).map(
+              (DateTime period) =>
+                  ensureDiaryMonthLoaded(period.year, period.month),
+            ),
+      );
+    }
+  }
+
+  Future<void> _loadDiaryMonth({
+    required int year,
+    required int month,
+    required int sourceRevision,
+  }) async {
+    final String? uid = _activeUid;
+    final DatabaseReference? projection = _ledgerV2Ref;
+    final String period = DiaryMonthCodec.periodKey(year, month);
+    if (uid == null || projection == null || auth.currentUser?.uid != uid) {
+      return;
+    }
+    try {
+      final Query query = projection
+          .child('diaryEntries')
+          .orderByChild('_period')
+          .equalTo(period);
+      final List<DataSnapshot> snapshots = await Future.wait(<Future<DataSnapshot>>[
+        query.get(),
+        projection.child('meta/diary').get(),
+      ]);
+      final DiaryProjectionMetadata confirmed =
+          DiaryProjectionMetadata.fromValue(snapshots[1].value);
+      if (!confirmed.matchesSourceRevision(sourceRevision)) {
+        throw const LedgerSyncException(
+          'Diary changed while loading. Please try this month again.',
+        );
+      }
+      final List<Map<String, dynamic>> entries =
+          DiaryMonthCodec.decodeMonthEntries(
+        snapshots[0].value,
+        year: year,
+        month: month,
+      );
+
+      await _locked<void>(() async {
+        if (uid != _activeUid || auth.currentUser?.uid != uid) return;
+        if (!_diaryProjection.matchesSourceRevision(sourceRevision)) return;
+        final Map<String, dynamic> nextState =
+            LedgerCodec.normalizeState(_state);
+        DiaryMonthCodec.replaceMonth(
+          nextState,
+          year: year,
+          month: month,
+          entries: entries,
+        );
+        for (final PendingWrite write in _outbox) {
+          LedgerCodec.applyPath(nextState, write.path, write.value);
+        }
+        final SyncEnvelope envelope = _currentEnvelope(state: nextState);
+        await _persistEnvelope(uid, envelope);
+        if (uid != _activeUid) return;
+        _state = nextState;
+        _loadedDiaryMonthRevisions[period] = sourceRevision;
+        _diaryMonthErrors.remove(period);
+        if (!_disposed) notifyListeners();
+      });
+    } catch (error) {
+      if (uid == _activeUid) {
+        _diaryMonthErrors[period] = error;
+      }
+      rethrow;
     }
   }
 
@@ -1701,6 +2152,17 @@ class LedgerSyncService extends ChangeNotifier {
           (remoteToken.isEmpty && remoteRevision != _revision);
       final bool cloudChanged = tokenChanged || changedRoots.isNotEmpty;
       final bool requireFull = force || fullAuditDue || noKnownCloudState;
+      final int remoteDiaryRevision = remoteTables['diaryDB'] ?? 0;
+      bool diaryProjectionAvailable =
+          _diaryProjection.matchesSourceRevision(remoteDiaryRevision);
+      if (requireFull ||
+          changedRoots.contains('diaryDB') ||
+          reason == 'diary-projection') {
+        diaryProjectionAvailable = await _refreshDiaryProjection(
+          uid,
+          remoteDiaryRevision,
+        );
+      }
 
       if (!requireFull && !cloudChanged) {
         final bool flushed = await _flushLocked();
@@ -1808,9 +2270,27 @@ class LedgerSyncService extends ChangeNotifier {
       int nextFullAuditAt = _lastFullAuditAt;
       if (!usedDelta && !usedTargetedReads) {
         if (requireFull || remoteTables.isEmpty) {
-          final DataSnapshot fullSnapshot = await reference.get();
-          if (uid != _activeUid || auth.currentUser?.uid != uid) return false;
-          base = LedgerCodec.normalizeState(fullSnapshot.value);
+          final DateTime currentMonth = DateTime.now();
+          final Map<String, dynamic>? projectedState =
+              diaryProjectionAvailable
+                  ? await _readStateWithProjectedDiary(
+                      uid: uid,
+                      appData: reference,
+                      sourceRevision: remoteDiaryRevision,
+                      year: currentMonth.year,
+                      month: currentMonth.month,
+                    )
+                  : null;
+          if (projectedState != null) {
+            base = projectedState;
+          } else {
+            final DataSnapshot fullSnapshot = await reference.get();
+            if (uid != _activeUid || auth.currentUser?.uid != uid) {
+              return false;
+            }
+            base = LedgerCodec.normalizeState(fullSnapshot.value);
+            _loadedDiaryMonthRevisions.clear();
+          }
           nextFullAuditAt = now;
         } else {
           if (changedRoots.isEmpty && cloudChanged) {
@@ -1890,6 +2370,7 @@ class LedgerSyncService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _flushTimer?.cancel();
     _reconcileTimer?.cancel();
     _retryTimer?.cancel();
@@ -1898,11 +2379,16 @@ class LedgerSyncService extends ChangeNotifier {
         _connectionSubscription;
     final StreamSubscription<DatabaseEvent>? tokenSubscription =
         _tokenSubscription;
+    final StreamSubscription<DatabaseEvent>? diaryProjectionSubscription =
+        _diaryProjectionSubscription;
     if (authSubscription != null) unawaited(authSubscription.cancel());
     if (connectionSubscription != null) {
       unawaited(connectionSubscription.cancel());
     }
     if (tokenSubscription != null) unawaited(tokenSubscription.cancel());
+    if (diaryProjectionSubscription != null) {
+      unawaited(diaryProjectionSubscription.cancel());
+    }
     super.dispose();
   }
 }

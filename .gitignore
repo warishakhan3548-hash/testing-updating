@@ -19,3 +19,4 @@ android/gradle/wrapper/gradle-wrapper.jar
 ios/Pods/
 ios/.symlinks/
 macos/Pods/
+functions/node_modules/

@@ -1,0 +1,235 @@
+'use strict';
+
+const {initializeApp} = require('firebase-admin/app');
+const {getDatabase, ServerValue} = require('firebase-admin/database');
+const {HttpsError, onCall} = require('firebase-functions/v2/https');
+const {onValueWritten} = require('firebase-functions/v2/database');
+const {
+  SCHEMA_VERSION,
+  forceProjectedEntry,
+  projectionTask,
+  revisionFrom,
+  taskKey,
+  updatePeriodIndex,
+} = require('./diary_projection');
+
+initializeApp();
+
+const REGION = 'us-central1';
+const LOCK_MILLIS = 9 * 60 * 1000;
+const MAX_REBUILD_ATTEMPTS = 3;
+
+function userRoot(uid) {
+  return getDatabase().ref(`users/${uid}`);
+}
+
+async function projectEntry(root, entryId) {
+  const sourceSnapshot = await root.child(`appData/diaryDB/${entryId}`).get();
+  const projectedRef = root.child(`ledgerV2/diaryEntries/${entryId}`);
+  const transaction = await projectedRef.transaction(
+    (current) => forceProjectedEntry(current, sourceSnapshot.val(), entryId),
+    undefined,
+    false,
+  );
+  if (!transaction.committed) {
+    throw new Error(`Diary projection transaction aborted for ${entryId}`);
+  }
+  const projected = transaction.snapshot.val();
+  const periodRef = root.child(`ledgerV2/diaryPeriods/${entryId}`);
+  if (!projected) {
+    await periodRef.remove();
+    return;
+  }
+  await periodRef.transaction(
+    (current) => updatePeriodIndex(current, projected),
+    undefined,
+    false,
+  );
+}
+
+async function projectEntryIds(root, ids) {
+  for (let offset = 0; offset < ids.length; offset += 20) {
+    await Promise.all(ids.slice(offset, offset + 20).map(
+      (entryId) => projectEntry(root, entryId),
+    ));
+  }
+}
+
+async function removeProjectedEntryIds(root, ids) {
+  for (let offset = 0; offset < ids.length; offset += 200) {
+    const updates = {};
+    for (const entryId of ids.slice(offset, offset + 200)) {
+      updates[`diaryEntries/${entryId}`] = null;
+      updates[`diaryPeriods/${entryId}`] = null;
+    }
+    await root.child('ledgerV2').update(updates);
+  }
+}
+
+async function stableFullRebuild(root) {
+  for (let attempt = 0; attempt < MAX_REBUILD_ATTEMPTS; attempt += 1) {
+    const beforeMeta = await root.child('appData/_syncMeta').get();
+    const sourceRevision = revisionFrom(beforeMeta.val());
+    const [sourceSnapshot, projectedSnapshot] = await Promise.all([
+      root.child('appData/diaryDB').get(),
+      root.child('ledgerV2/diaryEntries').get(),
+    ]);
+    const source = sourceSnapshot.val() || {};
+    const projected = projectedSnapshot.val() || {};
+    const sourceIds = Object.keys(source).sort();
+    const sourceIdSet = new Set(sourceIds);
+    const deletedIds = Object.keys(projected)
+      .filter((entryId) => !sourceIdSet.has(entryId))
+      .sort();
+    await projectEntryIds(root, sourceIds);
+    await removeProjectedEntryIds(root, deletedIds);
+    const afterMeta = await root.child('appData/_syncMeta').get();
+    const confirmedRevision = revisionFrom(afterMeta.val());
+    if (confirmedRevision !== sourceRevision) continue;
+    await root.child('ledgerV2/meta/diary').update({
+      ready: true,
+      schemaVersion: SCHEMA_VERSION,
+      sourceRevision,
+      updatedAt: ServerValue.TIMESTAMP,
+    });
+    return sourceRevision;
+  }
+  await root.child('ledgerV2/meta/diary').update({
+    ready: false,
+    schemaVersion: SCHEMA_VERSION,
+    updatedAt: ServerValue.TIMESTAMP,
+  });
+  throw new Error('Diary changed repeatedly during projection rebuild');
+}
+
+async function acquireLock(root, owner) {
+  const lockRef = root.child('ledgerV2/_projectionLock/diary');
+  const now = Date.now();
+  const result = await lockRef.transaction((current) => {
+    if (current && current.expiresAt > now && current.owner !== owner) {
+      return undefined;
+    }
+    return {owner, expiresAt: now + LOCK_MILLIS};
+  }, undefined, false);
+  return result.committed ? lockRef : null;
+}
+
+async function releaseLock(lockRef, owner) {
+  await lockRef.transaction((current) =>
+    current && current.owner === owner ? null : current,
+  undefined, false);
+}
+
+async function clearQueuedTasks(root, keys) {
+  if (keys.length === 0) return;
+  const updates = {};
+  for (const key of keys) updates[key] = null;
+  await root.child('ledgerV2/_projectionQueue/diary').update(updates);
+}
+
+async function drainQueue(uid, owner) {
+  const root = userRoot(uid);
+  const lockRef = await acquireLock(root, owner);
+  if (lockRef === null) return false;
+  try {
+    for (let pass = 0; pass < 100; pass += 1) {
+      const [queueSnapshot, projectionMetaSnapshot] = await Promise.all([
+        root.child('ledgerV2/_projectionQueue/diary').get(),
+        root.child('ledgerV2/meta/diary').get(),
+      ]);
+      const tasks = [];
+      queueSnapshot.forEach((child) => {
+        tasks.push({key: child.key, ...(child.val() || {})});
+      });
+      tasks.sort((left, right) =>
+        Number(left.revision) - Number(right.revision) ||
+        left.key.localeCompare(right.key),
+      );
+      if (tasks.length === 0) return true;
+
+      const projectionMeta = projectionMetaSnapshot.val() || {};
+      const sourceRevision = Number(projectionMeta.sourceRevision) || 0;
+      const ready = projectionMeta.ready === true &&
+        projectionMeta.schemaVersion === SCHEMA_VERSION;
+      const next = ready
+        ? tasks.find((task) => Number(task.previousRevision) === sourceRevision)
+        : null;
+
+      if (!next || next.full === true || !Array.isArray(next.paths)) {
+        await stableFullRebuild(root);
+        await clearQueuedTasks(root, tasks.map((task) => task.key));
+        continue;
+      }
+
+      const ids = next.paths.map((path) => path.split('/')[1]);
+      await projectEntryIds(root, Array.from(new Set(ids)).sort());
+      await root.child('ledgerV2').update({
+        [`_projectionQueue/diary/${next.key}`]: null,
+        'meta/diary/ready': true,
+        'meta/diary/schemaVersion': SCHEMA_VERSION,
+        'meta/diary/sourceRevision': Number(next.revision),
+        'meta/diary/updatedAt': ServerValue.TIMESTAMP,
+      });
+    }
+    throw new Error('Diary projection queue exceeded its safe drain limit');
+  } finally {
+    await releaseLock(lockRef, owner);
+  }
+}
+
+exports.projectDiaryV2 = onValueWritten({
+  ref: 'users/{uid}/appData/_syncMeta',
+  region: REGION,
+  timeoutSeconds: 540,
+  memory: '512MiB',
+  retry: true,
+}, async (event) => {
+  const before = event.data.before.val() || {};
+  const after = event.data.after.val() || {};
+  const task = projectionTask(before, after, event.id, Date.now());
+  if (task === null) return;
+  const uid = event.params.uid;
+  const root = userRoot(uid);
+  await root.child(
+    `ledgerV2/_projectionQueue/diary/${taskKey(task)}`,
+  ).set(task);
+  let drained = await drainQueue(uid, event.id);
+  if (!drained) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    drained = await drainQueue(uid, `${event.id}:retry`);
+  }
+  if (!drained) {
+    throw new Error('Diary projection lock is busy; retrying queued task.');
+  }
+});
+
+exports.backfillDiaryV2 = onCall({
+  region: REGION,
+  timeoutSeconds: 540,
+  memory: '512MiB',
+}, async (request) => {
+  if (!request.auth || request.auth.token.admin !== true) {
+    throw new HttpsError('permission-denied', 'Admin claim required.');
+  }
+  const uid = String(request.data && request.data.uid || '').trim();
+  if (!/^[A-Za-z0-9:_-]{1,128}$/.test(uid)) {
+    throw new HttpsError('invalid-argument', 'A valid uid is required.');
+  }
+  const root = userRoot(uid);
+  const lockRef = await acquireLock(root, `backfill:${request.auth.uid}`);
+  if (lockRef === null) {
+    throw new HttpsError('aborted', 'Projection is already running.');
+  }
+  try {
+    const queuedBefore = await root
+      .child('ledgerV2/_projectionQueue/diary')
+      .get();
+    const queuedKeys = [];
+    queuedBefore.forEach((child) => queuedKeys.push(child.key));
+    const sourceRevision = await stableFullRebuild(root);
+    await clearQueuedTasks(root, queuedKeys);
+    return {schemaVersion: SCHEMA_VERSION, sourceRevision};
+  } finally {
+    await releaseLock(lockRef, `backfill:${request.auth.uid}`);
+  }
+});

@@ -108,6 +108,26 @@ full integrity audit no more than once every seven days. Dashboard, navigation
 tones, party balances and module summary cards share one immutable monthly
 projection, so connection/status repaints never rescan the complete ledger.
 
+## Guarded monthly Diary projection
+
+`ledgerV2` is an opt-in server-owned read model. The Flutter app uses it only
+when `meta/diary` reports schema version 1 and its `sourceRevision` exactly
+matches the legacy V12 `diaryDB` table revision. Otherwise the app fails closed
+to `users/{uid}/appData`, preserving existing website and older-client behavior.
+
+When active, startup downloads only the current Diary month. The compact period
+index drives the month picker and an older month is fetched only when selected.
+Full Diary history is hydrated explicitly before an All Data/Diary export or an
+AI snapshot, so those completeness guarantees do not silently change.
+
+The Firebase function consumes V12 metadata in revision order, projects only
+the changed Diary IDs for normal writes, and performs a stable full rebuild for
+first migration, an oversized batch, or a broken/out-of-order revision chain.
+The database rules keep `ledgerV2` client read-only and index `_period`; deploy
+the function and rules together. An admin-only `backfillDiaryV2` callable can
+prebuild an existing user's projection, while the first later Diary mutation
+also bootstraps it automatically.
+
 The supplied iOS Firebase plist is preserved at
 `firebase/GoogleService-Info.plist` for a future iOS scaffold. It is not needed
 for the Google Play build.

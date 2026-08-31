@@ -6947,6 +6947,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
   bool _visibleUsesPeriod = false;
   int _visibleMonth = 0;
   int _visibleYear = 0;
+  int _cachedDiaryPeriodVersion = -1;
   String _visibleQuery = '';
   List<Map<String, dynamic>> _allEntries = const <Map<String, dynamic>>[];
   List<DateTime> _availablePeriods = const <DateTime>[];
@@ -6954,10 +6955,16 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   void _refreshDiaryCache() {
     final Object? source = widget.sync.state['diaryDB'];
-    if (_hasDiaryCache && identical(source, _cachedDiarySource)) return;
-    _cachedDiarySource = source;
-    _allEntries = _rows(source);
-    _availablePeriods = LedgerMath.recordPeriods(_allEntries);
+    final int periodVersion = widget.sync.diaryPeriodVersion;
+    final bool sourceChanged =
+        !_hasDiaryCache || !identical(source, _cachedDiarySource);
+    if (!sourceChanged && periodVersion == _cachedDiaryPeriodVersion) return;
+    if (sourceChanged) {
+      _cachedDiarySource = source;
+      _allEntries = _rows(source);
+    }
+    _availablePeriods = widget.sync.diaryAvailablePeriods;
+    _cachedDiaryPeriodVersion = periodVersion;
     _hasDiaryCache = true;
     _hasVisibleCache = false;
   }
@@ -7018,6 +7025,18 @@ class _DiaryScreenState extends State<DiaryScreen> {
     });
   }
 
+  Future<void> _selectPeriod(int month, int year) async {
+    setState(() {
+      _month = month;
+      _year = year;
+    });
+    try {
+      await widget.sync.ensureDiaryMonthLoaded(year, month);
+    } catch (error) {
+      if (mounted) _toast(context, '$error', error: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     _refreshDiaryCache();
@@ -7034,6 +7053,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
       selectedPeriod: selectedPeriod,
       month: selectedMonth,
       year: selectedYear,
+    );
+    final bool loading = widget.sync.isDiaryMonthLoading(
+      selectedYear,
+      selectedMonth,
     );
     final String emptyMessage = allEntries.isEmpty
         ? 'No diary pages yet'
@@ -7068,10 +7091,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
                   year: selectedYear,
                   availablePeriods: availablePeriods,
                   color: diaryOrange,
-                  onChanged: (int month, int year) => setState(() {
-                    _month = month;
-                    _year = year;
-                  }),
+                  onChanged: (int month, int year) =>
+                      unawaited(_selectPeriod(month, year)),
                 );
               }
               if (index == 1) {
@@ -7081,6 +7102,16 @@ class _DiaryScreenState extends State<DiaryScreen> {
                     hint: 'Search diary…',
                     color: diaryOrange,
                     onChanged: (String value) => setState(() => _query = value),
+                  ),
+                );
+              }
+              if (loading) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 36),
+                  child: Center(
+                    child: CircularProgressIndicator.adaptive(
+                      valueColor: AlwaysStoppedAnimation<Color>(diaryOrange),
+                    ),
                   ),
                 );
               }
@@ -8451,6 +8482,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
     }
     setState(() => _sharingExternal = true);
     try {
+      await widget.sync.ensureAllDiaryMonthsLoaded();
       final AiBridgePackage package = AiBridgeProtocol.buildPackage(
         state: widget.sync.state,
         generatedAt: DateTime.now(),
@@ -8655,6 +8687,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
     });
     _scrollToEnd();
     try {
+      await widget.sync.ensureAllDiaryMonthsLoaded();
       final _AiOutcome outcome;
       if (localEnvelope) {
         outcome = _GeminiLedgerClient.parseEnvelope(prompt);
@@ -9610,6 +9643,10 @@ Future<void> _showExportCenter(
   );
   if (choice == null || !context.mounted) return;
   try {
+    if (choice.scope == _ExportScope.all ||
+        choice.scope == _ExportScope.diary) {
+      await sync.ensureAllDiaryMonthsLoaded();
+    }
     await _ExportService.share(sync.state, choice);
   } catch (_) {
     if (context.mounted) {

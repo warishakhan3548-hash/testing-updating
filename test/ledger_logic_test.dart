@@ -68,6 +68,106 @@ void main() {
       expect(milkRows.single['id'], 'mlk_1');
     });
 
+    test('monthly diary projection is fail-closed by schema and revision', () {
+      final DiaryProjectionMetadata ready =
+          DiaryProjectionMetadata.fromValue(<String, dynamic>{
+        'schemaVersion': 1,
+        'ready': true,
+        'sourceRevision': 42,
+      });
+      expect(ready.matchesSourceRevision(42), isTrue);
+      expect(ready.matchesSourceRevision(41), isFalse);
+      expect(
+        DiaryProjectionMetadata.fromValue(<String, dynamic>{
+          'schemaVersion': 2,
+          'ready': true,
+          'sourceRevision': 42,
+        }).matchesSourceRevision(42),
+        isFalse,
+      );
+      expect(
+        DiaryProjectionMetadata.fromValue(<String, dynamic>{
+          'schemaVersion': 1,
+          'ready': false,
+          'sourceRevision': 42,
+        }).matchesSourceRevision(42),
+        isFalse,
+      );
+    });
+
+    test('monthly diary codec replaces only the requested month', () {
+      final List<Map<String, dynamic>> august =
+          DiaryMonthCodec.decodeMonthEntries(
+        <String, dynamic>{
+          'aug': <String, dynamic>{
+            'id': 'aug',
+            'date': '2026-08-05',
+            'title': 'Projected August',
+            'content': 'new',
+            '_period': '2026-08',
+            '_sourceHash': 'private',
+            '_version': 8,
+          },
+          'wrong_month': <String, dynamic>{
+            'date': '2026-07-01',
+            '_period': '2026-07',
+          },
+          'deleted': <String, dynamic>{
+            'date': '2026-08-02',
+            '_period': '2026-08',
+            '_deleted': true,
+          },
+        },
+        year: 2026,
+        month: 8,
+      );
+      expect(august, hasLength(1));
+      expect(august.single['title'], 'Projected August');
+      expect(august.single.containsKey('_sourceHash'), isFalse);
+
+      final Map<String, dynamic> state = LedgerCodec.normalizeState(
+        <String, dynamic>{
+          'diaryDB': <String, dynamic>{
+            'old_aug': <String, dynamic>{
+              'date': '2026-08-01',
+              'title': 'Stale August',
+            },
+            'july': <String, dynamic>{
+              'date': '2026-07-01',
+              'title': 'Keep July',
+            },
+            'invalid': <String, dynamic>{
+              'date': 'not-a-date',
+              'title': 'Keep legacy invalid date',
+            },
+          },
+        },
+      );
+      DiaryMonthCodec.replaceMonth(
+        state,
+        year: 2026,
+        month: 8,
+        entries: august,
+      );
+      final List<Map<String, dynamic>> rows =
+          LedgerCodec.canonicalList(state['diaryDB']);
+      expect(rows.map((Map<String, dynamic> row) => row['id']),
+          containsAll(<String>['aug', 'july', 'invalid']));
+      expect(
+        rows.any((Map<String, dynamic> row) => row['id'] == 'old_aug'),
+        isFalse,
+      );
+      expect(
+        DiaryMonthCodec.periodsFromIndex(<String, dynamic>{
+          'aug': <String, dynamic>{'p': '2026-08', 'v': 4},
+          'july': '2026-07',
+          'deleted': <String, dynamic>{'p': null, 'v': 8},
+          'invalid': '2026-13',
+        }),
+        <DateTime>[DateTime(2026, 8), DateTime(2026, 7)],
+      );
+    });
+
     test('pending delete replay prevents stale cloud resurrection', () {
       final Map<String, dynamic> staleCloud = LedgerCodec.normalizeState(
         <String, dynamic>{
