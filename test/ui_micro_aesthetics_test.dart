@@ -252,6 +252,40 @@ void main() {
       expect(source, contains(destination));
     }
 
+    // Export Center uses one adaptive visual language instead of rainbow
+    // report cards. Labels stay single-line and scale down as a complete unit,
+    // so narrow devices and larger text settings never fade off their suffix.
+    final int exportStart = source.indexOf('class _ExportScopeSpec');
+    final int exportEnd = source.indexOf('class _ExportDataset', exportStart);
+    expect(exportStart, greaterThanOrEqualTo(0));
+    expect(exportEnd, greaterThan(exportStart));
+    final String exportSource = source.substring(exportStart, exportEnd);
+    expect(exportSource, contains('class _ExportCenterPalette'));
+    expect(exportSource, contains('static const _ExportCenterPalette _dark'));
+    expect(exportSource, contains('static const _ExportCenterPalette _light'));
+    expect(exportSource, contains('class _ExportButtonContent'));
+    expect(exportSource, contains('ExcludeSemantics('));
+    expect(exportSource, contains('FittedBox('));
+    expect(exportSource, contains('fit: BoxFit.scaleDown'));
+    expect(exportSource, contains('maxLines: 1'));
+    expect(exportSource, contains('softWrap: false'));
+    expect(exportSource, isNot(contains('TextOverflow.fade')));
+    expect(exportSource, isNot(contains('_scopeGradient')));
+    expect(exportSource, isNot(contains('required this.color')));
+    expect(exportSource, isNot(contains('appleRed')));
+    expect(exportSource, isNot(contains('appleOrange')));
+    expect(exportSource, isNot(contains('salaryGreen')));
+    for (final String label in <String>[
+      'Premium PDF',
+      'Milk Records',
+      'Credit Ledger',
+      'Personal Diary',
+    ]) {
+      expect(exportSource, contains("'$label'"));
+    }
+    expect(source, contains('selected: widget.selected'));
+    expect(exportSource, contains('selected: selected'));
+
     // Sheets, dialogs and toasts use explicit native AnimationStyle timings.
     expect(source, contains('sheetAnimationStyle: reduceMotion'));
     expect(source, contains('animationStyle: reduceMotion'));
