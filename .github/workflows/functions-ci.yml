@@ -27,8 +27,11 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install exact production dependencies
-        run: npm install --prefix functions --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Install locked production dependencies
+        run: npm ci --prefix functions --omit=dev --ignore-scripts --no-audit --no-fund
+
+      - name: Reject high or critical dependency advisories
+        run: npm audit --prefix functions --omit=dev --audit-level=high
 
       - name: Validate Firebase configuration JSON
         run: node -e "const fs = require('node:fs'); for (const file of ['firebase.json', 'database.rules.json', '.firebaserc']) JSON.parse(fs.readFileSync(file, 'utf8'));"

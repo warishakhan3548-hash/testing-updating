@@ -146,6 +146,11 @@ admin-only `backfillDiaryV2` callable can
 prebuild an existing user's projection, while the first later Diary mutation
 also bootstraps it automatically.
 
+Function dependencies are pinned by `functions/package-lock.json`; CI installs
+that exact graph on Node 22 and loads the deployed entrypoint before running
+projection tests. The production dependency audit also fails the build on any
+high or critical advisory.
+
 The supplied iOS Firebase plist is preserved at
 `firebase/GoogleService-Info.plist` for a future iOS scaffold. It is not needed
 for the Google Play build.
