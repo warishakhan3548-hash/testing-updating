@@ -9931,7 +9931,6 @@ class _ExportButtonContent extends StatelessWidget {
     required this.iconColor,
     required this.fontSize,
     required this.iconSize,
-    this.gap = 7,
   });
 
   final String label;
@@ -9940,7 +9939,6 @@ class _ExportButtonContent extends StatelessWidget {
   final Color iconColor;
   final double fontSize;
   final double iconSize;
-  final double gap;
 
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
@@ -9951,7 +9949,7 @@ class _ExportButtonContent extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           Icon(icon, color: iconColor, size: iconSize),
-          SizedBox(width: gap),
+          const SizedBox(width: 7),
           Text(
             label,
             maxLines: 1,
