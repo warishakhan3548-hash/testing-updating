@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/cupertino.dart' show CupertinoPageTransition;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
@@ -663,30 +664,14 @@ Widget _opaquePageTransition({
   final Widget surface = _AmbientBackground(child: child);
   if (AppMotion.reduce(context)) return surface;
 
-  final Animation<double> incoming = CurvedAnimation(
-    parent: animation,
-    curve: UIConstants.motionOut,
-    reverseCurve: UIConstants.motionIn,
-  );
-  final Animation<double> outgoing = CurvedAnimation(
-    parent: secondaryAnimation,
-    curve: UIConstants.motionOut,
-    reverseCurve: UIConstants.motionIn,
-  );
-  return ClipRect(
-    child: SlideTransition(
-      position: Tween<Offset>(
-        begin: Offset.zero,
-        end: const Offset(-.06, 0),
-      ).animate(outgoing),
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(1, 0),
-          end: Offset.zero,
-        ).animate(incoming),
-        child: surface,
-      ),
-    ),
+  // Flutter's stateful transition primitive retains its curve/tween graph
+  // across surrounding route rebuilds. It also supplies the restrained
+  // outgoing parallax, directional edge shadow and RTL handling natively.
+  return CupertinoPageTransition(
+    primaryRouteAnimation: animation,
+    secondaryRouteAnimation: secondaryAnimation,
+    linearTransition: false,
+    child: surface,
   );
 }
 
@@ -3131,6 +3116,7 @@ List<Color> _moduleTabColors(LedgerProjection projection) => <Color>[
 
 PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
   opaque: true,
+  allowSnapshotting: true,
   transitionDuration: UIConstants.routeIn,
   reverseTransitionDuration: UIConstants.routeOut,
   pageBuilder: (_, __, ___) => child,

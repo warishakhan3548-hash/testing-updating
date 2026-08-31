@@ -180,9 +180,11 @@ void main() {
       transitionStart,
       transitionEnd,
     );
-    expect(transitionSource, contains('begin: const Offset(1, 0)'));
+    expect(transitionSource, contains('CupertinoPageTransition('));
+    expect(transitionSource, contains('linearTransition: false'));
     expect(transitionSource, contains('child: surface'));
     expect(transitionSource, isNot(contains('FadeTransition(')));
+    expect(transitionSource, isNot(contains('Tween<Offset>(')));
     final int routeStart = source.indexOf(
       'PageRoute<T> _premiumRoute<T>(Widget child)',
     );
@@ -191,6 +193,7 @@ void main() {
     expect(routeEnd, greaterThan(routeStart));
     final String routeSource = source.substring(routeStart, routeEnd);
     expect(routeSource, contains('opaque: true'));
+    expect(routeSource, contains('allowSnapshotting: true'));
     expect(routeSource, contains('_opaquePageTransition('));
     expect(routeSource, isNot(contains('FadeTransition(')));
 
