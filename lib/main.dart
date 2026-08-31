@@ -688,7 +688,11 @@ PageRoute<T> _focusRoute<T>({
   reverseTransitionDuration: reduceMotion
       ? Duration.zero
       : UIConstants.focusRouteOut,
-  pageBuilder: (BuildContext context, _, _) => destinationBuilder(context),
+  pageBuilder: (
+    BuildContext context,
+    Animation<double> routeAnimation,
+    Animation<double> secondaryAnimation,
+  ) => destinationBuilder(context),
   transitionsBuilder:
       (
         BuildContext context,
