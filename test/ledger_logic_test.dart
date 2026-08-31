@@ -4,6 +4,33 @@ import 'package:aarish_diary/firebase_sync.dart';
 
 void main() {
   group('Firebase schema compatibility', () {
+    test('compact delta paths round-trip without duplicate ambiguity', () {
+      final String? encoded = DeltaPathCodec.encode(<String>[
+        'diaryDB/dia_1',
+        'expenseDB/exp_1',
+      ]);
+
+      expect(encoded, isNotNull);
+      expect(DeltaPathCodec.decode(encoded), <String>[
+        'diaryDB/dia_1',
+        'expenseDB/exp_1',
+      ]);
+      expect(
+        DeltaPathCodec.decode('["diaryDB/dia_1","diaryDB/dia_1"]'),
+        isEmpty,
+      );
+      expect(DeltaPathCodec.decode('not-json'), isEmpty);
+      expect(
+        DeltaPathCodec.encode(
+          List<String>.generate(
+            DeltaPathCodec.maxPaths + 1,
+            (int index) => 'diaryDB/dia_$index',
+          ),
+        ),
+        isNull,
+      );
+    });
+
     test('canonicalizes Firebase maps into stable ID lists', () {
       final Map<String, dynamic> state = LedgerCodec.normalizeState(
         <String, dynamic>{

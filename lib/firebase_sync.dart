@@ -366,6 +366,47 @@ class OutboxPlanner {
   }
 }
 
+/// Keeps the sync metadata small while allowing another device to fetch only
+/// the records touched by a write whose value is too large for `deltaWrites`.
+/// Older clients can ignore this optional field and keep using table reads.
+class DeltaPathCodec {
+  DeltaPathCodec._();
+
+  static const int maxPaths = 24;
+  static const int maxEncodedLength = 1800;
+
+  static String? encode(Iterable<String> paths) {
+    final List<String> unique = paths.toSet().toList(growable: false);
+    if (unique.isEmpty || unique.length > maxPaths) return null;
+    final String encoded = jsonEncode(unique);
+    return encoded.length <= maxEncodedLength ? encoded : null;
+  }
+
+  static List<String> decode(dynamic value) {
+    if (value is! String ||
+        value.isEmpty ||
+        value.length > maxEncodedLength) {
+      return const <String>[];
+    }
+    try {
+      final dynamic decoded = jsonDecode(value);
+      if (decoded is! List || decoded.isEmpty || decoded.length > maxPaths) {
+        return const <String>[];
+      }
+      final List<String> paths = <String>[];
+      for (final dynamic item in decoded) {
+        if (item is! String || item.isEmpty || paths.contains(item)) {
+          return const <String>[];
+        }
+        paths.add(item);
+      }
+      return paths;
+    } catch (_) {
+      return const <String>[];
+    }
+  }
+}
+
 class LedgerDeltaPolicy {
   LedgerDeltaPolicy._();
 
@@ -801,6 +842,9 @@ class LedgerSyncService extends ChangeNotifier {
   final FirebaseDatabase database;
   final Uuid _uuid = const Uuid();
 
+  static const Duration _passiveReconcileCooldown = Duration(seconds: 15);
+  static const Duration _automaticFullAuditInterval = Duration(days: 7);
+
   late Box<String> _box;
   Map<String, dynamic> _state = LedgerCodec.emptyState();
   List<PendingWrite> _outbox = <PendingWrite>[];
@@ -810,6 +854,7 @@ class LedgerSyncService extends ChangeNotifier {
   String _changeToken = '';
   int _revision = 0;
   int _lastFullAuditAt = 0;
+  int _lastMetadataReadAt = 0;
   String _writerId = '';
   String? _activeUid;
   DatabaseReference? _appDataRef;
@@ -884,6 +929,7 @@ class LedgerSyncService extends ChangeNotifier {
       _activeUid = nextUid;
       _lastError = null;
       _retryAttempt = 0;
+      _lastMetadataReadAt = 0;
 
       if (nextUid == null || nextUid.isEmpty) {
         _state = LedgerCodec.emptyState();
@@ -978,7 +1024,11 @@ class LedgerSyncService extends ChangeNotifier {
       if (uid != _activeUid) return;
       final String remoteToken = '${event.snapshot.value ?? ''}';
       if (remoteToken.isNotEmpty && remoteToken != _changeToken) {
-        _scheduleReconcile(const Duration(milliseconds: 180), 'remote-token');
+        _scheduleReconcile(
+          const Duration(milliseconds: 180),
+          'remote-token',
+          expectedRemoteToken: remoteToken,
+        );
       }
     }, onError: (Object error) {
       _lastError = error;
@@ -1129,11 +1179,27 @@ class LedgerSyncService extends ChangeNotifier {
     _flushTimer = Timer(delay, () => unawaited(flush()));
   }
 
-  void _scheduleReconcile(Duration delay, String reason) {
+  void _scheduleReconcile(
+    Duration delay,
+    String reason, {
+    String? expectedRemoteToken,
+  }) {
     _reconcileTimer?.cancel();
     _reconcileTimer = Timer(
       delay,
-      () => unawaited(reconcile(reason: reason)),
+      () {
+        if (expectedRemoteToken != null &&
+            (expectedRemoteToken.isEmpty ||
+                expectedRemoteToken == _changeToken)) {
+          return;
+        }
+        unawaited(
+          reconcile(
+            reason: reason,
+            expectedRemoteToken: expectedRemoteToken,
+          ),
+        );
+      },
     );
   }
 
@@ -1187,6 +1253,9 @@ class LedgerSyncService extends ChangeNotifier {
         final String deltaJson = jsonEncode(delta);
         payload['_syncMeta/deltaWrites'] =
             deltaJson.length < 2500 ? deltaJson : null;
+        payload['_syncMeta/deltaPaths'] = DeltaPathCodec.encode(
+          batch.map((PendingWrite write) => write.path),
+        );
 
         await reference.update(payload);
 
@@ -1252,8 +1321,16 @@ class LedgerSyncService extends ChangeNotifier {
   Future<bool> reconcile({
     String reason = 'manual',
     bool force = false,
+    String? expectedRemoteToken,
   }) =>
-      _locked<bool>(() => _reconcileLocked(reason: reason, force: force));
+      _locked<bool>(() async {
+        if (expectedRemoteToken != null &&
+            (expectedRemoteToken.isEmpty ||
+                expectedRemoteToken == _changeToken)) {
+          return true;
+        }
+        return _reconcileLocked(reason: reason, force: force);
+      });
 
   Future<bool> _reconcileLocked({
     required String reason,
@@ -1265,11 +1342,21 @@ class LedgerSyncService extends ChangeNotifier {
       return false;
     }
     if (_connected == false) return false;
+    final int startedAt = DateTime.now().millisecondsSinceEpoch;
+    final bool passive = reason == 'connection' || reason == 'lifecycle-resume';
+    if (!force &&
+        passive &&
+        _outbox.isEmpty &&
+        startedAt - _lastMetadataReadAt <
+            _passiveReconcileCooldown.inMilliseconds) {
+      return true;
+    }
     _syncing = true;
     notifyListeners();
     try {
       final DataSnapshot metaSnapshot = await reference.child('_syncMeta').get();
       if (uid != _activeUid || auth.currentUser?.uid != uid) return false;
+      _lastMetadataReadAt = DateTime.now().millisecondsSinceEpoch;
       final Map<String, dynamic> meta =
           LedgerCodec.objectMap(metaSnapshot.value);
       final String remoteToken = '${meta['changeToken'] ?? ''}';
@@ -1291,7 +1378,8 @@ class LedgerSyncService extends ChangeNotifier {
       );
 
       final int now = DateTime.now().millisecondsSinceEpoch;
-      final bool fullAuditDue = now - _lastFullAuditAt >= 86400000;
+      final bool fullAuditDue = now - _lastFullAuditAt >=
+          _automaticFullAuditInterval.inMilliseconds;
       final bool noKnownCloudState = _changeToken.isEmpty &&
           _tableRevisions.isEmpty &&
           _tableClocks.isEmpty;
@@ -1308,6 +1396,7 @@ class LedgerSyncService extends ChangeNotifier {
 
       Map<String, dynamic> base = LedgerCodec.normalizeState(_state);
       bool usedDelta = false;
+      bool usedTargetedReads = false;
       final String? rawDelta = meta['deltaWrites'] is String
           ? meta['deltaWrites'] as String
           : null;
@@ -1349,8 +1438,61 @@ class LedgerSyncService extends ChangeNotifier {
         if (!usedDelta) base = LedgerCodec.normalizeState(_state);
       }
 
+      if (!usedDelta && !requireFull && cloudChanged) {
+        final List<String> advertisedPaths = DeltaPathCodec.decode(
+          meta['deltaPaths'],
+        );
+        if (advertisedPaths.isNotEmpty) {
+          final List<String> safePaths = <String>[];
+          final Set<String> pathRoots = <String>{};
+          bool valid = true;
+          try {
+            for (final String path in advertisedPaths) {
+              final String safePath = _validatePath(path);
+              safePaths.add(safePath);
+              pathRoots.add(safePath.split('/').first);
+            }
+          } catch (_) {
+            valid = false;
+          }
+          valid = valid &&
+              LedgerDeltaPolicy.canApplyDelta(
+                remoteWriterId: remoteWriterId,
+                predecessorToken: predecessor,
+                localToken: _changeToken,
+                changedRoots: changedRoots,
+                deltaRoots: pathRoots,
+                remoteClocks: remoteTableClocks,
+                localClocks: _tableClocks,
+              );
+          if (valid) {
+            final List<Future<MapEntry<String, dynamic>>> reads = safePaths
+                .map(
+                  (String path) async => MapEntry<String, dynamic>(
+                    path,
+                    (await reference.child(path).get()).value,
+                  ),
+                )
+                .toList(growable: false);
+            final List<MapEntry<String, dynamic>> values =
+                await Future.wait(reads);
+            if (uid != _activeUid || auth.currentUser?.uid != uid) return false;
+            for (final MapEntry<String, dynamic> entry in values) {
+              if (!LedgerCodec.applyPath(base, entry.key, entry.value)) {
+                valid = false;
+                break;
+              }
+            }
+            usedTargetedReads = valid;
+            if (!usedTargetedReads) {
+              base = LedgerCodec.normalizeState(_state);
+            }
+          }
+        }
+      }
+
       int nextFullAuditAt = _lastFullAuditAt;
-      if (!usedDelta) {
+      if (!usedDelta && !usedTargetedReads) {
         if (requireFull || remoteTables.isEmpty) {
           final DataSnapshot fullSnapshot = await reference.get();
           if (uid != _activeUid || auth.currentUser?.uid != uid) return false;
@@ -1427,7 +1569,8 @@ class LedgerSyncService extends ChangeNotifier {
 
   Future<void> integrityCheck() async {
     final bool due = DateTime.now().millisecondsSinceEpoch - _lastFullAuditAt >=
-        86400000;
+        _automaticFullAuditInterval.inMilliseconds;
+    _reconcileTimer?.cancel();
     await reconcile(reason: 'lifecycle-resume', force: due);
   }
 
