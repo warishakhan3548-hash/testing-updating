@@ -140,7 +140,9 @@ The Firebase function consumes V12 metadata in revision order, projects only
 the changed Diary IDs for normal writes, and performs a stable full rebuild for
 first migration, an oversized batch, or a broken/out-of-order revision chain.
 Full rebuilds reuse their single source snapshot instead of rereading every
-Diary entry, keeping RTDB read amplification bounded as a ledger grows.
+Diary entry. Retried events whose target is already projected are discarded
+instead of triggering another full rebuild, keeping RTDB read amplification
+bounded as a ledger grows.
 The database rules keep `ledgerV2` client read-only and index `_period`; deploy
 the function and rules together. The checked-in Firebase project alias targets
 `diary-book-21a91`, reducing accidental deployment to a different project. An

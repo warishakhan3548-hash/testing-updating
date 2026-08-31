@@ -9,6 +9,7 @@ const {
   forceProjectedEntry,
   normalizeSourceEntry,
   projectionTask,
+  projectionMatchesSourceMetadata,
   sourceHash,
   sourceVersion,
   strictPeriod,
@@ -132,6 +133,41 @@ test('projection task chains on diary table revisions, not global revisions', ()
     'same',
     1,
   ), null);
+});
+
+test('already-applied projection metadata makes retry tasks disposable', () => {
+  const sourceMetadata = {
+    tables: {diaryDB: 42},
+    tableClocks: {
+      diaryDB: {
+        writer_device_alpha: 'writer_device_alpha:42:a',
+      },
+    },
+  };
+  const current = sourceVersion(sourceMetadata);
+  const projectionMetadata = {
+    ready: true,
+    schemaVersion: 2,
+    sourceRevision: current.revision,
+    sourceClockHash: current.clockHash,
+  };
+
+  assert.equal(projectionMatchesSourceMetadata(
+    projectionMetadata,
+    sourceMetadata,
+  ), true);
+  assert.equal(projectionMatchesSourceMetadata(
+    {...projectionMetadata, ready: false},
+    sourceMetadata,
+  ), false);
+  assert.equal(projectionMatchesSourceMetadata(
+    {...projectionMetadata, sourceClockHash: '0'.repeat(64)},
+    sourceMetadata,
+  ), false);
+  assert.equal(projectionMatchesSourceMetadata(
+    projectionMetadata,
+    {...sourceMetadata, tables: {diaryDB: 43}},
+  ), false);
 });
 
 test('same numeric revision still projects a concurrent writer clock change', () => {

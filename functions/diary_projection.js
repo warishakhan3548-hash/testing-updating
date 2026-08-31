@@ -206,6 +206,28 @@ function sameSourceVersion(left, right) {
   return left.revision === right.revision && left.clockHash === right.clockHash;
 }
 
+function readyProjectionVersion(metadata) {
+  const value = isPlainObject(metadata) ? metadata : {};
+  const revision = Number(value.sourceRevision);
+  const clockHash = typeof value.sourceClockHash === 'string'
+    ? value.sourceClockHash
+    : '';
+  if (value.ready !== true ||
+      value.schemaVersion !== SCHEMA_VERSION ||
+      !Number.isSafeInteger(revision) ||
+      revision < 0 ||
+      !/^[a-f0-9]{64}$/.test(clockHash)) {
+    return null;
+  }
+  return {revision, clockHash};
+}
+
+function projectionMatchesSourceMetadata(projectionMetadata, sourceMetadata) {
+  const projected = readyProjectionVersion(projectionMetadata);
+  return projected !== null &&
+    sameSourceVersion(projected, sourceVersion(sourceMetadata));
+}
+
 function projectionTask(beforeMetadata, afterMetadata, eventId, now) {
   const previous = sourceVersion(beforeMetadata);
   const next = sourceVersion(afterMetadata);
@@ -238,6 +260,8 @@ module.exports = {
   forceProjectedEntry,
   normalizeSourceEntry,
   projectionTask,
+  projectionMatchesSourceMetadata,
+  readyProjectionVersion,
   revisionFrom,
   sourceHash,
   sourceVersion,

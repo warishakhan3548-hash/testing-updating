@@ -8,6 +8,7 @@ const {
   SCHEMA_VERSION,
   forceProjectedEntry,
   projectionTask,
+  projectionMatchesSourceMetadata,
   sameSourceVersion,
   sourceVersion,
   taskKey,
@@ -175,6 +176,19 @@ async function drainQueue(uid, owner) {
           task.previousClockHash === sourceClockHash,
         )
         : null;
+
+      if (!next) {
+        const sourceMetadataSnapshot = await root.child(
+          'appData/_syncMeta',
+        ).get();
+        if (projectionMatchesSourceMetadata(
+          projectionMeta,
+          sourceMetadataSnapshot.val(),
+        )) {
+          await clearQueuedTasks(root, tasks.map((task) => task.key));
+          continue;
+        }
+      }
 
       if (!next || next.full === true || !Array.isArray(next.paths)) {
         await stableFullRebuild(root);
