@@ -161,19 +161,21 @@ void main() {
       contains('final bool reduceMotion = AppMotion.reduce(context)'),
     );
 
-    // Card navigation uses Flutter's maintained source-matched container
-    // transform. Fade-through separates the two content phases, while a solid
-    // route-local canvas keeps transparent Scaffolds from ghosting together.
-    expect(source, contains("import 'package:animations/animations.dart'"));
-    expect(manifest, contains('animations: 2.0.11'));
+    // Frequent card navigation stays brief and compositing-friendly. The
+    // destination grows from the actual tap source over its own opaque canvas,
+    // so the motion has continuity without blending two pages' text together.
+    expect(manifest, isNot(contains('animations:')));
+    expect(source, isNot(contains('OpenContainer')));
     expect(source, isNot(contains('CupertinoPageTransition')));
     expect(source, isNot(contains('_premiumRoute')));
+    expect(source, contains('Duration(milliseconds: 250)'));
+    expect(source, contains('Duration(milliseconds: 210)'));
 
     final int transitionStart = source.indexOf(
       'class _OpaqueContentTransitionsBuilder',
     );
     final int transitionEnd = source.indexOf(
-      'class _PremiumOpenContainer',
+      'PageRoute<T> _focusRoute<T>',
       transitionStart,
     );
     expect(transitionStart, greaterThanOrEqualTo(0));
@@ -189,32 +191,29 @@ void main() {
     expect(transitionSource, contains('return _AmbientBackground('));
     expect(transitionSource, contains('child: FadeTransition('));
 
-    final int containerStart = source.indexOf(
-      'class _PremiumOpenContainer extends StatefulWidget',
-    );
-    final int containerEnd = source.indexOf(
-      'class _LaunchScreen',
-      containerStart,
-    );
-    expect(containerStart, greaterThanOrEqualTo(0));
-    expect(containerEnd, greaterThan(containerStart));
-    final String containerSource = source.substring(
-      containerStart,
-      containerEnd,
-    );
-    expect(containerSource, contains('OpenContainer<Object?>('));
-    expect(
-      containerSource,
-      contains('transitionType: ContainerTransitionType.fadeThrough'),
-    );
-    expect(containerSource, contains('closedColor: Colors.transparent'));
-    expect(containerSource, contains('middleColor: pageColor'));
-    expect(containerSource, contains('openColor: pageColor'));
-    expect(containerSource, contains('tappable: false'));
-    expect(containerSource, contains('? Duration.zero'));
-    expect(containerSource, contains('bool _routeOpen = false'));
-    expect(containerSource, contains('if (_routeOpen) return'));
-    expect(containerSource, contains('RepaintBoundary('));
+    final int focusStart = source.indexOf('PageRoute<T> _focusRoute<T>');
+    final int focusEnd = source.indexOf('class _LaunchScreen', focusStart);
+    expect(focusStart, greaterThanOrEqualTo(0));
+    expect(focusEnd, greaterThan(focusStart));
+    final String focusSource = source.substring(focusStart, focusEnd);
+    expect(focusSource, contains('PageRouteBuilder<T>('));
+    expect(focusSource, contains('opaque: true'));
+    expect(focusSource, contains('allowSnapshotting: true'));
+    expect(focusSource, contains('? Duration.zero'));
+    expect(focusSource, contains('class _FocusShiftTransition'));
+    expect(focusSource, contains('final Widget surface = _AmbientBackground('));
+    expect(focusSource, contains('FadeTransition(opacity: contentOpacity'));
+    expect(focusSource, contains('RadialGradient('));
+    expect(focusSource, contains('Transform.translate('));
+    expect(focusSource, contains('Transform.scale('));
+    expect(focusSource, contains('sourceRadius * remaining'));
+    expect(focusSource, contains('RepaintBoundary(child: surface)'));
+    expect(focusSource, contains('class _FocusRouteLauncher'));
+    expect(focusSource, contains('box.localToGlobal('));
+    expect(focusSource, contains('bool _routeOpen = false'));
+    expect(focusSource, contains('if (_routeOpen) return'));
+    expect(focusSource, isNot(contains('BackdropFilter(')));
+    expect(focusSource, isNot(contains('ImageFilter.blur(')));
 
     expect(
       RegExp(r'destinationBuilder:\s*\(_\)\s*=>').allMatches(source),

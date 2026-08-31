@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:animations/animations.dart'
-    show ContainerTransitionType, OpenContainer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -77,7 +75,8 @@ abstract final class UIConstants {
   static const Duration dashboardReveal = Duration(milliseconds: 520);
   static const Duration routeIn = Duration(milliseconds: 280);
   static const Duration routeOut = Duration(milliseconds: 220);
-  static const Duration containerTransform = Duration(milliseconds: 420);
+  static const Duration focusRouteIn = Duration(milliseconds: 250);
+  static const Duration focusRouteOut = Duration(milliseconds: 210);
 
   // A lightly under-damped release: quick enough for repeated ledger work,
   // with one restrained rebound instead of a decorative wobble.
@@ -639,6 +638,12 @@ class _OpaqueContentTransitionsBuilder extends PageTransitionsBuilder {
   const _OpaqueContentTransitionsBuilder();
 
   @override
+  Duration get transitionDuration => UIConstants.focusRouteIn;
+
+  @override
+  Duration get reverseTransitionDuration => UIConstants.focusRouteOut;
+
+  @override
   Widget buildTransitions<T>(
     PageRoute<T> route,
     BuildContext context,
@@ -670,60 +675,208 @@ class _OpaqueContentTransitionsBuilder extends PageTransitionsBuilder {
   }
 }
 
-class _PremiumOpenContainer extends StatefulWidget {
-  const _PremiumOpenContainer({
-    required this.sourceBuilder,
-    required this.destinationBuilder,
-    required this.borderRadius,
+PageRoute<T> _focusRoute<T>({
+  required WidgetBuilder destinationBuilder,
+  required Alignment origin,
+  required Color accentColor,
+  required double sourceRadius,
+  required bool reduceMotion,
+}) => PageRouteBuilder<T>(
+  opaque: true,
+  allowSnapshotting: true,
+  transitionDuration: reduceMotion ? Duration.zero : UIConstants.focusRouteIn,
+  reverseTransitionDuration: reduceMotion
+      ? Duration.zero
+      : UIConstants.focusRouteOut,
+  pageBuilder: (BuildContext context, _, _) => destinationBuilder(context),
+  transitionsBuilder:
+      (
+        BuildContext context,
+        Animation<double> animation,
+        Animation<double> secondaryAnimation,
+        Widget child,
+      ) => _FocusShiftTransition(
+        animation: animation,
+        origin: origin,
+        accentColor: accentColor,
+        sourceRadius: sourceRadius,
+        child: child,
+      ),
+);
+
+class _FocusShiftTransition extends StatelessWidget {
+  const _FocusShiftTransition({
+    required this.animation,
+    required this.origin,
+    required this.accentColor,
+    required this.sourceRadius,
+    required this.child,
   });
 
-  final Widget Function(VoidCallback openContainer) sourceBuilder;
-  final WidgetBuilder destinationBuilder;
-  final double borderRadius;
-
-  @override
-  State<_PremiumOpenContainer> createState() => _PremiumOpenContainerState();
-}
-
-class _PremiumOpenContainerState extends State<_PremiumOpenContainer> {
-  bool _routeOpen = false;
+  final Animation<double> animation;
+  final Alignment origin;
+  final Color accentColor;
+  final double sourceRadius;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final Color pageColor = Theme.of(context).brightness == Brightness.dark
-        ? Colors.black
-        : lightCanvas;
-    return OpenContainer<Object?>(
-      transitionType: ContainerTransitionType.fadeThrough,
-      transitionDuration: AppMotion.reduce(context)
-          ? Duration.zero
-          : UIConstants.containerTransform,
-      tappable: false,
-      closedColor: Colors.transparent,
-      middleColor: pageColor,
-      openColor: pageColor,
-      closedElevation: 0,
-      openElevation: 0,
-      closedShape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(widget.borderRadius),
-      ),
-      openShape: const RoundedRectangleBorder(),
-      clipBehavior: Clip.none,
-      onClosed: (_) => _routeOpen = false,
-      closedBuilder: (_, VoidCallback openContainer) => RepaintBoundary(
-        child: widget.sourceBuilder(() {
-          if (_routeOpen) return;
-          _routeOpen = true;
-          openContainer();
-        }),
-      ),
-      openBuilder: (BuildContext routeContext, _) => RepaintBoundary(
-        child: _AmbientBackground(
-          child: widget.destinationBuilder(routeContext),
+    if (AppMotion.reduce(context)) {
+      return _AmbientBackground(child: child);
+    }
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final Animation<double> progress = CurvedAnimation(
+      parent: animation,
+      curve: UIConstants.motionOut,
+      reverseCurve: UIConstants.motionIn,
+    );
+    final Animation<double> contentOpacity = Tween<double>(begin: .68, end: 1)
+        .animate(
+          CurvedAnimation(
+            parent: animation,
+            curve: const Interval(0, .68, curve: UIConstants.motionOut),
+            reverseCurve: const Interval(0, .72, curve: UIConstants.motionIn),
+          ),
+        );
+    final Animation<double> bloomOpacity = TweenSequence<double>(
+      <TweenSequenceItem<double>>[
+        TweenSequenceItem<double>(
+          tween: Tween<double>(begin: 0, end: 1),
+          weight: 18,
         ),
+        TweenSequenceItem<double>(
+          tween: Tween<double>(begin: 1, end: 0),
+          weight: 82,
+        ),
+      ],
+    ).animate(progress);
+    final Widget surface = _AmbientBackground(
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          IgnorePointer(
+            child: FadeTransition(
+              opacity: bloomOpacity,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: origin,
+                    radius: .92,
+                    colors: <Color>[
+                      accentColor.withAlpha(dark ? 72 : 42),
+                      accentColor.withAlpha(dark ? 18 : 10),
+                      Colors.transparent,
+                    ],
+                    stops: const <double>[0, .38, 1],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          FadeTransition(opacity: contentOpacity, child: child),
+        ],
       ),
     );
+    return AnimatedBuilder(
+      animation: progress,
+      child: RepaintBoundary(child: surface),
+      builder: (BuildContext context, Widget? surface) {
+        final double remaining = 1 - progress.value;
+        final double scale = 1 - (.045 * remaining);
+        final double radius = sourceRadius * remaining;
+        final int edgeAlpha = (remaining * (dark ? 34 : 20)).round();
+        final Offset offset = Offset(
+          origin.x * 10 * remaining,
+          (origin.y * 6 + 7) * remaining,
+        );
+        return IgnorePointer(
+          ignoring: animation.status != AnimationStatus.completed,
+          child: Transform.translate(
+            offset: offset,
+            transformHitTests: false,
+            child: Transform.scale(
+              alignment: origin,
+              scale: scale,
+              transformHitTests: false,
+              child: DecoratedBox(
+                position: DecorationPosition.foreground,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(radius),
+                  border: Border.all(
+                    color: (dark ? Colors.white : Colors.black).withAlpha(
+                      edgeAlpha,
+                    ),
+                    width: .8,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(radius),
+                  clipBehavior: Clip.antiAlias,
+                  child: surface,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
+}
+
+class _FocusRouteLauncher extends StatefulWidget {
+  const _FocusRouteLauncher({
+    required this.sourceBuilder,
+    required this.destinationBuilder,
+    required this.borderRadius,
+    required this.accentColor,
+  });
+
+  final Widget Function(VoidCallback openRoute) sourceBuilder;
+  final WidgetBuilder destinationBuilder;
+  final double borderRadius;
+  final Color accentColor;
+
+  @override
+  State<_FocusRouteLauncher> createState() => _FocusRouteLauncherState();
+}
+
+class _FocusRouteLauncherState extends State<_FocusRouteLauncher> {
+  final GlobalKey _sourceKey = GlobalKey();
+  bool _routeOpen = false;
+
+  Alignment _resolveOrigin() {
+    final RenderBox? box =
+        _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+    final Size viewport = MediaQuery.sizeOf(context);
+    if (box == null || !box.hasSize || viewport.isEmpty) {
+      return Alignment.center;
+    }
+    final Offset center = box.localToGlobal(box.size.center(Offset.zero));
+    return Alignment(
+      (center.dx / viewport.width * 2 - 1).clamp(-.84, .84).toDouble(),
+      (center.dy / viewport.height * 2 - 1).clamp(-.84, .84).toDouble(),
+    );
+  }
+
+  void _open() {
+    if (_routeOpen) return;
+    _routeOpen = true;
+    final NavigatorState navigator = Navigator.of(context);
+    final PageRoute<Object?> route = _focusRoute<Object?>(
+      destinationBuilder: widget.destinationBuilder,
+      origin: _resolveOrigin(),
+      accentColor: widget.accentColor,
+      sourceRadius: widget.borderRadius,
+      reduceMotion: AppMotion.reduce(context),
+    );
+    unawaited(
+      navigator.push<Object?>(route).whenComplete(() => _routeOpen = false),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      RepaintBoundary(key: _sourceKey, child: widget.sourceBuilder(_open));
 }
 
 class _LaunchScreen extends StatelessWidget {
@@ -2765,8 +2918,9 @@ class _ListCard extends StatelessWidget {
 
     final Widget card = destinationBuilder == null
         ? buildCard(onTap!)
-        : _PremiumOpenContainer(
+        : _FocusRouteLauncher(
             borderRadius: UIConstants.cardRadius,
+            accentColor: color,
             destinationBuilder: destinationBuilder!,
             sourceBuilder: buildCard,
           );
@@ -3352,11 +3506,12 @@ class _DashboardScreenState extends State<DashboardScreen>
         _ScreenHeader(
           title: 'Dashboard',
           subtitle: 'AARISH DAIRY',
-          subtitleTrailing: _PremiumOpenContainer(
+          subtitleTrailing: _FocusRouteLauncher(
             borderRadius: 20,
+            accentColor: const Color(0xFF7957E8),
             destinationBuilder: (_) => AiHubScreen(sync: sync),
-            sourceBuilder: (VoidCallback openContainer) =>
-                _AiHubButton(onTap: openContainer),
+            sourceBuilder: (VoidCallback openRoute) =>
+                _AiHubButton(onTap: openRoute),
           ),
           actions: <Widget>[
             _CircleAction(
@@ -3457,11 +3612,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                 _DashboardCardReveal(
                   animation: _revealController,
                   order: 4,
-                  child: _PremiumOpenContainer(
+                  child: _FocusRouteLauncher(
                     borderRadius: 24,
+                    accentColor: const Color(0xFF9333EA),
                     destinationBuilder: (_) => PartyLedgerScreen(sync: sync),
-                    sourceBuilder: (VoidCallback openContainer) => _Pressable(
-                      onTap: openContainer,
+                    sourceBuilder: (VoidCallback openRoute) => _Pressable(
+                      onTap: openRoute,
                       borderRadius: BorderRadius.circular(24),
                       feedbackColor: const Color(0xFF9333EA),
                       child: const _GlassCard(
@@ -7098,8 +7254,9 @@ class _DiaryScreenState extends State<DiaryScreen> {
         : _displayDate(entry['date']).toUpperCase();
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: _PremiumOpenContainer(
+      child: _FocusRouteLauncher(
         borderRadius: 23,
+        accentColor: diaryOrange,
         destinationBuilder: (_) => DiaryDetailScreen(
           sync: widget.sync,
           entryId: '${entry['id']}',
@@ -7111,11 +7268,11 @@ class _DiaryScreenState extends State<DiaryScreen> {
             });
           },
         ),
-        sourceBuilder: (VoidCallback openContainer) => _Pressable(
+        sourceBuilder: (VoidCallback openRoute) => _Pressable(
           semanticLabel: needsDate
               ? '$entryTitle, date needs correction'
               : '$entryTitle, ${_displayDate(entry['date'])}',
-          onTap: openContainer,
+          onTap: openRoute,
           borderRadius: BorderRadius.circular(23),
           feedbackColor: diaryOrange,
           child: _GlassCard(
