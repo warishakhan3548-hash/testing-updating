@@ -527,6 +527,289 @@ class PartyBalance {
   double get net => _cleanZero(milk + credit);
 }
 
+class CreditPartySummary {
+  const CreditPartySummary({
+    required this.name,
+    required this.net,
+    required this.lastDate,
+  });
+
+  final String name;
+  final double net;
+  final String lastDate;
+}
+
+class ExpenseCategorySummary {
+  const ExpenseCategorySummary({
+    required this.category,
+    required this.monthTotal,
+    required this.lastDate,
+  });
+
+  final String category;
+  final double monthTotal;
+  final String lastDate;
+}
+
+/// A single, immutable calculation pass over one ledger state and month.
+///
+/// UI rebuilds also happen for connection, retry, theme and outbox changes.
+/// Keeping these values together lets [LedgerSyncService] reuse the exact same
+/// projection until either the state identity or the calendar month changes.
+class LedgerProjection {
+  const LedgerProjection._({
+    required this.month,
+    required this.year,
+    required this.dashboard,
+    required this.partyBalances,
+    required this.milkTotalsByProfile,
+    required this.salaryNetByProfile,
+    required this.creditParties,
+    required this.expenseCategories,
+    required this.businessRecordCounts,
+    required this.milkLifetimeNet,
+    required this.creditLifetimeNet,
+    required this.salaryMonthNet,
+    required this.expenseMonthTotal,
+  });
+
+  final int month;
+  final int year;
+  final DashboardTotals dashboard;
+  final List<PartyBalance> partyBalances;
+  final Map<String, MilkTotals> milkTotalsByProfile;
+  final Map<String, double> salaryNetByProfile;
+  final List<CreditPartySummary> creditParties;
+  final List<ExpenseCategorySummary> expenseCategories;
+  final Map<String, int> businessRecordCounts;
+  final double milkLifetimeNet;
+  final double creditLifetimeNet;
+  final double salaryMonthNet;
+  final double expenseMonthTotal;
+
+  factory LedgerProjection.fromState(
+    Map<String, dynamic> state, {
+    required int month,
+    required int year,
+  }) {
+    final Map<String, MilkTotals> milkTotalsByProfile = <String, MilkTotals>{};
+    final Map<String, double> salaryNetByProfile = <String, double>{};
+    final Map<String, double> partyMilk = <String, double>{};
+    final Map<String, _CreditSummaryBuilder> partyCredit =
+        <String, _CreditSummaryBuilder>{};
+    final Map<String, _ExpenseSummaryBuilder> expenseByCategory =
+        <String, _ExpenseSummaryBuilder>{};
+    final Map<String, int> businessRecordCounts = <String, int>{};
+
+    double revenue = 0;
+    double expense = 0;
+    double receive = 0;
+    double pay = 0;
+    double creditReceive = 0;
+    double creditPay = 0;
+    double milkLifetimeNet = 0;
+    double creditLifetimeNet = 0;
+    double salaryMonthNet = 0;
+    double expenseMonthTotal = 0;
+
+    for (final MapEntry<String, dynamic> entry
+        in LedgerCodec.objectMap(state['milkDB']).entries) {
+      final MilkTotals lifetime = LedgerMath.milkTotals(entry.value);
+      final MilkTotals monthly = LedgerMath.milkTotals(
+        entry.value,
+        month: month,
+        year: year,
+      );
+      milkTotalsByProfile[entry.key] = lifetime;
+      milkLifetimeNet += lifetime.netAmount;
+
+      if (monthly.netAmount >= 0) {
+        revenue += monthly.netAmount;
+      } else {
+        expense += monthly.netAmount.abs();
+      }
+      if (lifetime.netAmount >= 0) {
+        receive += lifetime.netAmount;
+      } else {
+        pay += lifetime.netAmount.abs();
+      }
+
+      final String partyName = LedgerMath.cleanName(entry.key);
+      if (partyName.isNotEmpty) {
+        partyMilk[partyName] =
+            (partyMilk[partyName] ?? 0) + lifetime.netAmount;
+      }
+    }
+
+    for (final Map<String, dynamic> row
+        in LedgerCodec.canonicalList(state['udharDB'])) {
+      final double signed = LedgerMath.creditSigned(row);
+      creditLifetimeNet += signed;
+      final String partyName = LedgerMath.cleanName(row['name']);
+      if (partyName.isEmpty) continue;
+      final _CreditSummaryBuilder builder = partyCredit.putIfAbsent(
+        partyName,
+        () => _CreditSummaryBuilder(partyName),
+      );
+      builder.net += signed;
+      final String rowDate = '${row['date'] ?? ''}';
+      if (rowDate.compareTo(builder.lastDate) > 0) {
+        builder.lastDate = rowDate;
+      }
+    }
+
+    for (final _CreditSummaryBuilder builder in partyCredit.values) {
+      final double net = _cleanZero(builder.net);
+      if (net > 0) {
+        receive += net;
+        creditReceive += net;
+      } else if (net < 0) {
+        pay += net.abs();
+        creditPay += net.abs();
+      }
+    }
+
+    for (final Map<String, dynamic> row
+        in LedgerCodec.canonicalList(state['expenseDB'])) {
+      final String cleanedCategory = LedgerMath.cleanKey(row['category']);
+      final String category = cleanedCategory.isEmpty
+          ? 'Other'
+          : cleanedCategory;
+      final _ExpenseSummaryBuilder builder = expenseByCategory.putIfAbsent(
+        category,
+        () => _ExpenseSummaryBuilder(category),
+      );
+      if (LedgerMath.inMonth(row, month, year)) {
+        final double amount = LedgerMath.number(row['amount']).abs();
+        builder.monthTotal += amount;
+        expenseMonthTotal += amount;
+        expense += amount;
+      }
+      final String rowDate = '${row['date'] ?? ''}';
+      if (rowDate.compareTo(builder.lastDate) > 0) {
+        builder.lastDate = rowDate;
+      }
+    }
+
+    for (final MapEntry<String, dynamic> entry
+        in LedgerCodec.objectMap(state['salaryDB']).entries) {
+      final double net = LedgerMath.salaryNet(entry.value, month, year);
+      salaryNetByProfile[entry.key] = net;
+      salaryMonthNet += net;
+      if (net >= 0) {
+        revenue += net;
+      } else {
+        expense += net.abs();
+      }
+    }
+
+    for (final MapEntry<String, dynamic> entry
+        in LedgerCodec.objectMap(state['projectDB']).entries) {
+      businessRecordCounts[entry.key] = LedgerCodec.canonicalList(
+        LedgerCodec.objectMap(entry.value)['records'],
+      ).length;
+    }
+
+    final Set<String> partyNames = <String>{
+      ...partyMilk.keys,
+      ...partyCredit.keys,
+    };
+    final List<PartyBalance> partyBalances = partyNames
+        .map(
+          (String name) => PartyBalance(
+            name: name,
+            milk: partyMilk[name] ?? 0,
+            credit: partyCredit[name]?.net ?? 0,
+          ),
+        )
+        .toList();
+    partyBalances.sort((PartyBalance a, PartyBalance b) {
+      final int byAbsolute = b.net.abs().compareTo(a.net.abs());
+      return byAbsolute != 0 ? byAbsolute : a.name.compareTo(b.name);
+    });
+
+    final List<CreditPartySummary> creditParties = partyCredit.values
+        .map(
+          (_CreditSummaryBuilder builder) => CreditPartySummary(
+            name: builder.name,
+            net: builder.net,
+            lastDate: builder.lastDate,
+          ),
+        )
+        .toList();
+    creditParties.sort((CreditPartySummary a, CreditPartySummary b) {
+      final int byDate = b.lastDate.compareTo(a.lastDate);
+      return byDate != 0 ? byDate : a.name.compareTo(b.name);
+    });
+
+    final List<ExpenseCategorySummary> expenseCategories = expenseByCategory
+        .values
+        .map(
+          (_ExpenseSummaryBuilder builder) => ExpenseCategorySummary(
+            category: builder.category,
+            monthTotal: builder.monthTotal,
+            lastDate: builder.lastDate,
+          ),
+        )
+        .toList();
+    expenseCategories.sort(
+      (ExpenseCategorySummary a, ExpenseCategorySummary b) {
+        final int byLatest = b.lastDate.compareTo(a.lastDate);
+        return byLatest != 0
+            ? byLatest
+            : a.category.compareTo(b.category);
+      },
+    );
+
+    return LedgerProjection._(
+      month: month,
+      year: year,
+      dashboard: DashboardTotals(
+        toReceive: receive,
+        toPay: pay,
+        monthExpense: expense,
+        monthProfit: revenue - expense,
+        creditReceive: creditReceive,
+        creditPay: creditPay,
+      ),
+      partyBalances: List<PartyBalance>.unmodifiable(partyBalances),
+      milkTotalsByProfile: Map<String, MilkTotals>.unmodifiable(
+        milkTotalsByProfile,
+      ),
+      salaryNetByProfile: Map<String, double>.unmodifiable(
+        salaryNetByProfile,
+      ),
+      creditParties: List<CreditPartySummary>.unmodifiable(creditParties),
+      expenseCategories: List<ExpenseCategorySummary>.unmodifiable(
+        expenseCategories,
+      ),
+      businessRecordCounts: Map<String, int>.unmodifiable(
+        businessRecordCounts,
+      ),
+      milkLifetimeNet: milkLifetimeNet,
+      creditLifetimeNet: creditLifetimeNet,
+      salaryMonthNet: salaryMonthNet,
+      expenseMonthTotal: expenseMonthTotal,
+    );
+  }
+}
+
+class _CreditSummaryBuilder {
+  _CreditSummaryBuilder(this.name);
+
+  final String name;
+  double net = 0;
+  String lastDate = '';
+}
+
+class _ExpenseSummaryBuilder {
+  _ExpenseSummaryBuilder(this.category);
+
+  final String category;
+  double monthTotal = 0;
+  String lastDate = '';
+}
+
 class LedgerMath {
   LedgerMath._();
 
@@ -829,6 +1112,15 @@ class LedgerMath {
       .replaceAll(RegExp(r'[\u0000-\u001F\u007F]'), ' ')
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
+
+  static String cleanKey(dynamic value) => '${value ?? ''}'
+      .replaceAll(RegExp(r'[.#$\[\]<>/\\]'), ' ')
+      .replaceAll("'", ' ')
+      .replaceAll('"', ' ')
+      .replaceAll('`', ' ')
+      .replaceAll(RegExp(r'[\u0000-\u001F\u007F]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 }
 
 class LedgerSyncService extends ChangeNotifier {
@@ -880,6 +1172,28 @@ class LedgerSyncService extends ChangeNotifier {
   int get pendingWrites => _outbox.length;
   Object? get lastError => _lastError;
   Map<String, dynamic> get state => _state;
+  Map<String, dynamic>? _projectedState;
+  LedgerProjection? _projection;
+
+  LedgerProjection projectionAt(DateTime date) {
+    final LedgerProjection? cached = _projection;
+    if (cached != null &&
+        identical(_projectedState, _state) &&
+        cached.month == date.month &&
+        cached.year == date.year) {
+      return cached;
+    }
+    final LedgerProjection computed = LedgerProjection.fromState(
+      _state,
+      month: date.month,
+      year: date.year,
+    );
+    _projectedState = _state;
+    _projection = computed;
+    return computed;
+  }
+
+  LedgerProjection get currentProjection => projectionAt(DateTime.now());
 
   Future<void> initialize() async {
     await Hive.initFlutter();

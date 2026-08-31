@@ -186,7 +186,9 @@ void main() {
     expect(source, contains('Firebase.initializeApp('));
     expect(
       source,
-      contains('final List<Color> colors = _moduleTabColors(sync.state);'),
+      contains(
+        'final List<Color> colors = _moduleTabColors(sync.currentProjection);',
+      ),
     );
   });
 }

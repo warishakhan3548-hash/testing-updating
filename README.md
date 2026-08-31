@@ -104,7 +104,9 @@ change tokens, table revisions and compact deltas.
 Firebase reads are cost-conscious: one small change-token listener while signed
 in, compact delta application when safe, targeted changed-record reads for
 large values, changed-table fallback fetches when necessary, and an automatic
-full integrity audit no more than once every seven days.
+full integrity audit no more than once every seven days. Dashboard, navigation
+tones, party balances and module summary cards share one immutable monthly
+projection, so connection/status repaints never rescan the complete ledger.
 
 The supplied iOS Firebase plist is preserved at
 `firebase/GoogleService-Info.plist` for a future iOS scaffold. It is not needed

@@ -1293,7 +1293,7 @@ class _BottomLedgerNav extends StatelessWidget {
 
   Widget _buildNavigation(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-    final List<Color> colors = _moduleTabColors(sync.state);
+    final List<Color> colors = _moduleTabColors(sync.currentProjection);
     return DecoratedBox(
       decoration: BoxDecoration(
         boxShadow: <BoxShadow>[
@@ -3068,14 +3068,7 @@ String _signedMoney(dynamic value) {
   return '₹0';
 }
 
-String _cleanKey(dynamic value) => '${value ?? ''}'
-    .replaceAll(RegExp(r'[.#$\[\]<>/\\]'), ' ')
-    .replaceAll("'", ' ')
-    .replaceAll('"', ' ')
-    .replaceAll('`', ' ')
-    .replaceAll(RegExp(r'[\u0000-\u001F\u007F]'), ' ')
-    .replaceAll(RegExp(r'\s+'), ' ')
-    .trim();
+String _cleanKey(dynamic value) => LedgerMath.cleanKey(value);
 
 Map<String, dynamic> _map(dynamic value) => LedgerCodec.objectMap(value);
 
@@ -3097,53 +3090,15 @@ Color _toneCompanion(Color color) {
   return Color.lerp(color, Colors.black, .22)!;
 }
 
-double _milkGlobalNet(Map<String, dynamic> state) {
-  double net = 0;
-  for (final dynamic profile in _map(state['milkDB']).values) {
-    net += LedgerMath.milkTotals(_map(profile)).netAmount;
-  }
-  return net;
-}
-
-double _creditGlobalNet(Map<String, dynamic> state) => _rows(state['udharDB'])
-    .fold<double>(
-      0,
-      (double sum, Map<String, dynamic> row) =>
-          sum + LedgerMath.creditSigned(row),
-    );
-
-double _salaryGlobalNet(Map<String, dynamic> state) {
-  final DateTime now = DateTime.now();
-  double net = 0;
-  for (final dynamic profile in _map(state['salaryDB']).values) {
-    net += LedgerMath.salaryNet(_map(profile), now.month, now.year);
-  }
-  return net;
-}
-
-double _expenseCurrentMonthTotal(Map<String, dynamic> state) {
-  final DateTime now = DateTime.now();
-  return _rows(state['expenseDB'])
-      .where(
-        (Map<String, dynamic> row) =>
-            LedgerMath.inMonth(row, now.month, now.year),
-      )
-      .fold<double>(
-        0,
-        (double sum, Map<String, dynamic> row) =>
-            sum + LedgerMath.number(row['amount']).abs(),
-      );
-}
-
 Color _expenseToneForTotal(double total) =>
     total > .000001 ? semanticRed : appleBlue;
 
-List<Color> _moduleTabColors(Map<String, dynamic> state) => <Color>[
+List<Color> _moduleTabColors(LedgerProjection projection) => <Color>[
   appleBlue,
-  _tone(_milkGlobalNet(state)),
-  _tone(_creditGlobalNet(state)),
-  _expenseToneForTotal(_expenseCurrentMonthTotal(state)),
-  _tone(_salaryGlobalNet(state)),
+  _tone(projection.milkLifetimeNet),
+  _tone(projection.creditLifetimeNet),
+  _expenseToneForTotal(projection.expenseMonthTotal),
+  _tone(projection.salaryMonthNet),
   diaryOrange,
   appleBlue,
 ];
@@ -3348,12 +3303,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    final DateTime now = DateTime.now();
-    final DashboardTotals totals = LedgerMath.dashboard(
-      sync.state,
-      month: now.month,
-      year: now.year,
-    );
+    final DashboardTotals totals = sync.currentProjection.dashboard;
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -3731,13 +3681,15 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final List<PartyBalance> balances =
-        LedgerMath.partyBalances(widget.sync.state)
-            .where(
-              (PartyBalance item) =>
-                  item.name.toLowerCase().contains(_query.toLowerCase()),
-            )
-            .toList();
+    final List<PartyBalance> balances = widget
+        .sync
+        .currentProjection
+        .partyBalances
+        .where(
+          (PartyBalance item) =>
+              item.name.toLowerCase().contains(_query.toLowerCase()),
+        )
+        .toList();
     return Scaffold(
       body: Column(
         children: <Widget>[
@@ -3933,7 +3885,8 @@ class _MilkScreenState extends State<MilkScreen> {
   @override
   Widget build(BuildContext context) {
     final Map<String, dynamic> database = _map(widget.sync.state['milkDB']);
-    final Color moduleColor = _tone(_milkGlobalNet(widget.sync.state));
+    final LedgerProjection projection = widget.sync.currentProjection;
+    final Color moduleColor = _tone(projection.milkLifetimeNet);
     final List<String> names =
         database.keys
             .where(
@@ -3980,7 +3933,8 @@ class _MilkScreenState extends State<MilkScreen> {
               else
                 ...names.map((String name) {
                   final Map<String, dynamic> profile = _map(database[name]);
-                  final MilkTotals totals = LedgerMath.milkTotals(profile);
+                  final MilkTotals totals =
+                      projection.milkTotalsByProfile[name]!;
                   final Color color = _tone(totals.netAmount);
                   return _ListCard(
                     title: name,
@@ -5450,9 +5404,9 @@ class _SalaryScreenState extends State<SalaryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final DateTime now = DateTime.now();
     final Map<String, dynamic> database = _map(widget.sync.state['salaryDB']);
-    final Color moduleColor = _tone(_salaryGlobalNet(widget.sync.state));
+    final LedgerProjection projection = widget.sync.currentProjection;
+    final Color moduleColor = _tone(projection.salaryMonthNet);
     final List<String> names =
         database.keys
             .where(
@@ -5494,11 +5448,7 @@ class _SalaryScreenState extends State<SalaryScreen> {
               else
                 ...names.map((String name) {
                   final Map<String, dynamic> profile = _map(database[name]);
-                  final double net = LedgerMath.salaryNet(
-                    profile,
-                    now.month,
-                    now.year,
-                  );
+                  final double net = projection.salaryNetByProfile[name]!;
                   final Color color = _tone(net);
                   return _ListCard(
                     title: name,
@@ -5809,35 +5759,6 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
   );
 }
 
-class _CreditGroup {
-  _CreditGroup(this.name);
-
-  final String name;
-  double net = 0;
-  String lastDate = '';
-}
-
-List<_CreditGroup> _creditGroups(dynamic source) {
-  final Map<String, _CreditGroup> grouped = <String, _CreditGroup>{};
-  for (final Map<String, dynamic> row in _rows(source)) {
-    final String name = LedgerMath.cleanName(row['name']);
-    if (name.isEmpty) continue;
-    final _CreditGroup group = grouped.putIfAbsent(
-      name,
-      () => _CreditGroup(name),
-    );
-    group.net += LedgerMath.creditSigned(row);
-    final String date = '${row['date'] ?? ''}';
-    if (date.compareTo(group.lastDate) > 0) group.lastDate = date;
-  }
-  final List<_CreditGroup> result = grouped.values.toList();
-  result.sort((_CreditGroup a, _CreditGroup b) {
-    final int byDate = b.lastDate.compareTo(a.lastDate);
-    return byDate != 0 ? byDate : a.name.compareTo(b.name);
-  });
-  return result;
-}
-
 class CreditScreen extends StatefulWidget {
   const CreditScreen({required this.sync, super.key});
 
@@ -5960,16 +5881,16 @@ class _CreditScreenState extends State<CreditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final double net = _creditGlobalNet(widget.sync.state);
+    final LedgerProjection projection = widget.sync.currentProjection;
+    final double net = projection.creditLifetimeNet;
     final Color moduleColor = _tone(net);
     final Color balanceColor = moduleColor;
-    final List<_CreditGroup> groups =
-        _creditGroups(widget.sync.state['udharDB'])
-            .where(
-              (_CreditGroup group) =>
-                  group.name.toLowerCase().contains(_query.toLowerCase()),
-            )
-            .toList();
+    final List<CreditPartySummary> groups = projection.creditParties
+        .where(
+          (CreditPartySummary group) =>
+              group.name.toLowerCase().contains(_query.toLowerCase()),
+        )
+        .toList();
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -6011,7 +5932,7 @@ class _CreditScreenState extends State<CreditScreen> {
                   'No credit records found',
                 )
               else
-                ...groups.map((_CreditGroup group) {
+                ...groups.map((CreditPartySummary group) {
                   final Color color = _tone(group.net);
                   return _ListCard(
                     title: group.name,
@@ -6350,14 +6271,6 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
   );
 }
 
-class _ExpenseGroup {
-  _ExpenseGroup(this.category);
-
-  final String category;
-  double total = 0;
-  String lastDate = '';
-}
-
 class ExpenseScreen extends StatefulWidget {
   const ExpenseScreen({required this.sync, super.key});
 
@@ -6471,33 +6384,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final DateTime now = DateTime.now();
-    final Map<String, _ExpenseGroup> grouped = <String, _ExpenseGroup>{};
-    for (final Map<String, dynamic> row in _rows(
-      widget.sync.state['expenseDB'],
-    )) {
-      final String name = _cleanKey(row['category']).isEmpty
-          ? 'Other'
-          : _cleanKey(row['category']);
-      final _ExpenseGroup group = grouped.putIfAbsent(
-        name,
-        () => _ExpenseGroup(name),
-      );
-      if (LedgerMath.inMonth(row, now.month, now.year)) {
-        group.total += LedgerMath.number(row['amount']).abs();
-      }
-      final String rowDate = '${row['date'] ?? ''}';
-      if (rowDate.compareTo(group.lastDate) > 0) group.lastDate = rowDate;
-    }
-    final List<_ExpenseGroup> groups = grouped.values.toList()
-      ..sort((_ExpenseGroup a, _ExpenseGroup b) {
-        final int byLatest = b.lastDate.compareTo(a.lastDate);
-        return byLatest != 0 ? byLatest : a.category.compareTo(b.category);
-      });
-    final double total = groups.fold<double>(
-      0,
-      (double sum, _ExpenseGroup group) => sum + group.total,
-    );
+    final LedgerProjection projection = widget.sync.currentProjection;
+    final List<ExpenseCategorySummary> groups = projection.expenseCategories;
+    final double total = projection.expenseMonthTotal;
     final Color moduleColor = _expenseToneForTotal(total);
     return Column(
       children: <Widget>[
@@ -6537,14 +6426,16 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 const _EmptyState(premiumExpenseIcon, 'No expenses this month')
               else
                 ...groups.map(
-                  (_ExpenseGroup group) => _ListCard(
+                  (ExpenseCategorySummary group) => _ListCard(
                     title: group.category,
-                    subtitle: group.total > 0
+                    subtitle: group.monthTotal > 0
                         ? 'This month • Last ${_displayDate(group.lastDate)}'
                         : 'No expense this month • Last ${_displayDate(group.lastDate)}',
                     icon: premiumExpenseIcon,
                     color: semanticRed,
-                    trailing: group.total > 0 ? '-${_money(group.total)}' : '—',
+                    trailing: group.monthTotal > 0
+                        ? '-${_money(group.monthTotal)}'
+                        : '—',
                     onTap: () => Navigator.of(context).push(
                       _premiumRoute<void>(
                         ExpenseDetailScreen(
@@ -7565,6 +7456,8 @@ class _BusinessScreenState extends State<BusinessScreen> {
   @override
   Widget build(BuildContext context) {
     final Map<String, dynamic> database = _map(widget.sync.state['projectDB']);
+    final Map<String, int> recordCounts =
+        widget.sync.currentProjection.businessRecordCounts;
     final List<String> names =
         database.keys
             .where(
@@ -7609,8 +7502,7 @@ class _BusinessScreenState extends State<BusinessScreen> {
                 )
               else
                 ...names.map((String name) {
-                  final int count = _rows(_map(database[name])['records'])
-                      .length;
+                  final int count = recordCounts[name]!;
                   return _ListCard(
                     title: name,
                     subtitle: '$count Records Logged',

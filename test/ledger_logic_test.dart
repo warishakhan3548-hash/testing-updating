@@ -386,5 +386,247 @@ void main() {
       expect(ali.credit, -40);
       expect(ali.net, 60);
     });
+
+    test('materialized projection preserves every legacy dashboard invariant', () {
+      final Map<String, dynamic> state = LedgerCodec.normalizeState(
+        <String, dynamic>{
+          'milkDB': <String, dynamic>{
+            'Ali': <String, dynamic>{
+              'rate': 50,
+              'records': <String, dynamic>{
+                'old': <String, dynamic>{
+                  'date': '2025-12-01',
+                  'morning': 2,
+                  'flow': 'given',
+                },
+                'current': <String, dynamic>{
+                  'date': '2026-08-01',
+                  'morning': 1,
+                  'flow': 'taken',
+                },
+              },
+            },
+            'Buyer': <String, dynamic>{
+              'rate': 60,
+              'type': 'dene_wala',
+              'records': <String, dynamic>{
+                'current': <String, dynamic>{
+                  'date': '2026-08-02',
+                  'morning': 2,
+                },
+              },
+            },
+            'Seller': <String, dynamic>{
+              'rate': 40,
+              'type': 'lene_wala',
+              'records': <String, dynamic>{
+                'old': <String, dynamic>{
+                  'date': '2025-12-03',
+                  'morning': 1,
+                  'flow': 'taken',
+                },
+                'current': <String, dynamic>{
+                  'date': '2026-08-03',
+                  'morning': 3,
+                },
+              },
+            },
+          },
+          'udharDB': <String, dynamic>{
+            'ali_credit': <String, dynamic>{
+              'date': '2026-07-01',
+              'name': 'Ali',
+              'amount': 200,
+              'type': 'credit',
+            },
+            'ali_debit': <String, dynamic>{
+              'date': '2026-08-04',
+              'name': 'Ali',
+              'amount': 250,
+              'type': 'debit',
+            },
+            'bob_credit': <String, dynamic>{
+              'date': '2026-08-05',
+              'name': 'Bob',
+              'amount': 300,
+              'type': 'credit',
+            },
+            'bob_debit': <String, dynamic>{
+              'date': '2026-08-06',
+              'name': 'Bob',
+              'amount': 100,
+              'type': 'debit',
+            },
+            'legacy_unnamed': <String, dynamic>{
+              'date': '2026-08-07',
+              'amount': 999,
+              'type': 'credit',
+            },
+          },
+          'expenseDB': <String, dynamic>{
+            'fuel': <String, dynamic>{
+              'date': '2026-08-08',
+              'category': 'Fuel',
+              'amount': 30,
+            },
+            'old_fuel': <String, dynamic>{
+              'date': '2026-07-08',
+              'category': 'Fuel',
+              'amount': 10,
+            },
+            'travel': <String, dynamic>{
+              'date': '2026-08-12',
+              'category': ' Travel/Taxi ',
+              'amount': 20,
+            },
+            'invalid_date': <String, dynamic>{
+              'date': '',
+              'category': 'Misc',
+              'amount': 500,
+            },
+          },
+          'salaryDB': <String, dynamic>{
+            'Receiver': <String, dynamic>{
+              'type': 'lene_wala',
+              'records': <String, dynamic>{
+                'current': <String, dynamic>{
+                  'date': '2026-08-09',
+                  'amount': 200,
+                },
+              },
+            },
+            'Payer': <String, dynamic>{
+              'type': 'dene_wala',
+              'records': <String, dynamic>{
+                'current': <String, dynamic>{
+                  'date': '2026-08-10',
+                  'amount': 80,
+                },
+              },
+            },
+          },
+          'projectDB': <String, dynamic>{
+            'Shop': <String, dynamic>{
+              'records': <String, dynamic>{
+                'one': <String, dynamic>{'date': '2026-08-01'},
+                'two': <String, dynamic>{'date': '2026-08-02'},
+              },
+            },
+          },
+        },
+      );
+
+      final LedgerProjection projection = LedgerProjection.fromState(
+        state,
+        month: 8,
+        year: 2026,
+      );
+      final DashboardTotals legacy = LedgerMath.dashboard(
+        state,
+        month: 8,
+        year: 2026,
+      );
+
+      expect(projection.dashboard.toReceive, legacy.toReceive);
+      expect(projection.dashboard.toPay, legacy.toPay);
+      expect(projection.dashboard.monthExpense, legacy.monthExpense);
+      expect(projection.dashboard.monthProfit, legacy.monthProfit);
+      expect(projection.dashboard.creditReceive, legacy.creditReceive);
+      expect(projection.dashboard.creditPay, legacy.creditPay);
+      expect(projection.dashboard.toReceive, 330);
+      expect(projection.dashboard.toPay, 170);
+      expect(projection.dashboard.monthExpense, 300);
+      expect(projection.dashboard.monthProfit, 20);
+      expect(projection.milkLifetimeNet, 10);
+      expect(projection.creditLifetimeNet, 1149);
+      expect(projection.salaryMonthNet, 120);
+      expect(projection.expenseMonthTotal, 50);
+      expect(projection.businessRecordCounts['Shop'], 2);
+      expect(
+        projection.expenseCategories
+            .map((ExpenseCategorySummary item) => item.category),
+        containsAll(<String>['Fuel', 'Travel Taxi', 'Misc']),
+      );
+
+      final List<PartyBalance> legacyParties = LedgerMath.partyBalances(state);
+      expect(projection.partyBalances.length, legacyParties.length);
+      for (int index = 0; index < legacyParties.length; index++) {
+        expect(projection.partyBalances[index].name, legacyParties[index].name);
+        expect(projection.partyBalances[index].milk, legacyParties[index].milk);
+        expect(
+          projection.partyBalances[index].credit,
+          legacyParties[index].credit,
+        );
+        expect(projection.partyBalances[index].net, legacyParties[index].net);
+      }
+    });
+
+    test('projection handles sign crossing, deletion, and month moves', () {
+      final Map<String, dynamic> state = LedgerCodec.normalizeState(
+        <String, dynamic>{
+          'udharDB': <String, dynamic>{
+            'credit': <String, dynamic>{
+              'date': '2026-08-01',
+              'name': 'Ali',
+              'amount': 100,
+              'type': 'credit',
+            },
+          },
+          'expenseDB': <String, dynamic>{
+            'expense': <String, dynamic>{
+              'date': '2026-08-02',
+              'category': 'Fuel',
+              'amount': 40,
+            },
+          },
+        },
+      );
+
+      LedgerProjection projection = LedgerProjection.fromState(
+        state,
+        month: 8,
+        year: 2026,
+      );
+      expect(projection.dashboard.creditReceive, 100);
+      expect(projection.dashboard.creditPay, 0);
+      expect(projection.expenseMonthTotal, 40);
+
+      expect(
+        LedgerCodec.applyPath(
+          state,
+          'udharDB/debit',
+          <String, dynamic>{
+            'date': '2026-08-03',
+            'name': 'Ali',
+            'amount': 150,
+            'type': 'debit',
+          },
+        ),
+        isTrue,
+      );
+      projection = LedgerProjection.fromState(state, month: 8, year: 2026);
+      expect(projection.dashboard.creditReceive, 0);
+      expect(projection.dashboard.creditPay, 50);
+
+      expect(
+        LedgerCodec.applyPath(
+          state,
+          'expenseDB/expense',
+          <String, dynamic>{
+            'id': 'expense',
+            'date': '2026-07-02',
+            'category': 'Fuel',
+            'amount': 40,
+          },
+        ),
+        isTrue,
+      );
+      expect(LedgerCodec.applyPath(state, 'udharDB/debit', null), isTrue);
+      projection = LedgerProjection.fromState(state, month: 8, year: 2026);
+      expect(projection.dashboard.creditReceive, 100);
+      expect(projection.dashboard.creditPay, 0);
+      expect(projection.expenseMonthTotal, 0);
+      expect(projection.expenseCategories.single.monthTotal, 0);
+    });
   });
 }
