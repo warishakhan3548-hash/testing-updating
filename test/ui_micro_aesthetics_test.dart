@@ -161,31 +161,32 @@ void main() {
       contains('final bool reduceMotion = AppMotion.reduce(context)'),
     );
 
-    // Frequent card navigation is direct and compositing-friendly. The fully
-    // opaque destination canvas prevents ghosting while a four-percent content
-    // settle avoids a hard flash without zooming, bending, or bouncing cards.
+    // Frequent card navigation uses one fast compositor path. The exponential
+    // curve snaps most of the movement into the first few frames; the route's
+    // opaque canvas prevents ghosting without scaling or bouncing source cards.
     expect(manifest, isNot(contains('animations:')));
     expect(source, isNot(contains('OpenContainer')));
     expect(source, isNot(contains('CupertinoPageTransition')));
     expect(source, isNot(contains('_premiumRoute')));
+    expect(source, isNot(contains('_directRoute')));
     expect(
       source,
       contains(
-        'static const Duration directRouteIn = Duration(milliseconds: 210)',
+        'static const Duration velocityRouteIn = Duration(milliseconds: 210)',
       ),
     );
     expect(
       source,
       contains(
-        'static const Duration directRouteOut = Duration(milliseconds: 210)',
+        'static const Duration velocityRouteOut = Duration(milliseconds: 180)',
       ),
     );
 
     final int transitionStart = source.indexOf(
-      'class _OpaqueContentTransitionsBuilder',
+      'class _VelocityTransitionsBuilder',
     );
     final int transitionEnd = source.indexOf(
-      'PageRoute<T> _directRoute<T>',
+      'PageRoute<T> _velocityRoute<T>',
       transitionStart,
     );
     expect(transitionStart, greaterThanOrEqualTo(0));
@@ -194,41 +195,46 @@ void main() {
       transitionStart,
       transitionEnd,
     );
-    expect(
-      transitionSource,
-      contains('final Widget surface = _AmbientBackground(child: child);'),
-    );
-    expect(transitionSource, contains('return _AmbientBackground('));
-    expect(
-      transitionSource,
-      contains('FadeTransition(opacity: contentOpacity, child: child)'),
-    );
-    expect(transitionSource, isNot(contains('ScaleTransition(')));
+    expect(transitionSource, contains('UIConstants.velocityRouteIn'));
+    expect(transitionSource, contains('UIConstants.velocityRouteOut'));
+    expect(transitionSource, contains('return _VelocitySnapTransition('));
 
-    final int directStart = source.indexOf('PageRoute<T> _directRoute<T>');
-    final int directEnd = source.indexOf('class _LaunchScreen', directStart);
-    expect(directStart, greaterThanOrEqualTo(0));
-    expect(directEnd, greaterThan(directStart));
-    final String directSource = source.substring(directStart, directEnd);
-    expect(directSource, contains('PageRouteBuilder<T>('));
-    expect(directSource, contains('opaque: true'));
-    expect(directSource, contains('allowSnapshotting: true'));
-    expect(directSource, contains('? Duration.zero'));
-    expect(directSource, contains('class _DirectRouteTransition'));
-    expect(directSource, contains('Tween<double>(begin: .96, end: 1)'));
-    expect(directSource, contains('child: _AmbientBackground('));
-    expect(directSource, contains('FadeTransition('));
-    expect(directSource, contains('RepaintBoundary(child: child)'));
-    expect(directSource, contains('class _FastRouteLauncher'));
-    expect(directSource, contains('bool _routeOpen = false'));
-    expect(directSource, contains('if (_routeOpen) return'));
-    expect(directSource, isNot(contains('RadialGradient(')));
-    expect(directSource, isNot(contains('Transform.translate(')));
-    expect(directSource, isNot(contains('Transform.scale(')));
-    expect(directSource, isNot(contains('sourceRadius')));
-    expect(directSource, isNot(contains('localToGlobal(')));
-    expect(directSource, isNot(contains('BackdropFilter(')));
-    expect(directSource, isNot(contains('ImageFilter.blur(')));
+    final int velocityStart = source.indexOf('PageRoute<T> _velocityRoute<T>');
+    final int velocityEnd = source.indexOf(
+      'class _LaunchScreen',
+      velocityStart,
+    );
+    expect(velocityStart, greaterThanOrEqualTo(0));
+    expect(velocityEnd, greaterThan(velocityStart));
+    final String velocitySource = source.substring(velocityStart, velocityEnd);
+    expect(velocitySource, contains('PageRouteBuilder<T>('));
+    expect(velocitySource, contains('opaque: true'));
+    expect(velocitySource, contains('allowSnapshotting: true'));
+    expect(velocitySource, contains('? Duration.zero'));
+    expect(velocitySource, contains('class _VelocitySnapTransition'));
+    expect(velocitySource, contains('Curves.easeOutExpo'));
+    expect(velocitySource, contains('Curves.easeInExpo'));
+    expect(velocitySource, contains('begin: const Offset(.028, 0)'));
+    expect(velocitySource, contains('begin: .94'));
+    expect(velocitySource, contains('child: _AmbientBackground('));
+    expect(velocitySource, contains('child: ClipRect('));
+    expect(velocitySource, contains('SlideTransition('));
+    expect(
+      velocitySource,
+      contains('textDirection: Directionality.of(context)'),
+    );
+    expect(velocitySource, contains('FadeTransition('));
+    expect(velocitySource, contains('RepaintBoundary(child: child)'));
+    expect(velocitySource, contains('class _VelocityRouteLauncher'));
+    expect(velocitySource, contains('bool _routeOpen = false'));
+    expect(velocitySource, contains('if (_routeOpen) return'));
+    expect(velocitySource, isNot(contains('RadialGradient(')));
+    expect(velocitySource, isNot(contains('Transform.scale(')));
+    expect(velocitySource, isNot(contains('ScaleTransition(')));
+    expect(velocitySource, isNot(contains('sourceRadius')));
+    expect(velocitySource, isNot(contains('localToGlobal(')));
+    expect(velocitySource, isNot(contains('BackdropFilter(')));
+    expect(velocitySource, isNot(contains('ImageFilter.blur(')));
     expect(source, contains('animatePress: destinationBuilder == null'));
     expect(
       RegExp(r'animatePress:\s*false').allMatches(source).length,

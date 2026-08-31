@@ -75,8 +75,8 @@ abstract final class UIConstants {
   static const Duration dashboardReveal = Duration(milliseconds: 520);
   static const Duration routeIn = Duration(milliseconds: 280);
   static const Duration routeOut = Duration(milliseconds: 220);
-  static const Duration directRouteIn = Duration(milliseconds: 210);
-  static const Duration directRouteOut = Duration(milliseconds: 210);
+  static const Duration velocityRouteIn = Duration(milliseconds: 210);
+  static const Duration velocityRouteOut = Duration(milliseconds: 180);
 
   // A lightly under-damped release: quick enough for repeated ledger work,
   // with one restrained rebound instead of a decorative wobble.
@@ -527,12 +527,12 @@ ThemeData _theme(Brightness brightness) {
     ),
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: <TargetPlatform, PageTransitionsBuilder>{
-        TargetPlatform.android: _OpaqueContentTransitionsBuilder(),
-        TargetPlatform.iOS: _OpaqueContentTransitionsBuilder(),
-        TargetPlatform.macOS: _OpaqueContentTransitionsBuilder(),
-        TargetPlatform.windows: _OpaqueContentTransitionsBuilder(),
-        TargetPlatform.linux: _OpaqueContentTransitionsBuilder(),
-        TargetPlatform.fuchsia: _OpaqueContentTransitionsBuilder(),
+        TargetPlatform.android: _VelocityTransitionsBuilder(),
+        TargetPlatform.iOS: _VelocityTransitionsBuilder(),
+        TargetPlatform.macOS: _VelocityTransitionsBuilder(),
+        TargetPlatform.windows: _VelocityTransitionsBuilder(),
+        TargetPlatform.linux: _VelocityTransitionsBuilder(),
+        TargetPlatform.fuchsia: _VelocityTransitionsBuilder(),
       },
     ),
   );
@@ -634,14 +634,14 @@ class _AmbientPainter extends CustomPainter {
       oldDelegate.dark != dark;
 }
 
-class _OpaqueContentTransitionsBuilder extends PageTransitionsBuilder {
-  const _OpaqueContentTransitionsBuilder();
+class _VelocityTransitionsBuilder extends PageTransitionsBuilder {
+  const _VelocityTransitionsBuilder();
 
   @override
-  Duration get transitionDuration => UIConstants.directRouteIn;
+  Duration get transitionDuration => UIConstants.velocityRouteIn;
 
   @override
-  Duration get reverseTransitionDuration => UIConstants.directRouteOut;
+  Duration get reverseTransitionDuration => UIConstants.velocityRouteOut;
 
   @override
   Widget buildTransitions<T>(
@@ -651,35 +651,22 @@ class _OpaqueContentTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    // A route-local canvas stays fully opaque for the whole transition. Only
-    // the incoming content gets a near-instant opacity settle, so transparent
-    // Scaffolds can never blend two pages' text together.
-    final Widget surface = _AmbientBackground(child: child);
-    if (AppMotion.reduce(context)) return surface;
-    final Animation<double> contentOpacity = Tween<double>(begin: .96, end: 1)
-        .animate(
-          CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-            reverseCurve: Curves.easeInCubic,
-          ),
-        );
-    return _AmbientBackground(
-      child: FadeTransition(opacity: contentOpacity, child: child),
-    );
+    return _VelocitySnapTransition(animation: animation, child: child);
   }
 }
 
-PageRoute<T> _directRoute<T>({
+PageRoute<T> _velocityRoute<T>({
   required WidgetBuilder destinationBuilder,
   required bool reduceMotion,
 }) => PageRouteBuilder<T>(
   opaque: true,
   allowSnapshotting: true,
-  transitionDuration: reduceMotion ? Duration.zero : UIConstants.directRouteIn,
+  transitionDuration: reduceMotion
+      ? Duration.zero
+      : UIConstants.velocityRouteIn,
   reverseTransitionDuration: reduceMotion
       ? Duration.zero
-      : UIConstants.directRouteOut,
+      : UIConstants.velocityRouteOut,
   pageBuilder: (
     BuildContext context,
     Animation<double> routeAnimation,
@@ -690,11 +677,11 @@ PageRoute<T> _directRoute<T>({
     Animation<double> animation,
     Animation<double> secondaryAnimation,
     Widget child,
-  ) => _DirectRouteTransition(animation: animation, child: child),
+  ) => _VelocitySnapTransition(animation: animation, child: child),
 );
 
-class _DirectRouteTransition extends StatelessWidget {
-  const _DirectRouteTransition({required this.animation, required this.child});
+class _VelocitySnapTransition extends StatelessWidget {
+  const _VelocitySnapTransition({required this.animation, required this.child});
 
   final Animation<double> animation;
   final Widget child;
@@ -704,28 +691,39 @@ class _DirectRouteTransition extends StatelessWidget {
     if (AppMotion.reduce(context)) {
       return _AmbientBackground(child: child);
     }
-    final Animation<double> contentOpacity = Tween<double>(begin: .96, end: 1)
-        .animate(
-          CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-            reverseCurve: Curves.easeInCubic,
-          ),
-        );
+    final Animation<double> velocity = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutExpo,
+      reverseCurve: Curves.easeInExpo,
+    );
+    final Animation<Offset> position = Tween<Offset>(
+      begin: const Offset(.028, 0),
+      end: Offset.zero,
+    ).animate(velocity);
+    final Animation<double> opacity = Tween<double>(
+      begin: .94,
+      end: 1,
+    ).animate(velocity);
     return IgnorePointer(
       ignoring: animation.status != AnimationStatus.completed,
       child: _AmbientBackground(
-        child: FadeTransition(
-          opacity: contentOpacity,
-          child: RepaintBoundary(child: child),
+        child: ClipRect(
+          child: SlideTransition(
+            position: position,
+            textDirection: Directionality.of(context),
+            child: FadeTransition(
+              opacity: opacity,
+              child: RepaintBoundary(child: child),
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _FastRouteLauncher extends StatefulWidget {
-  const _FastRouteLauncher({
+class _VelocityRouteLauncher extends StatefulWidget {
+  const _VelocityRouteLauncher({
     required this.sourceBuilder,
     required this.destinationBuilder,
   });
@@ -734,17 +732,17 @@ class _FastRouteLauncher extends StatefulWidget {
   final WidgetBuilder destinationBuilder;
 
   @override
-  State<_FastRouteLauncher> createState() => _FastRouteLauncherState();
+  State<_VelocityRouteLauncher> createState() => _VelocityRouteLauncherState();
 }
 
-class _FastRouteLauncherState extends State<_FastRouteLauncher> {
+class _VelocityRouteLauncherState extends State<_VelocityRouteLauncher> {
   bool _routeOpen = false;
 
   void _open() {
     if (_routeOpen) return;
     _routeOpen = true;
     final NavigatorState navigator = Navigator.of(context);
-    final PageRoute<Object?> route = _directRoute<Object?>(
+    final PageRoute<Object?> route = _velocityRoute<Object?>(
       destinationBuilder: widget.destinationBuilder,
       reduceMotion: AppMotion.reduce(context),
     );
@@ -2804,7 +2802,7 @@ class _ListCard extends StatelessWidget {
 
     final Widget card = destinationBuilder == null
         ? buildCard(onTap!)
-        : _FastRouteLauncher(
+        : _VelocityRouteLauncher(
             destinationBuilder: destinationBuilder!,
             sourceBuilder: buildCard,
           );
@@ -3391,7 +3389,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         _ScreenHeader(
           title: 'Dashboard',
           subtitle: 'AARISH DAIRY',
-          subtitleTrailing: _FastRouteLauncher(
+          subtitleTrailing: _VelocityRouteLauncher(
             destinationBuilder: (_) => AiHubScreen(sync: sync),
             sourceBuilder: (VoidCallback openRoute) =>
                 _AiHubButton(onTap: openRoute),
@@ -3495,7 +3493,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 _DashboardCardReveal(
                   animation: _revealController,
                   order: 4,
-                  child: _FastRouteLauncher(
+                  child: _VelocityRouteLauncher(
                     destinationBuilder: (_) => PartyLedgerScreen(sync: sync),
                     sourceBuilder: (VoidCallback openRoute) => _Pressable(
                       onTap: openRoute,
@@ -7136,7 +7134,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         : _displayDate(entry['date']).toUpperCase();
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: _FastRouteLauncher(
+      child: _VelocityRouteLauncher(
         destinationBuilder: (_) => DiaryDetailScreen(
           sync: widget.sync,
           entryId: '${entry['id']}',
