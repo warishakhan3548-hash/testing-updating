@@ -161,21 +161,31 @@ void main() {
       contains('final bool reduceMotion = AppMotion.reduce(context)'),
     );
 
-    // Frequent card navigation stays brief and compositing-friendly. The
-    // destination grows from the actual tap source over its own opaque canvas,
-    // so the motion has continuity without blending two pages' text together.
+    // Frequent card navigation is direct and compositing-friendly. The fully
+    // opaque destination canvas prevents ghosting while a four-percent content
+    // settle avoids a hard flash without zooming, bending, or bouncing cards.
     expect(manifest, isNot(contains('animations:')));
     expect(source, isNot(contains('OpenContainer')));
     expect(source, isNot(contains('CupertinoPageTransition')));
     expect(source, isNot(contains('_premiumRoute')));
-    expect(source, contains('Duration(milliseconds: 250)'));
-    expect(source, contains('Duration(milliseconds: 210)'));
+    expect(
+      source,
+      contains(
+        'static const Duration directRouteIn = Duration(milliseconds: 210)',
+      ),
+    );
+    expect(
+      source,
+      contains(
+        'static const Duration directRouteOut = Duration(milliseconds: 210)',
+      ),
+    );
 
     final int transitionStart = source.indexOf(
       'class _OpaqueContentTransitionsBuilder',
     );
     final int transitionEnd = source.indexOf(
-      'PageRoute<T> _focusRoute<T>',
+      'PageRoute<T> _directRoute<T>',
       transitionStart,
     );
     expect(transitionStart, greaterThanOrEqualTo(0));
@@ -189,31 +199,41 @@ void main() {
       contains('final Widget surface = _AmbientBackground(child: child);'),
     );
     expect(transitionSource, contains('return _AmbientBackground('));
-    expect(transitionSource, contains('child: FadeTransition('));
+    expect(
+      transitionSource,
+      contains('FadeTransition(opacity: contentOpacity, child: child)'),
+    );
+    expect(transitionSource, isNot(contains('ScaleTransition(')));
 
-    final int focusStart = source.indexOf('PageRoute<T> _focusRoute<T>');
-    final int focusEnd = source.indexOf('class _LaunchScreen', focusStart);
-    expect(focusStart, greaterThanOrEqualTo(0));
-    expect(focusEnd, greaterThan(focusStart));
-    final String focusSource = source.substring(focusStart, focusEnd);
-    expect(focusSource, contains('PageRouteBuilder<T>('));
-    expect(focusSource, contains('opaque: true'));
-    expect(focusSource, contains('allowSnapshotting: true'));
-    expect(focusSource, contains('? Duration.zero'));
-    expect(focusSource, contains('class _FocusShiftTransition'));
-    expect(focusSource, contains('final Widget surface = _AmbientBackground('));
-    expect(focusSource, contains('FadeTransition(opacity: contentOpacity'));
-    expect(focusSource, contains('RadialGradient('));
-    expect(focusSource, contains('Transform.translate('));
-    expect(focusSource, contains('Transform.scale('));
-    expect(focusSource, contains('sourceRadius * remaining'));
-    expect(focusSource, contains('RepaintBoundary(child: surface)'));
-    expect(focusSource, contains('class _FocusRouteLauncher'));
-    expect(focusSource, contains('box.localToGlobal('));
-    expect(focusSource, contains('bool _routeOpen = false'));
-    expect(focusSource, contains('if (_routeOpen) return'));
-    expect(focusSource, isNot(contains('BackdropFilter(')));
-    expect(focusSource, isNot(contains('ImageFilter.blur(')));
+    final int directStart = source.indexOf('PageRoute<T> _directRoute<T>');
+    final int directEnd = source.indexOf('class _LaunchScreen', directStart);
+    expect(directStart, greaterThanOrEqualTo(0));
+    expect(directEnd, greaterThan(directStart));
+    final String directSource = source.substring(directStart, directEnd);
+    expect(directSource, contains('PageRouteBuilder<T>('));
+    expect(directSource, contains('opaque: true'));
+    expect(directSource, contains('allowSnapshotting: true'));
+    expect(directSource, contains('? Duration.zero'));
+    expect(directSource, contains('class _DirectRouteTransition'));
+    expect(directSource, contains('Tween<double>(begin: .96, end: 1)'));
+    expect(directSource, contains('child: _AmbientBackground('));
+    expect(directSource, contains('FadeTransition('));
+    expect(directSource, contains('RepaintBoundary(child: child)'));
+    expect(directSource, contains('class _FastRouteLauncher'));
+    expect(directSource, contains('bool _routeOpen = false'));
+    expect(directSource, contains('if (_routeOpen) return'));
+    expect(directSource, isNot(contains('RadialGradient(')));
+    expect(directSource, isNot(contains('Transform.translate(')));
+    expect(directSource, isNot(contains('Transform.scale(')));
+    expect(directSource, isNot(contains('sourceRadius')));
+    expect(directSource, isNot(contains('localToGlobal(')));
+    expect(directSource, isNot(contains('BackdropFilter(')));
+    expect(directSource, isNot(contains('ImageFilter.blur(')));
+    expect(source, contains('animatePress: destinationBuilder == null'));
+    expect(
+      RegExp(r'animatePress:\s*false').allMatches(source).length,
+      greaterThanOrEqualTo(3),
+    );
 
     expect(
       RegExp(r'destinationBuilder:\s*\(_\)\s*=>').allMatches(source),

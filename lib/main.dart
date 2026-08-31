@@ -75,8 +75,8 @@ abstract final class UIConstants {
   static const Duration dashboardReveal = Duration(milliseconds: 520);
   static const Duration routeIn = Duration(milliseconds: 280);
   static const Duration routeOut = Duration(milliseconds: 220);
-  static const Duration focusRouteIn = Duration(milliseconds: 250);
-  static const Duration focusRouteOut = Duration(milliseconds: 210);
+  static const Duration directRouteIn = Duration(milliseconds: 210);
+  static const Duration directRouteOut = Duration(milliseconds: 210);
 
   // A lightly under-damped release: quick enough for repeated ledger work,
   // with one restrained rebound instead of a decorative wobble.
@@ -638,10 +638,10 @@ class _OpaqueContentTransitionsBuilder extends PageTransitionsBuilder {
   const _OpaqueContentTransitionsBuilder();
 
   @override
-  Duration get transitionDuration => UIConstants.focusRouteIn;
+  Duration get transitionDuration => UIConstants.directRouteIn;
 
   @override
-  Duration get reverseTransitionDuration => UIConstants.focusRouteOut;
+  Duration get reverseTransitionDuration => UIConstants.directRouteOut;
 
   @override
   Widget buildTransitions<T>(
@@ -652,75 +652,51 @@ class _OpaqueContentTransitionsBuilder extends PageTransitionsBuilder {
     Widget child,
   ) {
     // A route-local canvas stays fully opaque for the whole transition. Only
-    // the incoming content dissolves, so transparent Scaffolds can never blend
-    // two pages' text together. Card-to-detail navigation uses the richer
-    // source-matched transform below; this is the safe fallback for framework
-    // routes such as the licenses page.
+    // the incoming content gets a near-instant opacity settle, so transparent
+    // Scaffolds can never blend two pages' text together.
     final Widget surface = _AmbientBackground(child: child);
     if (AppMotion.reduce(context)) return surface;
-    final Animation<double> contentAnimation = CurvedAnimation(
-      parent: animation,
-      curve: const Interval(.12, 1, curve: UIConstants.motionOut),
-      reverseCurve: const Interval(0, .82, curve: UIConstants.motionIn),
-    );
+    final Animation<double> contentOpacity = Tween<double>(begin: .96, end: 1)
+        .animate(
+          CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          ),
+        );
     return _AmbientBackground(
-      child: FadeTransition(
-        opacity: contentAnimation,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: .985, end: 1).animate(contentAnimation),
-          child: child,
-        ),
-      ),
+      child: FadeTransition(opacity: contentOpacity, child: child),
     );
   }
 }
 
-PageRoute<T> _focusRoute<T>({
+PageRoute<T> _directRoute<T>({
   required WidgetBuilder destinationBuilder,
-  required Alignment origin,
-  required Color accentColor,
-  required double sourceRadius,
   required bool reduceMotion,
 }) => PageRouteBuilder<T>(
   opaque: true,
   allowSnapshotting: true,
-  transitionDuration: reduceMotion ? Duration.zero : UIConstants.focusRouteIn,
+  transitionDuration: reduceMotion ? Duration.zero : UIConstants.directRouteIn,
   reverseTransitionDuration: reduceMotion
       ? Duration.zero
-      : UIConstants.focusRouteOut,
+      : UIConstants.directRouteOut,
   pageBuilder: (
     BuildContext context,
     Animation<double> routeAnimation,
     Animation<double> secondaryAnimation,
   ) => destinationBuilder(context),
-  transitionsBuilder:
-      (
-        BuildContext context,
-        Animation<double> animation,
-        Animation<double> secondaryAnimation,
-        Widget child,
-      ) => _FocusShiftTransition(
-        animation: animation,
-        origin: origin,
-        accentColor: accentColor,
-        sourceRadius: sourceRadius,
-        child: child,
-      ),
+  transitionsBuilder: (
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => _DirectRouteTransition(animation: animation, child: child),
 );
 
-class _FocusShiftTransition extends StatelessWidget {
-  const _FocusShiftTransition({
-    required this.animation,
-    required this.origin,
-    required this.accentColor,
-    required this.sourceRadius,
-    required this.child,
-  });
+class _DirectRouteTransition extends StatelessWidget {
+  const _DirectRouteTransition({required this.animation, required this.child});
 
   final Animation<double> animation;
-  final Alignment origin;
-  final Color accentColor;
-  final double sourceRadius;
   final Widget child;
 
   @override
@@ -728,149 +704,48 @@ class _FocusShiftTransition extends StatelessWidget {
     if (AppMotion.reduce(context)) {
       return _AmbientBackground(child: child);
     }
-    final bool dark = Theme.of(context).brightness == Brightness.dark;
-    final Animation<double> progress = CurvedAnimation(
-      parent: animation,
-      curve: UIConstants.motionOut,
-      reverseCurve: UIConstants.motionIn,
-    );
-    final Animation<double> contentOpacity = Tween<double>(begin: .68, end: 1)
+    final Animation<double> contentOpacity = Tween<double>(begin: .96, end: 1)
         .animate(
           CurvedAnimation(
             parent: animation,
-            curve: const Interval(0, .68, curve: UIConstants.motionOut),
-            reverseCurve: const Interval(0, .72, curve: UIConstants.motionIn),
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
           ),
         );
-    final Animation<double> bloomOpacity = TweenSequence<double>(
-      <TweenSequenceItem<double>>[
-        TweenSequenceItem<double>(
-          tween: Tween<double>(begin: 0, end: 1),
-          weight: 18,
+    return IgnorePointer(
+      ignoring: animation.status != AnimationStatus.completed,
+      child: _AmbientBackground(
+        child: FadeTransition(
+          opacity: contentOpacity,
+          child: RepaintBoundary(child: child),
         ),
-        TweenSequenceItem<double>(
-          tween: Tween<double>(begin: 1, end: 0),
-          weight: 82,
-        ),
-      ],
-    ).animate(progress);
-    final Widget surface = _AmbientBackground(
-      child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          IgnorePointer(
-            child: FadeTransition(
-              opacity: bloomOpacity,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: origin,
-                    radius: .92,
-                    colors: <Color>[
-                      accentColor.withAlpha(dark ? 72 : 42),
-                      accentColor.withAlpha(dark ? 18 : 10),
-                      Colors.transparent,
-                    ],
-                    stops: const <double>[0, .38, 1],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          FadeTransition(opacity: contentOpacity, child: child),
-        ],
       ),
-    );
-    return AnimatedBuilder(
-      animation: progress,
-      child: RepaintBoundary(child: surface),
-      builder: (BuildContext context, Widget? surface) {
-        final double remaining = 1 - progress.value;
-        final double scale = 1 - (.045 * remaining);
-        final double radius = sourceRadius * remaining;
-        final int edgeAlpha = (remaining * (dark ? 34 : 20)).round();
-        final Offset offset = Offset(
-          origin.x * 10 * remaining,
-          (origin.y * 6 + 7) * remaining,
-        );
-        return IgnorePointer(
-          ignoring: animation.status != AnimationStatus.completed,
-          child: Transform.translate(
-            offset: offset,
-            transformHitTests: false,
-            child: Transform.scale(
-              alignment: origin,
-              scale: scale,
-              transformHitTests: false,
-              child: DecoratedBox(
-                position: DecorationPosition.foreground,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(radius),
-                  border: Border.all(
-                    color: (dark ? Colors.white : Colors.black).withAlpha(
-                      edgeAlpha,
-                    ),
-                    width: .8,
-                  ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(radius),
-                  clipBehavior: Clip.antiAlias,
-                  child: surface,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }
 
-class _FocusRouteLauncher extends StatefulWidget {
-  const _FocusRouteLauncher({
+class _FastRouteLauncher extends StatefulWidget {
+  const _FastRouteLauncher({
     required this.sourceBuilder,
     required this.destinationBuilder,
-    required this.borderRadius,
-    required this.accentColor,
   });
 
   final Widget Function(VoidCallback openRoute) sourceBuilder;
   final WidgetBuilder destinationBuilder;
-  final double borderRadius;
-  final Color accentColor;
 
   @override
-  State<_FocusRouteLauncher> createState() => _FocusRouteLauncherState();
+  State<_FastRouteLauncher> createState() => _FastRouteLauncherState();
 }
 
-class _FocusRouteLauncherState extends State<_FocusRouteLauncher> {
-  final GlobalKey _sourceKey = GlobalKey();
+class _FastRouteLauncherState extends State<_FastRouteLauncher> {
   bool _routeOpen = false;
-
-  Alignment _resolveOrigin() {
-    final RenderBox? box =
-        _sourceKey.currentContext?.findRenderObject() as RenderBox?;
-    final Size viewport = MediaQuery.sizeOf(context);
-    if (box == null || !box.hasSize || viewport.isEmpty) {
-      return Alignment.center;
-    }
-    final Offset center = box.localToGlobal(box.size.center(Offset.zero));
-    return Alignment(
-      (center.dx / viewport.width * 2 - 1).clamp(-.84, .84).toDouble(),
-      (center.dy / viewport.height * 2 - 1).clamp(-.84, .84).toDouble(),
-    );
-  }
 
   void _open() {
     if (_routeOpen) return;
     _routeOpen = true;
     final NavigatorState navigator = Navigator.of(context);
-    final PageRoute<Object?> route = _focusRoute<Object?>(
+    final PageRoute<Object?> route = _directRoute<Object?>(
       destinationBuilder: widget.destinationBuilder,
-      origin: _resolveOrigin(),
-      accentColor: widget.accentColor,
-      sourceRadius: widget.borderRadius,
       reduceMotion: AppMotion.reduce(context),
     );
     unawaited(
@@ -880,7 +755,7 @@ class _FocusRouteLauncherState extends State<_FocusRouteLauncher> {
 
   @override
   Widget build(BuildContext context) =>
-      RepaintBoundary(key: _sourceKey, child: widget.sourceBuilder(_open));
+      RepaintBoundary(child: widget.sourceBuilder(_open));
 }
 
 class _LaunchScreen extends StatelessWidget {
@@ -1759,6 +1634,7 @@ class _Pressable extends StatefulWidget {
     this.borderRadius,
     this.feedbackColor,
     this.semanticLabel,
+    this.animatePress = true,
   });
 
   final Widget child;
@@ -1766,6 +1642,7 @@ class _Pressable extends StatefulWidget {
   final BorderRadius? borderRadius;
   final Color? feedbackColor;
   final String? semanticLabel;
+  final bool animatePress;
 
   @override
   State<_Pressable> createState() => _PressableState();
@@ -1811,7 +1688,7 @@ class _PressableState extends State<_Pressable>
   }
 
   void _press([TapDownDetails? details]) {
-    if (widget.onTap == null) return;
+    if (widget.onTap == null || !widget.animatePress) return;
     if (details != null) _captureTouch(details);
     _pressController.animateTo(
       1,
@@ -1821,7 +1698,7 @@ class _PressableState extends State<_Pressable>
   }
 
   void _release() {
-    if (widget.onTap == null) return;
+    if (widget.onTap == null || !widget.animatePress) return;
     final double releaseVelocity = _pressController.velocity
         .clamp(-2.5, 2.5)
         .toDouble();
@@ -1853,9 +1730,13 @@ class _PressableState extends State<_Pressable>
     onLongPress: widget.onTap == null ? null : _handleLongPress,
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null ? null : _press,
-      onTapCancel: widget.onTap == null ? null : _release,
-      onTapUp: widget.onTap == null ? null : (_) => _release(),
+      onTapDown: widget.onTap == null || !widget.animatePress ? null : _press,
+      onTapCancel: widget.onTap == null || !widget.animatePress
+          ? null
+          : _release,
+      onTapUp: widget.onTap == null || !widget.animatePress
+          ? null
+          : (_) => _release(),
       onLongPress: widget.onTap == null ? null : _handleLongPress,
       onLongPressEnd: widget.onTap == null ? null : (_) => _release(),
       onTap: widget.onTap == null
@@ -2815,6 +2696,7 @@ class _ListCard extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget buildCard(VoidCallback action) => _Pressable(
       onTap: action,
+      animatePress: destinationBuilder == null,
       borderRadius: BorderRadius.circular(UIConstants.cardRadius),
       feedbackColor: color,
       child: _GlassCard(
@@ -2922,9 +2804,7 @@ class _ListCard extends StatelessWidget {
 
     final Widget card = destinationBuilder == null
         ? buildCard(onTap!)
-        : _FocusRouteLauncher(
-            borderRadius: UIConstants.cardRadius,
-            accentColor: color,
+        : _FastRouteLauncher(
             destinationBuilder: destinationBuilder!,
             sourceBuilder: buildCard,
           );
@@ -3347,6 +3227,7 @@ class _AiHubButton extends StatelessWidget {
     const BorderRadius radius = BorderRadius.all(Radius.circular(20));
     return _Pressable(
       onTap: onTap,
+      animatePress: false,
       semanticLabel: 'Open AI Hub',
       borderRadius: radius,
       child: Container(
@@ -3510,9 +3391,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         _ScreenHeader(
           title: 'Dashboard',
           subtitle: 'AARISH DAIRY',
-          subtitleTrailing: _FocusRouteLauncher(
-            borderRadius: 20,
-            accentColor: const Color(0xFF7957E8),
+          subtitleTrailing: _FastRouteLauncher(
             destinationBuilder: (_) => AiHubScreen(sync: sync),
             sourceBuilder: (VoidCallback openRoute) =>
                 _AiHubButton(onTap: openRoute),
@@ -3616,12 +3495,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                 _DashboardCardReveal(
                   animation: _revealController,
                   order: 4,
-                  child: _FocusRouteLauncher(
-                    borderRadius: 24,
-                    accentColor: const Color(0xFF9333EA),
+                  child: _FastRouteLauncher(
                     destinationBuilder: (_) => PartyLedgerScreen(sync: sync),
                     sourceBuilder: (VoidCallback openRoute) => _Pressable(
                       onTap: openRoute,
+                      animatePress: false,
                       borderRadius: BorderRadius.circular(24),
                       feedbackColor: const Color(0xFF9333EA),
                       child: const _GlassCard(
@@ -7258,9 +7136,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         : _displayDate(entry['date']).toUpperCase();
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: _FocusRouteLauncher(
-        borderRadius: 23,
-        accentColor: diaryOrange,
+      child: _FastRouteLauncher(
         destinationBuilder: (_) => DiaryDetailScreen(
           sync: widget.sync,
           entryId: '${entry['id']}',
@@ -7277,6 +7153,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
               ? '$entryTitle, date needs correction'
               : '$entryTitle, ${_displayDate(entry['date'])}',
           onTap: openRoute,
+          animatePress: false,
           borderRadius: BorderRadius.circular(23),
           feedbackColor: diaryOrange,
           child: _GlassCard(
