@@ -7254,11 +7254,11 @@ class _DiaryScreenState extends State<DiaryScreen> {
               }
               final int needsDateIndex = contentIndex - entries.length;
               if (needsDateIndex == 0) {
-                return const Padding(
-                  padding: EdgeInsets.only(top: 4, bottom: 12),
+                return Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 12),
                   child: Semantics(
                     header: true,
-                    child: Row(
+                    child: const Row(
                       children: <Widget>[
                         Icon(
                           Icons.event_busy_rounded,
