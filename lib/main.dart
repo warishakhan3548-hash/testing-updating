@@ -5,7 +5,6 @@ import 'dart:ui' as ui;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/cupertino.dart' show CupertinoPageTransition;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
@@ -643,36 +642,26 @@ class _PremiumTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> animation,
     Animation<double> secondaryAnimation,
     Widget child,
-  ) => _opaquePageTransition(
-    context: context,
-    animation: animation,
-    secondaryAnimation: secondaryAnimation,
-    child: child,
-  );
-}
-
-Widget _opaquePageTransition({
-  required BuildContext context,
-  required Animation<double> animation,
-  required Animation<double> secondaryAnimation,
-  required Widget child,
-}) {
-  // Scaffolds intentionally stay transparent so every screen shares the
-  // branded ambient canvas. A route therefore needs its own identical opaque
-  // canvas while it moves; fading the transparent page blends both routes and
-  // produces the text/card ghosting visible during push and pop.
-  final Widget surface = _AmbientBackground(child: child);
-  if (AppMotion.reduce(context)) return surface;
-
-  // Flutter's stateful transition primitive retains its curve/tween graph
-  // across surrounding route rebuilds. It also supplies the restrained
-  // outgoing parallax, directional edge shadow and RTL handling natively.
-  return CupertinoPageTransition(
-    primaryRouteAnimation: animation,
-    secondaryRouteAnimation: secondaryAnimation,
-    linearTransition: false,
-    child: surface,
-  );
+  ) {
+    if (AppMotion.reduce(context)) {
+      return child;
+    }
+    final Animation<double> curved = CurvedAnimation(
+      parent: animation,
+      curve: UIConstants.motionOut,
+      reverseCurve: UIConstants.motionIn,
+    );
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0.015, 0),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
+      ),
+    );
+  }
 }
 
 class _LaunchScreen extends StatelessWidget {
@@ -3115,8 +3104,6 @@ List<Color> _moduleTabColors(LedgerProjection projection) => <Color>[
 ];
 
 PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
-  opaque: true,
-  allowSnapshotting: true,
   transitionDuration: UIConstants.routeIn,
   reverseTransitionDuration: UIConstants.routeOut,
   pageBuilder: (_, __, ___) => child,
@@ -3126,12 +3113,26 @@ PageRoute<T> _premiumRoute<T>(Widget child) => PageRouteBuilder<T>(
         Animation<double> animation,
         Animation<double> secondaryAnimation,
         Widget child,
-      ) => _opaquePageTransition(
-        context: context,
-        animation: animation,
-        secondaryAnimation: secondaryAnimation,
-        child: child,
-      ),
+      ) {
+        if (AppMotion.reduce(context)) {
+          return child;
+        }
+        final Animation<double> curved = CurvedAnimation(
+          parent: animation,
+          curve: UIConstants.motionOut,
+          reverseCurve: UIConstants.motionIn,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(.024, 0),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
 );
 
 class _AiHubButton extends StatelessWidget {
