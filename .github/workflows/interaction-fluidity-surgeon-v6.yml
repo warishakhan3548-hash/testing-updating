@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/interaction-fluidity-surgeon-v6.yml"
+      - ".github/interaction_patch_v6.py"
   workflow_dispatch:
 
 permissions:
