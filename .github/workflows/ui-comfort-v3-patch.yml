@@ -32,17 +32,23 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Preserve exact hero color expression
+      - name: Harden patch generator
         run: |
           python3 - <<'PY'
           from pathlib import Path
           path = Path('.github/ui_comfort_v3_patch.py')
           source = path.read_text(encoding='utf-8')
-          old = '            shadows: <Shadow>[\n              Shadow(color: glow.withAlpha(94), blurRadius: 16),\n            ],\n          ),\n'
-          new = '            shadows: <Shadow>[Shadow(color: glow.withAlpha(94), blurRadius: 16)],\n          ),\n'
-          if source.count(old) != 1:
+          old_shadow = '            shadows: <Shadow>[\n              Shadow(color: glow.withAlpha(94), blurRadius: 16),\n            ],\n          ),\n'
+          new_shadow = '            shadows: <Shadow>[Shadow(color: glow.withAlpha(94), blurRadius: 16)],\n          ),\n'
+          old_test = "    expect(source, isNot(contains('onTap: () {},')));\n"
+          new_test = "    expect(source, isNot(contains('onTap: () {},'))));\n"
+          if source.count(old_shadow) != 1:
               raise SystemExit('hero color-expression patch did not match exactly once')
-          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          if source.count(old_test) != 1:
+              raise SystemExit('regression-guard syntax patch did not match exactly once')
+          source = source.replace(old_shadow, new_shadow, 1)
+          source = source.replace(old_test, new_test, 1)
+          path.write_text(source, encoding='utf-8')
           PY
 
       - name: Apply UI comfort V3
@@ -51,11 +57,11 @@ jobs:
       - name: Validate whitespace
         run: git diff --check
 
-      - name: Format touched Dart sources
-        run: dart format --language-version latest lib/main.dart test/ui_micro_aesthetics_test.dart
-
       - name: Resolve packages
         run: flutter pub get
+
+      - name: Format touched Dart sources
+        run: dart format --language-version latest lib/main.dart test/ui_micro_aesthetics_test.dart
 
       - name: Analyze
         run: flutter analyze
