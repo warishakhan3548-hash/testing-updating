@@ -276,8 +276,6 @@ def normalized(items):
     return [re.sub(r'\s+', '', item) for item in items]
 
 
-# Hard visual lock: no icon, color, explicit size, radius or padding token may
-# change. The patch is allowed to alter only interaction state/physics.
 visual_patterns = [
     r'Icons\.[A-Za-z0-9_]+',
     r'Colors\.[A-Za-z0-9_]+',
@@ -310,11 +308,9 @@ test_source = replace_once(
 
 test_source = replace_once(
     test_source,
-    """    expect(pressableSource, contains('math.min(_pressController.velocity, 0.0)'));
-    expect(pressableSource, contains('() => _release(cancelled: true)'));
+    """    expect(pressableSource, contains('() => _release(cancelled: true)'));
 """,
-    """    expect(pressableSource, contains('math.min(_pressController.velocity, 0.0)'));
-    expect(pressableSource, contains('late final Stopwatch _gestureClock'));
+    """    expect(pressableSource, contains('late final Stopwatch _gestureClock'));
     expect(pressableSource, contains('Offset _gestureVelocity = Offset.zero'));
     expect(pressableSource, contains('void _sampleGestureVelocity(Offset localPosition)'));
     expect(pressableSource, contains('Offset _freshGestureVelocity()'));
