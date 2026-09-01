@@ -60,20 +60,8 @@ jobs:
           from pathlib import Path
           path = Path('lib/main.dart')
           source = path.read_text(encoding='utf-8')
-          old = """                      _SoftShareButton(
-                        label: 'Share',
-                        icon: Icons.share_rounded,
-                        color: appleBlue,
-                        onTap: () => unawaited(
-"""
-          new = """                      _SoftShareButton(
-                        label: 'Share',
-                        icon: Icons.share_rounded,
-                        color: appleBlue,
-                        semanticLabel: 'Share this section as PDF',
-                        compact: false,
-                        onTap: () => unawaited(
-"""
+          old = "                      _SoftShareButton(\n                        label: 'Share',\n                        icon: Icons.share_rounded,\n                        color: appleBlue,\n                        onTap: () => unawaited(\n"
+          new = "                      _SoftShareButton(\n                        label: 'Share',\n                        icon: Icons.share_rounded,\n                        color: appleBlue,\n                        semanticLabel: 'Share this section as PDF',\n                        compact: false,\n                        onTap: () => unawaited(\n"
           count = source.count(old)
           if count != 5:
               raise SystemExit(f'share-button call sites: expected 5, found {count}')
