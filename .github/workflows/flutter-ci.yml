@@ -1,5 +1,6 @@
 name: Flutter Android CI
 
+# Verification workflow for Android APK artifacts.
 on:
   push:
     branches: [main]
