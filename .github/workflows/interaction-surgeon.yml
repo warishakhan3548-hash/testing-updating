@@ -1,0 +1,282 @@
+name: Interaction Navigation Surgeon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/interaction-surgeon.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: interaction-navigation-surgeon-main
+  cancel-in-progress: false
+
+jobs:
+  patch-verify-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Apply surgical interaction patch
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          main_path = Path('lib/main.dart')
+          test_path = Path('test/ui_micro_aesthetics_test.dart')
+          source = main_path.read_text()
+          tests = test_path.read_text()
+
+          old_fields = """  int _tab = 0;
+          final ScrollController _navController = ScrollController();
+          final PageController _pageController = PageController();
+          """
+          new_fields = """  int _tab = 0;
+          int? _programmaticPageTarget;
+          final ScrollController _navController = ScrollController();
+          final PageController _pageController = PageController();
+          """
+          if source.count(old_fields) != 1:
+              raise SystemExit('AppShell field anchor changed; refusing unsafe patch')
+          source = source.replace(old_fields, new_fields, 1)
+
+          old_navigation = """  void _selectTab(int index) {
+            if (_tab == index) return;
+            setState(() => _tab = index);
+            _scrollNavigation(index);
+            if (_pageController.hasClients) {
+              _pageController.animateToPage(
+                index,
+                duration: UIConstants.motion,
+                curve: UIConstants.motionOut,
+              );
+            }
+          }
+
+          void _handlePageChanged(int index) {
+            if (_tab == index) return;
+            HapticFeedback.selectionClick();
+            setState(() => _tab = index);
+            _scrollNavigation(index);
+          }
+
+          void _scrollNavigation(int index) {
+            if (!_navController.hasClients) return;
+            final ScrollPosition position = _navController.position;
+            if (!position.hasContentDimensions) return;
+
+            // Existing geometry is 84 wide + 4 margin on each side. Keep those exact
+            // dimensions, but center the selected destination in the visible viewport.
+            const double itemExtent = 92;
+            const double outerPadding = 4;
+            final double target =
+                (outerPadding +
+                        index * itemExtent +
+                        itemExtent / 2 -
+                        position.viewportDimension / 2)
+                    .clamp(position.minScrollExtent, position.maxScrollExtent)
+                    .toDouble();
+            _navController.animateTo(
+              target,
+              duration: UIConstants.motion,
+              curve: UIConstants.motionOut,
+            );
+          }
+          """
+          new_navigation = """  void _selectTab(int index) {
+            if (index < 0 || index >= _tabs.length || _tab == index) return;
+
+            final bool reduceMotion = AppMotion.reduce(context);
+            setState(() => _tab = index);
+            _scrollNavigation(index);
+
+            if (!_pageController.hasClients) return;
+            if (reduceMotion) {
+              _programmaticPageTarget = null;
+              _pageController.jumpToPage(index);
+              return;
+            }
+
+            _programmaticPageTarget = index;
+            unawaited(
+              _pageController
+                  .animateToPage(
+                    index,
+                    duration: UIConstants.motion,
+                    curve: UIConstants.motionOut,
+                  )
+                  .whenComplete(() => _finishProgrammaticPageMotion(index)),
+            );
+          }
+
+          void _finishProgrammaticPageMotion(int target) {
+            if (!mounted || _programmaticPageTarget != target) return;
+            _programmaticPageTarget = null;
+            if (!_pageController.hasClients) return;
+
+            final double? page = _pageController.page;
+            if (page == null) return;
+            final int settledIndex = page
+                .round()
+                .clamp(0, _tabs.length - 1)
+                .toInt();
+            if (settledIndex == _tab) return;
+            setState(() => _tab = settledIndex);
+            _scrollNavigation(settledIndex);
+          }
+
+          void _handlePageChanged(int index) {
+            // animateToPage can report every intermediate page. The selected tab is
+            // already the user's requested destination, so suppress those callbacks
+            // and their haptics until the driven motion settles.
+            if (_programmaticPageTarget != null) return;
+            if (_tab == index) return;
+            HapticFeedback.selectionClick();
+            setState(() => _tab = index);
+            _scrollNavigation(index);
+          }
+
+          void _scrollNavigation(int index) {
+            if (!_navController.hasClients) return;
+            final ScrollPosition position = _navController.position;
+            if (!position.hasContentDimensions) return;
+
+            // Existing geometry is 84 wide + 4 margin on each side. Keep those exact
+            // dimensions, but center the selected destination in the visible viewport.
+            const double itemExtent = 92;
+            const double outerPadding = 4;
+            final double target =
+                (outerPadding +
+                        index * itemExtent +
+                        itemExtent / 2 -
+                        position.viewportDimension / 2)
+                    .clamp(position.minScrollExtent, position.maxScrollExtent)
+                    .toDouble();
+            if (AppMotion.reduce(context)) {
+              position.jumpTo(target);
+              return;
+            }
+            _navController.animateTo(
+              target,
+              duration: UIConstants.motion,
+              curve: UIConstants.motionOut,
+            );
+          }
+          """
+          if source.count(old_navigation) != 1:
+              raise SystemExit('AppShell navigation anchor changed; refusing unsafe patch')
+          source = source.replace(old_navigation, new_navigation, 1)
+
+          nav_start = source.index('class _BottomLedgerNav extends StatelessWidget')
+          frame_start = source.index('// PREMIUM_NAV_V2', nav_start)
+          nav_block = source[nav_start:frame_start]
+          build_anchor = """  Widget _buildNavigation(BuildContext context) {
+            final bool dark = Theme.of(context).brightness == Brightness.dark;
+            final List<Color> colors = _moduleTabColors(sync.currentProjection);
+          """
+          build_replacement = """  Widget _buildNavigation(BuildContext context) {
+            final bool dark = Theme.of(context).brightness == Brightness.dark;
+            final Duration navMotion = AppMotion.reduce(context)
+                ? Duration.zero
+                : UIConstants.motion;
+            final List<Color> colors = _moduleTabColors(sync.currentProjection);
+          """
+          if nav_block.count(build_anchor) != 1:
+              raise SystemExit('Bottom nav build anchor changed; refusing unsafe patch')
+          nav_block = nav_block.replace(build_anchor, build_replacement, 1)
+          nav_duration_count = nav_block.count('duration: UIConstants.motion,')
+          if nav_duration_count != 5:
+              raise SystemExit(
+                  f'Expected 5 bottom-nav motion durations, found {nav_duration_count}; refusing unsafe patch'
+              )
+          nav_block = nav_block.replace('duration: UIConstants.motion,', 'duration: navMotion,')
+          source = source[:nav_start] + nav_block + source[frame_start:]
+
+          frame_start = source.index('class _PremiumNavIconFrame extends StatelessWidget')
+          frame_end = source.index('class _BottomNavGlyph extends StatelessWidget', frame_start)
+          frame_block = source[frame_start:frame_end]
+          frame_anchor = '    duration: UIConstants.motion,\n'
+          if frame_block.count(frame_anchor) != 1:
+              raise SystemExit('Premium nav frame duration anchor changed; refusing unsafe patch')
+          frame_block = frame_block.replace(
+              frame_anchor,
+              '    duration: AppMotion.reduce(context) ? Duration.zero : UIConstants.motion,\n',
+              1,
+          )
+          source = source[:frame_start] + frame_block + source[frame_end:]
+
+          test_anchor = """    expect(source, contains('position.viewportDimension / 2'));
+            expect(
+              source,
+              contains('Provide at most one of onTap or destinationBuilder.'),
+            );
+          """
+          test_replacement = """    expect(source, contains('position.viewportDimension / 2'));
+            expect(source, contains('int? _programmaticPageTarget;'));
+            expect(
+              source,
+              contains('if (_programmaticPageTarget != null) return;'),
+            );
+            expect(source, contains('_finishProgrammaticPageMotion(index)'));
+            expect(source, contains('_pageController.jumpToPage(index);'));
+            expect(source, contains('position.jumpTo(target);'));
+            expect(source, contains('final Duration navMotion = AppMotion.reduce(context)'));
+            expect(
+              source,
+              contains('Provide at most one of onTap or destinationBuilder.'),
+            );
+          """
+          if tests.count(test_anchor) != 1:
+              raise SystemExit('UI regression-test anchor changed; refusing unsafe patch')
+          tests = tests.replace(test_anchor, test_replacement, 1)
+
+          main_path.write_text(source)
+          test_path.write_text(tests)
+          PY
+
+      - name: Format changed Dart
+        run: dart format --language-version latest lib/main.dart test/ui_micro_aesthetics_test.dart
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Verify clean patch shape
+        shell: bash
+        run: |
+          git diff --check
+          git status --short
+          git diff -- lib/main.dart test/ui_micro_aesthetics_test.dart
+
+      - name: Stage, commit and push
+        shell: bash
+        run: |
+          if git diff --quiet -- lib/main.dart test/ui_micro_aesthetics_test.dart; then
+            echo "No patch changes produced"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/main.dart test/ui_micro_aesthetics_test.dart
+          git commit -m "fix: stabilize tab navigation interactions"
+          git push origin HEAD:main
