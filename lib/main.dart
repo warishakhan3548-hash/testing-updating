@@ -619,9 +619,9 @@ class _GlobalTapRipplePainter extends CustomPainter {
 
     final double radius = 7 + 47 * progress;
     final Rect bounds = Rect.fromCircle(center: origin, radius: radius);
-    final int coreAlpha = (opacity * 34).round().clamp(0, 255);
-    final int haloAlpha = (opacity * 15).round().clamp(0, 255);
-    final int ringAlpha = (opacity * 118).round().clamp(0, 255);
+    final int coreAlpha = (opacity * 34).round().clamp(0, 255).toInt();
+    final int haloAlpha = (opacity * 15).round().clamp(0, 255).toInt();
+    final int ringAlpha = (opacity * 118).round().clamp(0, 255).toInt();
 
     canvas.drawCircle(
       origin,
@@ -649,7 +649,7 @@ class _GlobalTapRipplePainter extends CustomPainter {
     final double echo = ((progress - .18) / .82).clamp(0.0, 1.0).toDouble();
     if (echo > 0 && echo < 1) {
       final int echoAlpha =
-          (opacity * (1 - echo) * 64).round().clamp(0, 255);
+          (opacity * (1 - echo) * 64).round().clamp(0, 255).toInt();
       canvas.drawCircle(
         origin,
         5 + 25 * echo,
