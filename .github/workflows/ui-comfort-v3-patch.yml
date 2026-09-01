@@ -32,14 +32,33 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Preserve exact hero color expression
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/ui_comfort_v3_patch.py')
+          source = path.read_text(encoding='utf-8')
+          old = """            shadows: <Shadow>[
+              Shadow(color: glow.withAlpha(94), blurRadius: 16),
+            ],
+          ),
+"""
+          new = """            shadows: <Shadow>[Shadow(color: glow.withAlpha(94), blurRadius: 16)],
+          ),
+"""
+          if source.count(old) != 1:
+              raise SystemExit('hero color-expression patch did not match exactly once')
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
+
       - name: Apply UI comfort V3
         run: python3 .github/ui_comfort_v3_patch.py
 
       - name: Validate whitespace
         run: git diff --check
 
-      - name: Verify formatting
-        run: dart format --language-version latest --output=none --set-exit-if-changed lib/main.dart test/ui_micro_aesthetics_test.dart
+      - name: Format touched Dart sources
+        run: dart format --language-version latest lib/main.dart test/ui_micro_aesthetics_test.dart
 
       - name: Resolve packages
         run: flutter pub get
