@@ -105,8 +105,8 @@ void main() {
     expect(source, contains('scale: 1 - (motion * .017)'));
     expect(source, contains('_touchAlignment = nextAlignment'));
     expect(source, contains('..setEntry(3, 2, .0013)'));
-    expect(source, contains('..rotateX(-_touchAlignment.y * cardTilt)'));
-    expect(source, contains('..rotateY(_touchAlignment.x * cardTilt)'));
+    expect(source, contains('..rotateX(-spatialAlignment.y * cardTilt)'));
+    expect(source, contains('..rotateY(spatialAlignment.x * cardTilt)'));
     expect(source, contains('gradient: RadialGradient('));
     expect(source, contains('HapticFeedback.lightImpact();'));
     expect(source, contains('abstract final class AppMotion'));
@@ -158,6 +158,25 @@ void main() {
     expect(
       pressableSource,
       contains('math.min(_pressController.velocity, 0.0)'),
+    );
+    expect(pressableSource, contains('late final Stopwatch _gestureClock'));
+    expect(pressableSource, contains('Offset _gestureVelocity = Offset.zero'));
+    expect(
+      pressableSource,
+      contains('void _sampleGestureVelocity(Offset localPosition)'),
+    );
+    expect(pressableSource, contains('Offset _freshGestureVelocity()'));
+    expect(
+      pressableSource,
+      contains('Alignment _projectReleaseAlignment(Offset velocity)'),
+    );
+    expect(pressableSource, contains('double _releaseDepthVelocity('));
+    expect(pressableSource, contains('final double controllerVelocity ='));
+    expect(pressableSource, contains('.clamp(-2.5, 0.0)'));
+    expect(pressableSource, contains('final Alignment spatialAlignment ='));
+    expect(
+      pressableSource.split('if (AppMotion.reduce(context)) {').length - 1,
+      greaterThanOrEqualTo(2),
     );
     expect(pressableSource, contains('() => _release(cancelled: true)'));
     expect(pressableSource, isNot(contains('onLongPress:')));

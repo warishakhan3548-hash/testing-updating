@@ -2093,11 +2093,17 @@ class _PressableState extends State<_Pressable>
   static const double _touchAlignmentEpsilonSquared = .0004;
 
   late final AnimationController _pressController;
+  late final Stopwatch _gestureClock;
   Alignment _touchAlignment = Alignment.center;
+  Alignment? _releaseAlignment;
+  Offset? _lastTouchPosition;
+  int _lastTouchSampleMicros = 0;
+  Offset _gestureVelocity = Offset.zero;
 
   @override
   void initState() {
     super.initState();
+    _gestureClock = Stopwatch()..start();
     _pressController = AnimationController(
       vsync: this,
       value: 0,
@@ -2121,6 +2127,10 @@ class _PressableState extends State<_Pressable>
     _pressController.stop();
     if (_pressController.value != 0) _pressController.value = 0;
     _touchAlignment = Alignment.center;
+    _releaseAlignment = null;
+    _lastTouchPosition = null;
+    _lastTouchSampleMicros = 0;
+    _gestureVelocity = Offset.zero;
   }
 
   bool _updateTouchAlignment(Offset localPosition) {
@@ -2143,11 +2153,77 @@ class _PressableState extends State<_Pressable>
   }
 
   void _captureTouch(TapDownDetails details) {
+    _releaseAlignment = null;
+    _lastTouchPosition = details.localPosition;
+    _lastTouchSampleMicros = _gestureClock.elapsedMicroseconds;
+    _gestureVelocity = Offset.zero;
     _updateTouchAlignment(details.localPosition);
+  }
+
+  void _sampleGestureVelocity(Offset localPosition) {
+    final int nowMicros = _gestureClock.elapsedMicroseconds;
+    final Offset? previousPosition = _lastTouchPosition;
+    final int previousMicros = _lastTouchSampleMicros;
+    _lastTouchPosition = localPosition;
+    _lastTouchSampleMicros = nowMicros;
+    if (previousPosition == null || previousMicros == 0) return;
+
+    final int elapsedMicros = nowMicros - previousMicros;
+    if (elapsedMicros <= 0) return;
+    final double samplesPerSecond =
+        Duration.microsecondsPerSecond / elapsedMicros;
+    Offset sample = (localPosition - previousPosition) * samplesPerSecond;
+    const double maxTrackedSpeed = 7000;
+    final double sampleSpeed = sample.distance;
+    if (sampleSpeed > maxTrackedSpeed) {
+      sample = sample * (maxTrackedSpeed / sampleSpeed);
+    }
+    _gestureVelocity = Offset.lerp(_gestureVelocity, sample, .42)!;
+  }
+
+  Offset _freshGestureVelocity() {
+    if (_lastTouchSampleMicros == 0) return Offset.zero;
+    final int ageMicros =
+        _gestureClock.elapsedMicroseconds - _lastTouchSampleMicros;
+    const int freshnessWindowMicros = 160000;
+    if (ageMicros <= 0) return _gestureVelocity;
+    if (ageMicros >= freshnessWindowMicros) return Offset.zero;
+    final double freshness = 1 - (ageMicros / freshnessWindowMicros);
+    return _gestureVelocity * freshness;
+  }
+
+  Alignment _projectReleaseAlignment(Offset velocity) {
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || box.size.isEmpty) {
+      return _touchAlignment;
+    }
+    final double xLead = (velocity.dx / math.max(box.size.width, 1) * .018)
+        .clamp(-.18, .18)
+        .toDouble();
+    final double yLead = (velocity.dy / math.max(box.size.height, 1) * .018)
+        .clamp(-.18, .18)
+        .toDouble();
+    return Alignment(
+      (_touchAlignment.x + xLead).clamp(-.72, .72).toDouble(),
+      (_touchAlignment.y + yLead).clamp(-.72, .72).toDouble(),
+    );
+  }
+
+  double _releaseDepthVelocity(Offset velocity, {required bool cancelled}) {
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    final double referenceExtent =
+        box != null && box.hasSize && !box.size.isEmpty
+        ? math.max(48, math.min(box.size.width, box.size.height)).toDouble()
+        : 64;
+    final double normalizedSpeed = velocity.distance / referenceExtent;
+    final double gain = cancelled ? .24 : .18;
+    return -(normalizedSpeed * gain).clamp(0.0, 2.2).toDouble();
   }
 
   void _trackTouch(TapMoveDetails details) {
     if (widget.onTap == null || !widget.animatePress) return;
+    _releaseAlignment = null;
+    _sampleGestureVelocity(details.localPosition);
     final bool changed = _updateTouchAlignment(details.localPosition);
     if (changed && !_pressController.isAnimating && mounted) setState(() {});
   }
@@ -2155,6 +2231,11 @@ class _PressableState extends State<_Pressable>
   void _press([TapDownDetails? details]) {
     if (widget.onTap == null || !widget.animatePress) return;
     if (details != null) _captureTouch(details);
+    if (AppMotion.reduce(context)) {
+      _pressController.stop();
+      if (_pressController.value != 1) _pressController.value = 1;
+      return;
+    }
     final double remainingTravel = (1 - _pressController.value)
         .clamp(0.0, 1.0)
         .toDouble();
@@ -2171,10 +2252,26 @@ class _PressableState extends State<_Pressable>
 
   void _release({bool cancelled = false}) {
     if (widget.onTap == null || !widget.animatePress) return;
-    final double rawVelocity = cancelled
-        ? math.min(_pressController.velocity, 0.0)
-        : _pressController.velocity;
-    final double releaseVelocity = rawVelocity.clamp(-2.5, 2.5).toDouble();
+    final Offset gestureVelocity = _freshGestureVelocity();
+    _releaseAlignment = _projectReleaseAlignment(gestureVelocity);
+    if (AppMotion.reduce(context)) {
+      _pressController.stop();
+      if (_pressController.value != 0) _pressController.value = 0;
+      return;
+    }
+
+    // A released surface must never keep travelling deeper because the short
+    // press-in tween still has positive velocity. Couple the return spring to
+    // the user's actual finger speed and force its initial direction outward.
+    final double controllerVelocity = math.min(_pressController.velocity, 0.0);
+    final double gestureReleaseVelocity = _releaseDepthVelocity(
+      gestureVelocity,
+      cancelled: cancelled,
+    );
+    final double releaseVelocity = math
+        .min(controllerVelocity, gestureReleaseVelocity)
+        .clamp(-2.5, 0.0)
+        .toDouble();
     _pressController.animateWith(
       SpringSimulation(
         UIConstants.pressSpring,
@@ -2197,6 +2294,7 @@ class _PressableState extends State<_Pressable>
 
   @override
   void dispose() {
+    _gestureClock.stop();
     _pressController.dispose();
     super.dispose();
   }
@@ -2234,10 +2332,12 @@ class _PressableState extends State<_Pressable>
           final double cardTilt = reduceMotion || widget.feedbackColor == null
               ? 0
               : pressed * .0145;
+          final Alignment spatialAlignment =
+              _releaseAlignment ?? _touchAlignment;
           final Matrix4 perspective = Matrix4.identity()
             ..setEntry(3, 2, .0013)
-            ..rotateX(-_touchAlignment.y * cardTilt)
-            ..rotateY(_touchAlignment.x * cardTilt);
+            ..rotateX(-spatialAlignment.y * cardTilt)
+            ..rotateY(spatialAlignment.x * cardTilt);
           final Widget compressed = Transform.translate(
             transformHitTests: false,
             offset: Offset(0, motion * 1.30),
