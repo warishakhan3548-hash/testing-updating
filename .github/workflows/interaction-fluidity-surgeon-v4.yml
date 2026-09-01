@@ -66,7 +66,7 @@ jobs:
           replace_once(
               test,
               """    expect(RegExp(r'active: _settledPage ==').allMatches(source), hasLength(7));\n    expect(source, isNot(contains('active: _tab ==')));\n""",
-              """    expect(RegExp(r'active: _settledPage ==').allMatches(source), hasLength(7));\n    expect(source, isNot(contains('active: _tab ==')));\n    expect(source, contains('final int pageDistance = (index - currentPage).abs()'));\n    expect(source, contains('if (pageDistance > 1)'));\n    expect(\n      source,\n      contains('final int stagingPage = index > currentPage ? index - 1 : index + 1'),\n    );\n    expect(source, contains('_pageController.jumpToPage(stagingPage)'));\n""",
+              """    expect(RegExp(r'active: _settledPage ==').allMatches(source), hasLength(7));\n    expect(source, isNot(contains('active: _tab ==')));\n    expect(source, contains('final int pageDistance = (index - currentPage).abs()'));\n    expect(source, contains('if (pageDistance > 1)'));\n    expect(source, contains('final int stagingPage ='));\n    expect(source, contains('index > currentPage'));\n    expect(source, contains('index - 1'));\n    expect(source, contains('index + 1'));\n    expect(source, contains('_pageController.jumpToPage(stagingPage)'));\n""",
               'constant-distance navigation regression checks',
           )
           PY
