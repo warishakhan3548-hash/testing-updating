@@ -20,3 +20,7 @@ ios/Pods/
 ios/.symlinks/
 macos/Pods/
 functions/node_modules/
+
+# Generated Python artifacts from local/CI maintenance scripts.
+__pycache__/
+*.py[cod]
