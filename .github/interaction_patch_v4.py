@@ -244,6 +244,13 @@ test_source = replace_once(
 
 test_source = replace_once(
     test_source,
+    """    expect(source, contains('if (_programmaticPageTarget != null) return;'));\n    expect(source, contains('_finishProgrammaticPageMotion(index)'));\n""",
+    """    expect(source, contains('final int generation = ++_pageMotionGeneration'));\n    expect(\n      source,\n      contains('_finishProgrammaticPageMotion(index, generation)'),\n    );\n""",
+    'obsolete navigation contract checks',
+)
+
+test_source = replace_once(
+    test_source,
     """    expect(RegExp(r'active: _settledPage ==').allMatches(source), hasLength(7));\n    expect(source, isNot(contains('active: _tab ==')));\n""",
     """    expect(RegExp(r'active: _settledPage ==').allMatches(source), hasLength(7));\n    expect(source, isNot(contains('active: _tab ==')));\n    expect(source, contains('int _pageMotionGeneration = 0'));\n    expect(source, contains('bool _userPageDragActive = false'));\n    expect(source, contains('_pageMotionGeneration != generation'));\n    expect(source, contains('notification.dragDetails != null'));\n    expect(source, contains('NotificationListener<ScrollNotification>'));\n    expect(source, contains('_finishUserPageMotion()'));\n    expect(source, contains('final int pageDistance = (index - currentPage).abs()'));\n    expect(source, contains('if (pageDistance > 1)'));\n    expect(source, contains('_pageController.jumpToPage(stagingPage)'));\n    expect(source, contains('!listEquals(oldDelegate.pulses, pulses)'));\n""",
     'navigation race regression checks',
