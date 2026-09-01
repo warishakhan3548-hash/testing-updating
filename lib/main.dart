@@ -69,7 +69,7 @@ abstract final class UIConstants {
   static const EdgeInsets actionPadding = EdgeInsets.symmetric(horizontal: 20);
   static const EdgeInsets screenPadding = EdgeInsets.fromLTRB(20, 8, 20, 32);
 
-  static const Duration pressIn = Duration(milliseconds: 70);
+  static const Duration pressIn = Duration(milliseconds: 55);
   static const Duration pressOut = Duration(milliseconds: 210);
   static const Duration motion = Duration(milliseconds: 260);
   static const Duration dashboardReveal = Duration(milliseconds: 520);
@@ -82,8 +82,8 @@ abstract final class UIConstants {
   // with one restrained rebound instead of a decorative wobble.
   static const SpringDescription pressSpring = SpringDescription(
     mass: 1,
-    stiffness: 520,
-    damping: 30,
+    stiffness: 460,
+    damping: 32,
   );
 
   // Fast initial response with a long, calm deceleration. These stay inside
@@ -548,124 +548,258 @@ class _GlobalTapRippleLayer extends StatefulWidget {
   State<_GlobalTapRippleLayer> createState() => _GlobalTapRippleLayerState();
 }
 
+class _RipplePulse {
+  _RipplePulse({
+    required this.pointer,
+    required this.origin,
+    required this.downPosition,
+    required TickerProvider vsync,
+  }) : controller = AnimationController(
+         vsync: vsync,
+         duration: const Duration(milliseconds: 200),
+         reverseDuration: const Duration(milliseconds: 65),
+       );
+
+  final int pointer;
+  final Offset origin;
+  final Offset downPosition;
+  final AnimationController controller;
+  bool cancelled = false;
+  bool disposed = false;
+
+  void start() => controller.forward(from: 0);
+
+  void cancel() {
+    if (cancelled || disposed) return;
+    cancelled = true;
+    controller.animateBack(
+      0,
+      duration: const Duration(milliseconds: 65),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void dispose() {
+    if (disposed) return;
+    disposed = true;
+    controller.dispose();
+  }
+}
+
 class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 200),
-  );
-  Offset _origin = Offset.zero;
+    with TickerProviderStateMixin {
+  static const double _scrollThreshold = 8;
+  static const int _maxActivePulses = 2;
+
+  final List<_RipplePulse> _pulses = <_RipplePulse>[];
+  final Map<int, _RipplePulse> _pointerPulses = <int, _RipplePulse>{};
 
   void _handlePointerDown(PointerDownEvent event) {
     if (AppMotion.reduce(context)) return;
-    _origin = event.localPosition;
-    _controller.forward(from: 0);
+
+    final _RipplePulse? existing = _pointerPulses.remove(event.pointer);
+    if (existing != null) _removePulse(existing, rebuild: false);
+
+    while (_pulses.length >= _maxActivePulses) {
+      _removePulse(_pulses.first, rebuild: false);
+    }
+
+    final _RipplePulse pulse = _RipplePulse(
+      pointer: event.pointer,
+      origin: event.localPosition,
+      downPosition: event.position,
+      vsync: this,
+    );
+
+    pulse.controller.addStatusListener((AnimationStatus status) {
+      if (status == AnimationStatus.completed ||
+          (pulse.cancelled && status == AnimationStatus.dismissed)) {
+        _finishPulse(pulse);
+      }
+    });
+
+    setState(() {
+      _pulses.add(pulse);
+      _pointerPulses[event.pointer] = pulse;
+    });
+    pulse.start();
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    final _RipplePulse? pulse = _pointerPulses[event.pointer];
+    if (pulse == null || pulse.cancelled) return;
+
+    if ((event.position - pulse.downPosition).distance > _scrollThreshold) {
+      _pointerPulses.remove(event.pointer);
+      pulse.cancel();
+    }
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    _pointerPulses.remove(event.pointer);
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    final _RipplePulse? pulse = _pointerPulses.remove(event.pointer);
+    pulse?.cancel();
+  }
+
+  void _finishPulse(_RipplePulse pulse) {
+    if (!mounted || !_pulses.contains(pulse)) return;
+    setState(() {
+      _pulses.remove(pulse);
+      if (_pointerPulses[pulse.pointer] == pulse) {
+        _pointerPulses.remove(pulse.pointer);
+      }
+    });
+    scheduleMicrotask(pulse.dispose);
+  }
+
+  void _removePulse(_RipplePulse pulse, {required bool rebuild}) {
+    if (!_pulses.contains(pulse)) return;
+    void remove() {
+      _pulses.remove(pulse);
+      if (_pointerPulses[pulse.pointer] == pulse) {
+        _pointerPulses.remove(pulse.pointer);
+      }
+    }
+
+    if (rebuild && mounted) {
+      setState(remove);
+    } else {
+      remove();
+    }
+    pulse.dispose();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    for (final _RipplePulse pulse in _pulses) {
+      pulse.dispose();
+    }
+    _pulses.clear();
+    _pointerPulses.clear();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => Listener(
-    behavior: HitTestBehavior.translucent,
-    onPointerDown: _handlePointerDown,
-    child: AnimatedBuilder(
-      animation: _controller,
-      child: widget.child,
-      builder: (BuildContext context, Widget? child) {
-        final double raw = _controller.value;
-        if (raw <= 0 || raw >= 1) return child!;
-        final double progress = Curves.easeOutCubic.transform(raw);
-        final double opacity = (1 - raw).clamp(0.0, 1.0).toDouble();
-        return Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            child!,
-            IgnorePointer(
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  painter: _GlobalTapRipplePainter(
-                    origin: _origin,
-                    progress: progress,
-                    opacity: opacity,
-                  ),
+  Widget build(BuildContext context) {
+    Widget surface = widget.child;
+    if (_pulses.isNotEmpty) {
+      final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable(
+        _pulses,
+      );
+      final Listenable repaint = Listenable.merge(
+        snapshot.map<Listenable>((_RipplePulse pulse) => pulse.controller).toList(),
+      );
+      surface = Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          widget.child,
+          IgnorePointer(
+            child: RepaintBoundary(
+              child: CustomPaint(
+                painter: _GlobalTapRipplePainter(
+                  pulses: snapshot,
+                  repaint: repaint,
                 ),
               ),
             ),
-          ],
-        );
-      },
-    ),
-  );
+          ),
+        ],
+      );
+    }
+
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: _handlePointerDown,
+      onPointerMove: _handlePointerMove,
+      onPointerUp: _handlePointerUp,
+      onPointerCancel: _handlePointerCancel,
+      child: surface,
+    );
+  }
 }
 
 class _GlobalTapRipplePainter extends CustomPainter {
-  const _GlobalTapRipplePainter({
-    required this.origin,
-    required this.progress,
-    required this.opacity,
-  });
+  _GlobalTapRipplePainter({
+    required this.pulses,
+    required Listenable repaint,
+  }) : super(repaint: repaint);
 
-  final Offset origin;
-  final double progress;
-  final double opacity;
+  final List<_RipplePulse> pulses;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (size.isEmpty || opacity <= 0) return;
+    if (size.isEmpty) return;
 
-    final double radius = 7 + 47 * progress;
-    final Rect bounds = Rect.fromCircle(center: origin, radius: radius);
-    final int coreAlpha = (opacity * 34).round().clamp(0, 255).toInt();
-    final int haloAlpha = (opacity * 15).round().clamp(0, 255).toInt();
-    final int ringAlpha = (opacity * 118).round().clamp(0, 255).toInt();
+    for (final _RipplePulse pulse in pulses) {
+      if (pulse.disposed) continue;
+      final double raw = pulse.controller.value.clamp(0.0, 1.0).toDouble();
+      if (raw <= 0 || raw >= 1) continue;
 
-    canvas.drawCircle(
-      origin,
-      radius,
-      Paint()
-        ..shader = RadialGradient(
-          colors: <Color>[
-            appleBlue.withAlpha(coreAlpha),
-            appleBlue.withAlpha(haloAlpha),
-            Colors.transparent,
-          ],
-          stops: const <double>[0, .54, 1],
-        ).createShader(bounds),
-    );
-
-    canvas.drawCircle(
-      origin,
-      radius * .86,
-      Paint()
-        ..color = appleBlue.withAlpha(ringAlpha)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.9 - progress * .8,
-    );
-
-    final double echo = ((progress - .18) / .82).clamp(0.0, 1.0).toDouble();
-    if (echo > 0 && echo < 1) {
-      final int echoAlpha =
-          (opacity * (1 - echo) * 64).round().clamp(0, 255).toInt();
-      canvas.drawCircle(
-        origin,
-        5 + 25 * echo,
-        Paint()
-          ..color = appleBlue.withAlpha(echoAlpha)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.25,
+      final double expansion = UIConstants.motionOut.transform(raw);
+      final double arrival = Curves.easeOutCubic.transform(
+        (raw / .16).clamp(0.0, 1.0).toDouble(),
       );
+      final double fadeProgress = ((raw - .58) / .42)
+          .clamp(0.0, 1.0)
+          .toDouble();
+      final double fade = 1 - Curves.easeInCubic.transform(fadeProgress);
+      final double opacity = (arrival * fade).clamp(0.0, 1.0).toDouble();
+      if (opacity <= 0) continue;
+
+      final double radius = 6 + 48 * expansion;
+      final Rect bounds = Rect.fromCircle(center: pulse.origin, radius: radius);
+      final int coreAlpha = (opacity * 31).round().clamp(0, 255).toInt();
+      final int haloAlpha = (opacity * 14).round().clamp(0, 255).toInt();
+      final int ringAlpha = (opacity * 112).round().clamp(0, 255).toInt();
+
+      canvas.drawCircle(
+        pulse.origin,
+        radius,
+        Paint()
+          ..shader = RadialGradient(
+            colors: <Color>[
+              appleBlue.withAlpha(coreAlpha),
+              appleBlue.withAlpha(haloAlpha),
+              Colors.transparent,
+            ],
+            stops: const <double>[0, .54, 1],
+          ).createShader(bounds),
+      );
+
+      canvas.drawCircle(
+        pulse.origin,
+        radius * .86,
+        Paint()
+          ..color = appleBlue.withAlpha(ringAlpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.85 - expansion * .75,
+      );
+
+      if (!pulse.cancelled && raw > .18) {
+        final double echo = ((raw - .18) / .64)
+            .clamp(0.0, 1.0)
+            .toDouble();
+        if (echo < 1) {
+          final int echoAlpha =
+              (opacity * (1 - echo) * 58).round().clamp(0, 255).toInt();
+          canvas.drawCircle(
+            pulse.origin,
+            5 + 26 * UIConstants.motionOut.transform(echo),
+            Paint()
+              ..color = appleBlue.withAlpha(echoAlpha)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.2,
+          );
+        }
+      }
     }
   }
 
   @override
-  bool shouldRepaint(covariant _GlobalTapRipplePainter oldDelegate) =>
-      oldDelegate.origin != origin ||
-      oldDelegate.progress != progress ||
-      oldDelegate.opacity != opacity;
+  bool shouldRepaint(covariant _GlobalTapRipplePainter oldDelegate) => true;
 }
 
 class _AmbientBackground extends StatelessWidget {
@@ -1893,17 +2027,17 @@ class _PressableState extends State<_Pressable>
           final double motion = reduceMotion ? 0 : feedback;
           final double cardTilt = reduceMotion || widget.feedbackColor == null
               ? 0
-              : pressed * .012;
+              : pressed * .0145;
           final Matrix4 perspective = Matrix4.identity()
-            ..setEntry(3, 2, .0012)
+            ..setEntry(3, 2, .0013)
             ..rotateX(-_touchAlignment.y * cardTilt)
             ..rotateY(_touchAlignment.x * cardTilt);
           final Widget compressed = Transform.translate(
             transformHitTests: false,
-            offset: Offset(0, motion * 1.25),
+            offset: Offset(0, motion * 1.30),
             child: Transform.scale(
               transformHitTests: false,
-              scale: 1 - (motion * .014),
+              scale: 1 - (motion * .017),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: <Widget>[
