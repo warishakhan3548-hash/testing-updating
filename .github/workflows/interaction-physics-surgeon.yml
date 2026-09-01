@@ -1,0 +1,371 @@
+name: Interaction Physics Surgeon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/interaction-physics-surgeon.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply surgical interaction upgrade
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          main_path = Path('lib/main.dart')
+          test_path = Path('test/ui_micro_aesthetics_test.dart')
+          source = main_path.read_text()
+          tests = test_path.read_text()
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
+              return text.replace(old, new, 1)
+
+          source = replace_once(
+              source,
+              """class _BottomLedgerNav extends StatelessWidget {
+            const _BottomLedgerNav({
+              required this.sync,
+              required this.selected,
+              required this.controller,
+              required this.onSelected,
+            });
+
+            final LedgerSyncService sync;
+            final int selected;
+            final ScrollController controller;
+            final ValueChanged<int> onSelected;
+
+            @override
+            Widget build(BuildContext context) => AnimatedBuilder(
+              animation: sync,
+              builder: (BuildContext context, Widget? child) => _buildNavigation(context),
+            );
+
+            Widget _buildNavigation(BuildContext context) {
+          """,
+              """class _BottomLedgerNav extends StatefulWidget {
+            const _BottomLedgerNav({
+              required this.sync,
+              required this.selected,
+              required this.controller,
+              required this.onSelected,
+            });
+
+            final LedgerSyncService sync;
+            final int selected;
+            final ScrollController controller;
+            final ValueChanged<int> onSelected;
+
+            @override
+            State<_BottomLedgerNav> createState() => _BottomLedgerNavState();
+          }
+
+          class _BottomLedgerNavState extends State<_BottomLedgerNav> {
+            late List<Color> _colors;
+
+            LedgerSyncService get sync => widget.sync;
+            int get selected => widget.selected;
+            ScrollController get controller => widget.controller;
+            ValueChanged<int> get onSelected => widget.onSelected;
+
+            @override
+            void initState() {
+              super.initState();
+              _colors = _moduleTabColors(sync.currentProjection);
+              sync.addListener(_handleSyncChange);
+            }
+
+            @override
+            void didUpdateWidget(covariant _BottomLedgerNav oldWidget) {
+              super.didUpdateWidget(oldWidget);
+              if (oldWidget.sync == widget.sync) return;
+              oldWidget.sync.removeListener(_handleSyncChange);
+              _colors = _moduleTabColors(sync.currentProjection);
+              sync.addListener(_handleSyncChange);
+            }
+
+            void _handleSyncChange() {
+              final List<Color> colors = _moduleTabColors(sync.currentProjection);
+              if (listEquals(_colors, colors) || !mounted) return;
+              setState(() => _colors = colors);
+            }
+
+            @override
+            void dispose() {
+              sync.removeListener(_handleSyncChange);
+              super.dispose();
+            }
+
+            @override
+            Widget build(BuildContext context) => _buildNavigation(context);
+
+            Widget _buildNavigation(BuildContext context) {
+          """,
+              'selective bottom-nav rebuild',
+          )
+
+          source = replace_once(
+              source,
+              '    final List<Color> colors = _moduleTabColors(sync.currentProjection);\n    return DecoratedBox(',
+              '    final List<Color> colors = _colors;\n    return DecoratedBox(',
+              'cached bottom-nav colors',
+          )
+
+          source = replace_once(
+              source,
+              """    if ((position.pixels - target).abs() < .5) return;
+            if (AppMotion.reduce(context)) {
+              position.jumpTo(target);
+              return;
+            }
+            _navController.animateTo(
+              target,
+              duration: UIConstants.motion,
+              curve: UIConstants.motionOut,
+            );
+          """,
+              """    final double navTravel = (position.pixels - target).abs();
+            if (navTravel < .5) return;
+            if (AppMotion.reduce(context)) {
+              position.jumpTo(target);
+              return;
+            }
+            final double normalizedTravel = (navTravel / itemExtent)
+                .clamp(.20, 1.0)
+                .toDouble();
+            final int adaptiveMicros =
+                (UIConstants.motion.inMicroseconds * math.sqrt(normalizedTravel))
+                    .round()
+                    .clamp(
+                      const Duration(milliseconds: 90).inMicroseconds,
+                      UIConstants.motion.inMicroseconds,
+                    )
+                    .toInt();
+            _navController.animateTo(
+              target,
+              duration: Duration(microseconds: adaptiveMicros),
+              curve: UIConstants.motionOut,
+            );
+          """,
+              'adaptive nav recentering',
+          )
+
+          source = replace_once(
+              source,
+              """  Offset? _lastTouchPosition;
+            int _lastTouchSampleMicros = 0;
+            Offset _gestureVelocity = Offset.zero;
+          """,
+              """  Offset? _lastTouchPosition;
+            int _lastTouchSampleMicros = 0;
+            Offset _gestureVelocity = Offset.zero;
+            int _pressMotionGeneration = 0;
+          """,
+              'press motion generation field',
+          )
+
+          source = replace_once(
+              source,
+              """  void _resetPressFeedback() {
+            _pressController.stop();
+          """,
+              """  void _resetPressFeedback() {
+            _pressMotionGeneration++;
+            _pressController.stop();
+          """,
+              'invalidate stale press reset',
+          )
+
+          source = replace_once(
+              source,
+              """  void _captureTouch(TapDownDetails details) {
+            _releaseAlignment = null;
+          """,
+              """  void _captureTouch(TapDownDetails details) {
+            _pressMotionGeneration++;
+            _releaseAlignment = null;
+          """,
+              'invalidate stale press on new touch',
+          )
+
+          source = replace_once(
+              source,
+              """    if (AppMotion.reduce(context)) {
+              _pressController.stop();
+              if (_pressController.value != 0) _pressController.value = 0;
+              return;
+            }
+
+            // A released surface must never keep travelling deeper because the short
+            // press-in tween still has positive velocity. Couple the return spring to
+            // the user's actual finger speed and force its initial direction outward.
+            final double controllerVelocity = math.min(_pressController.velocity, 0.0);
+            final double gestureReleaseVelocity = _releaseDepthVelocity(
+              gestureVelocity,
+              cancelled: cancelled,
+            );
+            final double releaseVelocity = math
+                .min(controllerVelocity, gestureReleaseVelocity)
+                .clamp(-2.5, 0.0)
+                .toDouble();
+            if (_pressController.value.abs() <= .0001 &&
+                releaseVelocity.abs() <= .0001) {
+              if (_pressController.value != 0) _pressController.value = 0;
+              return;
+            }
+            _pressController.animateWith(
+              SpringSimulation(
+                UIConstants.pressSpring,
+                _pressController.value,
+                0,
+                releaseVelocity,
+              ),
+            );
+          """,
+              """    if (AppMotion.reduce(context)) {
+              _pressMotionGeneration++;
+              _pressController.stop();
+              if (_pressController.value != 0) _pressController.value = 0;
+              _touchAlignment = Alignment.center;
+              _releaseAlignment = null;
+              _lastTouchPosition = null;
+              _lastTouchSampleMicros = 0;
+              _gestureVelocity = Offset.zero;
+              return;
+            }
+
+            // A released surface must never keep travelling deeper because the short
+            // press-in tween still has positive velocity. Couple the return spring to
+            // the user's actual finger speed and force its initial direction outward.
+            final double controllerVelocity = math.min(_pressController.velocity, 0.0);
+            final double pressDepth = _pressController.value
+                .clamp(0.0, 1.0)
+                .toDouble();
+            final double depthCoupling = math.sqrt(pressDepth);
+            final double gestureReleaseVelocity =
+                _releaseDepthVelocity(
+                  gestureVelocity,
+                  cancelled: cancelled,
+                ) *
+                depthCoupling;
+            final double releaseVelocity = math
+                .min(controllerVelocity, gestureReleaseVelocity)
+                .clamp(-2.5, 0.0)
+                .toDouble();
+            if (_pressController.value.abs() <= .0001 &&
+                releaseVelocity.abs() <= .0001) {
+              if (_pressController.value != 0) _pressController.value = 0;
+              return;
+            }
+            final int motionGeneration = ++_pressMotionGeneration;
+            _pressController
+                .animateWith(
+                  SpringSimulation(
+                    UIConstants.pressSpring,
+                    _pressController.value,
+                    0,
+                    releaseVelocity,
+                  ),
+                )
+                .whenCompleteOrCancel(() {
+                  if (!mounted || motionGeneration != _pressMotionGeneration) return;
+                  if (_pressController.value.abs() <= .002 &&
+                      _pressController.value != 0) {
+                    _pressController.value = 0;
+                  }
+                  _touchAlignment = Alignment.center;
+                  _releaseAlignment = null;
+                  _lastTouchPosition = null;
+                  _lastTouchSampleMicros = 0;
+                  _gestureVelocity = Offset.zero;
+                });
+          """,
+              'race-free velocity-coupled release',
+          )
+
+          source = replace_once(
+              source,
+              """  @override
+            void dispose() {
+              _gestureClock.stop();
+              _pressController.dispose();
+              super.dispose();
+            }
+          """,
+              """  @override
+            void dispose() {
+              _pressMotionGeneration++;
+              _gestureClock.stop();
+              _pressController.dispose();
+              super.dispose();
+            }
+          """,
+              'press dispose generation guard',
+          )
+
+          tests = replace_once(
+              tests,
+              """    expect(pressableSource, contains('easedFreshness = freshness * freshness'));
+            expect(pressableSource, contains('void didChangeDependencies()'));
+          """,
+              """    expect(pressableSource, contains('easedFreshness = freshness * freshness'));
+            expect(pressableSource, contains('int _pressMotionGeneration = 0'));
+            expect(pressableSource, contains('final double depthCoupling = math.sqrt(pressDepth)'));
+            expect(pressableSource, contains('.whenCompleteOrCancel(() {'));
+            expect(pressableSource, contains('motionGeneration != _pressMotionGeneration'));
+            expect(pressableSource, contains('void didChangeDependencies()'));
+          """,
+              'press regression guards',
+          )
+
+          tests = replace_once(
+              tests,
+              """    expect(source, contains('position.viewportDimension / 2'));
+            expect(source, contains('(position.pixels - target).abs() < .5'));
+            expect(source, contains('int _settledPage = 0;'));
+          """,
+              """    expect(source, contains('position.viewportDimension / 2'));
+            expect(source, contains('final double navTravel = (position.pixels - target).abs()'));
+            expect(source, contains('final double normalizedTravel = (navTravel / itemExtent)'));
+            expect(source, contains('class _BottomLedgerNav extends StatefulWidget'));
+            expect(source, contains('if (listEquals(_colors, colors) || !mounted) return'));
+            expect(source, contains('int _settledPage = 0;'));
+          """,
+              'navigation regression guards',
+          )
+
+          main_path.write_text(source)
+          test_path.write_text(tests)
+          PY
+
+      - name: Verify patch cleanliness
+        run: |
+          git diff --check
+          grep -q "class _BottomLedgerNav extends StatefulWidget" lib/main.dart
+          grep -q "whenCompleteOrCancel" lib/main.dart
+          grep -q "depthCoupling" lib/main.dart
+
+      - name: Commit and push upgraded interaction core
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/main.dart test/ui_micro_aesthetics_test.dart
+          git commit -m "perf(ui): harden interaction motion physics"
+          git push origin HEAD:main
