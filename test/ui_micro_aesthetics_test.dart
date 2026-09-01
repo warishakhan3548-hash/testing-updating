@@ -120,6 +120,15 @@ void main() {
     );
     expect(source, isNot(contains('.disableAnimations ?? false')));
     expect(source, contains('oldWidget.onTap != null && widget.onTap == null'));
+    expect(source, contains('oldWidget.animatePress && !widget.animatePress'));
+    expect(source, contains('void _resetPressFeedback()'));
+    expect(
+      source,
+      contains('bool _updateTouchAlignment(Offset localPosition)'),
+    );
+    expect(source, contains('void _trackTouch(TapMoveDetails details)'));
+    expect(source, contains('onTapMove:'));
+    expect(source, contains(': _trackTouch,'));
     expect(source, contains('this.feedbackColor'));
     expect(source, contains('feedbackColor: color'));
     expect(source, contains('feedbackColor: diaryOrange'));
@@ -345,9 +354,12 @@ void main() {
     expect(source, contains('excludeFromSemantics: true,'));
     expect(source, contains('onSubmitted: _onSubmitted,'));
     expect(source, contains('position.viewportDimension / 2'));
+    expect(source, contains('int _settledPage = 0;'));
     expect(source, contains('int? _programmaticPageTarget;'));
     expect(source, contains('if (_programmaticPageTarget != null) return;'));
     expect(source, contains('_finishProgrammaticPageMotion(index)'));
+    expect(RegExp(r'active: _settledPage ==').allMatches(source), hasLength(7));
+    expect(source, isNot(contains('active: _tab ==')));
     expect(source, contains('_pageController.jumpToPage(index);'));
     expect(source, contains('position.jumpTo(target);'));
     expect(

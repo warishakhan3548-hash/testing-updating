@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show TapMoveDetails;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -1405,6 +1406,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _tab = 0;
+  int _settledPage = 0;
   int? _programmaticPageTarget;
   final ScrollController _navController = ScrollController();
   final PageController _pageController = PageController();
@@ -1434,16 +1436,21 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (index < 0 || index >= _tabs.length || _tab == index) return;
 
     final bool reduceMotion = AppMotion.reduce(context);
+    if (reduceMotion) {
+      _programmaticPageTarget = null;
+      setState(() {
+        _tab = index;
+        _settledPage = index;
+      });
+      _scrollNavigation(index);
+      if (_pageController.hasClients) _pageController.jumpToPage(index);
+      return;
+    }
+
     setState(() => _tab = index);
     _scrollNavigation(index);
 
     if (!_pageController.hasClients) return;
-    if (reduceMotion) {
-      _programmaticPageTarget = null;
-      _pageController.jumpToPage(index);
-      return;
-    }
-
     _programmaticPageTarget = index;
     unawaited(
       _pageController
@@ -1464,9 +1471,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final double? page = _pageController.page;
     if (page == null) return;
     final int settledIndex = page.round().clamp(0, _tabs.length - 1).toInt();
-    if (settledIndex == _tab) return;
-    setState(() => _tab = settledIndex);
-    _scrollNavigation(settledIndex);
+    final bool selectionChanged = settledIndex != _tab;
+    final bool pageChanged = settledIndex != _settledPage;
+    if (!selectionChanged && !pageChanged) return;
+    setState(() {
+      _tab = settledIndex;
+      _settledPage = settledIndex;
+    });
+    if (selectionChanged) _scrollNavigation(settledIndex);
   }
 
   void _handlePageChanged(int index) {
@@ -1474,10 +1486,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     // already the user's requested destination, so suppress those callbacks
     // and their haptics until the driven motion settles.
     if (_programmaticPageTarget != null) return;
-    if (_tab == index) return;
-    HapticFeedback.selectionClick();
-    setState(() => _tab = index);
-    _scrollNavigation(index);
+    if (_tab == index && _settledPage == index) return;
+    final bool selectionChanged = _tab != index;
+    if (selectionChanged) HapticFeedback.selectionClick();
+    setState(() {
+      _tab = index;
+      _settledPage = index;
+    });
+    if (selectionChanged) _scrollNavigation(index);
   }
 
   void _scrollNavigation(int index) {
@@ -1513,49 +1529,49 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          active: _tab == 0,
+          active: _settledPage == 0,
           builder: (BuildContext context) => DashboardScreen(sync: widget.sync),
         ),
       ),
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          active: _tab == 1,
+          active: _settledPage == 1,
           builder: (BuildContext context) => MilkScreen(sync: widget.sync),
         ),
       ),
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          active: _tab == 2,
+          active: _settledPage == 2,
           builder: (BuildContext context) => CreditScreen(sync: widget.sync),
         ),
       ),
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          active: _tab == 3,
+          active: _settledPage == 3,
           builder: (BuildContext context) => ExpenseScreen(sync: widget.sync),
         ),
       ),
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          active: _tab == 4,
+          active: _settledPage == 4,
           builder: (BuildContext context) => SalaryScreen(sync: widget.sync),
         ),
       ),
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          active: _tab == 5,
+          active: _settledPage == 5,
           builder: (BuildContext context) => DiaryScreen(sync: widget.sync),
         ),
       ),
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          active: _tab == 6,
+          active: _settledPage == 6,
           builder: (BuildContext context) => BusinessScreen(sync: widget.sync),
         ),
       ),
@@ -2003,22 +2019,41 @@ class _PressableState extends State<_Pressable>
   @override
   void didUpdateWidget(covariant _Pressable oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.onTap != null && widget.onTap == null) {
-      _pressController.stop();
-      _pressController.value = 0;
-    }
+    final bool interactionDisabled =
+        (oldWidget.onTap != null && widget.onTap == null) ||
+        (oldWidget.animatePress && !widget.animatePress);
+    if (interactionDisabled) _resetPressFeedback();
+  }
+
+  void _resetPressFeedback() {
+    _pressController.stop();
+    if (_pressController.value != 0) _pressController.value = 0;
+    _touchAlignment = Alignment.center;
+  }
+
+  bool _updateTouchAlignment(Offset localPosition) {
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || box.size.isEmpty) return false;
+    final double x = (localPosition.dx / box.size.width * 2 - 1)
+        .clamp(-.72, .72)
+        .toDouble();
+    final double y = (localPosition.dy / box.size.height * 2 - 1)
+        .clamp(-.72, .72)
+        .toDouble();
+    final Alignment nextAlignment = Alignment(x, y);
+    if (nextAlignment == _touchAlignment) return false;
+    _touchAlignment = Alignment(x, y);
+    return true;
   }
 
   void _captureTouch(TapDownDetails details) {
-    final RenderBox? box = context.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize || box.size.isEmpty) return;
-    final double x = (details.localPosition.dx / box.size.width * 2 - 1)
-        .clamp(-.72, .72)
-        .toDouble();
-    final double y = (details.localPosition.dy / box.size.height * 2 - 1)
-        .clamp(-.72, .72)
-        .toDouble();
-    _touchAlignment = Alignment(x, y);
+    _updateTouchAlignment(details.localPosition);
+  }
+
+  void _trackTouch(TapMoveDetails details) {
+    if (widget.onTap == null || !widget.animatePress) return;
+    final bool changed = _updateTouchAlignment(details.localPosition);
+    if (changed && !_pressController.isAnimating && mounted) setState(() {});
   }
 
   void _press([TapDownDetails? details]) {
@@ -2081,6 +2116,9 @@ class _PressableState extends State<_Pressable>
       excludeFromSemantics: true,
       behavior: HitTestBehavior.opaque,
       onTapDown: widget.onTap == null || !widget.animatePress ? null : _press,
+      onTapMove: widget.onTap == null || !widget.animatePress
+          ? null
+          : _trackTouch,
       onTapCancel: widget.onTap == null || !widget.animatePress
           ? null
           : () => _release(cancelled: true),
