@@ -6351,6 +6351,90 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
   );
 }
 
+class _ExpenseShareRippleAction extends StatefulWidget {
+  const _ExpenseShareRippleAction({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_ExpenseShareRippleAction> createState() =>
+      _ExpenseShareRippleActionState();
+}
+
+class _ExpenseShareRippleActionState extends State<_ExpenseShareRippleAction>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ripple = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 200),
+  );
+
+  @override
+  void dispose() {
+    _ripple.dispose();
+    super.dispose();
+  }
+
+  void _startRipple(PointerDownEvent event) {
+    if (AppMotion.reduce(context)) return;
+    _ripple.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    behavior: HitTestBehavior.translucent,
+    onPointerDown: _startRipple,
+    child: AnimatedBuilder(
+      animation: _ripple,
+      child: _CircleAction(
+        icon: Icons.share_rounded,
+        color: appleBlue,
+        semanticLabel: 'Share this month expenses',
+        onTap: widget.onTap,
+      ),
+      builder: (BuildContext context, Widget? child) {
+        final double t = _ripple.value;
+        final double wave = Curves.easeOutCubic.transform(t);
+        final double visibility = _ripple.isDismissed ? 0 : 1 - t;
+        final double press = math.sin(math.pi * t);
+        return Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            Transform.scale(scale: 1 - press * .03, child: child),
+            IgnorePointer(
+              child: Opacity(
+                opacity: visibility.clamp(0.0, 1.0),
+                child: Transform.scale(
+                  scale: .44 + wave * .56,
+                  child: Container(
+                    width: UIConstants.minTapTarget,
+                    height: UIConstants.minTapTarget,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: appleBlue.withAlpha(18),
+                      border: Border.all(
+                        color: appleBlue.withAlpha(82),
+                        width: 1.35,
+                      ),
+                      boxShadow: <BoxShadow>[
+                        BoxShadow(
+                          color: appleBlue.withAlpha(24),
+                          blurRadius: 8,
+                          spreadRadius: -2,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
 class ExpenseScreen extends StatefulWidget {
   const ExpenseScreen({required this.sync, super.key});
 
@@ -6474,10 +6558,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           title: 'Expenses',
           color: moduleColor,
           actions: <Widget>[
-            _CircleAction(
-              icon: Icons.share_rounded,
-              color: appleBlue,
-              semanticLabel: 'Share this month expenses',
+            _ExpenseShareRippleAction(
               onTap: () => unawaited(_shareCurrentMonthExpenses()),
             ),
             _PrimaryButton(
