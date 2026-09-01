@@ -1,0 +1,225 @@
+name: Interaction Fluidity Surgeon V5
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/interaction-fluidity-surgeon-v5.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch gesture and page-settle state machine
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          main = Path('lib/main.dart')
+          test = Path('test/ui_micro_aesthetics_test.dart')
+          source = main.read_text()
+          before = source
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one anchor, found {count}')
+              return text.replace(old, new, 1)
+
+          # Preserve raw pointer-to-pixel mapping during the drag. Only the
+          # post-release ballistic settle receives a dedicated, near-critically
+          # damped spring so velocity is retained without bounce/oscillation.
+          source = replace_once(
+              source,
+              "class AppShell extends StatefulWidget {\n",
+              """class _LedgerPagePhysics extends PageScrollPhysics {
+  const _LedgerPagePhysics({super.parent});
+
+  static const SpringDescription _pageSettleSpring = SpringDescription(
+    mass: .78,
+    stiffness: 300,
+    damping: 30,
+  );
+
+  @override
+  _LedgerPagePhysics applyTo(ScrollPhysics? ancestor) =>
+      _LedgerPagePhysics(parent: buildParent(ancestor));
+
+  @override
+  SpringDescription get spring => _pageSettleSpring;
+}
+
+class AppShell extends StatefulWidget {
+""",
+              'ledger page physics',
+          )
+
+          source = replace_once(
+              source,
+              """                  physics: const PageScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+""",
+              """                  physics: const _LedgerPagePhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+""",
+              'PageView physics',
+          )
+
+          old_page_changed = """  void _handlePageChanged(int index) {
+    // animateToPage can report every intermediate page. The selected tab is
+    // already the user's requested destination, so suppress those callbacks
+    // and their haptics until the driven motion settles.
+    if (_programmaticPageTarget != null) return;
+    if (_tab == index && _settledPage == index) return;
+    final bool selectionChanged = _tab != index;
+    if (selectionChanged) HapticFeedback.selectionClick();
+    setState(() {
+      _tab = index;
+      _settledPage = index;
+    });
+    if (selectionChanged) _scrollNavigation(index);
+  }
+"""
+          new_page_changed = """  void _handlePageChanged(int index) {
+    // Driven tab motion owns selection while active. During a live user swipe,
+    // preview only the navigation selection and defer the expensive active-sync
+    // listener handoff until ScrollEnd settles on the final page.
+    if (_programmaticPageTarget != null) return;
+
+    final bool selectionChanged = _tab != index;
+    if (_userPageDragActive) {
+      if (!selectionChanged) return;
+      HapticFeedback.selectionClick();
+      setState(() => _tab = index);
+      _scrollNavigation(index);
+      return;
+    }
+
+    if (!selectionChanged && _settledPage == index) return;
+    if (selectionChanged) HapticFeedback.selectionClick();
+    setState(() {
+      _tab = index;
+      _settledPage = index;
+    });
+    if (selectionChanged) _scrollNavigation(index);
+  }
+"""
+          source = replace_once(
+              source,
+              old_page_changed,
+              new_page_changed,
+              'deferred active-sync page handoff',
+          )
+
+          # Visual lock: the interaction patch may not alter existing icon
+          # identifiers/codepoints, colors, dimensions, radii, or padding tokens.
+          def normalized(items):
+              return [re.sub(r'\s+', '', item) for item in items]
+
+          visual_patterns = [
+              r'Icons\.[A-Za-z0-9_]+',
+              r'Colors\.[A-Za-z0-9_]+',
+              r'Color\(\s*0x[0-9A-Fa-f]+\s*\)',
+              r'IconData\([^)]*\)',
+              r'\b(?:width|height)\s*:\s*-?[0-9]+(?:\.[0-9]+)?',
+              r'BorderRadius\.[A-Za-z0-9_]+\([^)]*\)',
+              r'EdgeInsets\.[A-Za-z0-9_]+\([^)]*\)',
+          ]
+          for pattern in visual_patterns:
+              old_tokens = sorted(normalized(re.findall(pattern, before)))
+              new_tokens = sorted(normalized(re.findall(pattern, source)))
+              if old_tokens != new_tokens:
+                  raise SystemExit(f'VISUAL LOCK VIOLATION: {pattern}')
+
+          main.write_text(source)
+
+          test_source = test.read_text()
+          test_source = replace_once(
+              test_source,
+              """    expect(source, contains('NotificationListener<ScrollNotification>'));
+    expect(source, contains('_finishUserPageMotion()'));
+""",
+              """    expect(source, contains('NotificationListener<ScrollNotification>'));
+    expect(source, contains('_finishUserPageMotion()'));
+    expect(source, contains('class _LedgerPagePhysics extends PageScrollPhysics'));
+    expect(source, contains('mass: .78'));
+    expect(source, contains('stiffness: 300'));
+    expect(source, contains('damping: 30'));
+    expect(source, contains('physics: const _LedgerPagePhysics('));
+    expect(source, contains('if (_userPageDragActive) {'));
+    expect(source, contains('setState(() => _tab = index);'));
+""",
+              'gesture settle regression checks',
+          )
+          test.write_text(test_source)
+          PY
+
+      - name: Remove temporary surgeon
+        run: rm .github/workflows/interaction-fluidity-surgeon-v5.yml
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format surgical patch
+        run: dart format --language-version latest lib/main.dart test/ui_micro_aesthetics_test.dart
+
+      - name: Verify formatting
+        run: dart format --language-version latest --output=none --set-exit-if-changed lib/main.dart test/ui_micro_aesthetics_test.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Stage and validate diff
+        shell: bash
+        run: |
+          git add -A
+          git diff --cached --check
+          actual="$(git diff --cached --name-only | sort)"
+          expected="$(printf '%s\n' '.github/workflows/interaction-fluidity-surgeon-v5.yml' 'lib/main.dart' 'test/ui_micro_aesthetics_test.dart' | sort)"
+          if [ "$actual" != "$expected" ]; then
+            echo "Unexpected staged files:" >&2
+            printf '%s\n' "$actual" >&2
+            exit 1
+          fi
+          git diff --cached --stat
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "ui: defer sync churn and tune page momentum"
+          git push origin HEAD:main
