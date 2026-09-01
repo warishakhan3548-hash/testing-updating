@@ -166,6 +166,13 @@ void main() {
       contains('void _sampleGestureVelocity(Offset localPosition)'),
     );
     expect(pressableSource, contains('Offset _freshGestureVelocity()'));
+    expect(pressableSource, contains('velocityResponsePerSecond = 32'));
+    expect(
+      pressableSource,
+      contains('math.exp(-velocityResponsePerSecond * elapsedSeconds)'),
+    );
+    expect(pressableSource, contains('easedFreshness = freshness * freshness'));
+    expect(pressableSource, contains('void didChangeDependencies()'));
     expect(
       pressableSource,
       contains('Alignment _projectReleaseAlignment(Offset velocity)'),
@@ -211,6 +218,9 @@ void main() {
 
     // Navigation and pull-to-refresh keep the snappier feedback model.
     expect(source, contains('duration: UIConstants.motion'));
+    expect(source, contains('Duration _adaptivePageDuration('));
+    expect(source, contains('math.sqrt(remainingPages)'));
+    expect(source, contains('duration: pageDuration'));
     expect(source, contains('RefreshIndicator.adaptive('));
     expect(source, contains('HapticFeedback.lightImpact();'));
 

@@ -1455,6 +1455,26 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
+  Duration _adaptivePageDuration(double originPage, int targetPage) {
+    final double remainingPages = (targetPage - originPage)
+        .abs()
+        .clamp(0.0, 1.0)
+        .toDouble();
+    if (remainingPages <= .001) return Duration.zero;
+
+    // Distance-aware timing keeps a mid-swipe retarget responsive while a
+    // complete one-page transition preserves the established motion cadence.
+    final double travelFactor = math.sqrt(remainingPages);
+    final int micros = (UIConstants.motion.inMicroseconds * travelFactor)
+        .round()
+        .clamp(
+          const Duration(milliseconds: 90).inMicroseconds,
+          UIConstants.motion.inMicroseconds,
+        )
+        .toInt();
+    return Duration(microseconds: micros);
+  }
+
   void _selectTab(int index) {
     if (index < 0 || index >= _tabs.length) return;
 
@@ -1493,16 +1513,25 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final int currentPage = livePage.round().clamp(0, _tabs.length - 1).toInt();
     final int pageDistance = (index - currentPage).abs();
 
+    double animationOrigin = livePage;
     if (pageDistance > 1) {
       final int stagingPage = index > currentPage ? index - 1 : index + 1;
       _pageController.jumpToPage(stagingPage);
+      animationOrigin = stagingPage.toDouble();
+    }
+
+    final Duration pageDuration = _adaptivePageDuration(animationOrigin, index);
+    if (pageDuration == Duration.zero) {
+      _pageController.jumpToPage(index);
+      _finishProgrammaticPageMotion(index, generation);
+      return;
     }
 
     unawaited(
       _pageController
           .animateToPage(
             index,
-            duration: UIConstants.motion,
+            duration: pageDuration,
             curve: UIConstants.motionOut,
           )
           .whenComplete(() => _finishProgrammaticPageMotion(index, generation)),
@@ -2134,6 +2163,13 @@ class _PressableState extends State<_Pressable>
     if (interactionDisabled) _resetPressFeedback();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_pressController.value == 0 || AppMotion.enabled(context)) return;
+    _resetPressFeedback();
+  }
+
   void _resetPressFeedback() {
     _pressController.stop();
     if (_pressController.value != 0) _pressController.value = 0;
@@ -2181,15 +2217,25 @@ class _PressableState extends State<_Pressable>
 
     final int elapsedMicros = nowMicros - previousMicros;
     if (elapsedMicros <= 0) return;
-    final double samplesPerSecond =
-        Duration.microsecondsPerSecond / elapsedMicros;
+    final double elapsedSeconds =
+        elapsedMicros / Duration.microsecondsPerSecond;
+    final double samplesPerSecond = 1 / elapsedSeconds;
     Offset sample = (localPosition - previousPosition) * samplesPerSecond;
     const double maxTrackedSpeed = 7000;
     final double sampleSpeed = sample.distance;
     if (sampleSpeed > maxTrackedSpeed) {
       sample = sample * (maxTrackedSpeed / sampleSpeed);
     }
-    _gestureVelocity = Offset.lerp(_gestureVelocity, sample, .42)!;
+
+    // A fixed per-event blend changes its effective response at 60 Hz versus
+    // 120 Hz. Convert the same response into continuous time so touch tracking
+    // feels identical across refresh rates and irregular pointer sampling.
+    const double velocityResponsePerSecond = 32;
+    final double blend =
+        (1 - math.exp(-velocityResponsePerSecond * elapsedSeconds))
+            .clamp(.12, .72)
+            .toDouble();
+    _gestureVelocity = Offset.lerp(_gestureVelocity, sample, blend)!;
   }
 
   Offset _freshGestureVelocity() {
@@ -2200,7 +2246,8 @@ class _PressableState extends State<_Pressable>
     if (ageMicros <= 0) return _gestureVelocity;
     if (ageMicros >= freshnessWindowMicros) return Offset.zero;
     final double freshness = 1 - (ageMicros / freshnessWindowMicros);
-    return _gestureVelocity * freshness;
+    final double easedFreshness = freshness * freshness;
+    return _gestureVelocity * easedFreshness;
   }
 
   Alignment _projectReleaseAlignment(Offset velocity) {
