@@ -103,7 +103,7 @@ void main() {
     expect(source, contains('feedback.clamp(0.0, 1.0).toDouble()'));
     expect(source, contains('offset: Offset(0, motion * 1.30)'));
     expect(source, contains('scale: 1 - (motion * .017)'));
-    expect(source, contains('_touchAlignment = Alignment(x, y)'));
+    expect(source, contains('_touchAlignment = nextAlignment'));
     expect(source, contains('..setEntry(3, 2, .0013)'));
     expect(source, contains('..rotateX(-_touchAlignment.y * cardTilt)'));
     expect(source, contains('..rotateY(_touchAlignment.x * cardTilt)'));
@@ -126,6 +126,11 @@ void main() {
       source,
       contains('bool _updateTouchAlignment(Offset localPosition)'),
     );
+    expect(
+      source,
+      contains('static const double _touchAlignmentEpsilonSquared = .0004'),
+    );
+    expect(source, contains('deltaX * deltaX + deltaY * deltaY'));
     expect(source, contains('void _trackTouch(TapMoveDetails details)'));
     expect(source, contains('onTapMove:'));
     expect(source, contains(': _trackTouch,'));
@@ -356,10 +361,26 @@ void main() {
     expect(source, contains('position.viewportDimension / 2'));
     expect(source, contains('int _settledPage = 0;'));
     expect(source, contains('int? _programmaticPageTarget;'));
-    expect(source, contains('if (_programmaticPageTarget != null) return;'));
-    expect(source, contains('_finishProgrammaticPageMotion(index)'));
+    expect(source, contains('final int generation = ++_pageMotionGeneration'));
+    expect(
+      source,
+      contains('_finishProgrammaticPageMotion(index, generation)'),
+    );
     expect(RegExp(r'active: _settledPage ==').allMatches(source), hasLength(7));
     expect(source, isNot(contains('active: _tab ==')));
+    expect(source, contains('int _pageMotionGeneration = 0'));
+    expect(source, contains('bool _userPageDragActive = false'));
+    expect(source, contains('_pageMotionGeneration != generation'));
+    expect(source, contains('notification.dragDetails != null'));
+    expect(source, contains('NotificationListener<ScrollNotification>'));
+    expect(source, contains('_finishUserPageMotion()'));
+    expect(
+      source,
+      contains('final int pageDistance = (index - currentPage).abs()'),
+    );
+    expect(source, contains('if (pageDistance > 1)'));
+    expect(source, contains('_pageController.jumpToPage(stagingPage)'));
+    expect(source, contains('!listEquals(oldDelegate.pulses, pulses)'));
     expect(source, contains('_pageController.jumpToPage(index);'));
     expect(source, contains('position.jumpTo(target);'));
     expect(

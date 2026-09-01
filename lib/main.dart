@@ -810,7 +810,8 @@ class _GlobalTapRipplePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _GlobalTapRipplePainter oldDelegate) => true;
+  bool shouldRepaint(covariant _GlobalTapRipplePainter oldDelegate) =>
+      !listEquals(oldDelegate.pulses, pulses);
 }
 
 class _AmbientBackground extends StatelessWidget {
@@ -1408,6 +1409,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _tab = 0;
   int _settledPage = 0;
   int? _programmaticPageTarget;
+  int _pageMotionGeneration = 0;
+  bool _userPageDragActive = false;
   final ScrollController _navController = ScrollController();
   final PageController _pageController = PageController();
 
@@ -1433,9 +1436,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   void _selectTab(int index) {
-    if (index < 0 || index >= _tabs.length || _tab == index) return;
+    if (index < 0 || index >= _tabs.length) return;
+
+    final bool alreadySettled =
+        _tab == index &&
+        _settledPage == index &&
+        _programmaticPageTarget == null;
+    if (alreadySettled || _programmaticPageTarget == index) return;
 
     final bool reduceMotion = AppMotion.reduce(context);
+    final int generation = ++_pageMotionGeneration;
+    _userPageDragActive = false;
+
     if (reduceMotion) {
       _programmaticPageTarget = null;
       setState(() {
@@ -1447,11 +1459,24 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return;
     }
 
-    setState(() => _tab = index);
+    if (_tab != index) setState(() => _tab = index);
     _scrollNavigation(index);
 
-    if (!_pageController.hasClients) return;
+    if (!_pageController.hasClients) {
+      _programmaticPageTarget = null;
+      return;
+    }
     _programmaticPageTarget = index;
+
+    final double livePage = _pageController.page ?? _settledPage.toDouble();
+    final int currentPage = livePage.round().clamp(0, _tabs.length - 1).toInt();
+    final int pageDistance = (index - currentPage).abs();
+
+    if (pageDistance > 1) {
+      final int stagingPage = index > currentPage ? index - 1 : index + 1;
+      _pageController.jumpToPage(stagingPage);
+    }
+
     unawaited(
       _pageController
           .animateToPage(
@@ -1459,12 +1484,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             duration: UIConstants.motion,
             curve: UIConstants.motionOut,
           )
-          .whenComplete(() => _finishProgrammaticPageMotion(index)),
+          .whenComplete(() => _finishProgrammaticPageMotion(index, generation)),
     );
   }
 
-  void _finishProgrammaticPageMotion(int target) {
-    if (!mounted || _programmaticPageTarget != target) return;
+  void _finishProgrammaticPageMotion(int target, int generation) {
+    if (!mounted ||
+        _pageMotionGeneration != generation ||
+        _programmaticPageTarget != target) {
+      return;
+    }
     _programmaticPageTarget = null;
     if (!_pageController.hasClients) return;
 
@@ -1474,6 +1503,38 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final bool selectionChanged = settledIndex != _tab;
     final bool pageChanged = settledIndex != _settledPage;
     if (!selectionChanged && !pageChanged) return;
+    setState(() {
+      _tab = settledIndex;
+      _settledPage = settledIndex;
+    });
+    if (selectionChanged) _scrollNavigation(settledIndex);
+  }
+
+  bool _handlePageScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollStartNotification &&
+        notification.dragDetails != null) {
+      _userPageDragActive = true;
+      if (_programmaticPageTarget != null) {
+        _pageMotionGeneration++;
+        _programmaticPageTarget = null;
+      }
+    } else if (notification is ScrollEndNotification && _userPageDragActive) {
+      _userPageDragActive = false;
+      _finishUserPageMotion();
+    }
+    return false;
+  }
+
+  void _finishUserPageMotion() {
+    if (!mounted || !_pageController.hasClients) return;
+    final double? page = _pageController.page;
+    if (page == null) return;
+
+    final int settledIndex = page.round().clamp(0, _tabs.length - 1).toInt();
+    if (_tab == settledIndex && _settledPage == settledIndex) return;
+
+    final bool selectionChanged = _tab != settledIndex;
+    if (selectionChanged) HapticFeedback.selectionClick();
     setState(() {
       _tab = settledIndex;
       _settledPage = settledIndex;
@@ -1588,14 +1649,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ),
           Expanded(
             child: RepaintBoundary(
-              child: PageView(
-                controller: _pageController,
-                physics: const PageScrollPhysics(
-                  parent: BouncingScrollPhysics(),
+              child: NotificationListener<ScrollNotification>(
+                onNotification: _handlePageScrollNotification,
+                child: PageView(
+                  controller: _pageController,
+                  physics: const PageScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  allowImplicitScrolling: true,
+                  onPageChanged: _handlePageChanged,
+                  children: screens,
                 ),
-                allowImplicitScrolling: true,
-                onPageChanged: _handlePageChanged,
-                children: screens,
               ),
             ),
           ),
@@ -2000,6 +2064,8 @@ class _Pressable extends StatefulWidget {
 
 class _PressableState extends State<_Pressable>
     with SingleTickerProviderStateMixin {
+  static const double _touchAlignmentEpsilonSquared = .0004;
+
   late final AnimationController _pressController;
   Alignment _touchAlignment = Alignment.center;
 
@@ -2041,8 +2107,12 @@ class _PressableState extends State<_Pressable>
         .clamp(-.72, .72)
         .toDouble();
     final Alignment nextAlignment = Alignment(x, y);
-    if (nextAlignment == _touchAlignment) return false;
-    _touchAlignment = Alignment(x, y);
+    final double deltaX = nextAlignment.x - _touchAlignment.x;
+    final double deltaY = nextAlignment.y - _touchAlignment.y;
+    if (deltaX * deltaX + deltaY * deltaY < _touchAlignmentEpsilonSquared) {
+      return false;
+    }
+    _touchAlignment = nextAlignment;
     return true;
   }
 
