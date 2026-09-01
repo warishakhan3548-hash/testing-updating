@@ -197,7 +197,7 @@ jobs:
           tests = replace_once(
               tests,
               "    expect(source, contains('(position.pixels - target).abs() < .5'));",
-              "    expect(source, contains('final double navTravel = (position.pixels - target).abs()'));\n    expect(source, contains('final double normalizedTravel = (navTravel / itemExtent)'));\n    expect(source, contains('class _BottomLedgerNav extends StatefulWidget'));\n    expect(source, contains('if (!mounted || listEquals(_colors, colors)) return'));",
+              "    expect(source, contains('final double navTravel = (position.pixels - target).abs()'));\n    expect(source, contains('final double normalizedTravel = (navTravel / itemExtent)'));\n    expect(source, contains('class _BottomLedgerNav extends StatefulWidget'));\n    expect(source, contains('if (!mounted || listEquals(_colors, colors)) return;'));",
               'navigation source guards',
           )
 
