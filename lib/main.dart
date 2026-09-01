@@ -1404,6 +1404,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _tab = 0;
+  int? _programmaticPageTarget;
   final ScrollController _navController = ScrollController();
   final PageController _pageController = PageController();
 
@@ -1429,19 +1430,49 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   void _selectTab(int index) {
-    if (_tab == index) return;
+    if (index < 0 || index >= _tabs.length || _tab == index) return;
+
+    final bool reduceMotion = AppMotion.reduce(context);
     setState(() => _tab = index);
     _scrollNavigation(index);
-    if (_pageController.hasClients) {
-      _pageController.animateToPage(
-        index,
-        duration: UIConstants.motion,
-        curve: UIConstants.motionOut,
-      );
+
+    if (!_pageController.hasClients) return;
+    if (reduceMotion) {
+      _programmaticPageTarget = null;
+      _pageController.jumpToPage(index);
+      return;
     }
+
+    _programmaticPageTarget = index;
+    unawaited(
+      _pageController
+          .animateToPage(
+            index,
+            duration: UIConstants.motion,
+            curve: UIConstants.motionOut,
+          )
+          .whenComplete(() => _finishProgrammaticPageMotion(index)),
+    );
+  }
+
+  void _finishProgrammaticPageMotion(int target) {
+    if (!mounted || _programmaticPageTarget != target) return;
+    _programmaticPageTarget = null;
+    if (!_pageController.hasClients) return;
+
+    final double? page = _pageController.page;
+    if (page == null) return;
+    final int settledIndex = page.round().clamp(0, _tabs.length - 1).toInt();
+    if (settledIndex == _tab) return;
+    setState(() => _tab = settledIndex);
+    _scrollNavigation(settledIndex);
   }
 
   void _handlePageChanged(int index) {
+    // animateToPage can report every intermediate page. The selected tab is
+    // already the user's requested destination, so suppress those callbacks
+    // and their haptics until the driven motion settles.
+    if (_programmaticPageTarget != null) return;
     if (_tab == index) return;
     HapticFeedback.selectionClick();
     setState(() => _tab = index);
@@ -1464,6 +1495,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 position.viewportDimension / 2)
             .clamp(position.minScrollExtent, position.maxScrollExtent)
             .toDouble();
+    if (AppMotion.reduce(context)) {
+      position.jumpTo(target);
+      return;
+    }
     _navController.animateTo(
       target,
       duration: UIConstants.motion,
@@ -1679,6 +1714,9 @@ class _BottomLedgerNav extends StatelessWidget {
 
   Widget _buildNavigation(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final Duration navMotion = AppMotion.reduce(context)
+        ? Duration.zero
+        : UIConstants.motion;
     final List<Color> colors = _moduleTabColors(sync.currentProjection);
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -1740,10 +1778,10 @@ class _BottomLedgerNav extends StatelessWidget {
                             offset: active
                                 ? const Offset(0, -.025)
                                 : Offset.zero,
-                            duration: UIConstants.motion,
+                            duration: navMotion,
                             curve: UIConstants.motionOut,
                             child: AnimatedContainer(
-                              duration: UIConstants.motion,
+                              duration: navMotion,
                               curve: UIConstants.motionOut,
                               width: 84,
                               height: 70,
@@ -1756,7 +1794,7 @@ class _BottomLedgerNav extends StatelessWidget {
                                 children: <Widget>[
                                   AnimatedScale(
                                     scale: active ? 1.045 : 1,
-                                    duration: UIConstants.motion,
+                                    duration: navMotion,
                                     curve: UIConstants.motionOut,
                                     child: _PremiumNavIconFrame(
                                       color: color,
@@ -1779,7 +1817,7 @@ class _BottomLedgerNav extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 3),
                                   AnimatedDefaultTextStyle(
-                                    duration: UIConstants.motion,
+                                    duration: navMotion,
                                     curve: UIConstants.motionOut,
                                     style: TextStyle(
                                       color: active
@@ -1798,7 +1836,7 @@ class _BottomLedgerNav extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 4),
                                   AnimatedContainer(
-                                    duration: UIConstants.motion,
+                                    duration: navMotion,
                                     curve: UIConstants.motionOut,
                                     width: active ? 24 : 0,
                                     height: 2.5,
@@ -1851,7 +1889,7 @@ class _PremiumNavIconFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedContainer(
-    duration: UIConstants.motion,
+    duration: AppMotion.reduce(context) ? Duration.zero : UIConstants.motion,
     curve: UIConstants.motionOut,
     width: active ? 46 : 39,
     height: active ? 39 : 35,

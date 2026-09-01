@@ -316,6 +316,15 @@ void main() {
     expect(source, contains('excludeFromSemantics: true,'));
     expect(source, contains('onSubmitted: _onSubmitted,'));
     expect(source, contains('position.viewportDimension / 2'));
+    expect(source, contains('int? _programmaticPageTarget;'));
+    expect(source, contains('if (_programmaticPageTarget != null) return;'));
+    expect(source, contains('_finishProgrammaticPageMotion(index)'));
+    expect(source, contains('_pageController.jumpToPage(index);'));
+    expect(source, contains('position.jumpTo(target);'));
+    expect(
+      source,
+      contains('final Duration navMotion = AppMotion.reduce(context)'),
+    );
     expect(
       source,
       contains('Provide at most one of onTap or destinationBuilder.'),
