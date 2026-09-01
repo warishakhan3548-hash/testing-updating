@@ -6474,8 +6474,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           title: 'Expenses',
           color: moduleColor,
           actions: <Widget>[
-            _SoftShareButton(
-              compact: true,
+            _CircleAction(
               icon: Icons.share_rounded,
               color: appleBlue,
               semanticLabel: 'Share this month expenses',
