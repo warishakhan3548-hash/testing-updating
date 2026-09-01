@@ -40,8 +40,8 @@ jobs:
           source = path.read_text(encoding='utf-8')
           old_shadow = '            shadows: <Shadow>[\n              Shadow(color: glow.withAlpha(94), blurRadius: 16),\n            ],\n          ),\n'
           new_shadow = '            shadows: <Shadow>[Shadow(color: glow.withAlpha(94), blurRadius: 16)],\n          ),\n'
-          old_test = "    expect(source, isNot(contains('onTap: () {},')));\n"
-          new_test = "    expect(source, isNot(contains('onTap: () {},'))));\n"
+          old_test = "    expect(source, isNot(contains('onTap: () {},'));\n"
+          new_test = "    expect(source, isNot(contains('onTap: () {},')));\n"
           if source.count(old_shadow) != 1:
               raise SystemExit('hero color-expression patch did not match exactly once')
           if source.count(old_test) != 1:
