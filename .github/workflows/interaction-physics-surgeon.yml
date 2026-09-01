@@ -1,0 +1,107 @@
+name: Interaction Physics Surgeon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/interaction-physics-surgeon.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch shared press interaction core
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str, label: str) -> None:
+              source = path.read_text()
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one anchor, found {count}')
+              path.write_text(source.replace(old, new, 1))
+
+          main = Path('lib/main.dart')
+          test = Path('test/ui_micro_aesthetics_test.dart')
+
+          replace_once(
+              main,
+              """  static const Duration pressIn = Duration(milliseconds: 55);\n  static const Duration pressOut = Duration(milliseconds: 210);\n""",
+              """  static const Duration pressIn = Duration(milliseconds: 55);\n  static const Duration pressReengageFloor = Duration(milliseconds: 24);\n  static const Duration pressOut = Duration(milliseconds: 210);\n""",
+              'press duration constants',
+          )
+
+          replace_once(
+              main,
+              """  void _press([TapDownDetails? details]) {\n    if (widget.onTap == null || !widget.animatePress) return;\n    if (details != null) _captureTouch(details);\n    _pressController.animateTo(\n      1,\n      duration: UIConstants.pressIn,\n      curve: Curves.easeOutCubic,\n    );\n  }\n\n  void _release() {\n    if (widget.onTap == null || !widget.animatePress) return;\n    final double releaseVelocity = _pressController.velocity\n        .clamp(-2.5, 2.5)\n        .toDouble();\n    _pressController.animateWith(\n      SpringSimulation(\n        UIConstants.pressSpring,\n        _pressController.value,\n        0,\n        releaseVelocity,\n      ),\n    );\n  }\n\n  void _handleLongPress() {\n    _press();\n    HapticFeedback.mediumImpact();\n  }\n""",
+              """  void _press([TapDownDetails? details]) {\n    if (widget.onTap == null || !widget.animatePress) return;\n    if (details != null) _captureTouch(details);\n    final double remainingTravel = (1 - _pressController.value)\n        .clamp(0.0, 1.0)\n        .toDouble();\n    final int adaptiveMicros = math.max(\n      UIConstants.pressReengageFloor.inMicroseconds,\n      (UIConstants.pressIn.inMicroseconds * remainingTravel).round(),\n    );\n    _pressController.animateTo(\n      1,\n      duration: Duration(microseconds: adaptiveMicros),\n      curve: Curves.easeOutCubic,\n    );\n  }\n\n  void _release({bool cancelled = false}) {\n    if (widget.onTap == null || !widget.animatePress) return;\n    final double rawVelocity = cancelled\n        ? math.min(_pressController.velocity, 0.0)\n        : _pressController.velocity;\n    final double releaseVelocity = rawVelocity.clamp(-2.5, 2.5).toDouble();\n    _pressController.animateWith(\n      SpringSimulation(\n        UIConstants.pressSpring,\n        _pressController.value,\n        0,\n        releaseVelocity,\n      ),\n    );\n  }\n""",
+              'press/release physics',
+          )
+
+          replace_once(
+              main,
+              """      onTapCancel: widget.onTap == null || !widget.animatePress\n          ? null\n          : _release,\n      onTapUp: widget.onTap == null || !widget.animatePress\n          ? null\n          : (_) => _release(),\n      onLongPress: widget.onTap == null ? null : _handleLongPress,\n      onLongPressEnd: widget.onTap == null ? null : (_) => _release(),\n      onTap: widget.onTap == null ? null : _activate,\n""",
+              """      onTapCancel: widget.onTap == null || !widget.animatePress\n          ? null\n          : () => _release(cancelled: true),\n      onTapUp: widget.onTap == null || !widget.animatePress\n          ? null\n          : (_) => _release(),\n      onTap: widget.onTap == null ? null : _activate,\n""",
+              'gesture arbitration',
+          )
+
+          replace_once(
+              test,
+              """    expect(source, contains('Duration pressIn = Duration(milliseconds: 55)'));\n    expect(source, contains('Duration pressOut = Duration(milliseconds: 210)'));\n""",
+              """    expect(source, contains('Duration pressIn = Duration(milliseconds: 55)'));\n    expect(\n      source,\n      contains('Duration pressReengageFloor = Duration(milliseconds: 24)'),\n    );\n    expect(source, contains('Duration pressOut = Duration(milliseconds: 210)'));\n""",
+              'interaction timing regression test',
+          )
+
+          replace_once(
+              test,
+              """    expect(source, contains('feedbackColor: color'));\n    expect(source, contains('feedbackColor: diaryOrange'));\n\n    // Dashboard cards reveal once with a short, direction-neutral stagger.\n""",
+              """    expect(source, contains('feedbackColor: color'));\n    expect(source, contains('feedbackColor: diaryOrange'));\n\n    final int pressableStart = source.indexOf('class _PressableState');\n    final int pressableEnd = source.indexOf('class _GlassCard', pressableStart);\n    expect(pressableStart, greaterThanOrEqualTo(0));\n    expect(pressableEnd, greaterThan(pressableStart));\n    final String pressableSource = source.substring(pressableStart, pressableEnd);\n    expect(pressableSource, contains('final double remainingTravel ='));\n    expect(\n      pressableSource,\n      contains('duration: Duration(microseconds: adaptiveMicros)'),\n    );\n    expect(pressableSource, contains('void _release({bool cancelled = false})'));\n    expect(\n      pressableSource,\n      contains('math.min(_pressController.velocity, 0.0)'),\n    );\n    expect(pressableSource, contains('() => _release(cancelled: true)'));\n    expect(pressableSource, isNot(contains('onLongPress:')));\n    expect(pressableSource, isNot(contains('_handleLongPress')));\n\n    // Dashboard cards reveal once with a short, direction-neutral stagger.\n""",
+              'press interaction regression tests',
+          )
+          PY
+
+      - name: Remove temporary surgeon
+        run: rm .github/workflows/interaction-physics-surgeon.yml
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --language-version latest --output=none --set-exit-if-changed lib/main.dart test/ui_micro_aesthetics_test.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Stage and validate diff
+        run: |
+          git add -A
+          git diff --cached --check
+          git diff --cached --stat
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "ui: harden press physics and hold activation"
+          git push origin HEAD:main
