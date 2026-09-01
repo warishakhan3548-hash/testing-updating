@@ -594,8 +594,17 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
   final List<_RipplePulse> _pulses = <_RipplePulse>[];
   final Map<int, _RipplePulse> _pointerPulses = <int, _RipplePulse>{};
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (AppMotion.enabled(context) || _pulses.isEmpty) return;
+    for (final _RipplePulse pulse in List<_RipplePulse>.of(_pulses)) {
+      _removePulse(pulse, rebuild: false);
+    }
+  }
+
   void _handlePointerDown(PointerDownEvent event) {
-    if (AppMotion.reduce(context)) return;
+    if (!AppMotion.enabled(context)) return;
 
     final _RipplePulse? existing = _pointerPulses.remove(event.pointer);
     if (existing != null) _removePulse(existing, rebuild: false);
@@ -690,7 +699,9 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
         _pulses,
       );
       final Listenable repaint = Listenable.merge(
-        snapshot.map<Listenable>((_RipplePulse pulse) => pulse.controller).toList(),
+        snapshot
+            .map<Listenable>((_RipplePulse pulse) => pulse.controller)
+            .toList(),
       );
       surface = Stack(
         fit: StackFit.expand,
@@ -722,10 +733,8 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
 }
 
 class _GlobalTapRipplePainter extends CustomPainter {
-  _GlobalTapRipplePainter({
-    required this.pulses,
-    required Listenable repaint,
-  }) : super(repaint: repaint);
+  _GlobalTapRipplePainter({required this.pulses, required Listenable repaint})
+    : super(repaint: repaint);
 
   final List<_RipplePulse> pulses;
 
@@ -779,12 +788,12 @@ class _GlobalTapRipplePainter extends CustomPainter {
       );
 
       if (!pulse.cancelled && raw > .18) {
-        final double echo = ((raw - .18) / .64)
-            .clamp(0.0, 1.0)
-            .toDouble();
+        final double echo = ((raw - .18) / .64).clamp(0.0, 1.0).toDouble();
         if (echo < 1) {
-          final int echoAlpha =
-              (opacity * (1 - echo) * 58).round().clamp(0, 255).toInt();
+          final int echoAlpha = (opacity * (1 - echo) * 58)
+              .round()
+              .clamp(0, 255)
+              .toInt();
           canvas.drawCircle(
             pulse.origin,
             5 + 26 * UIConstants.motionOut.transform(echo),
@@ -1440,14 +1449,26 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   void _scrollNavigation(int index) {
-    final double target = math.max(0, index * 88 - 120).toDouble();
-    if (_navController.hasClients) {
-      _navController.animateTo(
-        math.min(target, _navController.position.maxScrollExtent),
-        duration: UIConstants.motion,
-        curve: UIConstants.motionOut,
-      );
-    }
+    if (!_navController.hasClients) return;
+    final ScrollPosition position = _navController.position;
+    if (!position.hasContentDimensions) return;
+
+    // Existing geometry is 84 wide + 4 margin on each side. Keep those exact
+    // dimensions, but center the selected destination in the visible viewport.
+    const double itemExtent = 92;
+    const double outerPadding = 4;
+    final double target =
+        (outerPadding +
+                index * itemExtent +
+                itemExtent / 2 -
+                position.viewportDimension / 2)
+            .clamp(position.minScrollExtent, position.maxScrollExtent)
+            .toDouble();
+    _navController.animateTo(
+      target,
+      duration: UIConstants.motion,
+      curve: UIConstants.motionOut,
+    );
   }
 
   @override
@@ -1610,20 +1631,27 @@ class _OfflineBanner extends StatelessWidget {
   const _OfflineBanner();
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-    bottom: false,
-    child: Container(
-      width: double.infinity,
-      color: appleOrange,
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: const Text(
-        'OFFLINE • Changes will sync automatically',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          letterSpacing: .6,
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    liveRegion: true,
+    label: 'Offline. Changes will sync automatically.',
+    child: ExcludeSemantics(
+      child: SafeArea(
+        bottom: false,
+        child: Container(
+          width: double.infinity,
+          color: appleOrange,
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: const Text(
+            'OFFLINE • Changes will sync automatically',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .6,
+            ),
+          ),
         ),
       ),
     ),
@@ -1704,6 +1732,7 @@ class _BottomLedgerNav extends StatelessWidget {
                         return _Pressable(
                           onTap: () => onSelected(index),
                           semanticLabel: '${spec.label} tab',
+                          selected: active,
                           borderRadius: BorderRadius.circular(
                             UIConstants.actionRadius,
                           ),
@@ -1983,6 +2012,16 @@ class _PressableState extends State<_Pressable>
     HapticFeedback.mediumImpact();
   }
 
+  void _activate() {
+    if (widget.onTap == null) return;
+    if (widget.feedbackColor == null) {
+      HapticFeedback.selectionClick();
+    } else {
+      HapticFeedback.lightImpact();
+    }
+    widget.onTap!();
+  }
+
   @override
   void dispose() {
     _pressController.dispose();
@@ -1991,11 +2030,13 @@ class _PressableState extends State<_Pressable>
 
   @override
   Widget build(BuildContext context) => Semantics(
-    button: true,
+    button: widget.onTap != null,
+    enabled: widget.onTap != null,
     label: widget.semanticLabel,
     selected: widget.selected,
-    onLongPress: widget.onTap == null ? null : _handleLongPress,
+    onTap: widget.onTap == null ? null : _activate,
     child: GestureDetector(
+      excludeFromSemantics: true,
       behavior: HitTestBehavior.opaque,
       onTapDown: widget.onTap == null || !widget.animatePress ? null : _press,
       onTapCancel: widget.onTap == null || !widget.animatePress
@@ -2006,16 +2047,7 @@ class _PressableState extends State<_Pressable>
           : (_) => _release(),
       onLongPress: widget.onTap == null ? null : _handleLongPress,
       onLongPressEnd: widget.onTap == null ? null : (_) => _release(),
-      onTap: widget.onTap == null
-          ? null
-          : () {
-              if (widget.feedbackColor == null) {
-                HapticFeedback.selectionClick();
-              } else {
-                HapticFeedback.lightImpact();
-              }
-              widget.onTap!();
-            },
+      onTap: widget.onTap == null ? null : _activate,
       child: AnimatedBuilder(
         animation: _pressController,
         child: widget.child,
@@ -2570,6 +2602,7 @@ class _BackCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _Pressable(
     onTap: () => Navigator.of(context).maybePop(),
+    semanticLabel: 'Back',
     borderRadius: BorderRadius.circular(24),
     child: Container(
       width: 48,
@@ -2613,6 +2646,12 @@ class _SearchBoxState extends State<_SearchBox> {
     );
   }
 
+  void _onSubmitted(String value) {
+    _debounce?.cancel();
+    widget.onChanged(value);
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
   @override
   void dispose() {
     _debounce?.cancel();
@@ -2628,6 +2667,8 @@ class _SearchBoxState extends State<_SearchBox> {
     );
     return TextField(
       onChanged: _onChanged,
+      onSubmitted: _onSubmitted,
+      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
       cursorColor: widget.color,
       textInputAction: TextInputAction.search,
       style: TextStyle(
@@ -2916,17 +2957,23 @@ class _HeroValue extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 4),
-      Text(
-        value,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: color,
-          fontSize: 32,
-          fontWeight: FontWeight.w700,
-          fontFeatures: AppStyles.tabularFigures,
-          letterSpacing: -.8,
-          shadows: <Shadow>[Shadow(color: glow.withAlpha(94), blurRadius: 16)],
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          value,
+          maxLines: 1,
+          softWrap: false,
+          style: TextStyle(
+            color: color,
+            fontSize: 32,
+            fontWeight: FontWeight.w700,
+            fontFeatures: AppStyles.tabularFigures,
+            letterSpacing: -.8,
+            shadows: <Shadow>[
+              Shadow(color: glow.withAlpha(94), blurRadius: 16),
+            ],
+          ),
         ),
       ),
     ],
@@ -2945,8 +2992,8 @@ class _ListCard extends StatelessWidget {
     this.onDelete,
     this.avatarText,
   }) : assert(
-         (onTap == null) != (destinationBuilder == null),
-         'Provide either onTap or destinationBuilder.',
+         onTap == null || destinationBuilder == null,
+         'Provide at most one of onTap or destinationBuilder.',
        );
 
   final String title;
@@ -2961,7 +3008,7 @@ class _ListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget buildCard(VoidCallback action) => _Pressable(
+    Widget buildCard(VoidCallback? action) => _Pressable(
       onTap: action,
       animatePress: destinationBuilder == null,
       borderRadius: BorderRadius.circular(UIConstants.cardRadius),
@@ -3058,7 +3105,7 @@ class _ListCard extends StatelessWidget {
                   semanticLabel: 'Delete $title',
                 ),
               )
-            else
+            else if (action != null)
               Icon(
                 Icons.chevron_right_rounded,
                 color: color.withAlpha(150),
@@ -3070,10 +3117,10 @@ class _ListCard extends StatelessWidget {
     );
 
     final Widget card = destinationBuilder == null
-        ? buildCard(onTap!)
+        ? buildCard(onTap)
         : _FastRouteLauncher(
             destinationBuilder: destinationBuilder!,
-            sourceBuilder: buildCard,
+            sourceBuilder: (VoidCallback action) => buildCard(action),
           );
     return Padding(padding: const EdgeInsets.only(bottom: 12), child: card);
   }
@@ -4106,7 +4153,6 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
                           ? 'P'
                           : item.name.trim()[0].toUpperCase(),
                       trailing: _signedMoney(item.net),
-                      onTap: () {},
                     );
                   }),
               ],
@@ -4724,6 +4770,8 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                         label: 'Share',
                         icon: Icons.share_rounded,
                         color: appleBlue,
+                        semanticLabel: 'Share this section as PDF',
+                        compact: false,
                         onTap: () => unawaited(
                           _ExportService.sharePdf(
                             '${widget.customerName} Milk Bill',
@@ -6039,6 +6087,8 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                         label: 'Share',
                         icon: Icons.share_rounded,
                         color: appleBlue,
+                        semanticLabel: 'Share this section as PDF',
+                        compact: false,
                         onTap: () => unawaited(
                           _ExportService.sharePdf(
                             '${widget.personName} Salary',
@@ -6547,6 +6597,8 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
                         label: 'Share',
                         icon: Icons.share_rounded,
                         color: appleBlue,
+                        semanticLabel: 'Share this section as PDF',
+                        compact: false,
                         onTap: () => unawaited(
                           _ExportService.sharePdf(
                             '${widget.personName} Credit Ledger',
@@ -7004,6 +7056,8 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                         label: 'Share',
                         icon: Icons.share_rounded,
                         color: appleBlue,
+                        semanticLabel: 'Share this section as PDF',
+                        compact: false,
                         onTap: () => unawaited(
                           _ExportService.sharePdf(
                             '${widget.category} Expenses',
@@ -8288,6 +8342,8 @@ class BusinessDetailScreen extends StatelessWidget {
                         label: 'Share',
                         icon: Icons.share_rounded,
                         color: appleBlue,
+                        semanticLabel: 'Share this section as PDF',
+                        compact: false,
                         onTap: () => unawaited(
                           _ExportService.sharePdf(
                             '$projectName Business Khata',

@@ -86,21 +86,21 @@ void main() {
     expect(source, contains('this.icon = Icons.add_rounded'));
 
     // Direct manipulation stays brief, tactile and accessibility-aware.
-    expect(source, contains('Duration pressIn = Duration(milliseconds: 70)'));
+    expect(source, contains('Duration pressIn = Duration(milliseconds: 55)'));
     expect(source, contains('Duration pressOut = Duration(milliseconds: 210)'));
     expect(source, contains('curve: UIConstants.motionOut'));
     expect(source, contains('lowerBound: -.18'));
     expect(source, contains("import 'package:flutter/physics.dart';"));
     expect(source, contains('static const SpringDescription pressSpring'));
-    expect(source, contains('stiffness: 520'));
-    expect(source, contains('damping: 30'));
+    expect(source, contains('stiffness: 460'));
+    expect(source, contains('damping: 32'));
     expect(source, contains('SpringSimulation('));
     expect(source, contains('_pressController.velocity'));
     expect(source, contains('feedback.clamp(0.0, 1.0).toDouble()'));
-    expect(source, contains('offset: Offset(0, motion * 1.25)'));
-    expect(source, contains('scale: 1 - (motion * .014)'));
+    expect(source, contains('offset: Offset(0, motion * 1.30)'));
+    expect(source, contains('scale: 1 - (motion * .017)'));
     expect(source, contains('_touchAlignment = Alignment(x, y)'));
-    expect(source, contains('..setEntry(3, 2, .0012)'));
+    expect(source, contains('..setEntry(3, 2, .0013)'));
     expect(source, contains('..rotateX(-_touchAlignment.y * cardTilt)'));
     expect(source, contains('..rotateY(_touchAlignment.x * cardTilt)'));
     expect(source, contains('gradient: RadialGradient('));
@@ -306,6 +306,22 @@ void main() {
     expect(source, contains('final double reach = math.min(6.5'));
     expect(source, contains('..lineTo(inset, lowerTurn)'));
     expect(source, isNot(contains('..lineTo(0, size.height - r)')));
+
+    // UI comfort/accessibility v3: behavior improves without visual drift.
+    expect(source, contains('if (!AppMotion.enabled(context)) return;'));
+    expect(source, contains('selected: active,'));
+    expect(source, contains("semanticLabel: 'Back',"));
+    expect(source, contains('liveRegion: true,'));
+    expect(source, contains('enabled: widget.onTap != null,'));
+    expect(source, contains('excludeFromSemantics: true,'));
+    expect(source, contains('onSubmitted: _onSubmitted,'));
+    expect(source, contains('position.viewportDimension / 2'));
+    expect(
+      source,
+      contains('Provide at most one of onTap or destinationBuilder.'),
+    );
+    expect(source, contains('? buildCard(onTap)'));
+    expect(source, isNot(contains('onTap: () {},')));
 
     // Brand/state color logic and Firebase integration must stay untouched.
     expect(source, contains("import 'firebase_sync.dart';"));
