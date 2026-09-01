@@ -327,9 +327,7 @@ test_source = replace_once(
       contains('final Alignment spatialAlignment ='),
     );
     expect(
-      RegExp(r'if \\(AppMotion\\.reduce\\(context\\)\\) \\{')
-          .allMatches(pressableSource)
-          .length,
+      pressableSource.split('if (AppMotion.reduce(context)) {').length - 1,
       greaterThanOrEqualTo(2),
     );
     expect(pressableSource, contains('() => _release(cancelled: true)'));
