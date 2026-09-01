@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/interaction-physics-surgeon.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,7 +18,7 @@ jobs:
   patch:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - name: Checkout exact main
         uses: actions/checkout@v4
@@ -25,196 +26,75 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Apply surgical interaction upgrade
+      - name: Apply native interaction smoothness upgrade
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          main_path = Path('lib/main.dart')
-          test_path = Path('test/ui_micro_aesthetics_test.dart')
-          source = main_path.read_text()
-          tests = test_path.read_text()
+          native_path = Path(
+              'android/app/src/main/kotlin/com/aaris/diary/financial/MainActivity.kt'
+          )
+          test_path = Path('test/native_interaction_physics_test.dart')
 
-          def replace_once(text: str, old: str, new: str, label: str) -> str:
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
-              return text.replace(old, new, 1)
+          current = native_path.read_text()
+          expected = '''package com.aaris.diary.financial
 
-          # Strict visual lock. These sentinels cover the approved geometry,
-          # blur, icon semantics, glow/depth constants, and card fills.
-          visual_sentinels = (
-              'static const double cardRadius = 24;',
-              'static const double heroRadius = 28;',
-              'static const double sheetRadius = 36;',
-              "const IconData premiumHomeIcon = Icons.space_dashboard_rounded;",
-              "const IconData premiumExpenseIcon = Icons.shopping_bag_rounded;",
-              "const IconData premiumDeleteIcon = Icons.delete_outline_rounded;",
-              'Color(0xFAFFFFFF), Color(0xF2FFFFFF)',
-              'Color(0xF0121826), Color(0xE3080C18)',
-              'blurRadius: 52',
-              'spreadRadius: -1.25',
-          )
-          before_visual = {token: source.count(token) for token in visual_sentinels}
+          import io.flutter.embedding.android.FlutterActivity
 
-          # 1) Bottom-nav recentering: keep exact geometry and curve, but make
-          # settling time proportional to the actual remaining travel. A tiny
-          # correction jumps directly so repeated rapid taps never queue lag.
-          source = replace_once(
-              source,
-              '''    if ((position.pixels - target).abs() < .5) return;
-    if (AppMotion.reduce(context)) {
-      position.jumpTo(target);
-      return;
-    }
-    _navController.animateTo(
-      target,
-      duration: UIConstants.motion,
-      curve: UIConstants.motionOut,
-    );''',
-              '''    final double navTravel = (position.pixels - target).abs();
-    if (navTravel < .5) return;
-    if (AppMotion.reduce(context) || navTravel < 3) {
-      position.jumpTo(target);
-      return;
-    }
-    final double normalizedTravel = (navTravel / itemExtent)
-        .clamp(.12, 1.0)
-        .toDouble();
-    final int adaptiveMicros =
-        (UIConstants.motion.inMicroseconds * math.sqrt(normalizedTravel))
-            .round()
-            .clamp(
-              const Duration(milliseconds: 90).inMicroseconds,
-              UIConstants.motion.inMicroseconds,
-            )
-            .toInt();
-    _navController.animateTo(
-      target,
-      duration: Duration(microseconds: adaptiveMicros),
-      curve: UIConstants.motionOut,
-    );''',
-              'adaptive bottom-nav settle',
-          )
+          class MainActivity : FlutterActivity()
+          '''
+          if current.strip() != expected.strip():
+              raise SystemExit(
+                  'MainActivity.kt no longer matches the audited baseline; '
+                  'refusing to overwrite unknown native behavior.'
+              )
 
-          # 2) Press release race: a cancelled/stale spring completion must never
-          # clear the touch alignment belonging to a newer press. Generation
-          # ownership gives each release exclusive cleanup rights.
-          source = replace_once(
-              source,
-              '  Offset _gestureVelocity = Offset.zero;',
-              '  Offset _gestureVelocity = Offset.zero;\n  int _pressMotionGeneration = 0;',
-              'press generation field',
-          )
-          source = replace_once(
-              source,
-              '''  void _resetPressFeedback() {
-    _pressController.stop();''',
-              '''  void _resetPressFeedback() {
-    _pressMotionGeneration++;
-    _pressController.stop();''',
-              'press reset ownership',
-          )
-          source = replace_once(
-              source,
-              '''  void _captureTouch(TapDownDetails details) {
-    _releaseAlignment = null;''',
-              '''  void _captureTouch(TapDownDetails details) {
-    _pressMotionGeneration++;
-    _releaseAlignment = null;''',
-              'new press ownership',
-          )
-          source = replace_once(
-              source,
-              '''    if (AppMotion.reduce(context)) {
-      _pressController.stop();
-      if (_pressController.value != 0) _pressController.value = 0;
-      return;
-    }''',
-              '''    if (AppMotion.reduce(context)) {
-      _pressMotionGeneration++;
-      _pressController.stop();
-      if (_pressController.value != 0) _pressController.value = 0;
-      _touchAlignment = Alignment.center;
-      _releaseAlignment = null;
-      _lastTouchPosition = null;
-      _lastTouchSampleMicros = 0;
-      _gestureVelocity = Offset.zero;
-      return;
-    }''',
-              'reduced-motion release cleanup',
-          )
-          source = replace_once(
-              source,
-              '''    _pressController.animateWith(
-      SpringSimulation(
-        UIConstants.pressSpring,
-        _pressController.value,
-        0,
-        releaseVelocity,
-      ),
-    );''',
-              '''    final int motionGeneration = ++_pressMotionGeneration;
-    _pressController
-        .animateWith(
-          SpringSimulation(
-            UIConstants.pressSpring,
-            _pressController.value,
-            0,
-            releaseVelocity,
-          ),
-        )
-        .whenCompleteOrCancel(() {
-          if (!mounted || motionGeneration != _pressMotionGeneration) return;
-          if (_pressController.value.abs() <= .002 &&
-              _pressController.value != 0) {
-            _pressController.value = 0;
+          native_path.write_text('''package com.aaris.diary.financial
+
+          import android.os.Build
+          import android.os.Bundle
+          import io.flutter.embedding.android.FlutterActivity
+
+          class MainActivity : FlutterActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+
+                  // Android 15+ can raise display refresh rate while the user is
+                  // actively touching this window. The system owns the policy,
+                  // so supported 90/120Hz devices get lower touch latency without
+                  // pinning a high refresh rate while the UI is idle.
+                  if (Build.VERSION.SDK_INT >= 35) {
+                      window.setFrameRateBoostOnTouchEnabled(true)
+                  }
+              }
           }
-          _touchAlignment = Alignment.center;
-          _releaseAlignment = null;
-          _lastTouchPosition = null;
-          _lastTouchSampleMicros = 0;
-          _gestureVelocity = Offset.zero;
-        });''',
-              'generation-safe spring cleanup',
-          )
-          source = replace_once(
-              source,
-              '''  void dispose() {
-    _gestureClock.stop();
-    _pressController.dispose();''',
-              '''  void dispose() {
-    _pressMotionGeneration++;
-    _gestureClock.stop();
-    _pressController.dispose();''',
-              'press dispose ownership',
-          )
+          ''')
 
-          # Source-level regression guards already used by this repository.
-          tests = replace_once(
-              tests,
-              "    expect(pressableSource, contains('easedFreshness = freshness * freshness'));",
-              "    expect(pressableSource, contains('easedFreshness = freshness * freshness'));\n    expect(pressableSource, contains('int _pressMotionGeneration = 0'));\n    expect(pressableSource, contains('.whenCompleteOrCancel(() {'));\n    expect(pressableSource, contains('motionGeneration != _pressMotionGeneration'));",
-              'press race regression guards',
-          )
-          tests = replace_once(
-              tests,
-              "    // Navigation and pull-to-refresh keep the snappier feedback model.\n    expect(source, contains('duration: UIConstants.motion'));",
-              "    // Navigation and pull-to-refresh keep the snappier feedback model.\n    expect(source, contains('duration: UIConstants.motion'));\n    expect(source, contains('final double navTravel = (position.pixels - target).abs()'));\n    expect(source, contains('final double normalizedTravel = (navTravel / itemExtent)'));\n    expect(source, contains('duration: Duration(microseconds: adaptiveMicros)'));",
-              'adaptive navigation regression guards',
-          )
+          test_path.write_text(r'''import 'dart:io';
 
-          after_visual = {token: source.count(token) for token in visual_sentinels}
-          if before_visual != after_visual:
-              changed = [
-                  token for token in visual_sentinels
-                  if before_visual[token] != after_visual[token]
-              ]
-              raise SystemExit(f'visual lock violated: {changed}')
+          import 'package:flutter_test/flutter_test.dart';
 
-          main_path.write_text(source)
-          test_path.write_text(tests)
+          void main() {
+            test('Android touch refresh boost is API-gated and policy-driven', () {
+              final String source = File(
+                'android/app/src/main/kotlin/com/aaris/diary/financial/MainActivity.kt',
+              ).readAsStringSync();
+
+              expect(source, contains('Build.VERSION.SDK_INT >= 35'));
+              expect(
+                source,
+                contains('window.setFrameRateBoostOnTouchEnabled(true)'),
+              );
+
+              // Do not force a fixed refresh rate or display mode. Android keeps
+              // authority over the actual panel rate and power policy.
+              expect(source, isNot(contains('preferredRefreshRate')));
+              expect(source, isNot(contains('preferredDisplayModeId')));
+              expect(source, isNot(contains('setFrameRate(')));
+            });
+          }
+          ''')
           PY
 
       - name: Flutter toolchain
@@ -227,53 +107,49 @@ jobs:
       - name: Resolve packages
         run: flutter pub get
 
-      - name: Verify complete repository
+      - name: Verify interaction upgrade
         run: |
-          dart format lib/main.dart test/ui_micro_aesthetics_test.dart
+          dart format test/native_interaction_physics_test.dart
           git diff --check
           flutter analyze
           flutter test
+          flutter build apk --debug
 
-      - name: Enforce behavioral-only diff
+      - name: Enforce absolute visual lock
         shell: bash
         run: |
           python3 - <<'PY'
           import subprocess
-          from pathlib import Path
 
           changed = subprocess.check_output(
               ['git', 'diff', '--name-only'], text=True
           ).splitlines()
-          allowed = {'lib/main.dart', 'test/ui_micro_aesthetics_test.dart'}
+          allowed = {
+              'android/app/src/main/kotlin/com/aaris/diary/financial/MainActivity.kt',
+              'test/native_interaction_physics_test.dart',
+          }
           unexpected = sorted(set(changed) - allowed)
           if unexpected:
               raise SystemExit(f'unexpected changed files: {unexpected}')
           if not changed:
               raise SystemExit('surgeon produced no changes')
 
-          diff = subprocess.check_output(
-              ['git', 'diff', '--', 'lib/main.dart'], text=True
-          )
-          forbidden = (
-              'premiumHomeIcon =',
-              'premiumExpenseIcon =',
-              'premiumDeleteIcon =',
-              'cardRadius =',
-              'heroRadius =',
-              'sheetRadius =',
-          )
-          for token in forbidden:
-              touched = [line for line in diff.splitlines()
-                         if line[:1] in '+-' and token in line]
-              if touched:
-                  raise SystemExit(f'visual definition touched: {token}')
+          # The Flutter UI source is intentionally immutable in this upgrade:
+          # no colors, card geometry, icon definitions, layout, or assets move.
+          ui_diff = subprocess.run(
+              ['git', 'diff', '--quiet', '--', 'lib/main.dart']
+          ).returncode
+          if ui_diff != 0:
+              raise SystemExit('visual lock violated: lib/main.dart changed')
           PY
 
-      - name: Commit and push interaction core
+      - name: Commit and push verified interaction upgrade
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add lib/main.dart test/ui_micro_aesthetics_test.dart
+          git add \
+            android/app/src/main/kotlin/com/aaris/diary/financial/MainActivity.kt \
+            test/native_interaction_physics_test.dart
           git diff --cached --quiet && { echo "No app changes to commit"; exit 1; }
-          git commit -m "perf(ui): harden interaction settling physics"
+          git commit -m "perf(android): boost refresh rate during touch"
           git push origin HEAD:main
