@@ -17,17 +17,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply global blue tap ripple only
+      - name: Fix global ripple numeric types
         run: |
           python3 .github/global_tap_patch.py
           git diff --check
           git diff -- lib/main.dart
 
-      - name: Commit global tap ripple
+      - name: Commit global ripple fix
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lib/main.dart
           git diff --cached --quiet && exit 0
-          git commit -m "ui: add global 200ms blue tap ripple"
+          git commit -m "fix: harden global tap ripple alpha types"
           git push origin HEAD:main
