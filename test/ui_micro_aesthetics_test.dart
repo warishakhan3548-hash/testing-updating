@@ -174,6 +174,8 @@ void main() {
     expect(pressableSource, contains('final double controllerVelocity ='));
     expect(pressableSource, contains('.clamp(-2.5, 0.0)'));
     expect(pressableSource, contains('final Alignment spatialAlignment ='));
+    expect(pressableSource, contains('_pressController.value.abs() <= .0001'));
+    expect(pressableSource, contains('releaseVelocity.abs() <= .0001'));
     expect(
       pressableSource.split('if (AppMotion.reduce(context)) {').length - 1,
       greaterThanOrEqualTo(2),
@@ -370,7 +372,7 @@ void main() {
     expect(source, isNot(contains('..lineTo(0, size.height - r)')));
 
     // UI comfort/accessibility v3: behavior improves without visual drift.
-    expect(source, contains('if (!AppMotion.enabled(context)) return;'));
+    expect(source, contains('(event.buttons & kPrimaryButton) == 0'));
     expect(source, contains('selected: active,'));
     expect(source, contains("semanticLabel: 'Back',"));
     expect(source, contains('liveRegion: true,'));
@@ -378,6 +380,7 @@ void main() {
     expect(source, contains('excludeFromSemantics: true,'));
     expect(source, contains('onSubmitted: _onSubmitted,'));
     expect(source, contains('position.viewportDimension / 2'));
+    expect(source, contains('(position.pixels - target).abs() < .5'));
     expect(source, contains('int _settledPage = 0;'));
     expect(source, contains('int? _programmaticPageTarget;'));
     expect(source, contains('final int generation = ++_pageMotionGeneration'));
@@ -389,6 +392,10 @@ void main() {
     expect(source, isNot(contains('active: _tab ==')));
     expect(source, contains('int _pageMotionGeneration = 0'));
     expect(source, contains('bool _userPageDragActive = false'));
+    expect(source, contains('final Set<int> _dragHapticPages = <int>{}'));
+    expect(source, contains('_dragHapticPages.add(index)'));
+    expect(source, contains('_dragHapticPages.add(settledIndex)'));
+    expect(source, contains('_dragHapticPages.clear()'));
     expect(source, contains('_pageMotionGeneration != generation'));
     expect(source, contains('notification.dragDetails != null'));
     expect(source, contains('NotificationListener<ScrollNotification>'));

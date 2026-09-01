@@ -6,7 +6,7 @@ import 'dart:ui' as ui;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart' show TapMoveDetails;
+import 'package:flutter/gestures.dart' show TapMoveDetails, kPrimaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -606,7 +606,9 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
   }
 
   void _handlePointerDown(PointerDownEvent event) {
-    if (!AppMotion.enabled(context)) return;
+    if (!AppMotion.enabled(context) || (event.buttons & kPrimaryButton) == 0) {
+      return;
+    }
 
     final _RipplePulse? existing = _pointerPulses.remove(event.pointer);
     if (existing != null) _removePulse(existing, rebuild: false);
@@ -1428,6 +1430,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int? _programmaticPageTarget;
   int _pageMotionGeneration = 0;
   bool _userPageDragActive = false;
+  final Set<int> _dragHapticPages = <int>{};
   final ScrollController _navController = ScrollController();
   final PageController _pageController = PageController();
 
@@ -1464,6 +1467,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final bool reduceMotion = AppMotion.reduce(context);
     final int generation = ++_pageMotionGeneration;
     _userPageDragActive = false;
+    _dragHapticPages.clear();
 
     if (reduceMotion) {
       _programmaticPageTarget = null;
@@ -1531,6 +1535,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (notification is ScrollStartNotification &&
         notification.dragDetails != null) {
       _userPageDragActive = true;
+      _dragHapticPages
+        ..clear()
+        ..add(_tab);
       if (_programmaticPageTarget != null) {
         _pageMotionGeneration++;
         _programmaticPageTarget = null;
@@ -1538,6 +1545,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     } else if (notification is ScrollEndNotification && _userPageDragActive) {
       _userPageDragActive = false;
       _finishUserPageMotion();
+      _dragHapticPages.clear();
     }
     return false;
   }
@@ -1551,7 +1559,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (_tab == settledIndex && _settledPage == settledIndex) return;
 
     final bool selectionChanged = _tab != settledIndex;
-    if (selectionChanged) HapticFeedback.selectionClick();
+    if (selectionChanged && _dragHapticPages.add(settledIndex)) {
+      HapticFeedback.selectionClick();
+    }
     setState(() {
       _tab = settledIndex;
       _settledPage = settledIndex;
@@ -1568,7 +1578,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final bool selectionChanged = _tab != index;
     if (_userPageDragActive) {
       if (!selectionChanged) return;
-      HapticFeedback.selectionClick();
+      if (_dragHapticPages.add(index)) HapticFeedback.selectionClick();
       setState(() => _tab = index);
       _scrollNavigation(index);
       return;
@@ -1599,6 +1609,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 position.viewportDimension / 2)
             .clamp(position.minScrollExtent, position.maxScrollExtent)
             .toDouble();
+    if ((position.pixels - target).abs() < .5) return;
     if (AppMotion.reduce(context)) {
       position.jumpTo(target);
       return;
@@ -2272,6 +2283,11 @@ class _PressableState extends State<_Pressable>
         .min(controllerVelocity, gestureReleaseVelocity)
         .clamp(-2.5, 0.0)
         .toDouble();
+    if (_pressController.value.abs() <= .0001 &&
+        releaseVelocity.abs() <= .0001) {
+      if (_pressController.value != 0) _pressController.value = 0;
+      return;
+    }
     _pressController.animateWith(
       SpringSimulation(
         UIConstants.pressSpring,
