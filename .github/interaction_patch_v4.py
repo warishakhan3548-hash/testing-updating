@@ -24,13 +24,13 @@ def replace_region(text: str, start: str, end: str, new: str, label: str) -> str
     return text[:start_at] + new + text[end_at:]
 
 
-# Ignore tiny pointer jitter while preserving the approved press physics.
 source = replace_once(
     source,
     """class _PressableState extends State<_Pressable>\n    with SingleTickerProviderStateMixin {\n  late final AnimationController _pressController;\n""",
     """class _PressableState extends State<_Pressable>\n    with SingleTickerProviderStateMixin {\n  static const double _touchAlignmentEpsilonSquared = .0004;\n\n  late final AnimationController _pressController;\n""",
     'press tracking epsilon constant',
 )
+
 source = replace_once(
     source,
     """    final Alignment nextAlignment = Alignment(x, y);\n    if (nextAlignment == _touchAlignment) return false;\n    _touchAlignment = Alignment(x, y);\n    return true;\n""",
@@ -38,9 +38,6 @@ source = replace_once(
     'press touch alignment deadband',
 )
 
-# Give every programmatic page motion a transaction identity. This prevents
-# stale completion callbacks from winning rapid A -> B -> A tab sequences and
-# explicitly hands control back to a user's drag when they interrupt motion.
 source = replace_once(
     source,
     """  int? _programmaticPageTarget;\n""",
@@ -88,8 +85,6 @@ new_select_tab = """  void _selectTab(int index) {
         .toInt();
     final int pageDistance = (index - currentPage).abs();
 
-    // Distant tab changes stay constant-time: stage beside the destination and
-    // animate only the final page instead of traversing every intermediate view.
     if (pageDistance > 1) {
       final int stagingPage = index > currentPage ? index - 1 : index + 1;
       _pageController.jumpToPage(stagingPage);
@@ -181,45 +176,35 @@ source = replace_region(
     'motion completion and gesture handoff',
 )
 
-# Observe only the PageView's scroll lifecycle. NotificationListener is
-# behavior-only and adds no visual/layout decoration.
-page_pattern = re.compile(
-    r'(?P<indent>^[ \t]*)PageView\(\s*'
-    r'controller:\s*_pageController,\s*'
-    r'physics:\s*const PageScrollPhysics\(\s*'
-    r'parent:\s*BouncingScrollPhysics\(\),\s*'
-    r'\),\s*'
-    r'allowImplicitScrolling:\s*true,\s*'
-    r'onPageChanged:\s*_handlePageChanged,\s*'
-    r'children:\s*screens,\s*'
-    r'\)',
-    re.MULTILINE,
-)
-matches = list(page_pattern.finditer(source))
-if len(matches) != 1:
-    raise SystemExit(
-        f'PageView event surface: expected exactly one canonical match, found {len(matches)}'
-    )
-match = matches[0]
-indent = match.group('indent')
-page_replacement = (
-    f'{indent}NotificationListener<ScrollNotification>(\n'
-    f'{indent}  onNotification: _handlePageScrollNotification,\n'
-    f'{indent}  child: PageView(\n'
-    f'{indent}    controller: _pageController,\n'
-    f'{indent}    physics: const PageScrollPhysics(\n'
-    f'{indent}      parent: BouncingScrollPhysics(),\n'
-    f'{indent}    ),\n'
-    f'{indent}    allowImplicitScrolling: true,\n'
-    f'{indent}    onPageChanged: _handlePageChanged,\n'
-    f'{indent}    children: screens,\n'
-    f'{indent}  ),\n'
-    f'{indent})'
-)
-source = page_pattern.sub(page_replacement, source, count=1)
+page_old = """            child: RepaintBoundary(
+              child: PageView(
+                controller: _pageController,
+                physics: const PageScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                allowImplicitScrolling: true,
+                onPageChanged: _handlePageChanged,
+                children: screens,
+              ),
+            ),
+"""
+page_new = """            child: RepaintBoundary(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: _handlePageScrollNotification,
+                child: PageView(
+                  controller: _pageController,
+                  physics: const PageScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  allowImplicitScrolling: true,
+                  onPageChanged: _handlePageChanged,
+                  children: screens,
+                ),
+              ),
+            ),
+"""
+source = replace_once(source, page_old, page_new, 'PageView event surface')
 
-# The painter already listens to its animation via repaint; unrelated parent
-# rebuilds no longer force a redundant paint pass.
 source = replace_once(
     source,
     """  bool shouldRepaint(covariant _GlobalTapRipplePainter oldDelegate) => true;\n""",
@@ -227,8 +212,7 @@ source = replace_once(
     'ripple painter rebuild guard',
 )
 
-# Visual lock: icon identifiers/codepoints, colors and explicit dimensions must
-# remain byte-equivalent as multisets before and after the behavior patch.
+
 def normalized(items):
     return [re.sub(r'\s+', '', item) for item in items]
 
@@ -257,10 +241,12 @@ test_source = replace_once(
     """    expect(\n      source,\n      contains('bool _updateTouchAlignment(Offset localPosition)'),\n    );\n    expect(\n      source,\n      contains('static const double _touchAlignmentEpsilonSquared = .0004'),\n    );\n    expect(source, contains('deltaX * deltaX + deltaY * deltaY'));\n    expect(source, contains('void _trackTouch(TapMoveDetails details)'));\n""",
     'press tracking regression checks',
 )
+
 test_source = replace_once(
     test_source,
     """    expect(RegExp(r'active: _settledPage ==').allMatches(source), hasLength(7));\n    expect(source, isNot(contains('active: _tab ==')));\n""",
     """    expect(RegExp(r'active: _settledPage ==').allMatches(source), hasLength(7));\n    expect(source, isNot(contains('active: _tab ==')));\n    expect(source, contains('int _pageMotionGeneration = 0'));\n    expect(source, contains('bool _userPageDragActive = false'));\n    expect(source, contains('_pageMotionGeneration != generation'));\n    expect(source, contains('notification.dragDetails != null'));\n    expect(source, contains('NotificationListener<ScrollNotification>'));\n    expect(source, contains('_finishUserPageMotion()'));\n    expect(source, contains('final int pageDistance = (index - currentPage).abs()'));\n    expect(source, contains('if (pageDistance > 1)'));\n    expect(source, contains('_pageController.jumpToPage(stagingPage)'));\n    expect(source, contains('!listEquals(oldDelegate.pulses, pulses)'));\n""",
     'navigation race regression checks',
 )
+
 test.write_text(test_source)
