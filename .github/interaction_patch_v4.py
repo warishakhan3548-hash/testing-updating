@@ -244,6 +244,13 @@ test_source = replace_once(
 
 test_source = replace_once(
     test_source,
+    """    expect(source, contains('_touchAlignment = Alignment(x, y)'));\n""",
+    """    expect(source, contains('_touchAlignment = nextAlignment'));\n""",
+    'touch alignment assignment regression check',
+)
+
+test_source = replace_once(
+    test_source,
     """    expect(source, contains('if (_programmaticPageTarget != null) return;'));\n    expect(source, contains('_finishProgrammaticPageMotion(index)'));\n""",
     """    expect(source, contains('final int generation = ++_pageMotionGeneration'));\n    expect(\n      source,\n      contains('_finishProgrammaticPageMotion(index, generation)'),\n    );\n""",
     'obsolete navigation contract checks',
