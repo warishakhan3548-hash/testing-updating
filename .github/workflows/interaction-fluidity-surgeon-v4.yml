@@ -1,0 +1,128 @@
+name: Interaction Fluidity Surgeon V4
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/interaction-fluidity-surgeon-v4.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch interaction fluidity core
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str, label: str) -> None:
+              source = path.read_text()
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one anchor, found {count}')
+              path.write_text(source.replace(old, new, 1))
+
+          main = Path('lib/main.dart')
+          test = Path('test/ui_micro_aesthetics_test.dart')
+
+          replace_once(
+              main,
+              """class _PressableState extends State<_Pressable>\n    with SingleTickerProviderStateMixin {\n  late final AnimationController _pressController;\n""",
+              """class _PressableState extends State<_Pressable>\n    with SingleTickerProviderStateMixin {\n  static const double _touchAlignmentEpsilonSquared = .0004;\n\n  late final AnimationController _pressController;\n""",
+              'press tracking epsilon constant',
+          )
+
+          replace_once(
+              main,
+              """    final Alignment nextAlignment = Alignment(x, y);\n    if (nextAlignment == _touchAlignment) return false;\n    _touchAlignment = Alignment(x, y);\n    return true;\n""",
+              """    final Alignment nextAlignment = Alignment(x, y);\n    final double deltaX = nextAlignment.x - _touchAlignment.x;\n    final double deltaY = nextAlignment.y - _touchAlignment.y;\n    if (deltaX * deltaX + deltaY * deltaY <\n        _touchAlignmentEpsilonSquared) {\n      return false;\n    }\n    _touchAlignment = nextAlignment;\n    return true;\n""",
+              'press touch alignment deadband',
+          )
+
+          replace_once(
+              main,
+              """  void _selectTab(int index) {\n    if (index < 0 || index >= _tabs.length || _tab == index) return;\n\n    final bool reduceMotion = AppMotion.reduce(context);\n    if (reduceMotion) {\n      _programmaticPageTarget = null;\n      setState(() {\n        _tab = index;\n        _settledPage = index;\n      });\n      _scrollNavigation(index);\n      if (_pageController.hasClients) _pageController.jumpToPage(index);\n      return;\n    }\n\n    setState(() => _tab = index);\n    _scrollNavigation(index);\n\n    if (!_pageController.hasClients) return;\n    _programmaticPageTarget = index;\n    unawaited(\n      _pageController\n          .animateToPage(\n            index,\n            duration: UIConstants.motion,\n            curve: UIConstants.motionOut,\n          )\n          .whenComplete(() => _finishProgrammaticPageMotion(index)),\n    );\n  }\n""",
+              """  void _selectTab(int index) {\n    if (index < 0 || index >= _tabs.length || _tab == index) return;\n\n    final bool reduceMotion = AppMotion.reduce(context);\n    if (reduceMotion) {\n      _programmaticPageTarget = null;\n      setState(() {\n        _tab = index;\n        _settledPage = index;\n      });\n      _scrollNavigation(index);\n      if (_pageController.hasClients) _pageController.jumpToPage(index);\n      return;\n    }\n\n    setState(() => _tab = index);\n    _scrollNavigation(index);\n\n    if (!_pageController.hasClients) return;\n    _programmaticPageTarget = index;\n\n    final double livePage = _pageController.page ?? _settledPage.toDouble();\n    final int currentPage = livePage\n        .round()\n        .clamp(0, _tabs.length - 1)\n        .toInt();\n    final int pageDistance = (index - currentPage).abs();\n\n    // Keep tab transitions constant-time. For a distant destination, move the\n    // viewport beside the target before painting, then animate only the final\n    // page. This avoids traversing and rebuilding every intermediate screen.\n    if (pageDistance > 1) {\n      final int stagingPage = index > currentPage ? index - 1 : index + 1;\n      _pageController.jumpToPage(stagingPage);\n    }\n\n    unawaited(\n      _pageController\n          .animateToPage(\n            index,\n            duration: UIConstants.motion,\n            curve: UIConstants.motionOut,\n          )\n          .whenComplete(() => _finishProgrammaticPageMotion(index)),\n    );\n  }\n""",
+              'constant-distance tab motion',
+          )
+
+          replace_once(
+              test,
+              """    expect(\n      source,\n      contains('bool _updateTouchAlignment(Offset localPosition)'),\n    );\n    expect(source, contains('void _trackTouch(TapMoveDetails details)'));\n""",
+              """    expect(\n      source,\n      contains('bool _updateTouchAlignment(Offset localPosition)'),\n    );\n    expect(\n      source,\n      contains('static const double _touchAlignmentEpsilonSquared = .0004'),\n    );\n    expect(source, contains('deltaX * deltaX + deltaY * deltaY'));\n    expect(source, contains('void _trackTouch(TapMoveDetails details)'));\n""",
+              'press tracking regression checks',
+          )
+
+          replace_once(
+              test,
+              """    expect(RegExp(r'active: _settledPage ==').allMatches(source), hasLength(7));\n    expect(source, isNot(contains('active: _tab ==')));\n""",
+              """    expect(RegExp(r'active: _settledPage ==').allMatches(source), hasLength(7));\n    expect(source, isNot(contains('active: _tab ==')));\n    expect(source, contains('final int pageDistance = (index - currentPage).abs()'));\n    expect(source, contains('if (pageDistance > 1)'));\n    expect(\n      source,\n      contains('final int stagingPage = index > currentPage ? index - 1 : index + 1'),\n    );\n    expect(source, contains('_pageController.jumpToPage(stagingPage)'));\n""",
+              'constant-distance navigation regression checks',
+          )
+          PY
+
+      - name: Remove temporary surgeon
+        run: rm .github/workflows/interaction-fluidity-surgeon-v4.yml
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format patch
+        run: dart format --language-version latest lib/main.dart test/ui_micro_aesthetics_test.dart
+
+      - name: Verify formatting
+        run: dart format --language-version latest --output=none --set-exit-if-changed lib/main.dart test/ui_micro_aesthetics_test.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Stage and validate diff
+        shell: bash
+        run: |
+          git add -A
+          git diff --cached --check
+          actual="$(git diff --cached --name-only | sort)"
+          expected="$(printf '%s\n' '.github/workflows/interaction-fluidity-surgeon-v4.yml' 'lib/main.dart' 'test/ui_micro_aesthetics_test.dart' | sort)"
+          if [ "$actual" != "$expected" ]; then
+            echo "Unexpected staged files:" >&2
+            printf '%s\n' "$actual" >&2
+            exit 1
+          fi
+          git diff --cached --stat
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "ui: optimize press tracking and distant tab motion"
+          git push origin HEAD:main
