@@ -9,10 +9,15 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: interaction-physics-surgeon-main
+  cancel-in-progress: false
+
 jobs:
   patch:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout exact main
         uses: actions/checkout@v4
@@ -31,175 +36,182 @@ jobs:
           source = main_path.read_text()
           tests = test_path.read_text()
 
-          def require(condition: bool, label: str) -> None:
-              if not condition:
-                  raise SystemExit(label)
-
           def replace_once(text: str, old: str, new: str, label: str) -> str:
               count = text.count(old)
               if count != 1:
                   raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
               return text.replace(old, new, 1)
 
-          # 1) Bottom navigation: keep the exact visual tree, but stop rebuilding
-          # its expensive blur/compositing subtree for unrelated sync notifications.
-          nav_start = source.index('class _BottomLedgerNav extends StatelessWidget {')
-          nav_body_marker = '  Widget _buildNavigation(BuildContext context) {'
-          nav_body_start = source.index(nav_body_marker, nav_start)
-          old_prefix = source[nav_start:nav_body_start + len(nav_body_marker)]
-          require('AnimatedBuilder' in old_prefix, 'bottom-nav prefix drifted')
-          new_prefix = '\n'.join([
-              'class _BottomLedgerNav extends StatefulWidget {',
-              '  const _BottomLedgerNav({',
-              '    required this.sync,',
-              '    required this.selected,',
-              '    required this.controller,',
-              '    required this.onSelected,',
-              '  });',
-              '',
-              '  final LedgerSyncService sync;',
-              '  final int selected;',
-              '  final ScrollController controller;',
-              '  final ValueChanged<int> onSelected;',
-              '',
-              '  @override',
-              '  State<_BottomLedgerNav> createState() => _BottomLedgerNavState();',
-              '}',
-              '',
-              'class _BottomLedgerNavState extends State<_BottomLedgerNav> {',
-              '  late List<Color> _colors;',
-              '',
-              '  LedgerSyncService get sync => widget.sync;',
-              '  int get selected => widget.selected;',
-              '  ScrollController get controller => widget.controller;',
-              '  ValueChanged<int> get onSelected => widget.onSelected;',
-              '',
-              '  @override',
-              '  void initState() {',
-              '    super.initState();',
-              '    _colors = _moduleTabColors(sync.currentProjection);',
-              '    sync.addListener(_handleSyncChange);',
-              '  }',
-              '',
-              '  @override',
-              '  void didUpdateWidget(covariant _BottomLedgerNav oldWidget) {',
-              '    super.didUpdateWidget(oldWidget);',
-              '    if (oldWidget.sync == widget.sync) return;',
-              '    oldWidget.sync.removeListener(_handleSyncChange);',
-              '    _colors = _moduleTabColors(sync.currentProjection);',
-              '    sync.addListener(_handleSyncChange);',
-              '  }',
-              '',
-              '  void _handleSyncChange() {',
-              '    final List<Color> colors = _moduleTabColors(sync.currentProjection);',
-              '    if (!mounted || listEquals(_colors, colors)) return;',
-              '    setState(() => _colors = colors);',
-              '  }',
-              '',
-              '  @override',
-              '  void dispose() {',
-              '    sync.removeListener(_handleSyncChange);',
-              '    super.dispose();',
-              '  }',
-              '',
-              '  @override',
-              '  Widget build(BuildContext context) => _buildNavigation(context);',
-              '',
-              nav_body_marker,
-          ])
-          source = source[:nav_start] + new_prefix + source[nav_body_start + len(nav_body_marker):]
-
-          nav_body_start = source.index(nav_body_marker, nav_start)
-          nav_color_line = '    final List<Color> colors = _moduleTabColors(sync.currentProjection);'
-          nav_color_index = source.index(nav_color_line, nav_body_start)
-          source = source[:nav_color_index] + '    final List<Color> colors = _colors;' + source[nav_color_index + len(nav_color_line):]
-
-          # 2) Navigation recentering: preserve geometry and curve, but make the
-          # scroll duration proportional to remaining travel so retargets never lag.
-          scroll_start = source.index('  void _scrollNavigation(int index) {')
-          scroll_end = source.index('\n  @override\n  Widget build(BuildContext context) {', scroll_start)
-          scroll_block = source[scroll_start:scroll_end]
-          scroll_block = replace_once(
-              scroll_block,
-              '    if ((position.pixels - target).abs() < .5) return;',
-              '    final double navTravel = (position.pixels - target).abs();\n    if (navTravel < .5) return;',
-              'nav travel anchor',
+          # Strict visual lock. These sentinels cover the approved geometry,
+          # blur, icon semantics, glow/depth constants, and card fills.
+          visual_sentinels = (
+              'static const double cardRadius = 24;',
+              'static const double heroRadius = 28;',
+              'static const double sheetRadius = 36;',
+              "const IconData premiumHomeIcon = Icons.space_dashboard_rounded;",
+              "const IconData premiumExpenseIcon = Icons.shopping_bag_rounded;",
+              "const IconData premiumDeleteIcon = Icons.delete_outline_rounded;",
+              'Color(0xFAFFFFFF), Color(0xF2FFFFFF)',
+              'Color(0xF0121826), Color(0xE3080C18)',
+              'blurRadius: 52',
+              'spreadRadius: -1.25',
           )
-          scroll_block = replace_once(
-              scroll_block,
-              '    _navController.animateTo(\n      target,\n      duration: UIConstants.motion,\n      curve: UIConstants.motionOut,\n    );',
-              '    final double normalizedTravel = (navTravel / itemExtent)\n        .clamp(.12, 1.0)\n        .toDouble();\n    final int adaptiveMicros =\n        (UIConstants.motion.inMicroseconds * math.sqrt(normalizedTravel))\n            .round()\n            .clamp(\n              const Duration(milliseconds: 90).inMicroseconds,\n              UIConstants.motion.inMicroseconds,\n            )\n            .toInt();\n    _navController.animateTo(\n      target,\n      duration: Duration(microseconds: adaptiveMicros),\n      curve: UIConstants.motionOut,\n    );',
-              'adaptive nav animation',
-          )
-          source = source[:scroll_start] + scroll_block + source[scroll_end:]
+          before_visual = {token: source.count(token) for token in visual_sentinels}
 
-          # 3) Press physics: preserve existing 3D geometry/spring constants while
-          # making release completion generation-safe and depth-coupling fling energy.
-          press_start = source.index('class _PressableState extends State<_Pressable>')
-          press_end = source.index('\nclass _GlassCard extends StatelessWidget', press_start)
-          press = source[press_start:press_end]
-          press = replace_once(
-              press,
+          # 1) Bottom-nav recentering: keep exact geometry and curve, but make
+          # settling time proportional to the actual remaining travel. A tiny
+          # correction jumps directly so repeated rapid taps never queue lag.
+          source = replace_once(
+              source,
+              '''    if ((position.pixels - target).abs() < .5) return;
+    if (AppMotion.reduce(context)) {
+      position.jumpTo(target);
+      return;
+    }
+    _navController.animateTo(
+      target,
+      duration: UIConstants.motion,
+      curve: UIConstants.motionOut,
+    );''',
+              '''    final double navTravel = (position.pixels - target).abs();
+    if (navTravel < .5) return;
+    if (AppMotion.reduce(context) || navTravel < 3) {
+      position.jumpTo(target);
+      return;
+    }
+    final double normalizedTravel = (navTravel / itemExtent)
+        .clamp(.12, 1.0)
+        .toDouble();
+    final int adaptiveMicros =
+        (UIConstants.motion.inMicroseconds * math.sqrt(normalizedTravel))
+            .round()
+            .clamp(
+              const Duration(milliseconds: 90).inMicroseconds,
+              UIConstants.motion.inMicroseconds,
+            )
+            .toInt();
+    _navController.animateTo(
+      target,
+      duration: Duration(microseconds: adaptiveMicros),
+      curve: UIConstants.motionOut,
+    );''',
+              'adaptive bottom-nav settle',
+          )
+
+          # 2) Press release race: a cancelled/stale spring completion must never
+          # clear the touch alignment belonging to a newer press. Generation
+          # ownership gives each release exclusive cleanup rights.
+          source = replace_once(
+              source,
               '  Offset _gestureVelocity = Offset.zero;',
               '  Offset _gestureVelocity = Offset.zero;\n  int _pressMotionGeneration = 0;',
               'press generation field',
           )
-          press = replace_once(
-              press,
-              '  void _resetPressFeedback() {\n    _pressController.stop();',
-              '  void _resetPressFeedback() {\n    _pressMotionGeneration++;\n    _pressController.stop();',
-              'press reset generation',
+          source = replace_once(
+              source,
+              '''  void _resetPressFeedback() {
+    _pressController.stop();''',
+              '''  void _resetPressFeedback() {
+    _pressMotionGeneration++;
+    _pressController.stop();''',
+              'press reset ownership',
           )
-          press = replace_once(
-              press,
-              '  void _captureTouch(TapDownDetails details) {\n    _releaseAlignment = null;',
-              '  void _captureTouch(TapDownDetails details) {\n    _pressMotionGeneration++;\n    _releaseAlignment = null;',
-              'new touch generation',
+          source = replace_once(
+              source,
+              '''  void _captureTouch(TapDownDetails details) {
+    _releaseAlignment = null;''',
+              '''  void _captureTouch(TapDownDetails details) {
+    _pressMotionGeneration++;
+    _releaseAlignment = null;''',
+              'new press ownership',
           )
-
-          release_start = press.index('  void _release({bool cancelled = false}) {')
-          release_end = press.index('\n  void _activate()', release_start)
-          release = press[release_start:release_end]
-          release = replace_once(
-              release,
-              '    if (AppMotion.reduce(context)) {\n      _pressController.stop();\n      if (_pressController.value != 0) _pressController.value = 0;\n      return;\n    }',
-              '    if (AppMotion.reduce(context)) {\n      _pressMotionGeneration++;\n      _pressController.stop();\n      if (_pressController.value != 0) _pressController.value = 0;\n      _touchAlignment = Alignment.center;\n      _releaseAlignment = null;\n      _lastTouchPosition = null;\n      _lastTouchSampleMicros = 0;\n      _gestureVelocity = Offset.zero;\n      return;\n    }',
+          source = replace_once(
+              source,
+              '''    if (AppMotion.reduce(context)) {
+      _pressController.stop();
+      if (_pressController.value != 0) _pressController.value = 0;
+      return;
+    }''',
+              '''    if (AppMotion.reduce(context)) {
+      _pressMotionGeneration++;
+      _pressController.stop();
+      if (_pressController.value != 0) _pressController.value = 0;
+      _touchAlignment = Alignment.center;
+      _releaseAlignment = null;
+      _lastTouchPosition = null;
+      _lastTouchSampleMicros = 0;
+      _gestureVelocity = Offset.zero;
+      return;
+    }''',
               'reduced-motion release cleanup',
           )
-          release = replace_once(
-              release,
-              '    final double gestureReleaseVelocity = _releaseDepthVelocity(\n      gestureVelocity,\n      cancelled: cancelled,\n    );',
-              '    final double pressDepth = _pressController.value\n        .clamp(0.0, 1.0)\n        .toDouble();\n    final double depthCoupling = math.sqrt(pressDepth);\n    final double gestureReleaseVelocity =\n        _releaseDepthVelocity(\n          gestureVelocity,\n          cancelled: cancelled,\n        ) *\n        depthCoupling;',
-              'depth-coupled release velocity',
+          source = replace_once(
+              source,
+              '''    _pressController.animateWith(
+      SpringSimulation(
+        UIConstants.pressSpring,
+        _pressController.value,
+        0,
+        releaseVelocity,
+      ),
+    );''',
+              '''    final int motionGeneration = ++_pressMotionGeneration;
+    _pressController
+        .animateWith(
+          SpringSimulation(
+            UIConstants.pressSpring,
+            _pressController.value,
+            0,
+            releaseVelocity,
+          ),
+        )
+        .whenCompleteOrCancel(() {
+          if (!mounted || motionGeneration != _pressMotionGeneration) return;
+          if (_pressController.value.abs() <= .002 &&
+              _pressController.value != 0) {
+            _pressController.value = 0;
+          }
+          _touchAlignment = Alignment.center;
+          _releaseAlignment = null;
+          _lastTouchPosition = null;
+          _lastTouchSampleMicros = 0;
+          _gestureVelocity = Offset.zero;
+        });''',
+              'generation-safe spring cleanup',
           )
-          release = replace_once(
-              release,
-              '    _pressController.animateWith(\n      SpringSimulation(\n        UIConstants.pressSpring,\n        _pressController.value,\n        0,\n        releaseVelocity,\n      ),\n    );',
-              '    final int motionGeneration = ++_pressMotionGeneration;\n    _pressController\n        .animateWith(\n          SpringSimulation(\n            UIConstants.pressSpring,\n            _pressController.value,\n            0,\n            releaseVelocity,\n          ),\n        )\n        .whenCompleteOrCancel(() {\n          if (!mounted || motionGeneration != _pressMotionGeneration) return;\n          if (_pressController.value.abs() <= .002 &&\n              _pressController.value != 0) {\n            _pressController.value = 0;\n          }\n          _touchAlignment = Alignment.center;\n          _releaseAlignment = null;\n          _lastTouchPosition = null;\n          _lastTouchSampleMicros = 0;\n          _gestureVelocity = Offset.zero;\n        });',
-              'generation-safe spring completion',
+          source = replace_once(
+              source,
+              '''  void dispose() {
+    _gestureClock.stop();
+    _pressController.dispose();''',
+              '''  void dispose() {
+    _pressMotionGeneration++;
+    _gestureClock.stop();
+    _pressController.dispose();''',
+              'press dispose ownership',
           )
-          press = press[:release_start] + release + press[release_end:]
-          press = replace_once(
-              press,
-              '  void dispose() {\n    _gestureClock.stop();\n    _pressController.dispose();',
-              '  void dispose() {\n    _pressMotionGeneration++;\n    _gestureClock.stop();\n    _pressController.dispose();',
-              'press dispose generation',
-          )
-          source = source[:press_start] + press + source[press_end:]
 
-          # Regression guards are source-level by design in this repository.
+          # Source-level regression guards already used by this repository.
           tests = replace_once(
               tests,
               "    expect(pressableSource, contains('easedFreshness = freshness * freshness'));",
-              "    expect(pressableSource, contains('easedFreshness = freshness * freshness'));\n    expect(pressableSource, contains('int _pressMotionGeneration = 0'));\n    expect(pressableSource, contains('final double depthCoupling = math.sqrt(pressDepth)'));\n    expect(pressableSource, contains('.whenCompleteOrCancel(() {'));\n    expect(pressableSource, contains('motionGeneration != _pressMotionGeneration'));",
-              'press source guards',
+              "    expect(pressableSource, contains('easedFreshness = freshness * freshness'));\n    expect(pressableSource, contains('int _pressMotionGeneration = 0'));\n    expect(pressableSource, contains('.whenCompleteOrCancel(() {'));\n    expect(pressableSource, contains('motionGeneration != _pressMotionGeneration'));",
+              'press race regression guards',
           )
           tests = replace_once(
               tests,
-              "    expect(source, contains('(position.pixels - target).abs() < .5'));",
-              "    expect(source, contains('final double navTravel = (position.pixels - target).abs()'));\n    expect(source, contains('final double normalizedTravel = (navTravel / itemExtent)'));\n    expect(source, contains('class _BottomLedgerNav extends StatefulWidget'));\n    expect(source, contains('if (!mounted || listEquals(_colors, colors)) return;'));",
-              'navigation source guards',
+              "    // Navigation and pull-to-refresh keep the snappier feedback model.\n    expect(source, contains('duration: UIConstants.motion'));",
+              "    // Navigation and pull-to-refresh keep the snappier feedback model.\n    expect(source, contains('duration: UIConstants.motion'));\n    expect(source, contains('final double navTravel = (position.pixels - target).abs()'));\n    expect(source, contains('final double normalizedTravel = (navTravel / itemExtent)'));\n    expect(source, contains('duration: Duration(microseconds: adaptiveMicros)'));",
+              'adaptive navigation regression guards',
           )
+
+          after_visual = {token: source.count(token) for token in visual_sentinels}
+          if before_visual != after_visual:
+              changed = [
+                  token for token in visual_sentinels
+                  if before_visual[token] != after_visual[token]
+              ]
+              raise SystemExit(f'visual lock violated: {changed}')
 
           main_path.write_text(source)
           test_path.write_text(tests)
@@ -215,18 +227,53 @@ jobs:
       - name: Resolve packages
         run: flutter pub get
 
-      - name: Format and verify focused interaction layer
+      - name: Verify complete repository
         run: |
           dart format lib/main.dart test/ui_micro_aesthetics_test.dart
           git diff --check
-          flutter analyze lib/main.dart
-          flutter test test/ui_micro_aesthetics_test.dart
+          flutter analyze
+          flutter test
 
-      - name: Commit and push upgraded interaction core
+      - name: Enforce behavioral-only diff
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          from pathlib import Path
+
+          changed = subprocess.check_output(
+              ['git', 'diff', '--name-only'], text=True
+          ).splitlines()
+          allowed = {'lib/main.dart', 'test/ui_micro_aesthetics_test.dart'}
+          unexpected = sorted(set(changed) - allowed)
+          if unexpected:
+              raise SystemExit(f'unexpected changed files: {unexpected}')
+          if not changed:
+              raise SystemExit('surgeon produced no changes')
+
+          diff = subprocess.check_output(
+              ['git', 'diff', '--', 'lib/main.dart'], text=True
+          )
+          forbidden = (
+              'premiumHomeIcon =',
+              'premiumExpenseIcon =',
+              'premiumDeleteIcon =',
+              'cardRadius =',
+              'heroRadius =',
+              'sheetRadius =',
+          )
+          for token in forbidden:
+              touched = [line for line in diff.splitlines()
+                         if line[:1] in '+-' and token in line]
+              if touched:
+                  raise SystemExit(f'visual definition touched: {token}')
+          PY
+
+      - name: Commit and push interaction core
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lib/main.dart test/ui_micro_aesthetics_test.dart
           git diff --cached --quiet && { echo "No app changes to commit"; exit 1; }
-          git commit -m "perf(ui): harden interaction motion physics"
+          git commit -m "perf(ui): harden interaction settling physics"
           git push origin HEAD:main
