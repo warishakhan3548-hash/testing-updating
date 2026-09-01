@@ -376,6 +376,16 @@ void main() {
     expect(source, contains('_finishUserPageMotion()'));
     expect(
       source,
+      contains('class _LedgerPagePhysics extends PageScrollPhysics'),
+    );
+    expect(source, contains('mass: .78'));
+    expect(source, contains('stiffness: 300'));
+    expect(source, contains('damping: 30'));
+    expect(source, contains('physics: const _LedgerPagePhysics('));
+    expect(source, contains('if (_userPageDragActive) {'));
+    expect(source, contains('setState(() => _tab = index);'));
+    expect(
+      source,
       contains('final int pageDistance = (index - currentPage).abs()'),
     );
     expect(source, contains('if (pageDistance > 1)'));

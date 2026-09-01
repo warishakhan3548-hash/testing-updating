@@ -1396,6 +1396,23 @@ const List<_TabSpec> _tabs = <_TabSpec>[
   ),
 ];
 
+class _LedgerPagePhysics extends PageScrollPhysics {
+  const _LedgerPagePhysics({super.parent});
+
+  static const SpringDescription _pageSettleSpring = SpringDescription(
+    mass: .78,
+    stiffness: 300,
+    damping: 30,
+  );
+
+  @override
+  _LedgerPagePhysics applyTo(ScrollPhysics? ancestor) =>
+      _LedgerPagePhysics(parent: buildParent(ancestor));
+
+  @override
+  SpringDescription get spring => _pageSettleSpring;
+}
+
 class AppShell extends StatefulWidget {
   const AppShell({required this.sync, super.key});
 
@@ -1543,12 +1560,21 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   void _handlePageChanged(int index) {
-    // animateToPage can report every intermediate page. The selected tab is
-    // already the user's requested destination, so suppress those callbacks
-    // and their haptics until the driven motion settles.
+    // Driven tab motion owns selection while active. During a live user swipe,
+    // preview only the navigation selection and defer the expensive active-sync
+    // listener handoff until ScrollEnd settles on the final page.
     if (_programmaticPageTarget != null) return;
-    if (_tab == index && _settledPage == index) return;
+
     final bool selectionChanged = _tab != index;
+    if (_userPageDragActive) {
+      if (!selectionChanged) return;
+      HapticFeedback.selectionClick();
+      setState(() => _tab = index);
+      _scrollNavigation(index);
+      return;
+    }
+
+    if (!selectionChanged && _settledPage == index) return;
     if (selectionChanged) HapticFeedback.selectionClick();
     setState(() {
       _tab = index;
@@ -1653,7 +1679,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 onNotification: _handlePageScrollNotification,
                 child: PageView(
                   controller: _pageController,
-                  physics: const PageScrollPhysics(
+                  physics: const _LedgerPagePhysics(
                     parent: BouncingScrollPhysics(),
                   ),
                   allowImplicitScrolling: true,
