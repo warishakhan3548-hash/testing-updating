@@ -71,6 +71,7 @@ abstract final class UIConstants {
 
   static const Duration pressIn = Duration(milliseconds: 70);
   static const Duration pressOut = Duration(milliseconds: 210);
+  static const Duration tapRipple = Duration(milliseconds: 200);
   static const Duration motion = Duration(milliseconds: 260);
   static const Duration dashboardReveal = Duration(milliseconds: 520);
   static const Duration routeIn = Duration(milliseconds: 280);
@@ -1651,8 +1652,9 @@ class _Pressable extends StatefulWidget {
 }
 
 class _PressableState extends State<_Pressable>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _pressController;
+  late final AnimationController _rippleController;
   Alignment _touchAlignment = Alignment.center;
 
   @override
@@ -1666,6 +1668,10 @@ class _PressableState extends State<_Pressable>
       duration: UIConstants.pressIn,
       reverseDuration: UIConstants.pressOut,
     );
+    _rippleController = AnimationController(
+      vsync: this,
+      duration: UIConstants.tapRipple,
+    );
   }
 
   @override
@@ -1674,6 +1680,8 @@ class _PressableState extends State<_Pressable>
     if (oldWidget.onTap != null && widget.onTap == null) {
       _pressController.stop();
       _pressController.value = 0;
+      _rippleController.stop();
+      _rippleController.value = 0;
     }
   }
 
@@ -1690,8 +1698,12 @@ class _PressableState extends State<_Pressable>
   }
 
   void _press([TapDownDetails? details]) {
-    if (widget.onTap == null || !widget.animatePress) return;
-    if (details != null) _captureTouch(details);
+    if (widget.onTap == null) return;
+    if (details != null) {
+      _captureTouch(details);
+      if (!AppMotion.reduce(context)) _rippleController.forward(from: 0);
+    }
+    if (!widget.animatePress) return;
     _pressController.animateTo(
       1,
       duration: UIConstants.pressIn,
@@ -1722,6 +1734,7 @@ class _PressableState extends State<_Pressable>
   @override
   void dispose() {
     _pressController.dispose();
+    _rippleController.dispose();
     super.dispose();
   }
 
@@ -1733,7 +1746,7 @@ class _PressableState extends State<_Pressable>
     onLongPress: widget.onTap == null ? null : _handleLongPress,
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null || !widget.animatePress ? null : _press,
+      onTapDown: widget.onTap == null ? null : _press,
       onTapCancel: widget.onTap == null || !widget.animatePress
           ? null
           : _release,
@@ -1753,13 +1766,25 @@ class _PressableState extends State<_Pressable>
               widget.onTap!();
             },
       child: AnimatedBuilder(
-        animation: _pressController,
+        animation: Listenable.merge(<Listenable>[
+          _pressController,
+          _rippleController,
+        ]),
         child: widget.child,
         builder: (BuildContext context, Widget? child) {
           final bool dark = Theme.of(context).brightness == Brightness.dark;
           final bool reduceMotion = AppMotion.reduce(context);
           final double feedback = _pressController.value;
           final double pressed = feedback.clamp(0.0, 1.0).toDouble();
+          final double rippleProgress = reduceMotion ? 0 : _rippleController.value;
+          final double rippleWave = Curves.easeOutCubic.transform(
+            rippleProgress.clamp(0.0, 1.0).toDouble(),
+          );
+          final double rippleFade = (1 - rippleProgress)
+              .clamp(0.0, 1.0)
+              .toDouble();
+          final Color rippleColor =
+              widget.feedbackColor ?? Theme.of(context).colorScheme.primary;
           final double motion = reduceMotion ? 0 : feedback;
           final double cardTilt = reduceMotion || widget.feedbackColor == null
               ? 0
@@ -1817,6 +1842,26 @@ class _PressableState extends State<_Pressable>
                                 ),
                               ),
                             ),
+                            if (rippleProgress > 0 && rippleProgress < 1)
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: RadialGradient(
+                                    center: _touchAlignment,
+                                    radius: .16 + rippleWave * 1.08,
+                                    colors: <Color>[
+                                      rippleColor.withAlpha(
+                                        (rippleFade * (dark ? 16 : 12)).round(),
+                                      ),
+                                      Colors.transparent,
+                                      rippleColor.withAlpha(
+                                        (rippleFade * (dark ? 82 : 64)).round(),
+                                      ),
+                                      Colors.transparent,
+                                    ],
+                                    stops: const <double>[0, .38, .66, 1],
+                                  ),
+                                ),
+                              ),
                             if (widget.feedbackColor != null)
                               DecoratedBox(
                                 decoration: BoxDecoration(
@@ -2179,6 +2224,7 @@ class _CircleAction extends StatelessWidget {
         onTap: onTap,
         semanticLabel: semanticLabel,
         borderRadius: BorderRadius.circular(24),
+        feedbackColor: color,
         child: Container(
           width: 48,
           height: 48,
@@ -2250,6 +2296,7 @@ class _DeleteActionButton extends StatelessWidget {
         onTap: onTap,
         semanticLabel: semanticLabel,
         borderRadius: radius,
+        feedbackColor: appleRed,
         child: Container(
           width: UIConstants.minTapTarget,
           height: UIConstants.minTapTarget,
@@ -2519,6 +2566,7 @@ class _PrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) => _Pressable(
     onTap: onTap,
     borderRadius: BorderRadius.circular(UIConstants.actionRadius),
+    feedbackColor: color,
     child: Container(
       constraints: const BoxConstraints(minHeight: UIConstants.minTapTarget),
       height: compact
@@ -6351,90 +6399,6 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
   );
 }
 
-class _ExpenseShareRippleAction extends StatefulWidget {
-  const _ExpenseShareRippleAction({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  State<_ExpenseShareRippleAction> createState() =>
-      _ExpenseShareRippleActionState();
-}
-
-class _ExpenseShareRippleActionState extends State<_ExpenseShareRippleAction>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ripple = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 200),
-  );
-
-  @override
-  void dispose() {
-    _ripple.dispose();
-    super.dispose();
-  }
-
-  void _startRipple(PointerDownEvent event) {
-    if (AppMotion.reduce(context)) return;
-    _ripple.forward(from: 0);
-  }
-
-  @override
-  Widget build(BuildContext context) => Listener(
-    behavior: HitTestBehavior.translucent,
-    onPointerDown: _startRipple,
-    child: AnimatedBuilder(
-      animation: _ripple,
-      child: _CircleAction(
-        icon: Icons.share_rounded,
-        color: appleBlue,
-        semanticLabel: 'Share this month expenses',
-        onTap: widget.onTap,
-      ),
-      builder: (BuildContext context, Widget? child) {
-        final double t = _ripple.value;
-        final double wave = Curves.easeOutCubic.transform(t);
-        final double visibility = _ripple.isDismissed ? 0 : 1 - t;
-        final double press = math.sin(math.pi * t);
-        return Stack(
-          alignment: Alignment.center,
-          clipBehavior: Clip.none,
-          children: <Widget>[
-            Transform.scale(scale: 1 - press * .03, child: child),
-            IgnorePointer(
-              child: Opacity(
-                opacity: visibility.clamp(0.0, 1.0),
-                child: Transform.scale(
-                  scale: .44 + wave * .56,
-                  child: Container(
-                    width: UIConstants.minTapTarget,
-                    height: UIConstants.minTapTarget,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: appleBlue.withAlpha(18),
-                      border: Border.all(
-                        color: appleBlue.withAlpha(82),
-                        width: 1.35,
-                      ),
-                      boxShadow: <BoxShadow>[
-                        BoxShadow(
-                          color: appleBlue.withAlpha(24),
-                          blurRadius: 8,
-                          spreadRadius: -2,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    ),
-  );
-}
-
 class ExpenseScreen extends StatefulWidget {
   const ExpenseScreen({required this.sync, super.key});
 
@@ -6558,7 +6522,10 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           title: 'Expenses',
           color: moduleColor,
           actions: <Widget>[
-            _ExpenseShareRippleAction(
+            _CircleAction(
+              icon: Icons.share_rounded,
+              color: appleBlue,
+              semanticLabel: 'Share this month expenses',
               onTap: () => unawaited(_shareCurrentMonthExpenses()),
             ),
             _PrimaryButton(
