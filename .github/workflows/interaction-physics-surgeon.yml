@@ -84,6 +84,9 @@ jobs:
       - name: Resolve packages
         run: flutter pub get
 
+      - name: Format patch
+        run: dart format --language-version latest lib/main.dart test/ui_micro_aesthetics_test.dart
+
       - name: Verify formatting
         run: dart format --language-version latest --output=none --set-exit-if-changed lib/main.dart test/ui_micro_aesthetics_test.dart
 
