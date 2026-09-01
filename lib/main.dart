@@ -70,6 +70,7 @@ abstract final class UIConstants {
   static const EdgeInsets screenPadding = EdgeInsets.fromLTRB(20, 8, 20, 32);
 
   static const Duration pressIn = Duration(milliseconds: 55);
+  static const Duration pressReengageFloor = Duration(milliseconds: 24);
   static const Duration pressOut = Duration(milliseconds: 210);
   static const Duration motion = Duration(milliseconds: 260);
   static const Duration dashboardReveal = Duration(milliseconds: 520);
@@ -2023,18 +2024,26 @@ class _PressableState extends State<_Pressable>
   void _press([TapDownDetails? details]) {
     if (widget.onTap == null || !widget.animatePress) return;
     if (details != null) _captureTouch(details);
+    final double remainingTravel = (1 - _pressController.value)
+        .clamp(0.0, 1.0)
+        .toDouble();
+    final int adaptiveMicros = math.max(
+      UIConstants.pressReengageFloor.inMicroseconds,
+      (UIConstants.pressIn.inMicroseconds * remainingTravel).round(),
+    );
     _pressController.animateTo(
       1,
-      duration: UIConstants.pressIn,
+      duration: Duration(microseconds: adaptiveMicros),
       curve: Curves.easeOutCubic,
     );
   }
 
-  void _release() {
+  void _release({bool cancelled = false}) {
     if (widget.onTap == null || !widget.animatePress) return;
-    final double releaseVelocity = _pressController.velocity
-        .clamp(-2.5, 2.5)
-        .toDouble();
+    final double rawVelocity = cancelled
+        ? math.min(_pressController.velocity, 0.0)
+        : _pressController.velocity;
+    final double releaseVelocity = rawVelocity.clamp(-2.5, 2.5).toDouble();
     _pressController.animateWith(
       SpringSimulation(
         UIConstants.pressSpring,
@@ -2043,11 +2052,6 @@ class _PressableState extends State<_Pressable>
         releaseVelocity,
       ),
     );
-  }
-
-  void _handleLongPress() {
-    _press();
-    HapticFeedback.mediumImpact();
   }
 
   void _activate() {
@@ -2079,12 +2083,10 @@ class _PressableState extends State<_Pressable>
       onTapDown: widget.onTap == null || !widget.animatePress ? null : _press,
       onTapCancel: widget.onTap == null || !widget.animatePress
           ? null
-          : _release,
+          : () => _release(cancelled: true),
       onTapUp: widget.onTap == null || !widget.animatePress
           ? null
           : (_) => _release(),
-      onLongPress: widget.onTap == null ? null : _handleLongPress,
-      onLongPressEnd: widget.onTap == null ? null : (_) => _release(),
       onTap: widget.onTap == null ? null : _activate,
       child: AnimatedBuilder(
         animation: _pressController,

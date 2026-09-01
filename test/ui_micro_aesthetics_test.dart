@@ -87,6 +87,10 @@ void main() {
 
     // Direct manipulation stays brief, tactile and accessibility-aware.
     expect(source, contains('Duration pressIn = Duration(milliseconds: 55)'));
+    expect(
+      source,
+      contains('Duration pressReengageFloor = Duration(milliseconds: 24)'),
+    );
     expect(source, contains('Duration pressOut = Duration(milliseconds: 210)'));
     expect(source, contains('curve: UIConstants.motionOut'));
     expect(source, contains('lowerBound: -.18'));
@@ -119,6 +123,31 @@ void main() {
     expect(source, contains('this.feedbackColor'));
     expect(source, contains('feedbackColor: color'));
     expect(source, contains('feedbackColor: diaryOrange'));
+
+    final int pressableStart = source.indexOf('class _PressableState');
+    final int pressableEnd = source.indexOf('class _GlassCard', pressableStart);
+    expect(pressableStart, greaterThanOrEqualTo(0));
+    expect(pressableEnd, greaterThan(pressableStart));
+    final String pressableSource = source.substring(
+      pressableStart,
+      pressableEnd,
+    );
+    expect(pressableSource, contains('final double remainingTravel ='));
+    expect(
+      pressableSource,
+      contains('duration: Duration(microseconds: adaptiveMicros)'),
+    );
+    expect(
+      pressableSource,
+      contains('void _release({bool cancelled = false})'),
+    );
+    expect(
+      pressableSource,
+      contains('math.min(_pressController.velocity, 0.0)'),
+    );
+    expect(pressableSource, contains('() => _release(cancelled: true)'));
+    expect(pressableSource, isNot(contains('onLongPress:')));
+    expect(pressableSource, isNot(contains('_handleLongPress')));
 
     // Dashboard cards reveal once with a short, direction-neutral stagger.
     // Data-driven list rows deliberately avoid repeated decorative motion.
