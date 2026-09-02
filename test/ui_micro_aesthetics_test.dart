@@ -283,7 +283,7 @@ void main() {
 
     // Frequent card navigation is direct and compositing-friendly. The fully
     // opaque destination canvas prevents ghosting while a four-percent content
-    // settle avoids a hard flash without zooming, bending, or bouncing cards.
+    // settle avoids a hard flash; source controls keep tactile press feedback.
     expect(manifest, isNot(contains('animations:')));
     expect(source, isNot(contains('OpenContainer')));
     expect(source, isNot(contains('CupertinoPageTransition')));
@@ -349,11 +349,25 @@ void main() {
     expect(directSource, isNot(contains('localToGlobal(')));
     expect(directSource, isNot(contains('BackdropFilter(')));
     expect(directSource, isNot(contains('ImageFilter.blur(')));
-    expect(source, contains('animatePress: destinationBuilder == null'));
+
+    // All custom action surfaces keep the shared spring press feedback. The
+    // persistent bottom navigation is the single deliberate exception.
     expect(
-      RegExp(r'animatePress:\s*false').allMatches(source).length,
-      greaterThanOrEqualTo(3),
+      source,
+      isNot(contains('animatePress: destinationBuilder == null')),
     );
+    expect(
+      RegExp(r'animatePress:\s*false').allMatches(source),
+      hasLength(1),
+    );
+    final int bottomNavStart = source.indexOf(
+      'class _BottomLedgerNav extends StatelessWidget',
+    );
+    final int bottomNavEnd = source.indexOf('// PREMIUM_NAV_V2', bottomNavStart);
+    expect(bottomNavStart, greaterThanOrEqualTo(0));
+    expect(bottomNavEnd, greaterThan(bottomNavStart));
+    final String bottomNavSource = source.substring(bottomNavStart, bottomNavEnd);
+    expect(bottomNavSource, contains('animatePress: false,'));
 
     expect(
       RegExp(r'destinationBuilder:\s*\(_\)\s*=>').allMatches(source),
