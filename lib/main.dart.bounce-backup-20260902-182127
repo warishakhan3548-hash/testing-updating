@@ -73,10 +73,6 @@ abstract final class UIConstants {
   static const Duration pressIn = Duration(milliseconds: 55);
   static const Duration pressReengageFloor = Duration(milliseconds: 24);
   static const Duration pressOut = Duration(milliseconds: 210);
-  // BOUNCE_SURFACE_V1
-  // Allow the pressed surface to visibly release before navigation.
-  // Reduced Motion bypasses this delay completely.
-  static const Duration routePressHandoff = Duration(milliseconds: 72);
   static const Duration globalRippleIntentDelay = Duration(milliseconds: 48);
   static const Duration motion = Duration(milliseconds: 260);
   static const Duration navMotion = Duration(milliseconds: 220);
@@ -1097,40 +1093,18 @@ class _FastRouteLauncher extends StatefulWidget {
 
 class _FastRouteLauncherState extends State<_FastRouteLauncher> {
   bool _routeOpen = false;
-  Timer? _launchTimer;
 
   void _open() {
     if (_routeOpen) return;
     _routeOpen = true;
-
-    void launchRoute() {
-      _launchTimer = null;
-      if (!mounted) return;
-
-      final NavigatorState navigator = Navigator.of(context);
-      final PageRoute<Object?> route = _directRoute<Object?>(
-        destinationBuilder: widget.destinationBuilder,
-        reduceMotion: AppMotion.reduce(context),
-      );
-
-      unawaited(
-        navigator.push<Object?>(route).whenComplete(() {
-          if (mounted) _routeOpen = false;
-        }),
-      );
-    }
-
-    if (AppMotion.reduce(context)) {
-      launchRoute();
-    } else {
-      _launchTimer = Timer(UIConstants.routePressHandoff, launchRoute);
-    }
-  }
-
-  @override
-  void dispose() {
-    _launchTimer?.cancel();
-    super.dispose();
+    final NavigatorState navigator = Navigator.of(context);
+    final PageRoute<Object?> route = _directRoute<Object?>(
+      destinationBuilder: widget.destinationBuilder,
+      reduceMotion: AppMotion.reduce(context),
+    );
+    unawaited(
+      navigator.push<Object?>(route).whenComplete(() => _routeOpen = false),
+    );
   }
 
   @override
@@ -2469,6 +2443,7 @@ class _Pressable extends StatefulWidget {
     this.feedbackColor,
     this.semanticLabel,
     this.selected,
+    this.animatePress = true,
   });
 
   final Widget child;
@@ -2477,6 +2452,7 @@ class _Pressable extends StatefulWidget {
   final Color? feedbackColor;
   final String? semanticLabel;
   final bool? selected;
+  final bool animatePress;
 
   @override
   State<_Pressable> createState() => _PressableState();
@@ -2512,9 +2488,10 @@ class _PressableState extends State<_Pressable>
   @override
   void didUpdateWidget(covariant _Pressable oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.onTap != null && widget.onTap == null) {
-      _resetPressFeedback();
-    }
+    final bool interactionDisabled =
+        (oldWidget.onTap != null && widget.onTap == null) ||
+        (oldWidget.animatePress && !widget.animatePress);
+    if (interactionDisabled) _resetPressFeedback();
   }
 
   @override
@@ -2662,7 +2639,7 @@ class _PressableState extends State<_Pressable>
   }
 
   void _trackTouch(TapMoveDetails details) {
-    if (widget.onTap == null) return;
+    if (widget.onTap == null || !widget.animatePress) return;
     _releaseAlignment = null;
     _sampleGestureVelocity(details.localPosition);
     final bool changed = _updateTouchAlignment(details.localPosition);
@@ -2670,7 +2647,7 @@ class _PressableState extends State<_Pressable>
   }
 
   void _press([TapDownDetails? details]) {
-    if (widget.onTap == null) return;
+    if (widget.onTap == null || !widget.animatePress) return;
     if (details != null) _captureTouch(details);
     if (AppMotion.reduce(context)) {
       _pressController.stop();
@@ -2692,7 +2669,7 @@ class _PressableState extends State<_Pressable>
   }
 
   void _release({bool cancelled = false}) {
-    if (widget.onTap == null) return;
+    if (widget.onTap == null || !widget.animatePress) return;
     final Offset gestureVelocity = _freshGestureVelocity();
     _releaseAlignment = _projectReleaseAlignment(gestureVelocity);
     if (AppMotion.reduce(context)) {
@@ -2755,12 +2732,16 @@ class _PressableState extends State<_Pressable>
     child: GestureDetector(
       excludeFromSemantics: true,
       behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null ? null : _press,
-      onTapMove: widget.onTap == null ? null : _trackTouch,
-      onTapCancel: widget.onTap == null
+      onTapDown: widget.onTap == null || !widget.animatePress ? null : _press,
+      onTapMove: widget.onTap == null || !widget.animatePress
+          ? null
+          : _trackTouch,
+      onTapCancel: widget.onTap == null || !widget.animatePress
           ? null
           : () => _release(cancelled: true),
-      onTapUp: widget.onTap == null ? null : (_) => _release(),
+      onTapUp: widget.onTap == null || !widget.animatePress
+          ? null
+          : (_) => _release(),
       onTap: widget.onTap == null ? null : _activate,
       child: AnimatedBuilder(
         animation: _pressController,
@@ -3336,102 +3317,6 @@ class _BackCircle extends StatelessWidget {
   );
 }
 
-class _BounceTextButton extends StatelessWidget {
-  const _BounceTextButton({
-    required this.onTap,
-    required this.child,
-    this.semanticLabel,
-    this.autofocus = false,
-  });
-
-  final VoidCallback? onTap;
-  final Widget child;
-  final String? semanticLabel;
-  final bool autofocus;
-
-  @override
-  Widget build(BuildContext context) => FocusableActionDetector(
-    enabled: onTap != null,
-    autofocus: autofocus,
-    shortcuts: const <ShortcutActivator, Intent>{
-      SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
-      SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
-    },
-    actions: <Type, Action<Intent>>{
-      ActivateIntent: CallbackAction<ActivateIntent>(
-        onInvoke: (ActivateIntent intent) {
-          onTap?.call();
-          return null;
-        },
-      ),
-    },
-    child: _Pressable(
-      onTap: onTap,
-      semanticLabel: semanticLabel,
-      borderRadius: BorderRadius.circular(12),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: UIConstants.minTapTarget),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Center(
-            widthFactor: 1,
-            child: DefaultTextStyle.merge(
-              style: TextStyle(
-                color: onTap == null
-                    ? Theme.of(context).disabledColor
-                    : Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w700,
-              ),
-              child: child,
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-class _BounceIconButton extends StatelessWidget {
-  const _BounceIconButton({
-    required this.onTap,
-    required this.icon,
-    required this.tooltip,
-  });
-
-  final VoidCallback? onTap;
-  final Widget icon;
-  final String tooltip;
-
-  @override
-  Widget build(BuildContext context) => Tooltip(
-    message: tooltip,
-    child: FocusableActionDetector(
-      enabled: onTap != null,
-      shortcuts: const <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
-        SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
-      },
-      actions: <Type, Action<Intent>>{
-        ActivateIntent: CallbackAction<ActivateIntent>(
-          onInvoke: (ActivateIntent intent) {
-            onTap?.call();
-            return null;
-          },
-        ),
-      },
-      child: _Pressable(
-        onTap: onTap,
-        semanticLabel: tooltip,
-        borderRadius: BorderRadius.circular(24),
-        child: SizedBox.square(
-          dimension: UIConstants.minTapTarget,
-          child: Center(child: icon),
-        ),
-      ),
-    ),
-  );
-}
-
 class _SearchBox extends StatefulWidget {
   const _SearchBox({
     required this.hint,
@@ -3822,6 +3707,7 @@ class _ListCard extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget buildCard(VoidCallback? action) => _Pressable(
       onTap: action,
+      animatePress: destinationBuilder == null,
       borderRadius: BorderRadius.circular(UIConstants.cardRadius),
       feedbackColor: color,
       child: _GlassCard(
@@ -4217,16 +4103,14 @@ Future<bool> _confirm(
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
       content: Text(message),
       actions: <Widget>[
-        _BounceTextButton(
+        TextButton(
           autofocus: dangerous,
-          semanticLabel: 'Cancel',
-          onTap: () => Navigator.pop(context, false),
+          onPressed: () => Navigator.pop(context, false),
           child: const Text('Cancel'),
         ),
-        _BounceTextButton(
+        TextButton(
           autofocus: !dangerous,
-          semanticLabel: dangerous ? 'Delete' : 'Continue',
-          onTap: () {
+          onPressed: () {
             if (dangerous) HapticFeedback.heavyImpact();
             Navigator.pop(context, true);
           },
@@ -4357,6 +4241,7 @@ class _AiHubButton extends StatelessWidget {
     const BorderRadius radius = BorderRadius.all(Radius.circular(20));
     return _Pressable(
       onTap: onTap,
+      animatePress: false,
       semanticLabel: 'Open AI Hub',
       borderRadius: radius,
       child: Container(
@@ -4566,6 +4451,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   destinationBuilder: (_) => PartyLedgerScreen(sync: sync),
                   sourceBuilder: (VoidCallback openRoute) => _Pressable(
                     onTap: openRoute,
+                    animatePress: false,
                     borderRadius: BorderRadius.circular(24),
                     feedbackColor: const Color(0xFF9333EA),
                     child: const _GlassCard(
@@ -8190,6 +8076,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
               ? '$entryTitle, date needs correction'
               : '$entryTitle, ${_displayDate(entry['date'])}',
           onTap: openRoute,
+          animatePress: false,
           borderRadius: BorderRadius.circular(23),
           feedbackColor: diaryOrange,
           child: _GlassCard(
@@ -9328,17 +9215,16 @@ class _ExternalAiReadyCard extends StatelessWidget {
               ],
             ),
           ),
-          _BounceTextButton(
-            onTap: onPaste,
-            semanticLabel: 'Paste and review external AI response',
+          TextButton(
+            onPressed: onPaste,
             child: const Text(
               'Paste & Review',
               style: TextStyle(color: purple, fontWeight: FontWeight.w900),
             ),
           ),
-          _BounceIconButton(
+          IconButton(
             tooltip: 'Dismiss external AI session',
-            onTap: onDismiss,
+            onPressed: onDismiss,
             icon: const Icon(Icons.close_rounded, size: 19),
           ),
         ],
@@ -9406,14 +9292,9 @@ class _AiBatchProgressCard extends StatelessWidget {
                 ),
               ),
               if (job.paused && !job.hasStateConflict)
-                _BounceTextButton(
-                  onTap: onRetry,
-                  semanticLabel: 'Retry AI batch',
-                  child: const Text('Retry'),
-                ),
-              _BounceTextButton(
-                onTap: onCancel,
-                semanticLabel: 'Cancel AI batch',
+                TextButton(onPressed: onRetry, child: const Text('Retry')),
+              TextButton(
+                onPressed: onCancel,
                 child: const Text('Cancel', style: TextStyle(color: appleRed)),
               ),
             ],
@@ -9603,9 +9484,11 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
                   decoration: InputDecoration(
                     labelText: 'Gemini API key',
                     prefixIcon: const Icon(Icons.key_rounded),
-                    suffixIcon: _BounceIconButton(
-                      tooltip: obscure ? 'Show API key' : 'Hide API key',
-                      onTap: () => setSheetState(() => obscure = !obscure),
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        HapticFeedback.selectionClick();
+                        setSheetState(() => obscure = !obscure);
+                      },
                       icon: Icon(
                         obscure
                             ? Icons.visibility_rounded
@@ -10485,15 +10368,13 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
           ),
         ),
         actions: <Widget>[
-          _BounceTextButton(
+          TextButton(
             autofocus: true,
-            semanticLabel: 'रद्द करें',
-            onTap: () => Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('रद्द करें'),
           ),
-          _BounceTextButton(
-            semanticLabel: '${plan.actions.length} बदलाव लागू करें',
-            onTap: () => Navigator.pop(dialogContext, true),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(
               '${plan.actions.length} बदलाव लागू करें',
               style: TextStyle(
