@@ -50,29 +50,37 @@ jobs:
 
           path = Path('test/ui_micro_aesthetics_test.dart')
           lines = path.read_text().splitlines()
-          hits = [i for i, line in enumerate(lines) if 'canOwnTapStart' in line]
-          if len(hits) != 1:
+          candidates = []
+          i = 0
+          while i < len(lines):
+              if 'expect(' not in lines[i]:
+                  i += 1
+                  continue
+              start = i
+              end = i
+              while end < len(lines) and ');' not in lines[end]:
+                  end += 1
+              if end >= len(lines):
+                  raise SystemExit(f'Unterminated expect block starting at line {start + 1}')
+              block = '\n'.join(lines[start:end + 1])
+              if (
+                  'canOwnTapStart' in block
+                  and '_tapWins' in block
+                  and '_pointerCancelled' in block
+              ):
+                  candidates.append((start, end))
+              i = end + 1
+
+          if len(candidates) != 1:
               raise SystemExit(
-                  f'Expected exactly one canOwnTapStart assertion anchor, found {len(hits)}'
+                  f'Expected exactly one brittle ownership expectation block, found {len(candidates)}'
               )
 
-          hit = hits[0]
-          start = hit
-          while start >= 0 and 'expect(' not in lines[start]:
-              start -= 1
-          end = hit
-          while end < len(lines) and ');' not in lines[end]:
-              end += 1
-          if start < 0 or end >= len(lines):
-              raise SystemExit('Could not isolate canOwnTapStart expectation block')
-
-          block = '\n'.join(lines[start:end + 1])
-          if '_tapWins' not in block or '_pointerCancelled' not in block:
-              raise SystemExit('Ownership assertion did not match the expected brittle contract')
-
+          start, end = candidates[0]
           indent = lines[start][:len(lines[start]) - len(lines[start].lstrip())]
-          replacement = f"{indent}expect(pressableSource, contains('final canOwnTapStart ='));"
-          lines[start:end + 1] = [replacement]
+          lines[start:end + 1] = [
+              f"{indent}expect(pressableSource, contains('final canOwnTapStart ='));"
+          ]
           path.write_text('\n'.join(lines) + '\n')
           PY
 
