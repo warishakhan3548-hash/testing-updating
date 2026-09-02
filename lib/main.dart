@@ -328,14 +328,17 @@ class AarishDiaryApp extends StatefulWidget {
   State<AarishDiaryApp> createState() => _AarishDiaryAppState();
 }
 
-class _AarishDiaryAppState extends State<AarishDiaryApp> {
+class _AarishDiaryAppState extends State<AarishDiaryApp>
+    with WidgetsBindingObserver {
   late bool _booting;
   late bool _darkMode;
+  late bool _reduceMotion;
   String? _userId;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _readRootState();
     widget.sync.addListener(_handleSyncChange);
   }
@@ -352,6 +355,7 @@ class _AarishDiaryAppState extends State<AarishDiaryApp> {
   void _readRootState() {
     _booting = widget.sync.booting;
     _darkMode = widget.sync.darkMode;
+    _reduceMotion = WidgetsBinding.instance.disableAnimations;
     _userId = widget.sync.user?.uid;
   }
 
@@ -371,7 +375,15 @@ class _AarishDiaryAppState extends State<AarishDiaryApp> {
   }
 
   @override
+  void didChangeAccessibilityFeatures() {
+    final bool reduceMotion = WidgetsBinding.instance.disableAnimations;
+    if (!mounted || reduceMotion == _reduceMotion) return;
+    setState(() => _reduceMotion = reduceMotion);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.sync.removeListener(_handleSyncChange);
     super.dispose();
   }
@@ -383,7 +395,9 @@ class _AarishDiaryAppState extends State<AarishDiaryApp> {
     themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
     theme: _theme(Brightness.light),
     darkTheme: _theme(Brightness.dark),
-    themeAnimationDuration: const Duration(milliseconds: 300),
+    themeAnimationDuration: _reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 300),
     themeAnimationCurve: const Cubic(0.25, 1, 0.5, 1),
     builder: (BuildContext context, Widget? child) => _GlobalTapRippleLayer(
       child: _AmbientBackground(child: child ?? const SizedBox.shrink()),
@@ -9629,13 +9643,19 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
 
   void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
+      if (!mounted || !_scroll.hasClients) return;
+      final double target = _scroll.position.maxScrollExtent;
+      if (AppMotion.reduce(context)) {
+        _scroll.jumpTo(target);
+        return;
+      }
+      unawaited(
         _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
+          target,
           duration: const Duration(milliseconds: 210),
           curve: const Cubic(0.2, 0.8, 0.2, 1),
-        );
-      }
+        ),
+      );
     });
   }
 
@@ -10862,7 +10882,9 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
         ),
         const SizedBox(height: 14),
         AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
+          duration: AppMotion.reduce(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 180),
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
           child: Text(
@@ -10904,7 +10926,9 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
       },
       borderRadius: BorderRadius.circular(18),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: AppMotion.reduce(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 220),
         curve: const Cubic(0.2, 0.8, 0.2, 1),
         height: 72,
         padding: const EdgeInsets.symmetric(horizontal: 10),

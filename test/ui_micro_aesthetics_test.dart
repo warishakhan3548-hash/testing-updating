@@ -520,6 +520,61 @@ void main() {
     expect(shellEnd, greaterThan(shellStart));
     final String shellSource = source.substring(shellStart, shellEnd);
     expect(shellSource, contains('child: RepaintBoundary(child: child),'));
+    // Root, delayed-scroll and export motion honor live platform accessibility.
+    final int rootMotionStart = source.indexOf(
+      'class _AarishDiaryAppState extends State<AarishDiaryApp>',
+    );
+    final int rootMotionEnd = source.indexOf(
+      'class _RootStage extends StatelessWidget',
+      rootMotionStart,
+    );
+    expect(rootMotionStart, greaterThanOrEqualTo(0));
+    expect(rootMotionEnd, greaterThan(rootMotionStart));
+    final String rootMotionSource = source.substring(
+      rootMotionStart,
+      rootMotionEnd,
+    );
+    expect(rootMotionSource, contains('with WidgetsBindingObserver'));
+    expect(rootMotionSource, contains('late bool _reduceMotion;'));
+    expect(
+      rootMotionSource,
+      contains('WidgetsBinding.instance.addObserver(this);'),
+    );
+    expect(
+      rootMotionSource,
+      contains('_reduceMotion = WidgetsBinding.instance.disableAnimations;'),
+    );
+    expect(rootMotionSource, contains('void didChangeAccessibilityFeatures()'));
+    expect(
+      rootMotionSource,
+      contains('WidgetsBinding.instance.removeObserver(this);'),
+    );
+    expect(rootMotionSource, contains('themeAnimationDuration: _reduceMotion'));
+    expect(
+      rootMotionSource,
+      isNot(
+        contains('themeAnimationDuration: const Duration(milliseconds: 300)'),
+      ),
+    );
+    expect(source, contains('if (!mounted || !_scroll.hasClients) return;'));
+    expect(source, contains('_scroll.jumpTo(target);'));
+    expect(
+      source,
+      contains(
+        'duration: AppMotion.reduce(context)\n'
+        '              ? Duration.zero\n'
+        '              : const Duration(milliseconds: 180)',
+      ),
+    );
+    expect(
+      source,
+      contains(
+        'duration: AppMotion.reduce(context)\n'
+        '            ? Duration.zero\n'
+        '            : const Duration(milliseconds: 220)',
+      ),
+    );
+
     // Brand/state color logic and Firebase integration must stay untouched.
     expect(source, contains("import 'firebase_sync.dart';"));
     expect(source, contains('Firebase.initializeApp('));
