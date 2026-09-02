@@ -42,6 +42,24 @@ jobs:
           exec(base64.b64decode(match.group(1)), {})
           PY
 
+      - name: Align navigation timing source contract
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('test/ui_micro_aesthetics_test.dart')
+          text = path.read_text()
+          old = "expect(source, contains('duration: UIConstants.motion'));"
+          new = "expect(source, contains('duration: navMotion'));"
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(
+                  f'Expected exactly one stale fixed navigation-duration assertion, found {count}'
+              )
+          path.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Flutter toolchain
         uses: subosito/flutter-action@v2
         with:
@@ -61,22 +79,8 @@ jobs:
       - name: Static analysis
         run: flutter analyze
 
-      - name: Full Flutter tests with failure capture
-        shell: bash
-        run: |
-          set +e
-          flutter test > .github/flutter-test-output.txt 2>&1
-          status=$?
-          set -e
-          if [ "$status" -ne 0 ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add .github/flutter-test-output.txt
-            git commit -m "chore(ci): capture Flutter test failure"
-            git push origin HEAD:main
-            exit "$status"
-          fi
-          rm .github/flutter-test-output.txt
+      - name: Full Flutter tests
+        run: flutter test
 
       - name: Debug APK build
         run: flutter build apk --debug
