@@ -37,8 +37,6 @@ jobs:
           source = main_path.read_text()
           tests = test_path.read_text()
 
-          # Lock approved visual identity. This surgeon may change render-tree
-          # ownership and compositing only; colors, dimensions and icons stay exact.
           visual_sentinels = (
               'static const double cardRadius = 24;',
               'static const double heroRadius = 28;',
@@ -54,103 +52,71 @@ jobs:
           )
           before_visual = {token: source.count(token) for token in visual_sentinels}
 
-          old_ripple_build = '''  @override
-          Widget build(BuildContext context) {
-            Widget surface = widget.child;
-            if (_pulses.isNotEmpty) {
-              final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable(
-                _pulses,
-              );
-              final Listenable repaint = Listenable.merge(
-                snapshot
-                    .map<Listenable>((_RipplePulse pulse) => pulse.controller)
-                    .toList(),
-              );
-              surface = Stack(
-                fit: StackFit.expand,
-                children: <Widget>[
-                  widget.child,
-                  IgnorePointer(
-                    child: RepaintBoundary(
-                      child: CustomPaint(
-                        painter: _GlobalTapRipplePainter(
-                          pulses: snapshot,
-                          repaint: repaint,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            }
+          ripple_class_start = source.index('class _GlobalTapRippleLayerState')
+          ripple_class_end = source.index(
+              '\n}\n\nclass _GlobalTapRipplePainter',
+              ripple_class_start,
+          )
+          ripple_source = source[ripple_class_start:ripple_class_end]
 
-            return Listener(
-              behavior: HitTestBehavior.translucent,
-              onPointerDown: _handlePointerDown,
-              onPointerMove: _handlePointerMove,
-              onPointerUp: _handlePointerUp,
-              onPointerCancel: _handlePointerCancel,
-              child: surface,
-            );
-          }'''
-
-          new_ripple_build = '''  @override
-          Widget build(BuildContext context) {
-            // The application subtree must keep the same parent whether a pulse
-            // exists or not. Conditionally inserting/removing the Stack would
-            // reparent the Navigator subtree on every tap, causing avoidable
-            // element churn and risking focus/state discontinuities.
-            final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable(
-              _pulses,
-            );
-
-            return Listener(
-              behavior: HitTestBehavior.translucent,
-              onPointerDown: _handlePointerDown,
-              onPointerMove: _handlePointerMove,
-              onPointerUp: _handlePointerUp,
-              onPointerCancel: _handlePointerCancel,
-              child: Stack(
-                fit: StackFit.expand,
-                children: <Widget>[
-                  widget.child,
-                  if (snapshot.isNotEmpty)
-                    IgnorePointer(
-                      child: RepaintBoundary(
-                        child: CustomPaint(
-                          painter: _GlobalTapRipplePainter(
-                            pulses: snapshot,
-                            repaint: Listenable.merge(
-                              snapshot
-                                  .map<Listenable>(
-                                    (_RipplePulse pulse) => pulse.controller,
-                                  )
-                                  .toList(),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          }'''
-
-          if 'Widget surface = widget.child;' in source:
-              count = source.count(old_ripple_build)
-              if count != 1:
-                  raise SystemExit(
-                      f'global ripple build: expected exactly 1 current block, found {count}'
-                  )
-              source = source.replace(old_ripple_build, new_ripple_build, 1)
+          if 'Widget surface = widget.child;' in ripple_source:
+              build_start = source.index(
+                  '  @override\n  Widget build(BuildContext context) {',
+                  ripple_class_start,
+              )
+              old_build = source[build_start:ripple_class_end]
+              if 'child: surface,' not in old_build:
+                  raise SystemExit('global ripple old build shape is not recognized')
+              new_build = '\n'.join([
+                  '  @override',
+                  '  Widget build(BuildContext context) {',
+                  '    // The application subtree must keep the same parent whether a pulse',
+                  '    // exists or not. Conditionally inserting/removing the Stack would',
+                  '    // reparent the Navigator subtree on every tap, causing avoidable',
+                  '    // element churn and risking focus/state discontinuities.',
+                  '    final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable(',
+                  '      _pulses,',
+                  '    );',
+                  '',
+                  '    return Listener(',
+                  '      behavior: HitTestBehavior.translucent,',
+                  '      onPointerDown: _handlePointerDown,',
+                  '      onPointerMove: _handlePointerMove,',
+                  '      onPointerUp: _handlePointerUp,',
+                  '      onPointerCancel: _handlePointerCancel,',
+                  '      child: Stack(',
+                  '        fit: StackFit.expand,',
+                  '        children: <Widget>[',
+                  '          widget.child,',
+                  '          if (snapshot.isNotEmpty)',
+                  '            IgnorePointer(',
+                  '              child: RepaintBoundary(',
+                  '                child: CustomPaint(',
+                  '                  painter: _GlobalTapRipplePainter(',
+                  '                    pulses: snapshot,',
+                  '                    repaint: Listenable.merge(',
+                  '                      snapshot',
+                  '                          .map<Listenable>(',
+                  '                            (_RipplePulse pulse) => pulse.controller,',
+                  '                          )',
+                  '                          .toList(),',
+                  '                    ),',
+                  '                  ),',
+                  '                ),',
+                  '              ),',
+                  '            ),',
+                  '        ],',
+                  '      ),',
+                  '    );',
+                  '  }',
+              ])
+              source = source[:build_start] + new_build + source[ripple_class_end:]
           else:
-              ripple_start = source.index('class _GlobalTapRippleLayerState')
-              ripple_end = source.index('class _GlobalTapRipplePainter', ripple_start)
-              ripple_source = source[ripple_start:ripple_end]
               required_existing = (
                   'final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable(',
                   'child: Stack(',
                   'if (snapshot.isNotEmpty)',
+                  'widget.child,',
               )
               missing = [token for token in required_existing if token not in ripple_source]
               if missing:
@@ -159,19 +125,19 @@ jobs:
           shell_start = source.index('class _AppShellState extends State<AppShell>')
           shell_end = source.index('class _KeepAlivePage extends StatefulWidget', shell_start)
           shell = source[shell_start:shell_end]
-          old_page_child = '''  Widget _buildSwipeMotionPage(int index, Widget child) => AnimatedBuilder(
-            animation: _pageController,
-            child: child,
-            builder: (BuildContext context, Widget? stableChild) {'''
-          new_page_child = '''  Widget _buildSwipeMotionPage(int index, Widget child) => AnimatedBuilder(
-            animation: _pageController,
-            // Isolate the expensive live screen from the small transform layer.
-            // The page can repaint when its own data changes, while swipe frames
-            // can usually be satisfied by compositor work instead of repainting
-            // every card, list row and shadow below the 3D transform.
-            child: RepaintBoundary(child: child),
-            builder: (BuildContext context, Widget? stableChild) {'''
           if 'child: RepaintBoundary(child: child),' not in shell:
+              old_page_child = (
+                  '    child: child,\n'
+                  '    builder: (BuildContext context, Widget? stableChild) {'
+              )
+              new_page_child = (
+                  '    // Isolate the expensive live screen from the small transform layer.\n'
+                  '    // The page can repaint when its own data changes, while swipe frames\n'
+                  '    // can usually be satisfied by compositor work instead of repainting\n'
+                  '    // every card, list row and shadow below the 3D transform.\n'
+                  '    child: RepaintBoundary(child: child),\n'
+                  '    builder: (BuildContext context, Widget? stableChild) {'
+              )
               count = shell.count(old_page_child)
               if count != 1:
                   raise SystemExit(
@@ -194,43 +160,44 @@ jobs:
               insertion_point = tests.index(
                   '    // Brand/state color logic and Firebase integration must stay untouched.\n'
               )
-              guard = '''    // Stable global feedback must never reparent the application subtree.
-              final int rippleStart = source.indexOf('class _GlobalTapRippleLayerState');
-              final int rippleEnd = source.indexOf(
-                'class _GlobalTapRipplePainter',
-                rippleStart,
-              );
-              expect(rippleStart, greaterThanOrEqualTo(0));
-              expect(rippleEnd, greaterThan(rippleStart));
-              final String rippleSource = source.substring(rippleStart, rippleEnd);
-              expect(rippleSource, isNot(contains('Widget surface = widget.child;')));
-              expect(
-                rippleSource,
-                contains('final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable('),
-              );
-              expect(rippleSource, contains('child: Stack('));
-              expect(rippleSource, contains('if (snapshot.isNotEmpty)'));
-              expect(rippleSource, contains('widget.child,'));
-
-              // Swipe depth is a compositor concern; the live ledger screen below
-              // it remains its own repaint boundary so 60/90/120Hz transforms do
-              // not force every card and row to repaint on each gesture frame.
-              final int shellStart = source.indexOf(
-                'class _AppShellState extends State<AppShell>',
-              );
-              final int shellEnd = source.indexOf(
-                'class _KeepAlivePage extends StatefulWidget',
-                shellStart,
-              );
-              expect(shellStart, greaterThanOrEqualTo(0));
-              expect(shellEnd, greaterThan(shellStart));
-              final String shellSource = source.substring(shellStart, shellEnd);
-              expect(
-                shellSource,
-                contains('child: RepaintBoundary(child: child),'),
-              );
-
-          '''
+              guard = '\n'.join([
+                  '    // Stable global feedback must never reparent the application subtree.',
+                  "    final int rippleStart = source.indexOf('class _GlobalTapRippleLayerState');",
+                  '    final int rippleEnd = source.indexOf(',
+                  "      'class _GlobalTapRipplePainter',",
+                  '      rippleStart,',
+                  '    );',
+                  '    expect(rippleStart, greaterThanOrEqualTo(0));',
+                  '    expect(rippleEnd, greaterThan(rippleStart));',
+                  '    final String rippleSource = source.substring(rippleStart, rippleEnd);',
+                  "    expect(rippleSource, isNot(contains('Widget surface = widget.child;')));",
+                  '    expect(',
+                  '      rippleSource,',
+                  "      contains('final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable('),",
+                  '    );',
+                  "    expect(rippleSource, contains('child: Stack('));",
+                  "    expect(rippleSource, contains('if (snapshot.isNotEmpty)'));",
+                  "    expect(rippleSource, contains('widget.child,'));",
+                  '',
+                  '    // Swipe depth is a compositor concern; the live ledger screen below',
+                  '    // it remains its own repaint boundary so 60/90/120Hz transforms do',
+                  '    // not force every card and row to repaint on each gesture frame.',
+                  '    final int shellStart = source.indexOf(',
+                  "      'class _AppShellState extends State<AppShell>',",
+                  '    );',
+                  '    final int shellEnd = source.indexOf(',
+                  "      'class _KeepAlivePage extends StatefulWidget',",
+                  '      shellStart,',
+                  '    );',
+                  '    expect(shellStart, greaterThanOrEqualTo(0));',
+                  '    expect(shellEnd, greaterThan(shellStart));',
+                  '    final String shellSource = source.substring(shellStart, shellEnd);',
+                  '    expect(',
+                  '      shellSource,',
+                  "      contains('child: RepaintBoundary(child: child),'),",
+                  '    );',
+                  '',
+              ])
               tests = tests[:insertion_point] + guard + tests[insertion_point:]
 
           main_path.write_text(source)
