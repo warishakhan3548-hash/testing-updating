@@ -18,7 +18,7 @@ jobs:
   patch:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - name: Checkout exact main
         uses: actions/checkout@v4
@@ -26,7 +26,7 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Stabilize premium interaction render tree
+      - name: Harden accessibility and lifecycle motion contracts
         shell: bash
         run: |
           python3 <<'PY'
@@ -49,102 +49,178 @@ jobs:
               'height: 88,',
               'Color(0xFAFFFFFF), Color(0xF2FFFFFF)',
               'Color(0xF0121826), Color(0xE3080C18)',
+              '..setEntry(3, 2, .00075)',
+              '..rotateY(-delta * .018)',
+              'offset: Offset(0, depth * 1.8)',
+              '..setEntry(3, 2, .0013)',
           )
           before_visual = {token: source.count(token) for token in visual_sentinels}
 
-          ripple_class_start = source.index('class _GlobalTapRippleLayerState')
-          ripple_class_end = source.index(
-              '\n}\n\nclass _GlobalTapRipplePainter',
-              ripple_class_start,
-          )
-          ripple_source = source[ripple_class_start:ripple_class_end]
-
-          if 'Widget surface = widget.child;' in ripple_source:
-              build_start = source.index(
-                  '  @override\n  Widget build(BuildContext context) {',
-                  ripple_class_start,
-              )
-              old_build = source[build_start:ripple_class_end]
-              if 'child: surface,' not in old_build:
-                  raise SystemExit('global ripple old build shape is not recognized')
-              new_build = '\n'.join([
-                  '  @override',
-                  '  Widget build(BuildContext context) {',
-                  '    // The application subtree must keep the same parent whether a pulse',
-                  '    // exists or not. Conditionally inserting/removing the Stack would',
-                  '    // reparent the Navigator subtree on every tap, causing avoidable',
-                  '    // element churn and risking focus/state discontinuities.',
-                  '    final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable(',
-                  '      _pulses,',
-                  '    );',
-                  '',
-                  '    return Listener(',
-                  '      behavior: HitTestBehavior.translucent,',
-                  '      onPointerDown: _handlePointerDown,',
-                  '      onPointerMove: _handlePointerMove,',
-                  '      onPointerUp: _handlePointerUp,',
-                  '      onPointerCancel: _handlePointerCancel,',
-                  '      child: Stack(',
-                  '        fit: StackFit.expand,',
-                  '        children: <Widget>[',
-                  '          widget.child,',
-                  '          if (snapshot.isNotEmpty)',
-                  '            IgnorePointer(',
-                  '              child: RepaintBoundary(',
-                  '                child: CustomPaint(',
-                  '                  painter: _GlobalTapRipplePainter(',
-                  '                    pulses: snapshot,',
-                  '                    repaint: Listenable.merge(',
-                  '                      snapshot',
-                  '                          .map<Listenable>(',
-                  '                            (_RipplePulse pulse) => pulse.controller,',
-                  '                          )',
-                  '                          .toList(),',
-                  '                    ),',
-                  '                  ),',
-                  '                ),',
-                  '              ),',
-                  '            ),',
-                  '        ],',
-                  '      ),',
-                  '    );',
-                  '  }',
-              ])
-              source = source[:build_start] + new_build + source[ripple_class_end:]
-          else:
-              required_existing = (
-                  'final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable(',
-                  'child: Stack(',
-                  'if (snapshot.isNotEmpty)',
-                  'widget.child,',
-              )
-              missing = [token for token in required_existing if token not in ripple_source]
-              if missing:
-                  raise SystemExit(f'global ripple stable-tree contract missing: {missing}')
-
-          shell_start = source.index('class _AppShellState extends State<AppShell>')
-          shell_end = source.index('class _KeepAlivePage extends StatefulWidget', shell_start)
-          shell = source[shell_start:shell_end]
-          if 'child: RepaintBoundary(child: child),' not in shell:
-              old_page_child = (
-                  '    child: child,\n'
-                  '    builder: (BuildContext context, Widget? stableChild) {'
-              )
-              new_page_child = (
-                  '    // Isolate the expensive live screen from the small transform layer.\n'
-                  '    // The page can repaint when its own data changes, while swipe frames\n'
-                  '    // can usually be satisfied by compositor work instead of repainting\n'
-                  '    // every card, list row and shadow below the 3D transform.\n'
-                  '    child: RepaintBoundary(child: child),\n'
-                  '    builder: (BuildContext context, Widget? stableChild) {'
-              )
-              count = shell.count(old_page_child)
+          def replace_once(text, old, new, label):
+              count = text.count(old)
               if count != 1:
-                  raise SystemExit(
-                      f'swipe compositor boundary: expected 1 current block, found {count}'
-                  )
-              shell = shell.replace(old_page_child, new_page_child, 1)
-              source = source[:shell_start] + shell + source[shell_end:]
+                  raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
+              return text.replace(old, new, 1)
+
+          app_start = source.index('class _AarishDiaryAppState extends State<AarishDiaryApp>')
+          app_end = source.index('class _RootStage extends StatelessWidget', app_start)
+          app_source = source[app_start:app_end]
+
+          if 'late bool _reduceMotion;' not in app_source:
+              source = replace_once(
+                  source,
+                  '''class _AarishDiaryAppState extends State<AarishDiaryApp> {
+  late bool _booting;
+  late bool _darkMode;
+  String? _userId;''',
+                  '''class _AarishDiaryAppState extends State<AarishDiaryApp>
+    with WidgetsBindingObserver {
+  late bool _booting;
+  late bool _darkMode;
+  late bool _reduceMotion;
+  String? _userId;''',
+                  'root observer declaration',
+              )
+              source = replace_once(
+                  source,
+                  '''  void initState() {
+    super.initState();
+    _readRootState();
+    widget.sync.addListener(_handleSyncChange);
+  }''',
+                  '''  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _readRootState();
+    widget.sync.addListener(_handleSyncChange);
+  }''',
+                  'root observer registration',
+              )
+              source = replace_once(
+                  source,
+                  '''  void _readRootState() {
+    _booting = widget.sync.booting;
+    _darkMode = widget.sync.darkMode;
+    _userId = widget.sync.user?.uid;
+  }''',
+                  '''  void _readRootState() {
+    _booting = widget.sync.booting;
+    _darkMode = widget.sync.darkMode;
+    _reduceMotion = WidgetsBinding.instance.disableAnimations;
+    _userId = widget.sync.user?.uid;
+  }''',
+                  'root motion state initialization',
+              )
+              source = replace_once(
+                  source,
+                  '''  @override
+  void dispose() {
+    widget.sync.removeListener(_handleSyncChange);
+    super.dispose();
+  }''',
+                  '''  @override
+  void didChangeAccessibilityFeatures() {
+    final bool reduceMotion = WidgetsBinding.instance.disableAnimations;
+    if (!mounted || reduceMotion == _reduceMotion) return;
+    setState(() => _reduceMotion = reduceMotion);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.sync.removeListener(_handleSyncChange);
+    super.dispose();
+  }''',
+                  'root accessibility callback and cleanup',
+              )
+              source = replace_once(
+                  source,
+                  '    themeAnimationDuration: const Duration(milliseconds: 300),',
+                  '''    themeAnimationDuration: _reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 300),''',
+                  'theme reduced-motion duration',
+              )
+
+          app_start = source.index('class _AarishDiaryAppState extends State<AarishDiaryApp>')
+          app_end = source.index('class _RootStage extends StatelessWidget', app_start)
+          app_source = source[app_start:app_end]
+          for token in (
+              'with WidgetsBindingObserver',
+              'late bool _reduceMotion;',
+              'WidgetsBinding.instance.addObserver(this);',
+              '_reduceMotion = WidgetsBinding.instance.disableAnimations;',
+              'void didChangeAccessibilityFeatures()',
+              'WidgetsBinding.instance.removeObserver(this);',
+              'themeAnimationDuration: _reduceMotion',
+          ):
+              if token not in app_source:
+                  raise SystemExit(f'missing root motion contract: {token}')
+
+          old_scroll = '''  void _scrollToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 210),
+          curve: const Cubic(0.2, 0.8, 0.2, 1),
+        );
+      }
+    });
+  }'''
+          new_scroll = '''  void _scrollToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      final double target = _scroll.position.maxScrollExtent;
+      if (AppMotion.reduce(context)) {
+        _scroll.jumpTo(target);
+        return;
+      }
+      unawaited(
+        _scroll.animateTo(
+          target,
+          duration: const Duration(milliseconds: 210),
+          curve: const Cubic(0.2, 0.8, 0.2, 1),
+        ),
+      );
+    });
+  }'''
+          if old_scroll in source:
+              source = replace_once(source, old_scroll, new_scroll, 'AI scroll lifecycle guard')
+          elif new_scroll not in source:
+              raise SystemExit('AI scroll block is neither current nor upgraded')
+
+          old_export_switch = '''        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),'''
+          new_export_switch = '''        AnimatedSwitcher(
+          duration: AppMotion.reduce(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 180),'''
+          if old_export_switch in source:
+              source = replace_once(
+                  source,
+                  old_export_switch,
+                  new_export_switch,
+                  'export hint reduced-motion duration',
+              )
+          elif new_export_switch not in source:
+              raise SystemExit('export hint animation block is neither current nor upgraded')
+
+          old_export_option = '''      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),'''
+          new_export_option = '''      child: AnimatedContainer(
+        duration: AppMotion.reduce(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 220),'''
+          if old_export_option in source:
+              source = replace_once(
+                  source,
+                  old_export_option,
+                  new_export_option,
+                  'export option reduced-motion duration',
+              )
+          elif new_export_option not in source:
+              raise SystemExit('export option animation block is neither current nor upgraded')
 
           after_visual = {token: source.count(token) for token in visual_sentinels}
           if before_visual != after_visual:
@@ -155,49 +231,71 @@ jobs:
               }
               raise SystemExit(f'visual lock violated: {changed}')
 
-          guard_marker = '    // Stable global feedback must never reparent the application subtree.\n'
+          guard_marker = '    // Root, delayed-scroll and export motion honor live platform accessibility.\n'
           if guard_marker not in tests:
-              insertion_point = tests.index(
-                  '    // Brand/state color logic and Firebase integration must stay untouched.\n'
-              )
-              guard = '\n'.join([
-                  '    // Stable global feedback must never reparent the application subtree.',
-                  "    final int rippleStart = source.indexOf('class _GlobalTapRippleLayerState');",
-                  '    final int rippleEnd = source.indexOf(',
-                  "      'class _GlobalTapRipplePainter',",
-                  '      rippleStart,',
-                  '    );',
-                  '    expect(rippleStart, greaterThanOrEqualTo(0));',
-                  '    expect(rippleEnd, greaterThan(rippleStart));',
-                  '    final String rippleSource = source.substring(rippleStart, rippleEnd);',
-                  "    expect(rippleSource, isNot(contains('Widget surface = widget.child;')));",
-                  '    expect(',
-                  '      rippleSource,',
-                  "      contains('final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable('),",
-                  '    );',
-                  "    expect(rippleSource, contains('child: Stack('));",
-                  "    expect(rippleSource, contains('if (snapshot.isNotEmpty)'));",
-                  "    expect(rippleSource, contains('widget.child,'));",
-                  '',
-                  '    // Swipe depth is a compositor concern; the live ledger screen below',
-                  '    // it remains its own repaint boundary so 60/90/120Hz transforms do',
-                  '    // not force every card and row to repaint on each gesture frame.',
-                  '    final int shellStart = source.indexOf(',
-                  "      'class _AppShellState extends State<AppShell>',",
-                  '    );',
-                  '    final int shellEnd = source.indexOf(',
-                  "      'class _KeepAlivePage extends StatefulWidget',",
-                  '      shellStart,',
-                  '    );',
-                  '    expect(shellStart, greaterThanOrEqualTo(0));',
-                  '    expect(shellEnd, greaterThan(shellStart));',
-                  '    final String shellSource = source.substring(shellStart, shellEnd);',
-                  '    expect(',
-                  '      shellSource,',
-                  "      contains('child: RepaintBoundary(child: child),'),",
-                  '    );',
-                  '',
-              ])
+              insertion_marker = '    // Brand/state color logic and Firebase integration must stay untouched.\n'
+              insertion_point = tests.index(insertion_marker)
+              guard = '''    // Root, delayed-scroll and export motion honor live platform accessibility.
+    final int rootMotionStart = source.indexOf(
+      'class _AarishDiaryAppState extends State<AarishDiaryApp>',
+    );
+    final int rootMotionEnd = source.indexOf(
+      'class _RootStage extends StatelessWidget',
+      rootMotionStart,
+    );
+    expect(rootMotionStart, greaterThanOrEqualTo(0));
+    expect(rootMotionEnd, greaterThan(rootMotionStart));
+    final String rootMotionSource = source.substring(
+      rootMotionStart,
+      rootMotionEnd,
+    );
+    expect(rootMotionSource, contains('with WidgetsBindingObserver'));
+    expect(rootMotionSource, contains('late bool _reduceMotion;'));
+    expect(
+      rootMotionSource,
+      contains('WidgetsBinding.instance.addObserver(this);'),
+    );
+    expect(
+      rootMotionSource,
+      contains('_reduceMotion = WidgetsBinding.instance.disableAnimations;'),
+    );
+    expect(
+      rootMotionSource,
+      contains('void didChangeAccessibilityFeatures()'),
+    );
+    expect(
+      rootMotionSource,
+      contains('WidgetsBinding.instance.removeObserver(this);'),
+    );
+    expect(rootMotionSource, contains('themeAnimationDuration: _reduceMotion'));
+    expect(
+      rootMotionSource,
+      isNot(
+        contains(
+          'themeAnimationDuration: const Duration(milliseconds: 300)',
+        ),
+      ),
+    );
+    expect(source, contains('if (!mounted || !_scroll.hasClients) return;'));
+    expect(source, contains('_scroll.jumpTo(target);'));
+    expect(
+      source,
+      contains(
+        'duration: AppMotion.reduce(context)\n'
+        '              ? Duration.zero\n'
+        '              : const Duration(milliseconds: 180)',
+      ),
+    );
+    expect(
+      source,
+      contains(
+        'duration: AppMotion.reduce(context)\n'
+        '            ? Duration.zero\n'
+        '            : const Duration(milliseconds: 220)',
+      ),
+    );
+
+'''
               tests = tests[:insertion_point] + guard + tests[insertion_point:]
 
           main_path.write_text(source)
@@ -223,7 +321,7 @@ jobs:
       - name: Format surgical scope
         run: dart format --language-version latest lib/main.dart test/ui_micro_aesthetics_test.dart
 
-      - name: Verify interaction contracts
+      - name: Verify accessibility and visual contracts
         shell: bash
         run: |
           python3 <<'PY'
@@ -232,35 +330,49 @@ jobs:
           source = Path('lib/main.dart').read_text()
           tests = Path('test/ui_micro_aesthetics_test.dart').read_text()
 
-          ripple_start = source.index('class _GlobalTapRippleLayerState')
-          ripple_end = source.index('class _GlobalTapRipplePainter', ripple_start)
-          ripple = source[ripple_start:ripple_end]
-          if 'Widget surface = widget.child;' in ripple:
-              raise SystemExit('global ripple still reparents the application subtree')
+          app_start = source.index('class _AarishDiaryAppState extends State<AarishDiaryApp>')
+          app_end = source.index('class _RootStage extends StatelessWidget', app_start)
+          app = source[app_start:app_end]
           for token in (
-              'final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable(',
-              'child: Stack(',
-              'if (snapshot.isNotEmpty)',
-              'widget.child,',
+              'with WidgetsBindingObserver',
+              'late bool _reduceMotion;',
+              'WidgetsBinding.instance.addObserver(this);',
+              '_reduceMotion = WidgetsBinding.instance.disableAnimations;',
+              'void didChangeAccessibilityFeatures()',
+              'WidgetsBinding.instance.removeObserver(this);',
+              'themeAnimationDuration: _reduceMotion',
           ):
-              if token not in ripple:
-                  raise SystemExit(f'missing stable ripple contract: {token}')
+              if token not in app:
+                  raise SystemExit(f'missing root accessibility contract: {token}')
 
-          shell_start = source.index('class _AppShellState extends State<AppShell>')
-          shell_end = source.index('class _KeepAlivePage extends StatefulWidget', shell_start)
-          shell = source[shell_start:shell_end]
-          for token in (
-              'child: RepaintBoundary(child: child),',
+          required = (
+              'if (!mounted || !_scroll.hasClients) return;',
+              '_scroll.jumpTo(target);',
+              'duration: AppMotion.reduce(context)\n              ? Duration.zero\n              : const Duration(milliseconds: 180)',
+              'duration: AppMotion.reduce(context)\n            ? Duration.zero\n            : const Duration(milliseconds: 220)',
               '..setEntry(3, 2, .00075)',
               '..rotateY(-delta * .018)',
               'offset: Offset(0, depth * 1.8)',
-              'physics: const _LedgerPagePhysics(',
-          ):
-              if token not in shell:
-                  raise SystemExit(f'missing swipe/compositor contract: {token}')
+              'width: 84,',
+              'height: 70,',
+              'height: 88,',
+          )
+          missing = [token for token in required if token not in source]
+          if missing:
+              raise SystemExit(f'missing hardened interaction contracts: {missing}')
 
-          if 'Stable global feedback must never reparent the application subtree.' not in tests:
-              raise SystemExit('missing regression guard')
+          stale = (
+              'themeAnimationDuration: const Duration(milliseconds: 300)',
+              'if (_scroll.hasClients) {\n        _scroll.animateTo(',
+              'AnimatedSwitcher(\n          duration: const Duration(milliseconds: 180)',
+              'child: AnimatedContainer(\n        duration: const Duration(milliseconds: 220)',
+          )
+          present = [token for token in stale if token in source]
+          if present:
+              raise SystemExit(f'stale non-accessible motion remains: {present}')
+
+          if 'Root, delayed-scroll and export motion honor live platform accessibility.' not in tests:
+              raise SystemExit('missing accessibility regression guard')
           PY
 
       - name: Analyze
@@ -285,15 +397,15 @@ jobs:
             esac
           done
 
-      - name: Commit and push verified interaction upgrade
+      - name: Commit and push verified interaction hardening
         shell: bash
         run: |
           if git diff --quiet -- lib/main.dart test/ui_micro_aesthetics_test.dart; then
-            echo "Interaction contracts already satisfied; nothing to commit."
+            echo "Accessibility and lifecycle contracts already satisfied; nothing to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lib/main.dart test/ui_micro_aesthetics_test.dart
-          git commit -m "Stabilize premium interaction render tree"
+          git commit -m "Harden premium motion accessibility and lifecycle"
           git push origin HEAD:main
