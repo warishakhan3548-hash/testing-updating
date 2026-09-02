@@ -35,6 +35,8 @@ jobs:
           test "$(sha256sum /tmp/rolling-ui.b64 | awk '{print $1}')" = "84bb03d7ab5eb3168119d99de137176724bddd4f4d841af5643f84892029bf6d"
           base64 -d /tmp/rolling-ui.b64 | gzip -d > /tmp/rolling-ui.patch
           test "$(sha256sum /tmp/rolling-ui.patch | awk '{print $1}')" = "d55c61939d0181108781ef7989630060e03525a78c91d1d76a8accd3658436a3"
+          sed -i -E 's|^\+\+\+ lib/main\.dart|+++ b/lib/main.dart|' /tmp/rolling-ui.patch
+          sed -i -E 's|^\+\+\+ test/ui_micro_aesthetics_test\.dart|+++ b/test/ui_micro_aesthetics_test.dart|' /tmp/rolling-ui.patch
           git apply --check /tmp/rolling-ui.patch
           git apply /tmp/rolling-ui.patch
           git diff --check
