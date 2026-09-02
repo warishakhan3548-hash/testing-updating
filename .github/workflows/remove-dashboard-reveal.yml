@@ -1,0 +1,204 @@
+name: Remove Dashboard Reveal
+
+on:
+  push:
+    paths:
+      - '.github/workflows/remove-dashboard-reveal.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Remove dashboard-only reveal animation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('lib/main.dart')
+          text = path.read_text(encoding='utf-8')
+          original = text
+
+          old_decl = "class _DashboardScreenState extends State<DashboardScreen>\n    with SingleTickerProviderStateMixin {"
+          new_decl = "class _DashboardScreenState extends State<DashboardScreen> {"
+          if old_decl not in text:
+              raise SystemExit('Dashboard state declaration pattern not found')
+          text = text.replace(old_decl, new_decl, 1)
+
+          lifecycle = '''  late final AnimationController _revealController;\n  bool _revealScheduled = false;\n\n  LedgerSyncService get sync => widget.sync;\n\n  @override\n  void initState() {\n    super.initState();\n    _revealController = AnimationController(\n      vsync: this,\n      duration: UIConstants.dashboardReveal,\n    );\n  }\n\n  @override\n  void didChangeDependencies() {\n    super.didChangeDependencies();\n    if (AppMotion.reduce(context)) {\n      _revealController.value = 1;\n      _revealScheduled = true;\n      return;\n    }\n    if (_revealScheduled || !AppMotion.enabled(context)) return;\n    _revealScheduled = true;\n    WidgetsBinding.instance.addPostFrameCallback((_) {\n      if (!mounted) return;\n      if (AppMotion.reduce(context)) {\n        _revealController.value = 1;\n      } else if (TickerMode.valuesOf(context).enabled) {\n        _revealController.forward();\n      } else {\n        // The dashboard became off-screen before its first frame. Let the\n        // next enabled TickerMode dependency change schedule it once.\n        _revealScheduled = false;\n      }\n    });\n  }\n\n  @override\n  void dispose() {\n    _revealController.dispose();\n    super.dispose();\n  }\n'''
+          if lifecycle not in text:
+              raise SystemExit('Dashboard reveal lifecycle block not found')
+          text = text.replace(lifecycle, '  LedgerSyncService get sync => widget.sync;\n', 1)
+
+          def match_paren(src, open_pos):
+              depth = 0
+              quote = None
+              escape = False
+              i = open_pos
+              while i < len(src):
+                  ch = src[i]
+                  if quote:
+                      if escape:
+                          escape = False
+                      elif ch == '\\\\':
+                          escape = True
+                      elif ch == quote:
+                          quote = None
+                      i += 1
+                      continue
+                  if ch in ("'", '"'):
+                      quote = ch
+                  elif ch == '(':
+                      depth += 1
+                  elif ch == ')':
+                      depth -= 1
+                      if depth == 0:
+                          return i
+                  i += 1
+              raise RuntimeError('Unbalanced parentheses')
+
+          def unwrap_reveal(src):
+              marker = '_DashboardCardReveal('
+              count = 0
+              while marker in src:
+                  start = src.index(marker)
+                  open_pos = start + len('_DashboardCardReveal')
+                  end = match_paren(src, open_pos)
+                  body = src[open_pos + 1:end]
+
+                  # Find child: at top-level of this constructor body.
+                  depth = 0
+                  quote = None
+                  escape = False
+                  child_pos = None
+                  i = 0
+                  while i < len(body):
+                      ch = body[i]
+                      if quote:
+                          if escape:
+                              escape = False
+                          elif ch == '\\\\':
+                              escape = True
+                          elif ch == quote:
+                              quote = None
+                          i += 1
+                          continue
+                      if ch in ("'", '"'):
+                          quote = ch
+                          i += 1
+                          continue
+                      if ch in '([{':
+                          depth += 1
+                      elif ch in ')]}':
+                          depth -= 1
+                      elif depth == 0 and body.startswith('child:', i):
+                          child_pos = i + len('child:')
+                          break
+                      i += 1
+                  if child_pos is None:
+                      raise RuntimeError('child: not found in dashboard reveal wrapper')
+
+                  # Extract the child expression up to the top-level comma.
+                  i = child_pos
+                  while i < len(body) and body[i].isspace():
+                      i += 1
+                  child_start = i
+                  depth = 0
+                  quote = None
+                  escape = False
+                  child_end = None
+                  while i < len(body):
+                      ch = body[i]
+                      if quote:
+                          if escape:
+                              escape = False
+                          elif ch == '\\\\':
+                              escape = True
+                          elif ch == quote:
+                              quote = None
+                          i += 1
+                          continue
+                      if ch in ("'", '"'):
+                          quote = ch
+                      elif ch in '([{':
+                          depth += 1
+                      elif ch in ')]}':
+                          depth -= 1
+                      elif ch == ',' and depth == 0:
+                          child_end = i
+                          break
+                      i += 1
+                  if child_end is None:
+                      child_end = len(body)
+                  child = body[child_start:child_end].rstrip()
+                  src = src[:start] + child + src[end + 1:]
+                  count += 1
+              return src, count
+
+          text, unwrapped = unwrap_reveal(text)
+          if unwrapped != 5:
+              raise SystemExit(f'Expected 5 dashboard reveal wrappers, removed {unwrapped}')
+
+          # Remove the now-unused reveal widget class using balanced braces.
+          class_marker = 'class _DashboardCardReveal extends StatelessWidget {'
+          class_start = text.find(class_marker)
+          if class_start < 0:
+              raise SystemExit('Dashboard reveal widget class not found')
+          brace_start = text.find('{', class_start)
+          depth = 0
+          i = brace_start
+          while i < len(text):
+              if text[i] == '{':
+                  depth += 1
+              elif text[i] == '}':
+                  depth -= 1
+                  if depth == 0:
+                      class_end = i + 1
+                      break
+              i += 1
+          else:
+              raise SystemExit('Unbalanced dashboard reveal widget class')
+          while class_end < len(text) and text[class_end] in '\r\n':
+              class_end += 1
+          text = text[:class_start] + text[class_end:]
+
+          # Remove the dedicated timing constant if nothing else uses it.
+          line = '  static const Duration dashboardReveal = Duration(milliseconds: 520);\n'
+          if text.count('dashboardReveal') == 1 and line in text:
+              text = text.replace(line, '', 1)
+
+          forbidden = ['_DashboardCardReveal', '_revealController', '_revealScheduled', 'dashboardReveal']
+          leftovers = [name for name in forbidden if name in text]
+          if leftovers:
+              raise SystemExit(f'Reveal logic still present: {leftovers}')
+          if text == original:
+              raise SystemExit('No changes made')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Verify surgical scope
+        shell: bash
+        run: |
+          git diff --check
+          git diff -- lib/main.dart
+          ! grep -q '_DashboardCardReveal' lib/main.dart
+          ! grep -q '_revealController' lib/main.dart
+          ! grep -q '_revealScheduled' lib/main.dart
+
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib/main.dart
+          git commit -m 'fix: remove dashboard card reveal refresh effect'
+          git push origin HEAD:main
