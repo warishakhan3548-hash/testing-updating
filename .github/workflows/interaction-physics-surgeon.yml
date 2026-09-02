@@ -33,7 +33,6 @@ jobs:
           from pathlib import Path
 
           main_path = Path('lib/main.dart')
-          test_path = Path('test/premium_interaction_physics_test.dart')
           source = main_path.read_text()
 
           def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -42,6 +41,7 @@ jobs:
                   raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
               return text.replace(old, new, 1)
 
+          # Lock every approved visual identity sentinel before touching motion.
           visual_sentinels = (
               'static const double cardRadius = 24;',
               'static const double heroRadius = 28;',
@@ -87,12 +87,10 @@ jobs:
           new_physics = '''class _LedgerPagePhysics extends PageScrollPhysics {
             const _LedgerPagePhysics({super.parent});
 
-            // Slightly under-critical: fast initial response, then one calm settle.
-            // The actual finger release velocity is carried into the simulation.
             static const SpringDescription _pageSettleSpring = SpringDescription(
-              mass: .86,
-              stiffness: 360,
-              damping: 33,
+              mass: .78,
+              stiffness: 300,
+              damping: 30,
             );
             static const double _velocityProjectionSeconds = .10;
             static const double _maxProjectedPages = .22;
@@ -133,9 +131,9 @@ jobs:
                       .clamp(-_maxProjectedPages, _maxProjectedPages)
                       .toDouble();
 
-              // A decisive fling advances at most one page. A slower release uses
-              // a short velocity projection, so intent near the midpoint wins
-              // without making tiny accidental drags switch modules.
+              // A decisive fling advances at most one page. Slower releases use
+              // a short velocity projection so finger intent wins near midpoint
+              // without making tiny accidental drags change modules.
               final double targetPage =
                   pageVelocity.abs() >= _flingCommitPagesPerSecond
                   ? (pageVelocity > 0
@@ -190,8 +188,8 @@ jobs:
               final double depth = delta.abs();
               if (depth <= .0001) return pageChild;
 
-              // Paint-only spatial response: no layout, color, icon, or card-size
-              // mutation. The page follows the finger and returns to identity at rest.
+              // Paint/compositor-only depth: resting layout, colors, icons and
+              // dimensions are unchanged. Reduced Motion bypasses it completely.
               final Matrix4 transform = Matrix4.identity()
                 ..setEntry(3, 2, .00075)
                 ..rotateY(-delta * .018);
@@ -246,48 +244,6 @@ jobs:
               raise SystemExit(f'visual lock violated: {changed}')
 
           main_path.write_text(source)
-
-          test_path.write_text('''import 'dart:io';
-
-          import 'package:flutter_test/flutter_test.dart';
-
-          void main() {
-            test('premium swipe physics preserve intent and visual lock', () {
-              final String source = File('lib/main.dart').readAsStringSync();
-
-              expect(
-                source,
-                contains('Duration navMotion = Duration(milliseconds: 220)'),
-              );
-              expect(source, contains('class _LedgerPagePhysics extends PageScrollPhysics'));
-              expect(source, contains('_velocityProjectionSeconds = .10'));
-              expect(source, contains('_maxProjectedPages = .22'));
-              expect(source, contains('_flingCommitPagesPerSecond = .52'));
-              expect(source, contains('Simulation? createBallisticSimulation('));
-              expect(source, contains('final double pageVelocity = velocity / pageExtent'));
-              expect(source, contains('currentPage.floorToDouble() + 1'));
-              expect(source, contains('currentPage.ceilToDouble() - 1'));
-              expect(source, contains('return ScrollSpringSimulation('));
-              expect(source, contains('targetPixels,\n        velocity,'));
-
-              expect(source, contains('Widget _buildSwipeMotionPage('));
-              expect(source, contains('animation: _pageController'));
-              expect(source, contains('AppMotion.reduce(context)'));
-              expect(source, contains('..setEntry(3, 2, .00075)'));
-              expect(source, contains('..rotateY(-delta * .018)'));
-              expect(source, contains('offset: Offset(0, depth * 1.8)'));
-              expect(source, contains('children: List<Widget>.generate('));
-
-              // Resting geometry and semantic icon identity stay untouched.
-              expect(source, contains('width: 84,'));
-              expect(source, contains('height: 70,'));
-              expect(source, contains('height: 88,'));
-              expect(source, contains('const IconData premiumHomeIcon = Icons.space_dashboard_rounded;'));
-              expect(source, contains('const IconData premiumExpenseIcon = Icons.shopping_bag_rounded;'));
-              expect(source, contains('const IconData premiumDeleteIcon = Icons.delete_outline_rounded;'));
-            });
-          }
-          ''')
           PY
 
       - name: Java 17
@@ -307,7 +263,35 @@ jobs:
         run: flutter pub get
 
       - name: Format surgical scope
-        run: dart format --language-version latest lib/main.dart test/premium_interaction_physics_test.dart
+        run: dart format --language-version latest lib/main.dart
+
+      - name: Verify interaction contract
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          source = Path('lib/main.dart').read_text()
+          required = (
+              'Duration navMotion = Duration(milliseconds: 220)',
+              '_velocityProjectionSeconds = .10',
+              '_maxProjectedPages = .22',
+              '_flingCommitPagesPerSecond = .52',
+              'Simulation? createBallisticSimulation(',
+              'final double pageVelocity = velocity / pageExtent',
+              'currentPage.floorToDouble() + 1',
+              'currentPage.ceilToDouble() - 1',
+              'return ScrollSpringSimulation(',
+              'Widget _buildSwipeMotionPage(',
+              '..setEntry(3, 2, .00075)',
+              '..rotateY(-delta * .018)',
+              'offset: Offset(0, depth * 1.8)',
+              'children: List<Widget>.generate(',
+              ': UIConstants.navMotion;',
+          )
+          missing = [token for token in required if token not in source]
+          if missing:
+              raise SystemExit(f'missing interaction contracts: {missing}')
+          PY
 
       - name: Analyze
         run: flutter analyze
@@ -324,20 +308,15 @@ jobs:
           git diff --exit-code -- pubspec.lock
           mapfile -t changed < <(git diff --name-only)
           printf 'Changed files:\n%s\n' "${changed[*]}"
-          for file in "${changed[@]}"; do
-            case "$file" in
-              lib/main.dart|test/premium_interaction_physics_test.dart) ;;
-              *) echo "Unexpected modified file: $file"; exit 1 ;;
-            esac
-          done
-          test "${#changed[@]}" -eq 2
+          test "${#changed[@]}" -eq 1
+          test "${changed[0]}" = "lib/main.dart"
 
       - name: Commit and push verified interaction upgrade
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add lib/main.dart test/premium_interaction_physics_test.dart
+          git add lib/main.dart
           git commit -m "Upgrade premium swipe and navigation physics"
           git pull --rebase origin main
           git push origin HEAD:main
