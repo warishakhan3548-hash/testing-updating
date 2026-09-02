@@ -1,0 +1,303 @@
+name: Ultra Press Motion Surgeon V7
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ultra-press-motion-surgeon-v7.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ultra-press-motion-surgeon-v7-main
+  cancel-in-progress: false
+
+jobs:
+  patch-analyze-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Apply zero-wrapper press-motion upgrade
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          main_path = Path('lib/main.dart')
+          source = main_path.read_text(encoding='utf-8')
+          before = source
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 anchor, found {count}')
+              return text.replace(old, new, 1)
+
+          visual_patterns = (
+              r'Icons\.[A-Za-z0-9_]+',
+              r'Colors\.[A-Za-z0-9_]+',
+              r'Color\(\s*0x[0-9A-Fa-f]+\s*\)',
+              r'IconData\([^)]*\)',
+              r'\b(?:width|height)\s*:\s*-?[0-9]+(?:\.[0-9]+)?',
+              r'BorderRadius\.[A-Za-z0-9_]+\([^)]*\)',
+              r'EdgeInsets\.[A-Za-z0-9_]+\([^)]*\)',
+          )
+
+          def normalized_tokens(pattern: str, text: str) -> list[str]:
+              return sorted(re.sub(r'\s+', '', item) for item in re.findall(pattern, text))
+
+          visual_before = {
+              pattern: normalized_tokens(pattern, before)
+              for pattern in visual_patterns
+          }
+
+          source = replace_once(
+              source,
+              """  Offset? _lastTouchPosition;
+          int _lastTouchSampleMicros = 0;
+          Offset _gestureVelocity = Offset.zero;
+          """,
+              """  Offset? _lastTouchPosition;
+          int _lastTouchSampleMicros = 0;
+          Offset _gestureVelocity = Offset.zero;
+          Size _gestureExtent = Size.zero;
+          """,
+              'cached press geometry state',
+          )
+
+          source = replace_once(
+              source,
+              """    _lastTouchPosition = null;
+              _lastTouchSampleMicros = 0;
+              _gestureVelocity = Offset.zero;
+            }
+
+            bool _updateTouchAlignment(Offset localPosition) {
+              final RenderBox? box = context.findRenderObject() as RenderBox?;
+              if (box == null || !box.hasSize || box.size.isEmpty) return false;
+              final double x =
+                  (localPosition.dx / box.size.width * 2 - 1).clamp(-.72, .72).toDouble();
+              final double y = (localPosition.dy / box.size.height * 2 - 1)
+                  .clamp(-.72, .72)
+                  .toDouble();
+          """,
+              """    _lastTouchPosition = null;
+              _lastTouchSampleMicros = 0;
+              _gestureVelocity = Offset.zero;
+              _gestureExtent = Size.zero;
+            }
+
+            Size _readGestureExtent() {
+              final RenderBox? box = context.findRenderObject() as RenderBox?;
+              if (box == null || !box.hasSize || box.size.isEmpty) return Size.zero;
+              return box.size;
+            }
+
+            bool _updateTouchAlignment(Offset localPosition) {
+              final Size extent = _gestureExtent;
+              if (extent.isEmpty) return false;
+              final double x =
+                  (localPosition.dx / extent.width * 2 - 1).clamp(-.72, .72).toDouble();
+              final double y = (localPosition.dy / extent.height * 2 - 1)
+                  .clamp(-.72, .72)
+                  .toDouble();
+          """,
+              'single-read gesture geometry',
+          )
+
+          source = replace_once(
+              source,
+              """  void _captureTouch(TapDownDetails details) {
+              _releaseAlignment = null;
+              _lastTouchPosition = details.localPosition;
+              _lastTouchSampleMicros = _gestureClock.elapsedMicroseconds;
+              _gestureVelocity = Offset.zero;
+              _updateTouchAlignment(details.localPosition);
+            }
+          """,
+              """  void _captureTouch(TapDownDetails details) {
+              _releaseAlignment = null;
+              _gestureExtent = _readGestureExtent();
+              _lastTouchPosition = details.localPosition;
+              _lastTouchSampleMicros = _gestureClock.elapsedMicroseconds;
+              _gestureVelocity = Offset.zero;
+              _updateTouchAlignment(details.localPosition);
+            }
+          """,
+              'capture geometry once per gesture',
+          )
+
+          source = replace_once(
+              source,
+              """    // A fixed per-event blend changes its effective response at 60 Hz versus
+              // 120 Hz. Convert the same response into continuous time so touch tracking
+              // feels identical across refresh rates and irregular pointer sampling.
+              const double velocityResponsePerSecond = 32;
+              final double blend =
+                  (1 - math.exp(-velocityResponsePerSecond * elapsedSeconds))
+                      .clamp(.12, .72)
+                      .toDouble();
+              _gestureVelocity = Offset.lerp(_gestureVelocity, sample, blend)!;
+          """,
+              """    // A fixed per-event blend changes its effective response at 60 Hz versus
+              // 120 Hz. Convert the same response into continuous time so touch tracking
+              // feels identical across refresh rates and irregular pointer sampling.
+              // If the finger reverses direction, shed stale momentum faster so the
+              // release vector follows the user's newest intent instead of the old arc.
+              final double previousSpeed = _gestureVelocity.distance;
+              final double directionalDot =
+                  _gestureVelocity.dx * sample.dx + _gestureVelocity.dy * sample.dy;
+              final bool reversing =
+                  previousSpeed > 80 && sampleSpeed > 80 && directionalDot < 0;
+              final double velocityResponsePerSecond = reversing ? 52 : 32;
+              final double maxBlend = reversing ? .84 : .72;
+              final double blend =
+                  (1 - math.exp(-velocityResponsePerSecond * elapsedSeconds))
+                      .clamp(.12, maxBlend)
+                      .toDouble();
+              _gestureVelocity = Offset.lerp(_gestureVelocity, sample, blend)!;
+          """,
+              'reversal-aware velocity filter',
+          )
+
+          source = replace_once(
+              source,
+              """  Alignment _projectReleaseAlignment(Offset velocity) {
+              final RenderBox? box = context.findRenderObject() as RenderBox?;
+              if (box == null || !box.hasSize || box.size.isEmpty) {
+                return _touchAlignment;
+              }
+              final double xLead = (velocity.dx / math.max(box.size.width, 1) * .018)
+                  .clamp(-.18, .18)
+                  .toDouble();
+              final double yLead = (velocity.dy / math.max(box.size.height, 1) * .018)
+                  .clamp(-.18, .18)
+                  .toDouble();
+          """,
+              """  Alignment _projectReleaseAlignment(Offset velocity) {
+              final Size extent = _gestureExtent;
+              if (extent.isEmpty) return _touchAlignment;
+              final double xLead = (velocity.dx / math.max(extent.width, 1) * .018)
+                  .clamp(-.18, .18)
+                  .toDouble();
+              final double yLead = (velocity.dy / math.max(extent.height, 1) * .018)
+                  .clamp(-.18, .18)
+                  .toDouble();
+          """,
+              'release alignment cached geometry',
+          )
+
+          source = replace_once(
+              source,
+              """  double _releaseDepthVelocity(Offset velocity, {required bool cancelled}) {
+              final RenderBox? box = context.findRenderObject() as RenderBox?;
+              final double referenceExtent =
+                  box != null && box.hasSize && !box.size.isEmpty
+                      ? math.max(48, math.min(box.size.width, box.size.height)).toDouble()
+                      : 64;
+              final double normalizedSpeed = velocity.distance / referenceExtent;
+          """,
+              """  double _releaseDepthVelocity(Offset velocity, {required bool cancelled}) {
+              final Size extent = _gestureExtent;
+              final double referenceExtent = extent.isEmpty
+                  ? 64
+                  : math.max(48, math.min(extent.width, extent.height)).toDouble();
+              final double normalizedSpeed = velocity.distance / referenceExtent;
+          """,
+              'release depth cached geometry',
+          )
+
+          for pattern, old_tokens in visual_before.items():
+              new_tokens = normalized_tokens(pattern, source)
+              if new_tokens != old_tokens:
+                  raise SystemExit(f'VISUAL LOCK VIOLATION: {pattern}')
+
+          press_start = source.index('class _PressableState extends State<_Pressable>')
+          press_end = source.index('class _GlassCard extends StatelessWidget', press_start)
+          press = source[press_start:press_end]
+
+          required = (
+              'Size _gestureExtent = Size.zero;',
+              'Size _readGestureExtent()',
+              '_gestureExtent = _readGestureExtent();',
+              'final bool reversing =',
+              'velocityResponsePerSecond = reversing ? 52 : 32;',
+              'final Size extent = _gestureExtent;',
+          )
+          for token in required:
+              if token not in press:
+                  raise SystemExit(f'PRESS CONTRACT MISSING: {token}')
+
+          if press.count('context.findRenderObject() as RenderBox?;') != 1:
+              raise SystemExit('Press hot path still performs repeated render-tree geometry lookup.')
+
+          if source == before:
+              raise SystemExit('No source changes produced.')
+
+          main_path.write_text(source, encoding='utf-8')
+          PY
+
+          rm -f .github/workflows/ultra-press-motion-surgeon-v7.yml
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Verify dependency lock stayed untouched
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code -- pubspec.yaml pubspec.lock
+
+      - name: Format surgical target
+        run: dart format lib/main.dart
+
+      - name: Validate patch scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          changed="$(git diff --name-only | sort)"
+          expected="$(printf '%s\n' '.github/workflows/ultra-press-motion-surgeon-v7.yml' 'lib/main.dart' | sort)"
+          if [ "$changed" != "$expected" ]; then
+            echo 'Unexpected changed files:'
+            printf '%s\n' "$changed"
+            exit 1
+          fi
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Stage commit and push verified upgrade
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- lib/main.dart .github/workflows/ultra-press-motion-surgeon-v7.yml
+          git diff --cached --check
+          staged="$(git diff --cached --name-only | sort)"
+          expected="$(printf '%s\n' '.github/workflows/ultra-press-motion-surgeon-v7.yml' 'lib/main.dart' | sort)"
+          if [ "$staged" != "$expected" ]; then
+            echo 'Unexpected staged files:'
+            printf '%s\n' "$staged"
+            exit 1
+          fi
+          git commit -m "perf(ui): refine press gesture sampling"
+          git push origin HEAD:main
