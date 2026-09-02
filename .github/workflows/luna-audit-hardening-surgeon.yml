@@ -187,9 +187,9 @@ jobs:
           )
 
           direct_pdf_calls = source.count('_ExportService.sharePdf(')
-          if direct_pdf_calls != 6:
+          if direct_pdf_calls != 8:
               raise SystemExit(
-                  f'direct PDF share calls: expected 6 matches, found {direct_pdf_calls}'
+                  f'direct PDF share calls: expected 8 matches, found {direct_pdf_calls}'
               )
           source = source.replace(
               '_ExportService.sharePdf(',
@@ -275,7 +275,7 @@ jobs:
               'AI grouped recency ordering',
           )
 
-          if source.count('_sharePdfSafely(context,') != 6:
+          if source.count('_sharePdfSafely(context,') != 8:
               raise SystemExit('safe PDF share routing count changed unexpectedly')
           if source.count('_ExportService.sharePdf(') != 1:
               raise SystemExit('only the centralized PDF helper may call sharePdf directly')
