@@ -39,6 +39,8 @@ jobs:
           sed -i -E 's|^\+\+\+ test/ui_micro_aesthetics_test\.dart|+++ b/test/ui_micro_aesthetics_test.dart|' /tmp/rolling-ui.patch
           git apply --check /tmp/rolling-ui.patch
           git apply /tmp/rolling-ui.patch
+          test "$(grep -c "'class _TapRipplePainter'" test/ui_micro_aesthetics_test.dart)" -eq 1
+          sed -i "s/'class _TapRipplePainter'/'class _GlobalTapRipplePainter'/" test/ui_micro_aesthetics_test.dart
           git diff --check
 
       - name: Set up Java 17
