@@ -1781,6 +1781,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   bool _handlePageScrollNotification(ScrollNotification notification) {
+    if (notification.depth != 0 ||
+        notification.metrics.axis != Axis.horizontal) {
+      return false;
+    }
     if (notification is ScrollStartNotification &&
         notification.dragDetails != null) {
       _userPageDragActive = true;
@@ -4099,7 +4103,7 @@ void _toast(BuildContext context, String message, {bool error = false}) {
   );
 }
 
-Future<void> _runMutation(
+Future<bool> _runMutation(
   BuildContext context,
   Future<void> Function() mutation,
   String success,
@@ -4108,8 +4112,11 @@ Future<void> _runMutation(
     await mutation();
     HapticFeedback.successNotification();
     if (context.mounted) _toast(context, success);
-  } catch (error) {
+    return true;
+  } catch (error, stackTrace) {
+    debugPrint('Ledger mutation failed: $error\n$stackTrace');
     if (context.mounted) _toast(context, '$error', error: true);
+    return false;
   }
 }
 
@@ -5155,7 +5162,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
       return;
     }
     final String id = _newId('mlk');
-    await _runMutation(
+    final bool saved = await _runMutation(
       context,
       () => widget.sync.write(
         'milkDB/${widget.customerName}/records/$id',
@@ -5171,6 +5178,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
       ),
       flow == 'taken' ? 'Taken milk saved!' : 'Given milk saved!',
     );
+    if (!saved || !mounted) return;
     final DateTime parsed = LedgerMath.strictDate(entryDate)!;
     if (mounted) {
       setState(() {
@@ -6480,7 +6488,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
       return;
     }
     final String id = _newId('sal');
-    await _runMutation(
+    final bool saved = await _runMutation(
       context,
       () => widget.sync.write(
         'salaryDB/${widget.personName}/records/$id',
@@ -6489,6 +6497,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
       ),
       'Salary saved safely!',
     );
+    if (!saved || !mounted) return;
     final DateTime parsed = LedgerMath.strictDate(entryDate)!;
     if (mounted) {
       setState(() {
@@ -6992,7 +7001,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
       return;
     }
     final String id = _newId('udh');
-    await _runMutation(
+    final bool saved = await _runMutation(
       context,
       () => widget.sync.write('udharDB/$id', <String, dynamic>{
         'id': id,
@@ -7003,6 +7012,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
       }, reason: 'credit-entry-save'),
       type == 'credit' ? 'Given entry saved!' : 'Taken entry saved!',
     );
+    if (!saved || !mounted) return;
     final DateTime parsed = LedgerMath.strictDate(entryDate)!;
     if (mounted) {
       setState(() {
@@ -7449,7 +7459,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
       return;
     }
     final String id = _newId('exp');
-    await _runMutation(
+    final bool saved = await _runMutation(
       context,
       () => widget.sync.write('expenseDB/$id', <String, dynamic>{
         'id': id,
@@ -7459,6 +7469,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
       }, reason: 'expense-entry-save'),
       'Expense saved safely!',
     );
+    if (!saved || !mounted) return;
     final DateTime parsed = LedgerMath.strictDate(entryDate)!;
     if (mounted) {
       setState(() {

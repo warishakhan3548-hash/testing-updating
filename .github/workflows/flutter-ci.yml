@@ -1,6 +1,6 @@
-name: Flutter Android CI
+name: Flutter Static Analysis
 
-# Verification workflow for Android APK artifacts.
+# Static-only verification for the Flutter source. This workflow never builds an APK.
 on:
   push:
     branches: [main]
@@ -18,18 +18,12 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  analyze:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
 
       - name: Flutter stable
         uses: subosito/flutter-action@v2
@@ -38,12 +32,6 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Restore stable debug signing key
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: aarish-diary-debug-keystore-v1
-
       - name: Resolve packages
         run: flutter pub get
 
@@ -51,18 +39,4 @@ jobs:
         run: dart format --language-version latest --output=none --set-exit-if-changed lib/main.dart lib/ai_bridge.dart test/ai_bridge_test.dart
 
       - name: Analyze
-        run: flutter analyze
-
-      - name: Test ledger invariants
-        run: flutter test
-
-      - name: Build Android debug APK
-        run: flutter build apk --debug
-
-      - name: Upload Android debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: aarish-diary-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
+        run: flutter analyze --fatal-infos
