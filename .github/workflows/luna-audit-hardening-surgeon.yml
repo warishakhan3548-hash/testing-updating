@@ -115,21 +115,25 @@ jobs:
           '''
           source = replace_exact(source, old_main, new_main, 'startup fallback')
 
-          notification_anchor = '''bool _handlePageScrollNotification(ScrollNotification notification) {
-            if (notification is ScrollStartNotification &&
-          '''
-          notification_replacement = '''bool _handlePageScrollNotification(ScrollNotification notification) {
-            if (notification.depth != 0 || notification.metrics.axis != Axis.horizontal) {
-              return false;
-            }
-            if (notification is ScrollStartNotification &&
-          '''
-          source = replace_exact(
-              source,
-              notification_anchor,
-              notification_replacement,
-              'PageView notification isolation',
+          notification_pattern = re.compile(
+              r'(bool _handlePageScrollNotification\(ScrollNotification notification\) \{\n)([ \t]+)(if \(notification is ScrollStartNotification &&)'
           )
+          notification_matches = list(notification_pattern.finditer(source))
+          if len(notification_matches) != 1:
+              raise SystemExit(
+                  f'PageView notification isolation: expected 1 match, found {len(notification_matches)}'
+              )
+          def notification_replacement(match: re.Match[str]) -> str:
+              indent = match.group(2)
+              return (
+                  match.group(1)
+                  + indent + 'if (notification.depth != 0 ||\n'
+                  + indent + '    notification.metrics.axis != Axis.horizontal) {\n'
+                  + indent + '  return false;\n'
+                  + indent + '}\n'
+                  + indent + match.group(3)
+              )
+          source = notification_pattern.sub(notification_replacement, source, count=1)
 
           old_mutation = '''Future<void> _runMutation(
             BuildContext context,
