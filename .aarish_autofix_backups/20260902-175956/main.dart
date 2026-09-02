@@ -1535,24 +1535,12 @@ class _LedgerPagePhysics extends PageScrollPhysics {
         (position.minScrollExtent + clampedPage * pageExtent)
             .clamp(position.minScrollExtent, position.maxScrollExtent)
             .toDouble();
-    final double distanceToTarget = targetPixels - position.pixels;
     final double maxSettleVelocity = pageExtent * _maxSettlePagesPerSecond;
-    final double clampedVelocity = velocity
+    final double settleVelocity = velocity
         .clamp(-maxSettleVelocity, maxSettleVelocity)
         .toDouble();
-    // Never inject release energy away from the selected page. Near the
-    // midpoint a slow finger reversal can still leave rounding on the opposite
-    // page; carrying that opposing velocity into the spring produces a visible
-    // recoil before settling. Zeroing only the wrong-way component preserves
-    // true fling energy while removing the artificial snap-back.
-    final double settleVelocity =
-        distanceToTarget == 0 ||
-            clampedVelocity == 0 ||
-            distanceToTarget.sign == clampedVelocity.sign
-        ? clampedVelocity
-        : 0;
 
-    if (distanceToTarget.abs() <= tolerance.distance &&
+    if ((targetPixels - position.pixels).abs() <= tolerance.distance &&
         velocity.abs() <= tolerance.velocity) {
       return null;
     }
@@ -1577,8 +1565,8 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
-  final ValueNotifier<int> _tabSelection = ValueNotifier<int>(0);
-  final ValueNotifier<int> _settledPage = ValueNotifier<int>(0);
+  int _tab = 0;
+  int _settledPage = 0;
   int? _programmaticPageTarget;
   int _pageMotionGeneration = 0;
   bool _userPageDragActive = false;
@@ -1588,9 +1576,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   final Set<int> _dragHapticPages = <int>{};
   final ScrollController _navController = ScrollController();
   final PageController _pageController = PageController();
-
-  int get _tab => _tabSelection.value;
-  int get _settledPageIndex => _settledPage.value;
 
   @override
   void initState() {
@@ -1612,8 +1597,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _tabSelection.dispose();
-    _settledPage.dispose();
     _navController.dispose();
     _pageController.dispose();
     super.dispose();
@@ -1651,8 +1634,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return;
     }
 
-    final double livePage =
-        _pageController.page ?? _settledPageIndex.toDouble();
+    final double livePage = _pageController.page ?? _settledPage.toDouble();
     final int target = (_programmaticPageTarget ?? livePage.round())
         .clamp(0, _tabs.length - 1)
         .toInt();
@@ -1665,8 +1647,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _pageController.jumpToPage(target);
     _programmaticPageTarget = null;
 
-    if (_tab != target) _tabSelection.value = target;
-    if (_settledPageIndex != target) _settledPage.value = target;
+    final bool selectionChanged = _tab != target;
+    final bool pageChanged = _settledPage != target;
+    if (selectionChanged || pageChanged) {
+      setState(() {
+        _tab = target;
+        _settledPage = target;
+      });
+    }
     _scrollNavigation(target);
   }
 
@@ -1711,7 +1699,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
     final bool alreadySettled =
         _tab == index &&
-        _settledPageIndex == index &&
+        _settledPage == index &&
         _programmaticPageTarget == null;
     if (alreadySettled || _programmaticPageTarget == index) return;
 
@@ -1720,7 +1708,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _userPageDragActive = false;
     _dragHapticPages.clear();
 
-    if (_tab != index) _tabSelection.value = index;
+    if (_tab != index) setState(() => _tab = index);
     _scrollNavigation(index);
 
     if (!_pageController.hasClients) {
@@ -1735,14 +1723,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _programmaticPageTarget = index;
       _pageController.jumpToPage(index);
       _programmaticPageTarget = null;
-      if (_settledPageIndex != index) _settledPage.value = index;
+      if (_settledPage != index) setState(() => _settledPage = index);
       return;
     }
 
     _programmaticPageTarget = index;
 
-    final double livePage =
-        _pageController.page ?? _settledPageIndex.toDouble();
+    final double livePage = _pageController.page ?? _settledPage.toDouble();
     final int currentPage = livePage.round().clamp(0, _tabs.length - 1).toInt();
     final int pageDistance = (index - currentPage).abs();
 
@@ -1784,16 +1771,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (page == null) return;
     final int settledIndex = page.round().clamp(0, _tabs.length - 1).toInt();
     final bool selectionChanged = settledIndex != _tab;
-    final bool pageChanged = settledIndex != _settledPageIndex;
+    final bool pageChanged = settledIndex != _settledPage;
     if (!selectionChanged && !pageChanged) return;
-    if (selectionChanged) _tabSelection.value = settledIndex;
-    if (pageChanged) _settledPage.value = settledIndex;
+    setState(() {
+      _tab = settledIndex;
+      _settledPage = settledIndex;
+    });
     if (selectionChanged) _scrollNavigation(settledIndex);
   }
 
   bool _handlePageScrollNotification(ScrollNotification notification) {
     if (notification.depth != 0 ||
-        notification.metrics is! PageMetrics ||
         notification.metrics.axis != Axis.horizontal) {
       return false;
     }
@@ -1821,14 +1809,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (page == null) return;
 
     final int settledIndex = page.round().clamp(0, _tabs.length - 1).toInt();
-    if (_tab == settledIndex && _settledPageIndex == settledIndex) return;
+    if (_tab == settledIndex && _settledPage == settledIndex) return;
 
     final bool selectionChanged = _tab != settledIndex;
     if (selectionChanged && _dragHapticPages.add(settledIndex)) {
       HapticFeedback.selectionClick();
     }
-    if (selectionChanged) _tabSelection.value = settledIndex;
-    if (_settledPageIndex != settledIndex) _settledPage.value = settledIndex;
+    setState(() {
+      _tab = settledIndex;
+      _settledPage = settledIndex;
+    });
     if (selectionChanged) _scrollNavigation(settledIndex);
   }
 
@@ -1842,15 +1832,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (_userPageDragActive) {
       if (!selectionChanged) return;
       if (_dragHapticPages.add(index)) HapticFeedback.selectionClick();
-      _tabSelection.value = index;
+      setState(() => _tab = index);
       _scrollNavigation(index);
       return;
     }
 
-    if (!selectionChanged && _settledPageIndex == index) return;
+    if (!selectionChanged && _settledPage == index) return;
     if (selectionChanged) HapticFeedback.selectionClick();
-    if (selectionChanged) _tabSelection.value = index;
-    if (_settledPageIndex != index) _settledPage.value = index;
+    setState(() {
+      _tab = index;
+      _settledPage = index;
+    });
     if (selectionChanged) _scrollNavigation(index);
   }
 
@@ -1913,7 +1905,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         return pageChild;
       }
 
-      final double page = _pageController.page ?? _settledPageIndex.toDouble();
+      final double page = _pageController.page ?? _settledPage.toDouble();
       final double delta = (page - index).clamp(-1.0, 1.0).toDouble();
       final double depth = delta.abs();
       if (depth <= .0001) return pageChild;
@@ -1940,56 +1932,49 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          activePage: _settledPage,
-          pageIndex: 0,
+          active: _settledPage == 0,
           builder: (BuildContext context) => DashboardScreen(sync: widget.sync),
         ),
       ),
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          activePage: _settledPage,
-          pageIndex: 1,
+          active: _settledPage == 1,
           builder: (BuildContext context) => MilkScreen(sync: widget.sync),
         ),
       ),
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          activePage: _settledPage,
-          pageIndex: 2,
+          active: _settledPage == 2,
           builder: (BuildContext context) => CreditScreen(sync: widget.sync),
         ),
       ),
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          activePage: _settledPage,
-          pageIndex: 3,
+          active: _settledPage == 3,
           builder: (BuildContext context) => ExpenseScreen(sync: widget.sync),
         ),
       ),
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          activePage: _settledPage,
-          pageIndex: 4,
+          active: _settledPage == 4,
           builder: (BuildContext context) => SalaryScreen(sync: widget.sync),
         ),
       ),
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          activePage: _settledPage,
-          pageIndex: 5,
+          active: _settledPage == 5,
           builder: (BuildContext context) => DiaryScreen(sync: widget.sync),
         ),
       ),
       _KeepAlivePage(
         child: _ActiveSyncView(
           sync: widget.sync,
-          activePage: _settledPage,
-          pageIndex: 6,
+          active: _settledPage == 6,
           builder: (BuildContext context) => BusinessScreen(sync: widget.sync),
         ),
       ),
@@ -2025,15 +2010,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ),
         ],
       ),
-      bottomNavigationBar: ValueListenableBuilder<int>(
-        valueListenable: _tabSelection,
-        builder: (BuildContext context, int selected, Widget? child) =>
-            _BottomLedgerNav(
-              sync: widget.sync,
-              selected: selected,
-              controller: _navController,
-              onSelected: _selectTab,
-            ),
+      bottomNavigationBar: _BottomLedgerNav(
+        sync: widget.sync,
+        selected: _tab,
+        controller: _navController,
+        onSelected: _selectTab,
       ),
     );
   }
@@ -2063,14 +2044,12 @@ class _KeepAlivePageState extends State<_KeepAlivePage>
 class _ActiveSyncView extends StatefulWidget {
   const _ActiveSyncView({
     required this.sync,
-    required this.activePage,
-    required this.pageIndex,
+    required this.active,
     required this.builder,
   });
 
   final LedgerSyncService sync;
-  final ValueListenable<int> activePage;
-  final int pageIndex;
+  final bool active;
   final WidgetBuilder builder;
 
   @override
@@ -2078,59 +2057,29 @@ class _ActiveSyncView extends StatefulWidget {
 }
 
 class _ActiveSyncViewState extends State<_ActiveSyncView> {
-  late bool _active;
-
-  bool _resolveActive() => widget.activePage.value == widget.pageIndex;
-
   @override
   void initState() {
     super.initState();
-    _active = _resolveActive();
-    widget.activePage.addListener(_handleActivePageChange);
-    if (_active) widget.sync.addListener(_handleSyncChange);
+    if (widget.active) widget.sync.addListener(_handleSyncChange);
   }
 
   @override
   void didUpdateWidget(covariant _ActiveSyncView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final bool routingIdentityChanged =
-        oldWidget.sync != widget.sync ||
-        oldWidget.activePage != widget.activePage ||
-        oldWidget.pageIndex != widget.pageIndex;
-    if (!routingIdentityChanged) return;
-
-    if (_active) oldWidget.sync.removeListener(_handleSyncChange);
-    if (oldWidget.activePage != widget.activePage) {
-      oldWidget.activePage.removeListener(_handleActivePageChange);
-      widget.activePage.addListener(_handleActivePageChange);
+    if (oldWidget.sync == widget.sync && oldWidget.active == widget.active) {
+      return;
     }
-
-    _active = _resolveActive();
-    if (_active) widget.sync.addListener(_handleSyncChange);
-  }
-
-  void _handleActivePageChange() {
-    final bool nextActive = _resolveActive();
-    if (nextActive == _active) return;
-
-    if (_active) widget.sync.removeListener(_handleSyncChange);
-    _active = nextActive;
-    if (_active) {
-      widget.sync.addListener(_handleSyncChange);
-      // This page ignored sync notifications while offscreen. Rebuild exactly
-      // once on activation so the first visible frame uses the latest state.
-      if (mounted) setState(() {});
-    }
+    if (oldWidget.active) oldWidget.sync.removeListener(_handleSyncChange);
+    if (widget.active) widget.sync.addListener(_handleSyncChange);
   }
 
   void _handleSyncChange() {
-    if (mounted && _active) setState(() {});
+    if (mounted && widget.active) setState(() {});
   }
 
   @override
   void dispose() {
-    widget.activePage.removeListener(_handleActivePageChange);
-    if (_active) widget.sync.removeListener(_handleSyncChange);
+    if (widget.active) widget.sync.removeListener(_handleSyncChange);
     super.dispose();
   }
 
