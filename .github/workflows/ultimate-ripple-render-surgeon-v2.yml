@@ -1,0 +1,568 @@
+name: Ultimate Ripple Render Surgeon V2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ultimate-ripple-render-surgeon-v2.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ultimate-ripple-render-surgeon-main-v2
+  cancel-in-progress: false
+
+jobs:
+  patch-analyze-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Apply zero-rebuild ripple render surgery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          main_path = Path('lib/main.dart')
+          test_path = Path('test/global_tap_ripple_intent_test.dart')
+          source = main_path.read_text(encoding='utf-8')
+
+          lifecycle_start = source.index('class _RipplePulse {')
+          painter_start = source.index(
+              'class _GlobalTapRipplePainter extends CustomPainter', lifecycle_start
+          )
+          painter_end = source.index(
+              'class _AmbientBackground extends StatelessWidget', painter_start
+          )
+
+          old_lifecycle = source[lifecycle_start:painter_start]
+          painter_before = source[painter_start:painter_end]
+
+          required_old = (
+              'final List<_RipplePulse> _livePulses = <_RipplePulse>[];',
+              'final List<_RipplePulse> _pulses = <_RipplePulse>[];',
+              'setState(() {',
+              'repaint: Listenable.merge(',
+              'if (snapshot.isNotEmpty)',
+              '_removePulse(pulse, rebuild: false);',
+          )
+          for token in required_old:
+              if token not in old_lifecycle:
+                  raise SystemExit(f'Audited ripple lifecycle contract missing: {token}')
+
+          visual_sentinels = (
+              'static const double cardRadius = 24;',
+              'static const double heroRadius = 28;',
+              'static const double sheetRadius = 36;',
+              'const IconData premiumHomeIcon = Icons.space_dashboard_rounded;',
+              'const IconData premiumExpenseIcon = Icons.shopping_bag_rounded;',
+              'const IconData premiumDeleteIcon = Icons.delete_outline_rounded;',
+          )
+          visual_counts = {token: source.count(token) for token in visual_sentinels}
+          for token, count in visual_counts.items():
+              if count != 1:
+                  raise SystemExit(f'Visual lock sentinel mismatch for {token!r}: {count}')
+
+          lifecycle = r'''class _RippleRepaintSignal extends ChangeNotifier {
+            void markNeedsPaint() => notifyListeners();
+          }
+
+          class _RipplePulse {
+            _RipplePulse({
+              required this.pointer,
+              required this.origin,
+              required this.downPosition,
+              required VoidCallback onTick,
+              required TickerProvider vsync,
+            })  : _onTick = onTick,
+                  controller = AnimationController(
+                    vsync: vsync,
+                    duration: const Duration(milliseconds: 200),
+                    reverseDuration: const Duration(milliseconds: 65),
+                  ) {
+              controller.addListener(_onTick);
+            }
+
+            final int pointer;
+            final Offset origin;
+            final Offset downPosition;
+            final VoidCallback _onTick;
+            final AnimationController controller;
+            Timer? _startTimer;
+            bool _started = false;
+            bool cancelled = false;
+            bool disposed = false;
+
+            bool get started => _started;
+
+            void scheduleStart(Duration delay, VoidCallback onDue) {
+              if (disposed || cancelled || _started) return;
+              _startTimer?.cancel();
+
+              if (delay.inMicroseconds <= 0) {
+                onDue();
+                return;
+              }
+
+              _startTimer = Timer(delay, onDue);
+            }
+
+            bool prepareStart() {
+              if (disposed || cancelled || _started) return false;
+              _startTimer?.cancel();
+              _startTimer = null;
+              _started = true;
+              return true;
+            }
+
+            void play() {
+              if (disposed || cancelled || !_started) return;
+              controller.forward(from: 0);
+            }
+
+            bool cancel() {
+              if (cancelled || disposed) return false;
+              cancelled = true;
+              _startTimer?.cancel();
+              _startTimer = null;
+
+              if (!_started) return false;
+
+              controller.animateBack(
+                0,
+                duration: const Duration(milliseconds: 65),
+                curve: Curves.easeOutCubic,
+              );
+              return true;
+            }
+
+            void dispose() {
+              if (disposed) return;
+              disposed = true;
+              _startTimer?.cancel();
+              _startTimer = null;
+              controller.removeListener(_onTick);
+              controller.dispose();
+            }
+          }
+
+          class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
+              with TickerProviderStateMixin {
+            static const double _scrollThreshold = 8;
+            static const int _maxActivePulses = 2;
+
+            // Pointer intent, visible pulses, and paint invalidation are deliberately
+            // separated. Ripple activity never rebuilds or reparents the app subtree.
+            final List<_RipplePulse> _livePulses = <_RipplePulse>[];
+            final List<_RipplePulse> _pulses = <_RipplePulse>[];
+            final Map<int, _RipplePulse> _pointerPulses = <int, _RipplePulse>{};
+            final _RippleRepaintSignal _rippleRepaint = _RippleRepaintSignal();
+
+            @override
+            void didChangeDependencies() {
+              super.didChangeDependencies();
+              if (AppMotion.enabled(context) || _livePulses.isEmpty) return;
+
+              for (final _RipplePulse pulse in List<_RipplePulse>.of(_livePulses)) {
+                _removePulse(pulse);
+              }
+            }
+
+            void _startPulse(_RipplePulse pulse) {
+              if (!mounted ||
+                  !_livePulses.contains(pulse) ||
+                  !pulse.prepareStart()) {
+                return;
+              }
+
+              if (!_pulses.contains(pulse)) {
+                _pulses.add(pulse);
+              }
+              pulse.play();
+            }
+
+            void _handlePointerDown(PointerDownEvent event) {
+              if (!AppMotion.enabled(context) ||
+                  (event.buttons & kPrimaryButton) == 0) {
+                return;
+              }
+
+              final _RipplePulse? existing = _pointerPulses.remove(event.pointer);
+              if (existing != null) {
+                _removePulse(existing);
+              }
+
+              while (_livePulses.length >= _maxActivePulses) {
+                _removePulse(_livePulses.first);
+              }
+
+              final _RipplePulse pulse = _RipplePulse(
+                pointer: event.pointer,
+                origin: event.localPosition,
+                downPosition: event.position,
+                onTick: _rippleRepaint.markNeedsPaint,
+                vsync: this,
+              );
+
+              pulse.controller.addStatusListener((AnimationStatus status) {
+                if (status == AnimationStatus.completed ||
+                    (pulse.cancelled && status == AnimationStatus.dismissed)) {
+                  _finishPulse(pulse);
+                }
+              });
+
+              _livePulses.add(pulse);
+              _pointerPulses[event.pointer] = pulse;
+
+              pulse.scheduleStart(
+                UIConstants.globalRippleIntentDelay,
+                () => _startPulse(pulse),
+              );
+            }
+
+            void _handlePointerMove(PointerMoveEvent event) {
+              final _RipplePulse? pulse = _pointerPulses[event.pointer];
+              if (pulse == null || pulse.cancelled) return;
+
+              if ((event.position - pulse.downPosition).distance > _scrollThreshold) {
+                _pointerPulses.remove(event.pointer);
+                if (!pulse.cancel()) {
+                  _removePulse(pulse);
+                }
+              }
+            }
+
+            void _handlePointerUp(PointerUpEvent event) {
+              final _RipplePulse? pulse = _pointerPulses.remove(event.pointer);
+              if (pulse != null) {
+                _startPulse(pulse);
+              }
+            }
+
+            void _handlePointerCancel(PointerCancelEvent event) {
+              final _RipplePulse? pulse = _pointerPulses.remove(event.pointer);
+              if (pulse != null && !pulse.cancel()) {
+                _removePulse(pulse);
+              }
+            }
+
+            void _finishPulse(_RipplePulse pulse) {
+              if (!mounted || !_livePulses.contains(pulse)) return;
+
+              _livePulses.remove(pulse);
+              _pulses.remove(pulse);
+              if (_pointerPulses[pulse.pointer] == pulse) {
+                _pointerPulses.remove(pulse.pointer);
+              }
+
+              // Status listeners execute inside the controller notification stack.
+              // Dispose in a microtask so the controller is never torn down mid-notify.
+              scheduleMicrotask(pulse.dispose);
+            }
+
+            void _removePulse(_RipplePulse pulse) {
+              if (!_livePulses.contains(pulse)) return;
+
+              _livePulses.remove(pulse);
+              final bool wasVisible = _pulses.remove(pulse);
+              if (_pointerPulses[pulse.pointer] == pulse) {
+                _pointerPulses.remove(pulse.pointer);
+              }
+
+              if (wasVisible) {
+                _rippleRepaint.markNeedsPaint();
+              }
+              pulse.dispose();
+            }
+
+            @override
+            void dispose() {
+              for (final _RipplePulse pulse in _livePulses) {
+                pulse.dispose();
+              }
+              _livePulses.clear();
+              _pulses.clear();
+              _pointerPulses.clear();
+              _rippleRepaint.dispose();
+              super.dispose();
+            }
+
+            @override
+            Widget build(BuildContext context) => Listener(
+                  behavior: HitTestBehavior.translucent,
+                  onPointerDown: _handlePointerDown,
+                  onPointerMove: _handlePointerMove,
+                  onPointerUp: _handlePointerUp,
+                  onPointerCancel: _handlePointerCancel,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: <Widget>[
+                      widget.child,
+                      IgnorePointer(
+                        child: RepaintBoundary(
+                          child: CustomPaint(
+                            painter: _GlobalTapRipplePainter(
+                              pulses: _pulses,
+                              repaint: _rippleRepaint,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+          }
+          '''
+
+          source = source[:lifecycle_start] + lifecycle + '\n' + source[painter_start:]
+
+          painter_after_start = source.index(
+              'class _GlobalTapRipplePainter extends CustomPainter'
+          )
+          painter_after_end = source.index(
+              'class _AmbientBackground extends StatelessWidget', painter_after_start
+          )
+          painter_after = source[painter_after_start:painter_after_end]
+          if painter_after != painter_before:
+              raise SystemExit('Ripple painter changed; visual lock violated.')
+
+          for token, count in visual_counts.items():
+              if source.count(token) != count:
+                  raise SystemExit(f'Visual lock changed for {token!r}')
+
+          layer = source[
+              source.index('class _GlobalTapRippleLayerState'):
+              source.index('class _GlobalTapRipplePainter extends CustomPainter')
+          ]
+          for forbidden in ('setState(', 'Listenable.merge(', 'if (snapshot.isNotEmpty)'):
+              if forbidden in layer:
+                  raise SystemExit(f'Ripple layer still contains churn primitive: {forbidden}')
+
+          main_path.write_text(source, encoding='utf-8')
+
+          test_source = r'''import 'dart:io';
+
+          import 'package:flutter_test/flutter_test.dart';
+
+          void main() {
+            late String source;
+
+            setUpAll(() {
+              source = File('lib/main.dart').readAsStringSync();
+            });
+
+            group('global tap ripple gesture intent', () {
+              test('defers pointer-down paint until tap intent is known', () {
+                expect(
+                  source,
+                  contains('globalRippleIntentDelay = Duration(milliseconds: 48)'),
+                );
+                expect(source, contains('Timer? _startTimer;'));
+                expect(
+                  source,
+                  contains('void scheduleStart(Duration delay, VoidCallback onDue)'),
+                );
+                expect(source, contains('bool prepareStart()'));
+                expect(source, contains('void play()'));
+                expect(
+                  source,
+                  contains(
+                    'pulse.scheduleStart(\n'
+                    '      UIConstants.globalRippleIntentDelay,\n'
+                    '      () => _startPulse(pulse),\n'
+                    '    );',
+                  ),
+                );
+              });
+
+              test('pending pointer-down state never enters paint state', () {
+                final int start = source.indexOf('void _handlePointerDown(');
+                final int end = source.indexOf('void _handlePointerMove(', start);
+                expect(start, greaterThanOrEqualTo(0));
+                expect(end, greaterThan(start));
+
+                final String handler = source.substring(start, end);
+                expect(handler, contains('_livePulses.add(pulse);'));
+                expect(handler, contains('_pointerPulses[event.pointer] = pulse;'));
+                expect(handler, isNot(contains('_pulses.add(pulse);')));
+                expect(handler, isNot(contains('setState(')));
+              });
+
+              test('promotion mutates only paint-owned state', () {
+                final int start = source.indexOf('void _startPulse(');
+                final int end = source.indexOf('void _handlePointerDown(', start);
+                expect(start, greaterThanOrEqualTo(0));
+                expect(end, greaterThan(start));
+
+                final String handler = source.substring(start, end);
+                expect(handler, contains('!_livePulses.contains(pulse)'));
+                expect(handler, contains('!pulse.prepareStart()'));
+                expect(handler, contains('_pulses.add(pulse);'));
+                expect(handler, contains('pulse.play();'));
+                expect(handler, isNot(contains('setState(')));
+              });
+
+              test('quick taps activate immediately on pointer release', () {
+                final int start = source.indexOf('void _handlePointerUp(');
+                final int end = source.indexOf('void _handlePointerCancel(', start);
+                expect(start, greaterThanOrEqualTo(0));
+                expect(end, greaterThan(start));
+
+                final String handler = source.substring(start, end);
+                expect(
+                  handler,
+                  contains(
+                    'final _RipplePulse? pulse = '
+                    '_pointerPulses.remove(event.pointer);',
+                  ),
+                );
+                expect(handler, contains('_startPulse(pulse);'));
+              });
+
+              test('scroll cancellation removes intent without widget rebuilds', () {
+                final int layerStart = source.indexOf(
+                  'class _GlobalTapRippleLayerState',
+                );
+                final int layerEnd = source.indexOf(
+                  'class _GlobalTapRipplePainter extends CustomPainter',
+                  layerStart,
+                );
+                final String layer = source.substring(layerStart, layerEnd);
+
+                expect(layer, isNot(contains('setState(')));
+                expect(layer, isNot(contains('rebuild:')));
+                expect(layer, contains('if (!pulse.cancel()) {'));
+                expect(layer, contains('_removePulse(pulse);'));
+              });
+
+              test('uses one persistent paint plane and typed repaint signal', () {
+                final int start = source.indexOf('class _RippleRepaintSignal');
+                final int end = source.indexOf(
+                  'class _GlobalTapRipplePainter extends CustomPainter',
+                  start,
+                );
+                final String layer = source.substring(start, end);
+
+                expect(
+                  layer,
+                  contains('class _RippleRepaintSignal extends ChangeNotifier'),
+                );
+                expect(
+                  layer,
+                  contains('void markNeedsPaint() => notifyListeners();'),
+                );
+                expect(
+                  layer,
+                  contains(
+                    'final _RippleRepaintSignal _rippleRepaint = '
+                    '_RippleRepaintSignal();',
+                  ),
+                );
+                expect(layer, contains('pulses: _pulses,'));
+                expect(layer, contains('repaint: _rippleRepaint,'));
+                expect(layer, contains('onTick: _rippleRepaint.markNeedsPaint,'));
+                expect(layer, isNot(contains('Listenable.merge(')));
+                expect(layer, isNot(contains('if (snapshot.isNotEmpty)')));
+              });
+
+              test('controller detaches repaint callback before disposal', () {
+                final int start = source.indexOf('class _RipplePulse {');
+                final int end = source.indexOf(
+                  'class _GlobalTapRippleLayerState',
+                  start,
+                );
+                final String pulse = source.substring(start, end);
+
+                expect(pulse, contains('controller.addListener(_onTick);'));
+                expect(pulse, contains('controller.removeListener(_onTick);'));
+                expect(
+                  pulse.indexOf('controller.removeListener(_onTick);'),
+                  lessThan(pulse.indexOf('controller.dispose();')),
+                );
+              });
+
+              test('ripple painter visual contract stays unchanged', () {
+                final int start = source.indexOf(
+                  'class _GlobalTapRipplePainter extends CustomPainter',
+                );
+                final int end = source.indexOf(
+                  'class _AmbientBackground extends StatelessWidget',
+                  start,
+                );
+                expect(start, greaterThanOrEqualTo(0));
+                expect(end, greaterThan(start));
+
+                final String painter = source.substring(start, end);
+                expect(
+                  painter,
+                  contains('final double radius = 6 + 48 * expansion;'),
+                );
+                expect(
+                  painter,
+                  contains('final int coreAlpha = (opacity * 31)'),
+                );
+                expect(
+                  painter,
+                  contains('final int haloAlpha = (opacity * 14)'),
+                );
+                expect(
+                  painter,
+                  contains('final int ringAlpha = (opacity * 112)'),
+                );
+              });
+            });
+          }
+          '''
+          test_path.write_text(test_source, encoding='utf-8')
+          PY
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format surgical Dart files
+        run: dart format lib/main.dart test/global_tap_ripple_intent_test.dart
+
+      - name: Flutter analyze
+        run: flutter analyze --fatal-infos
+
+      - name: Commit and push immediately after analyze
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "warishakhan3548-hash"
+          git config user.email "warishakhan3548-hash@users.noreply.github.com"
+
+          git fetch origin main
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            git rebase --autostash origin/main
+            flutter analyze --fatal-infos
+          fi
+
+          git rm -- .github/workflows/ultimate-ripple-render-surgeon.yml
+          git rm -- .github/workflows/ultimate-ripple-render-surgeon-v2.yml
+          git add -A
+          git diff --cached --check
+
+          if git diff --cached --quiet; then
+            echo "No staged changes to commit."
+            exit 0
+          fi
+
+          git commit -m "perf(ui): eliminate ripple render-tree churn"
+          git push origin HEAD:main
