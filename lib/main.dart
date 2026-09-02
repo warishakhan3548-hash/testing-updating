@@ -1490,6 +1490,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int? _programmaticPageTarget;
   int _pageMotionGeneration = 0;
   bool _userPageDragActive = false;
+  bool _navCenterScheduled = false;
   final Set<int> _dragHapticPages = <int>{};
   final ScrollController _navController = ScrollController();
   final PageController _pageController = PageController();
@@ -1515,6 +1516,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
+  @override
+  void didChangeMetrics() {
+    _scheduleNavigationCenter();
+  }
+
   Duration _adaptivePageDuration(double originPage, int targetPage) {
     final double remainingPages = (targetPage - originPage)
         .abs()
@@ -1535,6 +1541,22 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     return Duration(microseconds: micros);
   }
 
+  void _retryPageSelectionWhenAttached(int index, int generation) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          _pageMotionGeneration != generation ||
+          _programmaticPageTarget != index) {
+        return;
+      }
+
+      // A PageController can legitimately have no clients during the frame in
+      // which the shell is first attached. Retry through the normal state
+      // machine instead of letting the selected tab drift from the visible page.
+      _programmaticPageTarget = null;
+      _selectTab(index);
+    });
+  }
+
   void _selectTab(int index) {
     if (index < 0 || index >= _tabs.length) return;
 
@@ -1549,24 +1571,25 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _userPageDragActive = false;
     _dragHapticPages.clear();
 
-    if (reduceMotion) {
-      _programmaticPageTarget = null;
-      setState(() {
-        _tab = index;
-        _settledPage = index;
-      });
-      _scrollNavigation(index);
-      if (_pageController.hasClients) _pageController.jumpToPage(index);
-      return;
-    }
-
     if (_tab != index) setState(() => _tab = index);
     _scrollNavigation(index);
 
     if (!_pageController.hasClients) {
-      _programmaticPageTarget = null;
+      _programmaticPageTarget = index;
+      _retryPageSelectionWhenAttached(index, generation);
       return;
     }
+
+    if (reduceMotion) {
+      // Keep the programmatic guard active while jumpToPage emits its page
+      // notification, then transfer active-sync ownership to the visible page.
+      _programmaticPageTarget = index;
+      _pageController.jumpToPage(index);
+      _programmaticPageTarget = null;
+      if (_settledPage != index) setState(() => _settledPage = index);
+      return;
+    }
+
     _programmaticPageTarget = index;
 
     final double livePage = _pageController.page ?? _settledPage.toDouble();
@@ -1682,10 +1705,26 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (selectionChanged) _scrollNavigation(index);
   }
 
+  void _scheduleNavigationCenter() {
+    if (_navCenterScheduled) return;
+    _navCenterScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navCenterScheduled = false;
+      if (!mounted) return;
+      _scrollNavigation(_tab);
+    });
+  }
+
   void _scrollNavigation(int index) {
-    if (!_navController.hasClients) return;
+    if (!_navController.hasClients) {
+      _scheduleNavigationCenter();
+      return;
+    }
     final ScrollPosition position = _navController.position;
-    if (!position.hasContentDimensions) return;
+    if (!position.hasContentDimensions) {
+      _scheduleNavigationCenter();
+      return;
+    }
 
     // Existing geometry is 84 wide + 4 margin on each side. Keep those exact
     // dimensions, but center the selected destination in the visible viewport.

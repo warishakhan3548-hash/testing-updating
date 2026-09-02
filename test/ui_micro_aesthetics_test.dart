@@ -224,6 +224,52 @@ void main() {
     expect(source, contains('RefreshIndicator.adaptive('));
     expect(source, contains('HapticFeedback.lightImpact();'));
 
+    // Navigation readiness must never desynchronize the selected tab and page.
+    final int readinessShellStart = source.indexOf(
+      'class _AppShellState extends State<AppShell>',
+    );
+    final int readinessShellEnd = source.indexOf(
+      'class _KeepAlivePage extends StatefulWidget',
+      readinessShellStart,
+    );
+    expect(readinessShellStart, greaterThanOrEqualTo(0));
+    expect(readinessShellEnd, greaterThan(readinessShellStart));
+    final String readinessShell = source.substring(
+      readinessShellStart,
+      readinessShellEnd,
+    );
+    expect(readinessShell, contains('bool _navCenterScheduled = false;'));
+    expect(
+      readinessShell,
+      contains(
+        'void _retryPageSelectionWhenAttached(int index, int generation)',
+      ),
+    );
+    expect(
+      readinessShell,
+      contains('WidgetsBinding.instance.addPostFrameCallback((_) {'),
+    );
+    expect(
+      readinessShell,
+      contains('_retryPageSelectionWhenAttached(index, generation);'),
+    );
+    expect(readinessShell, contains('void didChangeMetrics()'));
+    expect(readinessShell, contains('void _scheduleNavigationCenter()'));
+    expect(
+      readinessShell.split('_scheduleNavigationCenter();').length - 1,
+      greaterThanOrEqualTo(3),
+    );
+    expect(
+      readinessShell,
+      isNot(
+        contains(
+          'if (!_pageController.hasClients) {\n'
+          '      _programmaticPageTarget = null;\n'
+          '      return;',
+        ),
+      ),
+    );
+
     // Cross-system motion keeps auth handoffs calm and all route motion optional.
     expect(source, contains('class _RootStage extends StatelessWidget'));
     expect(
