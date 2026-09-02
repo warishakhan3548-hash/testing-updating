@@ -42,47 +42,49 @@ jobs:
           exec(base64.b64decode(match.group(1)), {})
           PY
 
-      - name: Keep interaction source contract semantic
+      - name: Capture generated ownership contract
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path('test/ui_micro_aesthetics_test.dart')
-          lines = path.read_text().splitlines()
-          candidates = []
-          i = 0
-          while i < len(lines):
-              if 'expect(' not in lines[i]:
-                  i += 1
+          needles = ('canOwnTapStart', '_tapWins', '_pointerCancelled')
+          chunks = []
+          for filename in ('lib/main.dart', 'test/ui_micro_aesthetics_test.dart'):
+              lines = Path(filename).read_text().splitlines()
+              hit_lines = sorted({
+                  i for i, line in enumerate(lines)
+                  if any(needle in line for needle in needles)
+              })
+              chunks.append(f'===== {filename} =====')
+              if not hit_lines:
+                  chunks.append('(no ownership-token hits)')
                   continue
-              start = i
-              end = i
-              while end < len(lines) and ');' not in lines[end]:
-                  end += 1
-              if end >= len(lines):
-                  raise SystemExit(f'Unterminated expect block starting at line {start + 1}')
-              block = '\n'.join(lines[start:end + 1])
-              if (
-                  'canOwnTapStart' in block
-                  and '_tapWins' in block
-                  and '_pointerCancelled' in block
-              ):
-                  candidates.append((start, end))
-              i = end + 1
-
-          if len(candidates) != 1:
-              raise SystemExit(
-                  f'Expected exactly one brittle ownership expectation block, found {len(candidates)}'
-              )
-
-          start, end = candidates[0]
-          indent = lines[start][:len(lines[start]) - len(lines[start].lstrip())]
-          lines[start:end + 1] = [
-              f"{indent}expect(pressableSource, contains('final canOwnTapStart ='));"
-          ]
-          path.write_text('\n'.join(lines) + '\n')
+              windows = []
+              for hit in hit_lines:
+                  start = max(0, hit - 8)
+                  end = min(len(lines), hit + 9)
+                  if windows and start <= windows[-1][1]:
+                      windows[-1] = (windows[-1][0], max(windows[-1][1], end))
+                  else:
+                      windows.append((start, end))
+              for start, end in windows:
+                  chunks.append(f'--- lines {start + 1}-{end} ---')
+                  chunks.extend(
+                      f'{i + 1:05d}: {lines[i]}' for i in range(start, end)
+                  )
+          Path('.github/interaction-generated-diagnostic.txt').write_text(
+              '\n'.join(chunks) + '\n'
+          )
           PY
+
+      - name: Push diagnostic snapshot only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/interaction-generated-diagnostic.txt
+          git commit -m "chore(ci): capture generated interaction contract"
+          git push origin HEAD:main
 
       - name: Flutter toolchain
         uses: subosito/flutter-action@v2
