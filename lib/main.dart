@@ -76,7 +76,6 @@ abstract final class UIConstants {
   static const Duration globalRippleIntentDelay = Duration(milliseconds: 48);
   static const Duration motion = Duration(milliseconds: 260);
   static const Duration navMotion = Duration(milliseconds: 220);
-  static const Duration dashboardReveal = Duration(milliseconds: 520);
   static const Duration routeIn = Duration(milliseconds: 280);
   static const Duration routeOut = Duration(milliseconds: 220);
   static const Duration directRouteIn = Duration(milliseconds: 210);
@@ -4144,51 +4143,8 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _revealController;
-  bool _revealScheduled = false;
-
+class _DashboardScreenState extends State<DashboardScreen> {
   LedgerSyncService get sync => widget.sync;
-
-  @override
-  void initState() {
-    super.initState();
-    _revealController = AnimationController(
-      vsync: this,
-      duration: UIConstants.dashboardReveal,
-    );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (AppMotion.reduce(context)) {
-      _revealController.value = 1;
-      _revealScheduled = true;
-      return;
-    }
-    if (_revealScheduled || !AppMotion.enabled(context)) return;
-    _revealScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (AppMotion.reduce(context)) {
-        _revealController.value = 1;
-      } else if (TickerMode.valuesOf(context).enabled) {
-        _revealController.forward();
-      } else {
-        // The dashboard became off-screen before its first frame. Let the
-        // next enabled TickerMode dependency change schedule it once.
-        _revealScheduled = false;
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _revealController.dispose();
-    super.dispose();
-  }
 
   Future<void> _logout(BuildContext context) async {
     if (sync.pendingWrites > 0) {
@@ -4282,53 +4238,34 @@ class _DashboardScreenState extends State<DashboardScreen>
                   clipBehavior: Clip.none,
                   childAspectRatio: 1.0,
                   children: <Widget>[
-                    _DashboardCardReveal(
-                      animation: _revealController,
-                      order: 0,
-                      child: _MetricCard(
+                    _MetricCard(
                         icon: Icons.handshake_rounded,
                         label: 'To Receive (+)',
                         value: _money(totals.toReceive),
                         color: appleGreen,
                       ),
-                    ),
-                    _DashboardCardReveal(
-                      animation: _revealController,
-                      order: 1,
-                      child: _MetricCard(
+                    _MetricCard(
                         icon: Icons.request_quote_rounded,
                         label: 'To Pay (-)',
                         value: _money(totals.toPay),
                         color: appleRed,
                       ),
-                    ),
-                    _DashboardCardReveal(
-                      animation: _revealController,
-                      order: 2,
-                      child: _MetricCard(
+                    _MetricCard(
                         icon: premiumExpenseIcon,
                         label: 'Month Expense',
                         value: _money(totals.monthExpense),
                         color: diaryOrange,
                       ),
-                    ),
-                    _DashboardCardReveal(
-                      animation: _revealController,
-                      order: 3,
-                      child: _MetricCard(
+                    _MetricCard(
                         icon: Icons.trending_up_rounded,
                         label: 'Month Profit',
                         value: _signedMoney(totals.monthProfit),
                         color: appleBlue,
                       ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                _DashboardCardReveal(
-                  animation: _revealController,
-                  order: 4,
-                  child: _FastRouteLauncher(
+                _FastRouteLauncher(
                     destinationBuilder: (_) => PartyLedgerScreen(sync: sync),
                     sourceBuilder: (VoidCallback openRoute) => _Pressable(
                       onTap: openRoute,
@@ -4377,47 +4314,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
         ),
       ],
-    );
-  }
-}
-
-class _DashboardCardReveal extends StatelessWidget {
-  const _DashboardCardReveal({
-    required this.animation,
-    required this.order,
-    required this.child,
-  });
-
-  final Animation<double> animation;
-  final int order;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final double start = math.min(order * .06, .30).toDouble();
-    final Animation<double> reveal = CurvedAnimation(
-      parent: animation,
-      curve: Interval(
-        start,
-        math.min(start + .58, 1.0),
-        curve: UIConstants.motionOut,
-      ),
-    );
-    return FadeTransition(
-      opacity: reveal,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, .045),
-          end: Offset.zero,
-        ).animate(reveal),
-        child: RepaintBoundary(child: child),
-      ),
     );
   }
 }
