@@ -559,21 +559,30 @@ class _GlobalTapRippleLayer extends StatefulWidget {
   State<_GlobalTapRippleLayer> createState() => _GlobalTapRippleLayerState();
 }
 
+class _RippleRepaintSignal extends ChangeNotifier {
+  void markNeedsPaint() => notifyListeners();
+}
+
 class _RipplePulse {
   _RipplePulse({
     required this.pointer,
     required this.origin,
     required this.downPosition,
+    required VoidCallback onTick,
     required TickerProvider vsync,
-  }) : controller = AnimationController(
+  })  : _onTick = onTick,
+        controller = AnimationController(
           vsync: vsync,
           duration: const Duration(milliseconds: 200),
           reverseDuration: const Duration(milliseconds: 65),
-        );
+        ) {
+    controller.addListener(_onTick);
+  }
 
   final int pointer;
   final Offset origin;
   final Offset downPosition;
+  final VoidCallback _onTick;
   final AnimationController controller;
   Timer? _startTimer;
   bool _started = false;
@@ -628,6 +637,7 @@ class _RipplePulse {
     disposed = true;
     _startTimer?.cancel();
     _startTimer = null;
+    controller.removeListener(_onTick);
     controller.dispose();
   }
 }
@@ -637,25 +647,20 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
   static const double _scrollThreshold = 8;
   static const int _maxActivePulses = 2;
 
-  // _livePulses owns every pulse from pointer-down until disposal.
-  // _pulses contains only pulses that are actually visible/animating.
-  //
-  // Pending tap intent therefore remains outside the widget render state:
-  // a swipe cancelled before the intent delay performs no setState and
-  // never creates a CustomPaint node.
+  // Pointer intent, visible pulses, and paint invalidation are deliberately
+  // separated. Ripple activity never rebuilds or reparents the app subtree.
   final List<_RipplePulse> _livePulses = <_RipplePulse>[];
   final List<_RipplePulse> _pulses = <_RipplePulse>[];
   final Map<int, _RipplePulse> _pointerPulses = <int, _RipplePulse>{};
+  final _RippleRepaintSignal _rippleRepaint = _RippleRepaintSignal();
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (AppMotion.enabled(context) || _livePulses.isEmpty) return;
 
-    // didChangeDependencies is already followed by a build, so no extra
-    // rebuild is necessary while purging motion that has just been disabled.
     for (final _RipplePulse pulse in List<_RipplePulse>.of(_livePulses)) {
-      _removePulse(pulse, rebuild: false);
+      _removePulse(pulse);
     }
   }
 
@@ -664,15 +669,9 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
       return;
     }
 
-    // Promote into paint state exactly once, and only when the ripple is
-    // genuinely going to animate. Animation ticks thereafter use the
-    // CustomPainter repaint Listenable rather than widget rebuilds.
-    setState(() {
-      if (!_pulses.contains(pulse)) {
-        _pulses.add(pulse);
-      }
-    });
-
+    if (!_pulses.contains(pulse)) {
+      _pulses.add(pulse);
+    }
     pulse.play();
   }
 
@@ -683,18 +682,18 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
 
     final _RipplePulse? existing = _pointerPulses.remove(event.pointer);
     if (existing != null) {
-      _removePulse(existing, rebuild: existing.started);
+      _removePulse(existing);
     }
 
     while (_livePulses.length >= _maxActivePulses) {
-      final _RipplePulse oldest = _livePulses.first;
-      _removePulse(oldest, rebuild: oldest.started);
+      _removePulse(_livePulses.first);
     }
 
     final _RipplePulse pulse = _RipplePulse(
       pointer: event.pointer,
       origin: event.localPosition,
       downPosition: event.position,
+      onTick: _rippleRepaint.markNeedsPaint,
       vsync: this,
     );
 
@@ -705,8 +704,6 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
       }
     });
 
-    // Logical pointer ownership does not affect layout or paint, so storing
-    // pending intent here deliberately avoids setState.
     _livePulses.add(pulse);
     _pointerPulses[event.pointer] = pulse;
 
@@ -722,12 +719,8 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
 
     if ((event.position - pulse.downPosition).distance > _scrollThreshold) {
       _pointerPulses.remove(event.pointer);
-
-      // A pending pulse has never entered _pulses and therefore requires
-      // no rebuild when discarded. A started pulse reverses through its
-      // controller and is removed by its status listener.
       if (!pulse.cancel()) {
-        _removePulse(pulse, rebuild: false);
+        _removePulse(pulse);
       }
     }
   }
@@ -735,7 +728,6 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
   void _handlePointerUp(PointerUpEvent event) {
     final _RipplePulse? pulse = _pointerPulses.remove(event.pointer);
     if (pulse != null) {
-      // Quick taps do not wait for the remainder of the intent delay.
       _startPulse(pulse);
     }
   }
@@ -743,49 +735,36 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
   void _handlePointerCancel(PointerCancelEvent event) {
     final _RipplePulse? pulse = _pointerPulses.remove(event.pointer);
     if (pulse != null && !pulse.cancel()) {
-      // Pending cancellation is a pure logical-state disposal: there has
-      // never been anything in the painter to rebuild away.
-      _removePulse(pulse, rebuild: false);
+      _removePulse(pulse);
     }
   }
 
   void _finishPulse(_RipplePulse pulse) {
     if (!mounted || !_livePulses.contains(pulse)) return;
 
-    setState(() {
-      _livePulses.remove(pulse);
-      _pulses.remove(pulse);
+    _livePulses.remove(pulse);
+    _pulses.remove(pulse);
+    if (_pointerPulses[pulse.pointer] == pulse) {
+      _pointerPulses.remove(pulse.pointer);
+    }
 
-      if (_pointerPulses[pulse.pointer] == pulse) {
-        _pointerPulses.remove(pulse.pointer);
-      }
-    });
-
-    // Never dispose an AnimationController while its status notification
-    // is still unwinding.
+    // Status listeners execute inside the controller notification stack.
+    // Dispose in a microtask so the controller is never torn down mid-notify.
     scheduleMicrotask(pulse.dispose);
   }
 
-  void _removePulse(_RipplePulse pulse, {required bool rebuild}) {
+  void _removePulse(_RipplePulse pulse) {
     if (!_livePulses.contains(pulse)) return;
 
-    void remove() {
-      _livePulses.remove(pulse);
-      _pulses.remove(pulse);
-
-      if (_pointerPulses[pulse.pointer] == pulse) {
-        _pointerPulses.remove(pulse.pointer);
-      }
+    _livePulses.remove(pulse);
+    final bool wasVisible = _pulses.remove(pulse);
+    if (_pointerPulses[pulse.pointer] == pulse) {
+      _pointerPulses.remove(pulse.pointer);
     }
 
-    // Only a pulse that has actually entered the visible paint list can
-    // require a rebuild when removed.
-    if (rebuild && pulse.started && mounted) {
-      setState(remove);
-    } else {
-      remove();
+    if (wasVisible) {
+      _rippleRepaint.markNeedsPaint();
     }
-
     pulse.dispose();
   }
 
@@ -794,54 +773,37 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
     for (final _RipplePulse pulse in _livePulses) {
       pulse.dispose();
     }
-
     _livePulses.clear();
     _pulses.clear();
     _pointerPulses.clear();
+    _rippleRepaint.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) {
-    // The application subtree must keep the same parent whether a pulse
-    // exists or not. Conditionally inserting/removing the Stack would
-    // reparent the Navigator subtree on every tap, causing avoidable
-    // element churn and risking focus/state discontinuities.
-    final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable(
-      _pulses,
-    );
-
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: _handlePointerDown,
-      onPointerMove: _handlePointerMove,
-      onPointerUp: _handlePointerUp,
-      onPointerCancel: _handlePointerCancel,
-      child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          widget.child,
-          if (snapshot.isNotEmpty)
+  Widget build(BuildContext context) => Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: _handlePointerDown,
+        onPointerMove: _handlePointerMove,
+        onPointerUp: _handlePointerUp,
+        onPointerCancel: _handlePointerCancel,
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            widget.child,
             IgnorePointer(
               child: RepaintBoundary(
                 child: CustomPaint(
                   painter: _GlobalTapRipplePainter(
-                    pulses: snapshot,
-                    repaint: Listenable.merge(
-                      snapshot
-                          .map<Listenable>(
-                            (_RipplePulse pulse) => pulse.controller,
-                          )
-                          .toList(),
-                    ),
+                    pulses: _pulses,
+                    repaint: _rippleRepaint,
                   ),
                 ),
               ),
             ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      );
 }
 
 class _GlobalTapRipplePainter extends CustomPainter {

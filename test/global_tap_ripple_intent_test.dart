@@ -18,9 +18,7 @@ void main() {
       expect(source, contains('Timer? _startTimer;'));
       expect(
         source,
-        contains(
-          'void scheduleStart(Duration delay, VoidCallback onDue)',
-        ),
+        contains('void scheduleStart(Duration delay, VoidCallback onDue)'),
       );
       expect(source, contains('bool prepareStart()'));
       expect(source, contains('void play()'));
@@ -33,56 +31,42 @@ void main() {
           '    );',
         ),
       );
-      expect(source, isNot(contains('    pulse.start();')));
     });
 
-    test('pending pointer-down state never enters the paint list or rebuilds',
-        () {
+    test('pending pointer-down state never enters paint state', () {
       final int start = source.indexOf('void _handlePointerDown(');
       final int end = source.indexOf('void _handlePointerMove(', start);
-
       expect(start, greaterThanOrEqualTo(0));
       expect(end, greaterThan(start));
 
       final String handler = source.substring(start, end);
-
       expect(handler, contains('_livePulses.add(pulse);'));
-      expect(
-        handler,
-        contains('_pointerPulses[event.pointer] = pulse;'),
-      );
+      expect(handler, contains('_pointerPulses[event.pointer] = pulse;'));
       expect(handler, isNot(contains('_pulses.add(pulse);')));
-      expect(handler, isNot(contains('setState(()')));
+      expect(handler, isNot(contains('setState(')));
     });
 
-    test('promotion performs one meaningful visible-state transition', () {
+    test('promotion mutates only paint-owned state', () {
       final int start = source.indexOf('void _startPulse(');
       final int end = source.indexOf('void _handlePointerDown(', start);
-
       expect(start, greaterThanOrEqualTo(0));
       expect(end, greaterThan(start));
 
       final String handler = source.substring(start, end);
-
       expect(handler, contains('!_livePulses.contains(pulse)'));
       expect(handler, contains('!pulse.prepareStart()'));
-      expect(
-        RegExp(r'setState\(\(\) \{').allMatches(handler),
-        hasLength(1),
-      );
       expect(handler, contains('_pulses.add(pulse);'));
       expect(handler, contains('pulse.play();'));
+      expect(handler, isNot(contains('setState(')));
     });
 
     test('quick taps activate immediately on pointer release', () {
       final int start = source.indexOf('void _handlePointerUp(');
       final int end = source.indexOf('void _handlePointerCancel(', start);
-
       expect(start, greaterThanOrEqualTo(0));
       expect(end, greaterThan(start));
 
       final String handler = source.substring(start, end);
-
       expect(
         handler,
         contains(
@@ -91,71 +75,67 @@ void main() {
         ),
       );
       expect(handler, contains('_startPulse(pulse);'));
-      expect(handler, isNot(contains('pulse?.startNow();')));
     });
 
-    test('pre-intent scroll and cancellation cause no rebuild', () {
-      expect(source, contains('bool cancel()'));
-      expect(source, contains('if (!_started) return false;'));
-      expect(
-        source,
-        contains(
-          'final List<_RipplePulse> _livePulses = <_RipplePulse>[];',
-        ),
-      );
-      expect(
-        source.split('_removePulse(pulse, rebuild: false);').length - 1,
-        greaterThanOrEqualTo(3),
-      );
-      expect(source, contains('_startTimer?.cancel();'));
-
-      final int moveStart = source.indexOf('void _handlePointerMove(');
-      final int moveEnd = source.indexOf('void _handlePointerUp(', moveStart);
-      final String moveHandler = source.substring(moveStart, moveEnd);
-      expect(
-        moveHandler,
-        contains('_removePulse(pulse, rebuild: false);'),
-      );
-      expect(
-        moveHandler,
-        isNot(contains('_removePulse(pulse, rebuild: true);')),
-      );
-
-      final int cancelStart = source.indexOf('void _handlePointerCancel(');
-      final int cancelEnd = source.indexOf('void _finishPulse(', cancelStart);
-      final String cancelHandler = source.substring(cancelStart, cancelEnd);
-      expect(
-        cancelHandler,
-        contains('_removePulse(pulse, rebuild: false);'),
-      );
-      expect(
-        cancelHandler,
-        isNot(contains('_removePulse(pulse, rebuild: true);')),
-      );
-    });
-
-    test('animation ticks remain painter-driven rather than widget-driven', () {
-      final int start = source.indexOf(
+    test('scroll cancellation removes intent without widget rebuilds', () {
+      final int layerStart = source.indexOf(
         'class _GlobalTapRippleLayerState',
       );
+      final int layerEnd = source.indexOf(
+        'class _GlobalTapRipplePainter extends CustomPainter',
+        layerStart,
+      );
+      final String layer = source.substring(layerStart, layerEnd);
+
+      expect(layer, isNot(contains('setState(')));
+      expect(layer, isNot(contains('rebuild:')));
+      expect(layer, contains('if (!pulse.cancel()) {'));
+      expect(layer, contains('_removePulse(pulse);'));
+    });
+
+    test('uses one persistent paint plane and typed repaint signal', () {
+      final int start = source.indexOf('class _RippleRepaintSignal');
       final int end = source.indexOf(
         'class _GlobalTapRipplePainter extends CustomPainter',
         start,
       );
-
-      expect(start, greaterThanOrEqualTo(0));
-      expect(end, greaterThan(start));
-
       final String layer = source.substring(start, end);
 
-      expect(layer, contains('RepaintBoundary('));
-      expect(layer, contains('CustomPaint('));
-      expect(layer, contains('repaint: Listenable.merge('));
+      expect(
+        layer,
+        contains('class _RippleRepaintSignal extends ChangeNotifier'),
+      );
+      expect(
+        layer,
+        contains('void markNeedsPaint() => notifyListeners();'),
+      );
       expect(
         layer,
         contains(
-          '(_RipplePulse pulse) => pulse.controller',
+          'final _RippleRepaintSignal _rippleRepaint = '
+          '_RippleRepaintSignal();',
         ),
+      );
+      expect(layer, contains('pulses: _pulses,'));
+      expect(layer, contains('repaint: _rippleRepaint,'));
+      expect(layer, contains('onTick: _rippleRepaint.markNeedsPaint,'));
+      expect(layer, isNot(contains('Listenable.merge(')));
+      expect(layer, isNot(contains('if (snapshot.isNotEmpty)')));
+    });
+
+    test('controller detaches repaint callback before disposal', () {
+      final int start = source.indexOf('class _RipplePulse {');
+      final int end = source.indexOf(
+        'class _GlobalTapRippleLayerState',
+        start,
+      );
+      final String pulse = source.substring(start, end);
+
+      expect(pulse, contains('controller.addListener(_onTick);'));
+      expect(pulse, contains('controller.removeListener(_onTick);'));
+      expect(
+        pulse.indexOf('controller.removeListener(_onTick);'),
+        lessThan(pulse.indexOf('controller.dispose();')),
       );
     });
 
@@ -167,12 +147,10 @@ void main() {
         'class _AmbientBackground extends StatelessWidget',
         start,
       );
-
       expect(start, greaterThanOrEqualTo(0));
       expect(end, greaterThan(start));
 
       final String painter = source.substring(start, end);
-
       expect(
         painter,
         contains('final double radius = 6 + 48 * expansion;'),
