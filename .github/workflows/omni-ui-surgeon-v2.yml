@@ -1,0 +1,325 @@
+name: Omni UI Gesture Surgeon V2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/omni-ui-surgeon-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: omni-ui-gesture-surgeon-v2
+  cancel-in-progress: false
+
+jobs:
+  patch-verify-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Apply exact gesture-intent patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          main_path = Path("lib/main.dart")
+          source = main_path.read_text()
+          original = source
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly one match, found {count}")
+              return text.replace(old, new, 1)
+
+          source = replace_once(
+              source,
+              "  static const Duration pressOut = Duration(milliseconds: 210);\n  static const Duration motion = Duration(milliseconds: 260);",
+              "  static const Duration pressOut = Duration(milliseconds: 210);\n  static const Duration globalRippleIntentDelay = Duration(milliseconds: 48);\n  static const Duration motion = Duration(milliseconds: 260);",
+              "intent-delay constant",
+          )
+
+          old_pulse = """class _RipplePulse {
+            _RipplePulse({
+              required this.pointer,
+              required this.origin,
+              required this.downPosition,
+              required TickerProvider vsync,
+            }) : controller = AnimationController(
+                   vsync: vsync,
+                   duration: const Duration(milliseconds: 200),
+                   reverseDuration: const Duration(milliseconds: 65),
+                 );
+
+            final int pointer;
+            final Offset origin;
+            final Offset downPosition;
+            final AnimationController controller;
+            bool cancelled = false;
+            bool disposed = false;
+
+            void start() => controller.forward(from: 0);
+
+            void cancel() {
+              if (cancelled || disposed) return;
+              cancelled = true;
+              controller.animateBack(
+                0,
+                duration: const Duration(milliseconds: 65),
+                curve: Curves.easeOutCubic,
+              );
+            }
+
+            void dispose() {
+              if (disposed) return;
+              disposed = true;
+              controller.dispose();
+            }
+          }"""
+
+          new_pulse = """class _RipplePulse {
+            _RipplePulse({
+              required this.pointer,
+              required this.origin,
+              required this.downPosition,
+              required TickerProvider vsync,
+            }) : controller = AnimationController(
+                   vsync: vsync,
+                   duration: const Duration(milliseconds: 200),
+                   reverseDuration: const Duration(milliseconds: 65),
+                 );
+
+            final int pointer;
+            final Offset origin;
+            final Offset downPosition;
+            final AnimationController controller;
+            Timer? _startTimer;
+            bool _started = false;
+            bool cancelled = false;
+            bool disposed = false;
+
+            void scheduleStart(Duration delay) {
+              if (disposed || cancelled || _started) return;
+              _startTimer?.cancel();
+              if (delay.inMicroseconds <= 0) {
+                startNow();
+                return;
+              }
+              _startTimer = Timer(delay, startNow);
+            }
+
+            void startNow() {
+              if (disposed || cancelled || _started) return;
+              _startTimer?.cancel();
+              _startTimer = null;
+              _started = true;
+              controller.forward(from: 0);
+            }
+
+            bool cancel() {
+              if (cancelled || disposed) return false;
+              cancelled = true;
+              _startTimer?.cancel();
+              _startTimer = null;
+              if (!_started) return false;
+              controller.animateBack(
+                0,
+                duration: const Duration(milliseconds: 65),
+                curve: Curves.easeOutCubic,
+              );
+              return true;
+            }
+
+            void dispose() {
+              if (disposed) return;
+              disposed = true;
+              _startTimer?.cancel();
+              _startTimer = null;
+              controller.dispose();
+            }
+          }"""
+          source = replace_once(source, old_pulse, new_pulse, "ripple pulse lifecycle")
+
+          source = replace_once(
+              source,
+              "    pulse.start();",
+              "    pulse.scheduleStart(UIConstants.globalRippleIntentDelay);",
+              "deferred pointer-down activation",
+          )
+
+          source = replace_once(
+              source,
+              "      _pointerPulses.remove(event.pointer);\n      pulse.cancel();",
+              "      _pointerPulses.remove(event.pointer);\n      if (!pulse.cancel()) {\n        _removePulse(pulse, rebuild: true);\n      }",
+              "scroll cancellation",
+          )
+
+          source = replace_once(
+              source,
+              "  void _handlePointerUp(PointerUpEvent event) {\n    _pointerPulses.remove(event.pointer);\n  }",
+              "  void _handlePointerUp(PointerUpEvent event) {\n    final _RipplePulse? pulse = _pointerPulses.remove(event.pointer);\n    pulse?.startNow();\n  }",
+              "quick tap release",
+          )
+
+          source = replace_once(
+              source,
+              "  void _handlePointerCancel(PointerCancelEvent event) {\n    final _RipplePulse? pulse = _pointerPulses.remove(event.pointer);\n    pulse?.cancel();\n  }",
+              "  void _handlePointerCancel(PointerCancelEvent event) {\n    final _RipplePulse? pulse = _pointerPulses.remove(event.pointer);\n    if (pulse != null && !pulse.cancel()) {\n      _removePulse(pulse, rebuild: true);\n    }\n  }",
+              "platform cancellation",
+          )
+
+          painter_marker = "class _GlobalTapRipplePainter extends CustomPainter"
+          ambient_marker = "class _AmbientBackground extends StatelessWidget"
+          before_painter = original[original.index(painter_marker):original.index(ambient_marker)]
+          after_painter = source[source.index(painter_marker):source.index(ambient_marker)]
+          if before_painter != after_painter:
+              raise SystemExit("visual-lock violation: ripple painter changed")
+
+          main_path.write_text(source)
+
+          test_path = Path("test/global_tap_ripple_intent_test.dart")
+          if test_path.exists():
+              raise SystemExit("refusing to overwrite existing global ripple intent test")
+          test_path.write_text("""import 'dart:io';
+
+          import 'package:flutter_test/flutter_test.dart';
+
+          void main() {
+            late String source;
+
+            setUpAll(() {
+              source = File('lib/main.dart').readAsStringSync();
+            });
+
+            group('global tap ripple gesture intent', () {
+              test('defers pointer-down paint until tap intent is known', () {
+                expect(
+                  source,
+                  contains('globalRippleIntentDelay = Duration(milliseconds: 48)'),
+                );
+                expect(source, contains('Timer? _startTimer;'));
+                expect(source, contains('void scheduleStart(Duration delay)'));
+                expect(
+                  source,
+                  contains('pulse.scheduleStart(UIConstants.globalRippleIntentDelay);'),
+                );
+                expect(source, isNot(contains('    pulse.start();')));
+              });
+
+              test('quick taps activate immediately on pointer release', () {
+                final int start = source.indexOf('void _handlePointerUp(');
+                final int end = source.indexOf('void _handlePointerCancel(', start);
+                expect(start, greaterThanOrEqualTo(0));
+                expect(end, greaterThan(start));
+                final String handler = source.substring(start, end);
+                expect(
+                  handler,
+                  contains(
+                    'final _RipplePulse? pulse = _pointerPulses.remove(event.pointer);',
+                  ),
+                );
+                expect(handler, contains('pulse?.startNow();'));
+              });
+
+              test('scroll and cancellation discard pending invisible pulses', () {
+                expect(source, contains('bool cancel()'));
+                expect(source, contains('if (!_started) return false;'));
+                expect(
+                  source,
+                  contains('if (pulse != null && !pulse.cancel()) {'),
+                );
+                expect(
+                  source.split('_removePulse(pulse, rebuild: true);').length - 1,
+                  greaterThanOrEqualTo(2),
+                );
+                expect(source, contains('_startTimer?.cancel();'));
+              });
+
+              test('ripple painter visual contract stays unchanged', () {
+                final int start = source.indexOf(
+                  'class _GlobalTapRipplePainter extends CustomPainter',
+                );
+                final int end = source.indexOf(
+                  'class _AmbientBackground extends StatelessWidget',
+                  start,
+                );
+                expect(start, greaterThanOrEqualTo(0));
+                expect(end, greaterThan(start));
+                final String painter = source.substring(start, end);
+                expect(
+                  painter,
+                  contains('final double radius = 6 + 48 * expansion;'),
+                );
+                expect(painter, contains('final int coreAlpha = (opacity * 31)'));
+                expect(painter, contains('final int haloAlpha = (opacity * 14)'));
+                expect(painter, contains('final int ringAlpha = (opacity * 112)'));
+              });
+            });
+          }
+          """)
+          PY
+
+      - name: Format changed Dart
+        run: dart format --language-version latest lib/main.dart test/global_tap_ripple_intent_test.dart
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos
+
+      - name: Focused UI regression tests
+        run: >-
+          flutter test
+          test/global_tap_ripple_intent_test.dart
+          test/native_interaction_physics_test.dart
+          test/ui_micro_aesthetics_test.dart
+          test/ui_visual_contract_test.dart
+          test/ui_visual_sentinels_test.dart
+
+      - name: Full Flutter test suite
+        run: flutter test
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Validate diff and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          rm .github/workflows/omni-ui-surgeon.yml
+          rm .github/workflows/omni-ui-surgeon-v2.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          echo "Changed paths:"
+          git diff --cached --name-only
+          git commit -m "Fix swipe-safe tap ripple interaction"
+
+      - name: Push verified patch to main
+        run: git push origin HEAD:main
