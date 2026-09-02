@@ -2339,6 +2339,7 @@ class _PressableState extends State<_Pressable>
   Offset? _lastTouchPosition;
   int _lastTouchSampleMicros = 0;
   Offset _gestureVelocity = Offset.zero;
+  Size _gestureExtent = Size.zero;
 
   @override
   void initState() {
@@ -2378,16 +2379,22 @@ class _PressableState extends State<_Pressable>
     _lastTouchPosition = null;
     _lastTouchSampleMicros = 0;
     _gestureVelocity = Offset.zero;
+    _gestureExtent = Size.zero;
+  }
+
+  Size _readGestureExtent() {
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || box.size.isEmpty) return Size.zero;
+    return box.size;
   }
 
   bool _updateTouchAlignment(Offset localPosition) {
-    final RenderBox? box = context.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize || box.size.isEmpty) return false;
+    final Size extent = _gestureExtent;
+    if (extent.isEmpty) return false;
     final double x =
-        (localPosition.dx / box.size.width * 2 - 1).clamp(-.72, .72).toDouble();
-    final double y = (localPosition.dy / box.size.height * 2 - 1)
-        .clamp(-.72, .72)
-        .toDouble();
+        (localPosition.dx / extent.width * 2 - 1).clamp(-.72, .72).toDouble();
+    final double y =
+        (localPosition.dy / extent.height * 2 - 1).clamp(-.72, .72).toDouble();
     final Alignment nextAlignment = Alignment(x, y);
     final double deltaX = nextAlignment.x - _touchAlignment.x;
     final double deltaY = nextAlignment.y - _touchAlignment.y;
@@ -2400,6 +2407,7 @@ class _PressableState extends State<_Pressable>
 
   void _captureTouch(TapDownDetails details) {
     _releaseAlignment = null;
+    _gestureExtent = _readGestureExtent();
     _lastTouchPosition = details.localPosition;
     _lastTouchSampleMicros = _gestureClock.elapsedMicroseconds;
     _gestureVelocity = Offset.zero;
@@ -2429,10 +2437,18 @@ class _PressableState extends State<_Pressable>
     // A fixed per-event blend changes its effective response at 60 Hz versus
     // 120 Hz. Convert the same response into continuous time so touch tracking
     // feels identical across refresh rates and irregular pointer sampling.
-    const double velocityResponsePerSecond = 32;
+    // If the finger reverses direction, shed stale momentum faster so the
+    // release vector follows the user's newest intent instead of the old arc.
+    final double previousSpeed = _gestureVelocity.distance;
+    final double directionalDot =
+        _gestureVelocity.dx * sample.dx + _gestureVelocity.dy * sample.dy;
+    final bool reversing =
+        previousSpeed > 80 && sampleSpeed > 80 && directionalDot < 0;
+    final double velocityResponsePerSecond = reversing ? 52 : 32;
+    final double maxBlend = reversing ? .84 : .72;
     final double blend =
         (1 - math.exp(-velocityResponsePerSecond * elapsedSeconds))
-            .clamp(.12, .72)
+            .clamp(.12, maxBlend)
             .toDouble();
     _gestureVelocity = Offset.lerp(_gestureVelocity, sample, blend)!;
   }
@@ -2450,14 +2466,12 @@ class _PressableState extends State<_Pressable>
   }
 
   Alignment _projectReleaseAlignment(Offset velocity) {
-    final RenderBox? box = context.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize || box.size.isEmpty) {
-      return _touchAlignment;
-    }
-    final double xLead = (velocity.dx / math.max(box.size.width, 1) * .018)
+    final Size extent = _gestureExtent;
+    if (extent.isEmpty) return _touchAlignment;
+    final double xLead = (velocity.dx / math.max(extent.width, 1) * .018)
         .clamp(-.18, .18)
         .toDouble();
-    final double yLead = (velocity.dy / math.max(box.size.height, 1) * .018)
+    final double yLead = (velocity.dy / math.max(extent.height, 1) * .018)
         .clamp(-.18, .18)
         .toDouble();
     return Alignment(
@@ -2467,11 +2481,10 @@ class _PressableState extends State<_Pressable>
   }
 
   double _releaseDepthVelocity(Offset velocity, {required bool cancelled}) {
-    final RenderBox? box = context.findRenderObject() as RenderBox?;
-    final double referenceExtent =
-        box != null && box.hasSize && !box.size.isEmpty
-            ? math.max(48, math.min(box.size.width, box.size.height)).toDouble()
-            : 64;
+    final Size extent = _gestureExtent;
+    final double referenceExtent = extent.isEmpty
+        ? 64
+        : math.max(48, math.min(extent.width, extent.height)).toDouble();
     final double normalizedSpeed = velocity.distance / referenceExtent;
     final double gain = cancelled ? .24 : .18;
     return -(normalizedSpeed * gain).clamp(0.0, 2.2).toDouble();
