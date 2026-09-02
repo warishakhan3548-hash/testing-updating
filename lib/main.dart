@@ -73,6 +73,7 @@ abstract final class UIConstants {
   static const Duration pressIn = Duration(milliseconds: 55);
   static const Duration pressReengageFloor = Duration(milliseconds: 24);
   static const Duration pressOut = Duration(milliseconds: 210);
+  static const Duration globalRippleIntentDelay = Duration(milliseconds: 48);
   static const Duration motion = Duration(milliseconds: 260);
   static const Duration navMotion = Duration(milliseconds: 220);
   static const Duration dashboardReveal = Duration(milliseconds: 520);
@@ -581,24 +582,48 @@ class _RipplePulse {
   final Offset origin;
   final Offset downPosition;
   final AnimationController controller;
+  Timer? _startTimer;
+  bool _started = false;
   bool cancelled = false;
   bool disposed = false;
 
-  void start() => controller.forward(from: 0);
+  void scheduleStart(Duration delay) {
+    if (disposed || cancelled || _started) return;
+    _startTimer?.cancel();
+    if (delay.inMicroseconds <= 0) {
+      startNow();
+      return;
+    }
+    _startTimer = Timer(delay, startNow);
+  }
 
-  void cancel() {
-    if (cancelled || disposed) return;
+  void startNow() {
+    if (disposed || cancelled || _started) return;
+    _startTimer?.cancel();
+    _startTimer = null;
+    _started = true;
+    controller.forward(from: 0);
+  }
+
+  bool cancel() {
+    if (cancelled || disposed) return false;
     cancelled = true;
+    _startTimer?.cancel();
+    _startTimer = null;
+    if (!_started) return false;
     controller.animateBack(
       0,
       duration: const Duration(milliseconds: 65),
       curve: Curves.easeOutCubic,
     );
+    return true;
   }
 
   void dispose() {
     if (disposed) return;
     disposed = true;
+    _startTimer?.cancel();
+    _startTimer = null;
     controller.dispose();
   }
 }
@@ -650,7 +675,7 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
       _pulses.add(pulse);
       _pointerPulses[event.pointer] = pulse;
     });
-    pulse.start();
+    pulse.scheduleStart(UIConstants.globalRippleIntentDelay);
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
@@ -659,17 +684,22 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
 
     if ((event.position - pulse.downPosition).distance > _scrollThreshold) {
       _pointerPulses.remove(event.pointer);
-      pulse.cancel();
+      if (!pulse.cancel()) {
+        _removePulse(pulse, rebuild: true);
+      }
     }
   }
 
   void _handlePointerUp(PointerUpEvent event) {
-    _pointerPulses.remove(event.pointer);
+    final _RipplePulse? pulse = _pointerPulses.remove(event.pointer);
+    pulse?.startNow();
   }
 
   void _handlePointerCancel(PointerCancelEvent event) {
     final _RipplePulse? pulse = _pointerPulses.remove(event.pointer);
-    pulse?.cancel();
+    if (pulse != null && !pulse.cancel()) {
+      _removePulse(pulse, rebuild: true);
+    }
   }
 
   void _finishPulse(_RipplePulse pulse) {
