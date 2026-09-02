@@ -8686,10 +8686,6 @@ class BusinessDetailScreen extends StatelessWidget {
               title: projectName,
               color: appleBlue,
               actions: <Widget>[
-                _CircleAction(
-                  icon: Icons.add_rounded,
-                  onTap: () => unawaited(_addEntry(context)),
-                ),
                 _DeleteActionButton(
                   padding: const EdgeInsets.only(left: 6),
                   semanticLabel: 'Delete business account',
