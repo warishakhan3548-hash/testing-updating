@@ -1,0 +1,336 @@
+name: Ultimate Reduced Motion Coherence Surgeon V10
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ultimate-reduced-motion-coherence-surgeon-v10.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ultimate-reduced-motion-coherence-surgeon-v10-main
+  cancel-in-progress: false
+
+jobs:
+  patch-analyze-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Apply readable surgical upgrade
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          main_path = Path("lib/main.dart")
+          test_path = Path("test/ui_micro_aesthetics_test.dart")
+          source = main_path.read_text(encoding="utf-8")
+          tests = test_path.read_text(encoding="utf-8")
+          before_source = source
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly 1 anchor, found {count}")
+              return text.replace(old, new, 1)
+
+          visual_patterns = (
+              r"Icons\.[A-Za-z0-9_]+",
+              r"Colors\.[A-Za-z0-9_]+",
+              r"Color\(\s*0x[0-9A-Fa-f]+\s*\)",
+              r"\b(?:width|height)\s*:\s*-?[0-9]+(?:\.[0-9]+)?",
+              r"BorderRadius\.[A-Za-z0-9_]+\([^)]*\)",
+          )
+
+          def visual_tokens(text: str) -> dict[str, list[str]]:
+              return {
+                  pattern: sorted(re.sub(r"\s+", "", item) for item in re.findall(pattern, text))
+                  for pattern in visual_patterns
+              }
+
+          visual_before = visual_tokens(source)
+          locked_motion_tokens = (
+              "static const SpringDescription pressSpring",
+              "stiffness: 460",
+              "damping: 32",
+              "mass: .78",
+              "stiffness: 300",
+              "damping: 30",
+              "..setEntry(3, 2, .00075)",
+              "..rotateY(-delta * .018)",
+              "offset: Offset(0, depth * 1.8)",
+              "..setEntry(3, 2, .0013)",
+              "offset: Offset(0, motion * 1.30)",
+              "scale: 1 - (motion * .017)",
+              "final double radius = 6 + 48 * expansion;",
+              "final int coreAlpha = (opacity * 31)",
+              "final int haloAlpha = (opacity * 14)",
+              "final int ringAlpha = (opacity * 112)",
+          )
+          locked_before = {token: source.count(token) for token in locked_motion_tokens}
+
+          source = replace_once(
+              source,
+              """  bool _userPageDragActive = false;
+            bool _navCenterScheduled = false;
+            final Set<int> _dragHapticPages = <int>{};
+          """,
+              """  bool _userPageDragActive = false;
+            bool _navCenterScheduled = false;
+            bool? _reduceMotionActive;
+            bool _reducedMotionSettleScheduled = false;
+            final Set<int> _dragHapticPages = <int>{};
+          """,
+              "app shell reduced-motion state",
+          )
+
+          source = replace_once(
+              source,
+              """  @override
+            void initState() {
+              super.initState();
+              WidgetsBinding.instance.addObserver(this);
+            }
+
+            @override
+            void dispose() {
+          """,
+              """  @override
+            void initState() {
+              super.initState();
+              WidgetsBinding.instance.addObserver(this);
+            }
+
+            @override
+            void didChangeDependencies() {
+              super.didChangeDependencies();
+              final bool reduceMotion = AppMotion.reduce(context);
+              final bool? previous = _reduceMotionActive;
+              _reduceMotionActive = reduceMotion;
+              if (reduceMotion && previous == false) {
+                _scheduleReducedMotionSettle();
+              }
+            }
+
+            @override
+            void dispose() {
+          """,
+              "app shell live reduced-motion observer",
+          )
+
+          source = replace_once(
+              source,
+              """  @override
+            void didChangeMetrics() {
+              _scheduleNavigationCenter();
+            }
+
+            Duration _adaptivePageDuration(double originPage, int targetPage) {
+          """,
+              """  @override
+            void didChangeMetrics() {
+              _scheduleNavigationCenter();
+            }
+
+            void _scheduleReducedMotionSettle() {
+              if (_reducedMotionSettleScheduled) return;
+              _reducedMotionSettleScheduled = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _reducedMotionSettleScheduled = false;
+                if (!mounted || !AppMotion.reduce(context)) return;
+                _settleReducedMotion();
+              });
+            }
+
+            void _settleReducedMotion() {
+              // Imperative controller animations do not retime themselves when the
+              // platform preference flips mid-flight. Collapse any in-progress pager
+              // and nav motion onto one coherent page without emitting a synthetic
+              // selection haptic or letting an old completion callback reclaim state.
+              if (!_pageController.hasClients) {
+                _scrollNavigation(_tab);
+                return;
+              }
+
+              final double livePage = _pageController.page ?? _settledPage.toDouble();
+              final int target = (_programmaticPageTarget ?? livePage.round())
+                  .clamp(0, _tabs.length - 1)
+                  .toInt();
+
+              ++_pageMotionGeneration;
+              _userPageDragActive = false;
+              _dragHapticPages.clear();
+
+              _programmaticPageTarget = target;
+              _pageController.jumpToPage(target);
+              _programmaticPageTarget = null;
+
+              final bool selectionChanged = _tab != target;
+              final bool pageChanged = _settledPage != target;
+              if (selectionChanged || pageChanged) {
+                setState(() {
+                  _tab = target;
+                  _settledPage = target;
+                });
+              }
+              _scrollNavigation(target);
+            }
+
+            Duration _adaptivePageDuration(double originPage, int targetPage) {
+          """,
+              "reduced-motion in-flight settle",
+          )
+
+          ripple_start_marker = "    // Stable global feedback must never reparent the application subtree."
+          ripple_end_marker = "    // Swipe depth is a compositor concern;"
+          if tests.count(ripple_start_marker) != 1 or tests.count(ripple_end_marker) != 1:
+              raise SystemExit("ripple regression block markers changed")
+          ripple_start = tests.index(ripple_start_marker)
+          ripple_end = tests.index(ripple_end_marker, ripple_start)
+          new_ripple_block = """    // Stable global feedback uses one persistent paint plane. Pending pointer
+              // intent and visible pulses stay out of the widget rebuild path entirely.
+              final int rippleStart = source.indexOf('class _GlobalTapRippleLayerState');
+              final int rippleEnd = source.indexOf(
+                'class _GlobalTapRipplePainter',
+                rippleStart,
+              );
+              expect(rippleStart, greaterThanOrEqualTo(0));
+              expect(rippleEnd, greaterThan(rippleStart));
+              final String rippleSource = source.substring(rippleStart, rippleEnd);
+              expect(rippleSource, isNot(contains('setState(')));
+              expect(
+                rippleSource,
+                contains('final List<_RipplePulse> _livePulses = <_RipplePulse>[];'),
+              );
+              expect(
+                rippleSource,
+                contains('final List<_RipplePulse> _pulses = <_RipplePulse>[];'),
+              );
+              expect(
+                rippleSource,
+                contains('final _RippleRepaintSignal _rippleRepaint'),
+              );
+              expect(rippleSource, contains('pulses: _pulses,'));
+              expect(rippleSource, contains('repaint: _rippleRepaint,'));
+              expect(rippleSource, contains('child: Stack('));
+              expect(rippleSource, isNot(contains('snapshot')));
+              expect(rippleSource, contains('widget.child,'));
+
+          """
+          tests = tests[:ripple_start] + new_ripple_block + tests[ripple_end:]
+
+          tests = replace_once(
+              tests,
+              """    expect(shellSource, contains('child: RepaintBoundary(child: child),'));
+              // Root, delayed-scroll and export motion honor live platform accessibility.
+          """,
+              """    expect(shellSource, contains('child: RepaintBoundary(child: child),'));
+              expect(shellSource, contains('bool? _reduceMotionActive;'));
+              expect(
+                shellSource,
+                contains('bool _reducedMotionSettleScheduled = false;'),
+              );
+              expect(shellSource, contains('void didChangeDependencies()'));
+              expect(
+                shellSource,
+                contains('if (reduceMotion && previous == false)'),
+              );
+              expect(
+                shellSource,
+                contains('void _scheduleReducedMotionSettle()'),
+              );
+              expect(shellSource, contains('void _settleReducedMotion()'));
+              expect(shellSource, contains('++_pageMotionGeneration;'));
+              expect(
+                shellSource,
+                contains('_programmaticPageTarget = target;'),
+              );
+              expect(shellSource, contains('_pageController.jumpToPage(target);'));
+              expect(shellSource, contains('_scrollNavigation(target);'));
+              // Root, delayed-scroll and export motion honor live platform accessibility.
+          """,
+              "app shell reduced-motion regression contract",
+          )
+
+          if visual_tokens(source) != visual_before:
+              raise SystemExit("VISUAL LOCK VIOLATION: icon/color/dimension/radius token set changed")
+
+          locked_after = {token: source.count(token) for token in locked_motion_tokens}
+          if locked_after != locked_before:
+              raise SystemExit("MOTION VISUAL LOCK VIOLATION: existing physics/transform/ripple visuals changed")
+
+          required = (
+              "bool? _reduceMotionActive;",
+              "bool _reducedMotionSettleScheduled = false;",
+              "if (reduceMotion && previous == false)",
+              "void _scheduleReducedMotionSettle()",
+              "void _settleReducedMotion()",
+              "++_pageMotionGeneration;",
+              "_pageController.jumpToPage(target);",
+              "_scrollNavigation(target);",
+          )
+          missing = [token for token in required if token not in source]
+          if missing:
+              raise SystemExit(f"REDUCED-MOTION CONTRACT MISSING: {missing}")
+
+          if source == before_source:
+              raise SystemExit("No production source changes produced")
+
+          main_path.write_text(source, encoding="utf-8")
+          test_path.write_text(tests, encoding="utf-8")
+          PY
+          rm -f .github/workflows/ultimate-reduced-motion-coherence-surgeon-v9.yml
+          rm -f .github/workflows/ultimate-reduced-motion-coherence-surgeon-v10.yml
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Verify dependency lock stayed untouched
+        run: git diff --exit-code -- pubspec.yaml pubspec.lock
+
+      - name: Format surgical targets
+        run: dart format --language-version latest lib/main.dart test/ui_micro_aesthetics_test.dart
+
+      - name: Validate locked scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          changed="$(git diff --name-only | sort)"
+          expected="$(printf '%s\n' '.github/workflows/ultimate-reduced-motion-coherence-surgeon-v9.yml' '.github/workflows/ultimate-reduced-motion-coherence-surgeon-v10.yml' 'lib/main.dart' 'test/ui_micro_aesthetics_test.dart' | sort)"
+          test "$changed" = "$expected"
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Stage commit and push analyzed upgrade
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          staged="$(git diff --cached --name-only | sort)"
+          expected="$(printf '%s\n' '.github/workflows/ultimate-reduced-motion-coherence-surgeon-v9.yml' '.github/workflows/ultimate-reduced-motion-coherence-surgeon-v10.yml' 'lib/main.dart' 'test/ui_micro_aesthetics_test.dart' | sort)"
+          test "$staged" = "$expected"
+          git commit -m "perf(ui): settle live motion on reduced-motion changes [skip ci]"
+          git push origin HEAD:main
