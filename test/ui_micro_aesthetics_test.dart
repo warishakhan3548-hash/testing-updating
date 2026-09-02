@@ -440,6 +440,40 @@ void main() {
     expect(source, contains('? buildCard(onTap)'));
     expect(source, isNot(contains('onTap: () {},')));
 
+    // Stable global feedback must never reparent the application subtree.
+    final int rippleStart = source.indexOf('class _GlobalTapRippleLayerState');
+    final int rippleEnd = source.indexOf(
+      'class _GlobalTapRipplePainter',
+      rippleStart,
+    );
+    expect(rippleStart, greaterThanOrEqualTo(0));
+    expect(rippleEnd, greaterThan(rippleStart));
+    final String rippleSource = source.substring(rippleStart, rippleEnd);
+    expect(rippleSource, isNot(contains('Widget surface = widget.child;')));
+    expect(
+      rippleSource,
+      contains(
+        'final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable(',
+      ),
+    );
+    expect(rippleSource, contains('child: Stack('));
+    expect(rippleSource, contains('if (snapshot.isNotEmpty)'));
+    expect(rippleSource, contains('widget.child,'));
+
+    // Swipe depth is a compositor concern; the live ledger screen below
+    // it remains its own repaint boundary so 60/90/120Hz transforms do
+    // not force every card and row to repaint on each gesture frame.
+    final int shellStart = source.indexOf(
+      'class _AppShellState extends State<AppShell>',
+    );
+    final int shellEnd = source.indexOf(
+      'class _KeepAlivePage extends StatefulWidget',
+      shellStart,
+    );
+    expect(shellStart, greaterThanOrEqualTo(0));
+    expect(shellEnd, greaterThan(shellStart));
+    final String shellSource = source.substring(shellStart, shellEnd);
+    expect(shellSource, contains('child: RepaintBoundary(child: child),'));
     // Brand/state color logic and Firebase integration must stay untouched.
     expect(source, contains("import 'firebase_sync.dart';"));
     expect(source, contains('Firebase.initializeApp('));

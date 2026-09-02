@@ -698,33 +698,13 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
 
   @override
   Widget build(BuildContext context) {
-    Widget surface = widget.child;
-    if (_pulses.isNotEmpty) {
-      final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable(
-        _pulses,
-      );
-      final Listenable repaint = Listenable.merge(
-        snapshot
-            .map<Listenable>((_RipplePulse pulse) => pulse.controller)
-            .toList(),
-      );
-      surface = Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          widget.child,
-          IgnorePointer(
-            child: RepaintBoundary(
-              child: CustomPaint(
-                painter: _GlobalTapRipplePainter(
-                  pulses: snapshot,
-                  repaint: repaint,
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
+    // The application subtree must keep the same parent whether a pulse
+    // exists or not. Conditionally inserting/removing the Stack would
+    // reparent the Navigator subtree on every tap, causing avoidable
+    // element churn and risking focus/state discontinuities.
+    final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable(
+      _pulses,
+    );
 
     return Listener(
       behavior: HitTestBehavior.translucent,
@@ -732,7 +712,29 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
       onPointerMove: _handlePointerMove,
       onPointerUp: _handlePointerUp,
       onPointerCancel: _handlePointerCancel,
-      child: surface,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          widget.child,
+          if (snapshot.isNotEmpty)
+            IgnorePointer(
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _GlobalTapRipplePainter(
+                    pulses: snapshot,
+                    repaint: Listenable.merge(
+                      snapshot
+                          .map<Listenable>(
+                            (_RipplePulse pulse) => pulse.controller,
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -1710,7 +1712,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Widget _buildSwipeMotionPage(int index, Widget child) => AnimatedBuilder(
     animation: _pageController,
-    child: child,
+    // Isolate the expensive live screen from the small transform layer.
+    // The page can repaint when its own data changes, while swipe frames
+    // can usually be satisfied by compositor work instead of repainting
+    // every card, list row and shadow below the 3D transform.
+    child: RepaintBoundary(child: child),
     builder: (BuildContext context, Widget? stableChild) {
       final Widget pageChild = stableChild!;
       if (AppMotion.reduce(context) ||
