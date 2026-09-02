@@ -1,4 +1,5 @@
 name: Interaction Physics Diagnostic
+# Guarded runtime upgrade: app changes are pushed only after format, analyze, tests, and debug APK all pass.
 
 on:
   push:
