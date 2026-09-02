@@ -168,23 +168,31 @@ jobs:
           '''
           source = replace_exact(source, old_mutation, new_mutation, 'mutation result contract')
 
-          dependent_mutation = re.compile(
-              r'(?ms)^    await _runMutation\(\n(.*?)^    \);\n(?=    final DateTime parsed = LedgerMath\.strictDate\(entryDate\)!;)'
-          )
-          matches = list(dependent_mutation.finditer(source))
-          if len(matches) != 4:
-              raise SystemExit(
-                  f'mutation-dependent month selection: expected 4 matches, found {len(matches)}'
+          for reason in (
+              'milk-entry-save',
+              'salary-entry-save',
+              'credit-entry-save',
+              'expense-entry-save',
+          ):
+              marker = f"reason: '{reason}'"
+              if source.count(marker) != 1:
+                  raise SystemExit(f'{reason}: expected exactly one save marker')
+              reason_pos = source.index(marker)
+              call_start = source.rfind('await _runMutation(', 0, reason_pos)
+              call_close = source.find('\n    );', reason_pos)
+              if call_start < 0 or call_close < 0:
+                  raise SystemExit(f'{reason}: could not bound mutation call')
+              call_end = call_close + len('\n    );')
+              expected_tail = '\n    final DateTime parsed = LedgerMath.strictDate(entryDate)!;'
+              if not source.startswith(expected_tail, call_end):
+                  raise SystemExit(f'{reason}: mutation is not immediately followed by month selection')
+              source = (
+                  source[:call_start]
+                  + 'final bool saved = '
+                  + source[call_start:call_end]
+                  + '\n    if (!saved) return;'
+                  + source[call_end:]
               )
-          source = dependent_mutation.sub(
-              lambda match: (
-                  '    final bool saved = await _runMutation(\n'
-                  + match.group(1)
-                  + '    );\n'
-                  + '    if (!saved) return;\n'
-              ),
-              source,
-          )
 
           direct_pdf_calls = source.count('_ExportService.sharePdf(')
           if direct_pdf_calls != 8:
