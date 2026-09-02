@@ -50,13 +50,10 @@ jobs:
 
           path = Path('test/ui_micro_aesthetics_test.dart')
           lines = path.read_text().splitlines()
-          hits = [
-              i for i, line in enumerate(lines)
-              if 'canOwnTapStart' in line and '_tapWins' in line and '_pointerCancelled' in line
-          ]
+          hits = [i for i, line in enumerate(lines) if 'canOwnTapStart' in line]
           if len(hits) != 1:
               raise SystemExit(
-                  f'Expected exactly one brittle canOwnTapStart assertion line, found {len(hits)}'
+                  f'Expected exactly one canOwnTapStart assertion anchor, found {len(hits)}'
               )
 
           hit = hits[0]
@@ -68,6 +65,10 @@ jobs:
               end += 1
           if start < 0 or end >= len(lines):
               raise SystemExit('Could not isolate canOwnTapStart expectation block')
+
+          block = '\n'.join(lines[start:end + 1])
+          if '_tapWins' not in block or '_pointerCancelled' not in block:
+              raise SystemExit('Ownership assertion did not match the expected brittle contract')
 
           indent = lines[start][:len(lines[start]) - len(lines[start].lstrip())]
           replacement = f"{indent}expect(pressableSource, contains('final canOwnTapStart ='));"
