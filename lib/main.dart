@@ -74,6 +74,7 @@ abstract final class UIConstants {
   static const Duration pressReengageFloor = Duration(milliseconds: 24);
   static const Duration pressOut = Duration(milliseconds: 210);
   static const Duration motion = Duration(milliseconds: 260);
+  static const Duration navMotion = Duration(milliseconds: 220);
   static const Duration dashboardReveal = Duration(milliseconds: 520);
   static const Duration routeIn = Duration(milliseconds: 280);
   static const Duration routeOut = Duration(milliseconds: 220);
@@ -1406,6 +1407,9 @@ class _LedgerPagePhysics extends PageScrollPhysics {
     stiffness: 300,
     damping: 30,
   );
+  static const double _velocityProjectionSeconds = .10;
+  static const double _maxProjectedPages = .22;
+  static const double _flingCommitPagesPerSecond = .52;
 
   @override
   _LedgerPagePhysics applyTo(ScrollPhysics? ancestor) =>
@@ -1413,6 +1417,60 @@ class _LedgerPagePhysics extends PageScrollPhysics {
 
   @override
   SpringDescription get spring => _pageSettleSpring;
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) {
+    if (position.outOfRange ||
+        (velocity <= 0 && position.pixels <= position.minScrollExtent) ||
+        (velocity >= 0 && position.pixels >= position.maxScrollExtent)) {
+      return super.createBallisticSimulation(position, velocity);
+    }
+
+    final double pageExtent = position.viewportDimension;
+    if (!pageExtent.isFinite || pageExtent <= 0) {
+      return super.createBallisticSimulation(position, velocity);
+    }
+
+    final Tolerance tolerance = toleranceFor(position);
+    final double currentPage =
+        (position.pixels - position.minScrollExtent) / pageExtent;
+    final double maxPage =
+        (position.maxScrollExtent - position.minScrollExtent) / pageExtent;
+    final double pageVelocity = velocity / pageExtent;
+    final double projectedDelta = (pageVelocity * _velocityProjectionSeconds)
+        .clamp(-_maxProjectedPages, _maxProjectedPages)
+        .toDouble();
+
+    // A decisive fling advances at most one page. Slower releases use
+    // a short velocity projection so finger intent wins near midpoint
+    // without making tiny accidental drags change modules.
+    final double targetPage = pageVelocity.abs() >= _flingCommitPagesPerSecond
+        ? (pageVelocity > 0
+              ? currentPage.floorToDouble() + 1
+              : currentPage.ceilToDouble() - 1)
+        : (currentPage + projectedDelta).roundToDouble();
+    final double clampedPage = targetPage.clamp(0.0, maxPage).toDouble();
+    final double targetPixels =
+        (position.minScrollExtent + clampedPage * pageExtent)
+            .clamp(position.minScrollExtent, position.maxScrollExtent)
+            .toDouble();
+
+    if ((targetPixels - position.pixels).abs() <= tolerance.distance &&
+        velocity.abs() <= tolerance.velocity) {
+      return null;
+    }
+
+    return ScrollSpringSimulation(
+      spring,
+      position.pixels,
+      targetPixels,
+      velocity,
+      tolerance: tolerance,
+    );
+  }
 }
 
 class AppShell extends StatefulWidget {
@@ -1650,6 +1708,38 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildSwipeMotionPage(int index, Widget child) => AnimatedBuilder(
+    animation: _pageController,
+    child: child,
+    builder: (BuildContext context, Widget? stableChild) {
+      final Widget pageChild = stableChild!;
+      if (AppMotion.reduce(context) ||
+          !_pageController.hasClients ||
+          !_pageController.position.hasContentDimensions) {
+        return pageChild;
+      }
+
+      final double page = _pageController.page ?? _settledPage.toDouble();
+      final double delta = (page - index).clamp(-1.0, 1.0).toDouble();
+      final double depth = delta.abs();
+      if (depth <= .0001) return pageChild;
+
+      // Paint/compositor-only depth: resting layout, colors, icons and
+      // dimensions are unchanged. Reduced Motion bypasses it completely.
+      final Matrix4 transform = Matrix4.identity()
+        ..setEntry(3, 2, .00075)
+        ..rotateY(-delta * .018);
+      return Transform(
+        alignment: Alignment.center,
+        transform: transform,
+        child: Transform.translate(
+          offset: Offset(0, depth * 1.8),
+          child: pageChild,
+        ),
+      );
+    },
+  );
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> screens = <Widget>[
@@ -1724,7 +1814,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   ),
                   allowImplicitScrolling: true,
                   onPageChanged: _handlePageChanged,
-                  children: screens,
+                  children: List<Widget>.generate(
+                    screens.length,
+                    (int index) => _buildSwipeMotionPage(index, screens[index]),
+                  ),
                 ),
               ),
             ),
@@ -1863,7 +1956,7 @@ class _BottomLedgerNav extends StatelessWidget {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     final Duration navMotion = AppMotion.reduce(context)
         ? Duration.zero
-        : UIConstants.motion;
+        : UIConstants.navMotion;
     final List<Color> colors = _moduleTabColors(sync.currentProjection);
     return DecoratedBox(
       decoration: BoxDecoration(
