@@ -1571,6 +1571,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _pageMotionGeneration = 0;
   bool _userPageDragActive = false;
   bool _navCenterScheduled = false;
+  bool? _reduceMotionActive;
+  bool _reducedMotionSettleScheduled = false;
   final Set<int> _dragHapticPages = <int>{};
   final ScrollController _navController = ScrollController();
   final PageController _pageController = PageController();
@@ -1579,6 +1581,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final bool reduceMotion = AppMotion.reduce(context);
+    final bool? previous = _reduceMotionActive;
+    _reduceMotionActive = reduceMotion;
+    if (reduceMotion && previous == false) {
+      _scheduleReducedMotionSettle();
+    }
   }
 
   @override
@@ -1599,6 +1612,50 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   void didChangeMetrics() {
     _scheduleNavigationCenter();
+  }
+
+  void _scheduleReducedMotionSettle() {
+    if (_reducedMotionSettleScheduled) return;
+    _reducedMotionSettleScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _reducedMotionSettleScheduled = false;
+      if (!mounted || !AppMotion.reduce(context)) return;
+      _settleReducedMotion();
+    });
+  }
+
+  void _settleReducedMotion() {
+    // Imperative controller animations do not retime themselves when the
+    // platform preference flips mid-flight. Collapse any in-progress pager
+    // and nav motion onto one coherent page without emitting a synthetic
+    // selection haptic or letting an old completion callback reclaim state.
+    if (!_pageController.hasClients) {
+      _scrollNavigation(_tab);
+      return;
+    }
+
+    final double livePage = _pageController.page ?? _settledPage.toDouble();
+    final int target = (_programmaticPageTarget ?? livePage.round())
+        .clamp(0, _tabs.length - 1)
+        .toInt();
+
+    ++_pageMotionGeneration;
+    _userPageDragActive = false;
+    _dragHapticPages.clear();
+
+    _programmaticPageTarget = target;
+    _pageController.jumpToPage(target);
+    _programmaticPageTarget = null;
+
+    final bool selectionChanged = _tab != target;
+    final bool pageChanged = _settledPage != target;
+    if (selectionChanged || pageChanged) {
+      setState(() {
+        _tab = target;
+        _settledPage = target;
+      });
+    }
+    _scrollNavigation(target);
   }
 
   Duration _adaptivePageDuration(double originPage, int targetPage) {

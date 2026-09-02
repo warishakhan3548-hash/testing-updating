@@ -486,7 +486,8 @@ void main() {
     expect(source, contains('? buildCard(onTap)'));
     expect(source, isNot(contains('onTap: () {},')));
 
-    // Stable global feedback must never reparent the application subtree.
+    // Stable global feedback uses one persistent paint plane. Pending pointer
+    // intent and visible pulses stay out of the widget rebuild path entirely.
     final int rippleStart = source.indexOf('class _GlobalTapRippleLayerState');
     final int rippleEnd = source.indexOf(
       'class _GlobalTapRipplePainter',
@@ -495,15 +496,20 @@ void main() {
     expect(rippleStart, greaterThanOrEqualTo(0));
     expect(rippleEnd, greaterThan(rippleStart));
     final String rippleSource = source.substring(rippleStart, rippleEnd);
-    expect(rippleSource, isNot(contains('Widget surface = widget.child;')));
+    expect(rippleSource, isNot(contains('setState(')));
     expect(
       rippleSource,
-      contains(
-        'final List<_RipplePulse> snapshot = List<_RipplePulse>.unmodifiable(',
-      ),
+      contains('final List<_RipplePulse> _livePulses = <_RipplePulse>[];'),
     );
+    expect(
+      rippleSource,
+      contains('final List<_RipplePulse> _pulses = <_RipplePulse>[];'),
+    );
+    expect(rippleSource, contains('final _RippleRepaintSignal _rippleRepaint'));
+    expect(rippleSource, contains('pulses: _pulses,'));
+    expect(rippleSource, contains('repaint: _rippleRepaint,'));
     expect(rippleSource, contains('child: Stack('));
-    expect(rippleSource, contains('if (snapshot.isNotEmpty)'));
+    expect(rippleSource, isNot(contains('snapshot')));
     expect(rippleSource, contains('widget.child,'));
 
     // Swipe depth is a compositor concern; the live ledger screen below
@@ -520,6 +526,19 @@ void main() {
     expect(shellEnd, greaterThan(shellStart));
     final String shellSource = source.substring(shellStart, shellEnd);
     expect(shellSource, contains('child: RepaintBoundary(child: child),'));
+    expect(shellSource, contains('bool? _reduceMotionActive;'));
+    expect(
+      shellSource,
+      contains('bool _reducedMotionSettleScheduled = false;'),
+    );
+    expect(shellSource, contains('void didChangeDependencies()'));
+    expect(shellSource, contains('if (reduceMotion && previous == false)'));
+    expect(shellSource, contains('void _scheduleReducedMotionSettle()'));
+    expect(shellSource, contains('void _settleReducedMotion()'));
+    expect(shellSource, contains('++_pageMotionGeneration;'));
+    expect(shellSource, contains('_programmaticPageTarget = target;'));
+    expect(shellSource, contains('_pageController.jumpToPage(target);'));
+    expect(shellSource, contains('_scrollNavigation(target);'));
     // Root, delayed-scroll and export motion honor live platform accessibility.
     final int rootMotionStart = source.indexOf(
       'class _AarishDiaryAppState extends State<AarishDiaryApp>',
