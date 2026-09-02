@@ -1,0 +1,338 @@
+name: Luna Audit Hardening Surgeon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/luna-audit-hardening-surgeon.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  surgery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Verify surgical baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object lib/main.dart)" = "cc65f454d75296092fb272aa452d75e7e7ed001e"
+          test "$(git hash-object lib/ai_bridge.dart)" = "e43ff0532a2f80fbcc439e5cfb05593ac8cedafe"
+          test "$(git hash-object pubspec.yaml)" = "295c21c04da3d4501f027dea93412af8fe8d2f11"
+
+      - name: Apply checksum-guarded correctness and security fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('lib/main.dart')
+          source = path.read_text()
+
+          def replace_exact(text: str, old: str, new: str, label: str, expected: int = 1) -> str:
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(f'{label}: expected {expected} match(es), found {count}')
+              return text.replace(old, new)
+
+          old_main = '''Future<void> main() async {
+            WidgetsFlutterBinding.ensureInitialized();
+            await Firebase.initializeApp(options: kIsWeb ? _webFirebaseOptions : null);
+            final LedgerSyncService sync = LedgerSyncService();
+            await sync.initialize();
+            runApp(AarishDiaryApp(sync: sync));
+          }
+          '''
+          new_main = '''Future<void> main() async {
+            WidgetsFlutterBinding.ensureInitialized();
+            try {
+              await Firebase.initializeApp(options: kIsWeb ? _webFirebaseOptions : null);
+              final LedgerSyncService sync = LedgerSyncService();
+              await sync.initialize();
+              runApp(AarishDiaryApp(sync: sync));
+            } catch (error, stackTrace) {
+              FlutterError.reportError(
+                FlutterErrorDetails(
+                  exception: error,
+                  stack: stackTrace,
+                  library: 'aarish startup',
+                  context: ErrorDescription('while initializing Firebase and ledger sync'),
+                ),
+              );
+              runApp(const _StartupFailureApp());
+            }
+          }
+
+          class _StartupFailureApp extends StatelessWidget {
+            const _StartupFailureApp();
+
+            @override
+            Widget build(BuildContext context) => MaterialApp(
+              debugShowCheckedModeBanner: false,
+              title: 'Aarish Dairy Pro',
+              home: Scaffold(
+                body: SafeArea(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(28),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          const Icon(Icons.cloud_off_rounded, size: 58, color: appleRed),
+                          const SizedBox(height: 18),
+                          const Text(
+                            'Unable to start Aarish Dairy Pro',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Sync services could not initialize. Check your connection and app configuration, then reopen the app.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+          '''
+          source = replace_exact(source, old_main, new_main, 'startup fallback')
+
+          old_notification = '''  bool _handlePageScrollNotification(ScrollNotification notification) {
+            if (notification is ScrollStartNotification &&
+          '''
+          new_notification = '''  bool _handlePageScrollNotification(ScrollNotification notification) {
+            if (notification.depth != 0 || notification.metrics.axis != Axis.horizontal) {
+              return false;
+            }
+            if (notification is ScrollStartNotification &&
+          '''
+          source = replace_exact(
+              source,
+              old_notification,
+              new_notification,
+              'PageView notification isolation',
+          )
+
+          old_mutation = '''Future<void> _runMutation(
+            BuildContext context,
+            Future<void> Function() mutation,
+            String success,
+          ) async {
+            try {
+              await mutation();
+              HapticFeedback.successNotification();
+              if (context.mounted) _toast(context, success);
+            } catch (error) {
+              if (context.mounted) _toast(context, '$error', error: true);
+            }
+          }
+          '''
+          new_mutation = '''Future<bool> _runMutation(
+            BuildContext context,
+            Future<void> Function() mutation,
+            String success,
+          ) async {
+            try {
+              await mutation();
+              HapticFeedback.successNotification();
+              if (context.mounted) _toast(context, success);
+              return true;
+            } catch (error, stackTrace) {
+              debugPrint('Ledger mutation failed: $error\\n$stackTrace');
+              if (context.mounted) _toast(context, '$error', error: true);
+              return false;
+            }
+          }
+          '''
+          source = replace_exact(source, old_mutation, new_mutation, 'mutation result contract')
+
+          dependent_mutation = re.compile(
+              r'(?ms)^    await _runMutation\(\n(.*?)^    \);\n(?=    final DateTime parsed = LedgerMath\.strictDate\(entryDate\)!;)'
+          )
+          matches = list(dependent_mutation.finditer(source))
+          if len(matches) != 4:
+              raise SystemExit(
+                  f'mutation-dependent month selection: expected 4 matches, found {len(matches)}'
+              )
+          source = dependent_mutation.sub(
+              lambda match: (
+                  '    final bool saved = await _runMutation(\n'
+                  + match.group(1)
+                  + '    );\n'
+                  + '    if (!saved) return;\n'
+              ),
+              source,
+          )
+
+          direct_pdf_calls = source.count('_ExportService.sharePdf(')
+          if direct_pdf_calls != 6:
+              raise SystemExit(
+                  f'direct PDF share calls: expected 6 matches, found {direct_pdf_calls}'
+              )
+          source = source.replace(
+              '_ExportService.sharePdf(',
+              '_sharePdfSafely(context,',
+          )
+
+          safe_pdf_helper = '''
+          Future<void> _sharePdfSafely(
+            BuildContext context,
+            String title,
+            List<String> headers,
+            List<List<String>> rows,
+          ) async {
+            try {
+              await _ExportService.sharePdf(title, headers, rows);
+            } catch (error, stackTrace) {
+              debugPrint('PDF share failed: $error\\n$stackTrace');
+              if (context.mounted) {
+                _toast(context, 'PDF share failed. Please try again.', error: true);
+              }
+            }
+          }
+          '''
+          anchor = new_mutation
+          if source.count(anchor) != 1:
+              raise SystemExit('safe PDF helper anchor was not unique')
+          source = source.replace(anchor, anchor + safe_pdf_helper, 1)
+
+          old_uri = '''    final Uri uri = Uri.parse(
+                'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=${Uri.encodeQueryComponent(apiKey)}',
+              );
+          '''
+          new_uri = '''    final Uri uri = Uri.parse(
+                'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent',
+              );
+          '''
+          source = replace_exact(source, old_uri, new_uri, 'Gemini API key URL removal')
+
+          old_headers = "          headers: const <String, String>{'Content-Type': 'application/json'},\n"
+          new_headers = '''          headers: <String, String>{
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': apiKey,
+                  },
+          '''
+          source = replace_exact(source, old_headers, new_headers, 'Gemini API key header')
+
+          compact_anchor = '''  static Map<String, dynamic> _compactState(Map<String, dynamic> state) {
+          '''
+          recent_helper = '''  static List<Map<String, dynamic>> _recentRows(dynamic value) {
+            final List<Map<String, dynamic>> rows = _rows(value);
+            rows.sort((Map<String, dynamic> left, Map<String, dynamic> right) {
+              final DateTime? leftDate = LedgerMath.date(left['date']);
+              final DateTime? rightDate = LedgerMath.date(right['date']);
+              if (leftDate != null && rightDate != null) {
+                final int byDate = rightDate.compareTo(leftDate);
+                if (byDate != 0) return byDate;
+              } else if (leftDate != null) {
+                return -1;
+              } else if (rightDate != null) {
+                return 1;
+              }
+              final String leftId = '${left['id'] ?? left['key'] ?? ''}';
+              final String rightId = '${right['id'] ?? right['key'] ?? ''}';
+              return rightId.compareTo(leftId);
+            });
+            return rows;
+          }
+
+          '''
+          if source.count(compact_anchor) != 1:
+              raise SystemExit('AI compact-state anchor was not unique')
+          source = source.replace(compact_anchor, recent_helper + compact_anchor, 1)
+          source = replace_exact(
+              source,
+              "      final List<Map<String, dynamic>> rows = _rows(state[root]);\n",
+              "      final List<Map<String, dynamic>> rows = _recentRows(state[root]);\n",
+              'AI top-level recency ordering',
+          )
+          source = replace_exact(
+              source,
+              "        final List<Map<String, dynamic>> records = _rows(profile['records']);\n",
+              "        final List<Map<String, dynamic>> records = _recentRows(profile['records']);\n",
+              'AI grouped recency ordering',
+          )
+
+          if source.count('_sharePdfSafely(context,') != 6:
+              raise SystemExit('safe PDF share routing count changed unexpectedly')
+          if source.count('_ExportService.sharePdf(') != 1:
+              raise SystemExit('only the centralized PDF helper may call sharePdf directly')
+          if '?key=' in source[source.index('class _GeminiLedgerClient'):source.index('enum _ExportFormat')]:
+              raise SystemExit('Gemini API key is still present in the request URL')
+          if source.count('if (!saved) return;') != 4:
+              raise SystemExit('mutation success guards were not installed on all dependent paths')
+
+          path.write_text(source)
+          PY
+          git diff --check
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format surgical scope
+        run: dart format lib/main.dart
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Verify exact change scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          mapfile -t files < <(git diff --name-only)
+          printf 'Changed files:\n%s\n' "${files[*]}"
+          test "${#files[@]}" -eq 1
+          printf '%s\n' "${files[@]}" | grep -Fx 'lib/main.dart'
+          git diff --exit-code -- pubspec.yaml pubspec.lock lib/ai_bridge.dart lib/firebase_sync.dart
+          grep -Fq 'Future<bool> _runMutation(' lib/main.dart
+          grep -Fq 'notification.depth != 0' lib/main.dart
+          grep -Fq "'x-goog-api-key': apiKey" lib/main.dart
+          grep -Fq 'final List<Map<String, dynamic>> rows = _recentRows(state[root]);' lib/main.dart
+
+      - name: Commit and push verified hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/main.dart
+          git commit -m "fix: harden ledger mutations pager exports and AI requests"
+          git push origin HEAD:main
