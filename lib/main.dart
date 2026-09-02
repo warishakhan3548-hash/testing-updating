@@ -4063,7 +4063,7 @@ class _AiHubButton extends StatelessWidget {
       semanticLabel: 'Open AI Hub',
       borderRadius: radius,
       child: Container(
-        width: 68,
+        width: 60,
         height: 40,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
