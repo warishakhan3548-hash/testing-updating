@@ -1,0 +1,95 @@
+name: Generate Main Dart PDF
+
+on:
+  push:
+    paths:
+      - '.github/workflows/generate-main-pdf.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PDF dependency
+        run: python -m pip install --quiet reportlab
+
+      - name: Convert lib/main.dart to PDF
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+          from reportlab.pdfgen import canvas
+          from reportlab.lib.pagesizes import A4, landscape
+          from reportlab.pdfbase import pdfmetrics
+          from reportlab.pdfbase.ttfonts import TTFont
+
+          src = Path('lib/main.dart')
+          out = Path('Aarish_Dairy_Pro_main.dart.pdf')
+          text = src.read_text(encoding='utf-8')
+
+          font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf'
+          pdfmetrics.registerFont(TTFont('CodeMono', font_path))
+
+          page_w, page_h = landscape(A4)
+          margin_x = 24
+          margin_y = 24
+          font_size = 6.2
+          leading = 7.2
+          max_chars = 168
+
+          c = canvas.Canvas(str(out), pagesize=(page_w, page_h), pageCompression=1)
+          c.setTitle('Aarish Dairy Pro - lib/main.dart')
+          c.setAuthor('Aarish Dairy Pro source export')
+
+          source_lines = text.splitlines()
+          wrapped = []
+          for number, line in enumerate(source_lines, start=1):
+              expanded = line.expandtabs(2)
+              prefix = f'{number:05d}  '
+              width = max_chars - len(prefix)
+              chunks = textwrap.wrap(
+                  expanded,
+                  width=width,
+                  replace_whitespace=False,
+                  drop_whitespace=False,
+                  break_long_words=True,
+                  break_on_hyphens=False,
+              ) or ['']
+              wrapped.append(prefix + chunks[0])
+              cont_prefix = ' ' * len(prefix)
+              for chunk in chunks[1:]:
+                  wrapped.append(cont_prefix + chunk)
+
+          rows_per_page = max(1, int((page_h - margin_y * 2 - 18) // leading))
+          total_pages = (len(wrapped) + rows_per_page - 1) // rows_per_page
+
+          for page_idx in range(total_pages):
+              c.setFont('CodeMono', font_size)
+              y = page_h - margin_y
+              c.drawString(margin_x, y, 'Aarish Dairy Pro - lib/main.dart')
+              c.drawRightString(page_w - margin_x, y, f'Page {page_idx + 1} / {total_pages}')
+              y -= 12
+              start = page_idx * rows_per_page
+              end = min(start + rows_per_page, len(wrapped))
+              for line in wrapped[start:end]:
+                  c.drawString(margin_x, y, line)
+                  y -= leading
+              c.showPage()
+
+          c.save()
+          print(f'Created {out} from {len(source_lines)} source lines, {total_pages} pages')
+          PY
+
+      - name: Upload PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarish-main-dart-pdf
+          path: Aarish_Dairy_Pro_main.dart.pdf
+          if-no-files-found: error
+          retention-days: 7
