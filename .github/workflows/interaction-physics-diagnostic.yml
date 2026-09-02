@@ -42,50 +42,6 @@ jobs:
           exec(base64.b64decode(match.group(1)), {})
           PY
 
-      - name: Capture generated ownership contract
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          needles = ('canOwnTapStart', '_tapWins', '_pointerCancelled')
-          chunks = []
-          for filename in ('lib/main.dart', 'test/ui_micro_aesthetics_test.dart'):
-              lines = Path(filename).read_text().splitlines()
-              hit_lines = sorted({
-                  i for i, line in enumerate(lines)
-                  if any(needle in line for needle in needles)
-              })
-              chunks.append(f'===== {filename} =====')
-              if not hit_lines:
-                  chunks.append('(no ownership-token hits)')
-                  continue
-              windows = []
-              for hit in hit_lines:
-                  start = max(0, hit - 8)
-                  end = min(len(lines), hit + 9)
-                  if windows and start <= windows[-1][1]:
-                      windows[-1] = (windows[-1][0], max(windows[-1][1], end))
-                  else:
-                      windows.append((start, end))
-              for start, end in windows:
-                  chunks.append(f'--- lines {start + 1}-{end} ---')
-                  chunks.extend(
-                      f'{i + 1:05d}: {lines[i]}' for i in range(start, end)
-                  )
-          Path('.github/interaction-generated-diagnostic.txt').write_text(
-              '\n'.join(chunks) + '\n'
-          )
-          PY
-
-      - name: Push diagnostic snapshot only
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/interaction-generated-diagnostic.txt
-          git commit -m "chore(ci): capture generated interaction contract"
-          git push origin HEAD:main
-
       - name: Flutter toolchain
         uses: subosito/flutter-action@v2
         with:
@@ -105,8 +61,22 @@ jobs:
       - name: Static analysis
         run: flutter analyze
 
-      - name: Full Flutter tests
-        run: flutter test
+      - name: Full Flutter tests with failure capture
+        shell: bash
+        run: |
+          set +e
+          flutter test > .github/flutter-test-output.txt 2>&1
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/flutter-test-output.txt
+            git commit -m "chore(ci): capture Flutter test failure"
+            git push origin HEAD:main
+            exit "$status"
+          fi
+          rm .github/flutter-test-output.txt
 
       - name: Debug APK build
         run: flutter build apk --debug
