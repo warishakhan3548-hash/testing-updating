@@ -26,12 +26,277 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Apply interaction runtime upgrade
+      - name: Apply hyper-premium interaction upgrade
         shell: bash
         run: |
-          python3 -c "import base64;exec(base64.b64decode('ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCgptYWluX3BhdGggPSBQYXRoKCdsaWIvbWFpbi5kYXJ0JykKdGVzdF9wYXRoID0gUGF0aCgndGVzdC91aV9taWNyb19hZXN0aGV0aWNzX3Rlc3QuZGFydCcpCnNvdXJjZSA9IG1haW5fcGF0aC5yZWFkX3RleHQoKQp0ZXN0cyA9IHRlc3RfcGF0aC5yZWFkX3RleHQoKQoKZGVmIHJlcGxhY2Vfb25jZSh0ZXh0OiBzdHIsIG9sZDogc3RyLCBuZXc6IHN0ciwgbGFiZWw6IHN0cikgLT4gc3RyOgogICAgY291bnQgPSB0ZXh0LmNvdW50KG9sZCkKICAgIGlmIGNvdW50ICE9IDE6CiAgICAgICAgcmFpc2UgU3lzdGVtRXhpdChmJ3tsYWJlbH06IGV4cGVjdGVkIGV4YWN0bHkgMSBtYXRjaCwgZm91bmQge2NvdW50fScpCiAgICByZXR1cm4gdGV4dC5yZXBsYWNlKG9sZCwgbmV3LCAxKQoKdmlzdWFsX3NlbnRpbmVscyA9ICgKICAgICdzdGF0aWMgY29uc3QgZG91YmxlIGNhcmRSYWRpdXMgPSAyNDsnLAogICAgJ3N0YXRpYyBjb25zdCBkb3VibGUgaGVyb1JhZGl1cyA9IDI4OycsCiAgICAnc3RhdGljIGNvbnN0IGRvdWJsZSBzaGVldFJhZGl1cyA9IDM2OycsCiAgICAiY29uc3QgSWNvbkRhdGEgcHJlbWl1bUhvbWVJY29uID0gSWNvbnMuc3BhY2VfZGFzaGJvYXJkX3JvdW5kZWQ7IiwKICAgICJjb25zdCBJY29uRGF0YSBwcmVtaXVtRXhwZW5zZUljb24gPSBJY29ucy5zaG9wcGluZ19iYWdfcm91bmRlZDsiLAogICAgImNvbnN0IEljb25EYXRhIHByZW1pdW1EZWxldGVJY29uID0gSWNvbnMuZGVsZXRlX291dGxpbmVfcm91bmRlZDsiLAogICAgJ0NvbG9yKDB4RkFGRkZGRkYpLCBDb2xvcigweEYyRkZGRkZGKScsCiAgICAnQ29sb3IoMHhGMDEyMTgyNiksIENvbG9yKDB4RTMwODBDMTgpJywKICAgICdibHVyUmFkaXVzOiA1MicsCiAgICAnc3ByZWFkUmFkaXVzOiAtMS4yNScsCiAgICAnd2lkdGg6IDg0LCcsCiAgICAnaGVpZ2h0OiA3MCwnLAogICAgJ2hlaWdodDogODgsJywKKQpiZWZvcmVfdmlzdWFsID0ge3Rva2VuOiBzb3VyY2UuY291bnQodG9rZW4pIGZvciB0b2tlbiBpbiB2aXN1YWxfc2VudGluZWxzfQoKbmF2X3N0YXJ0ID0gc291cmNlLmluZGV4KCdjbGFzcyBfQm90dG9tTGVkZ2VyTmF2IGV4dGVuZHMgU3RhdGVsZXNzV2lkZ2V0IHsnKQpuYXZfYm9keV9tYXJrZXIgPSAnICBXaWRnZXQgX2J1aWxkTmF2aWdhdGlvbihCdWlsZENvbnRleHQgY29udGV4dCkgeycKbmF2X2JvZHlfc3RhcnQgPSBzb3VyY2UuaW5kZXgobmF2X2JvZHlfbWFya2VyLCBuYXZfc3RhcnQpCm9sZF9wcmVmaXggPSBzb3VyY2VbbmF2X3N0YXJ0Om5hdl9ib2R5X3N0YXJ0ICsgbGVuKG5hdl9ib2R5X21hcmtlcildCmlmICdBbmltYXRlZEJ1aWxkZXInIG5vdCBpbiBvbGRfcHJlZml4OgogICAgcmFpc2UgU3lzdGVtRXhpdCgnYm90dG9tIG5hdmlnYXRpb24gYmFzZWxpbmUgZHJpZnRlZCcpCm5ld19wcmVmaXggPSAnXG4nLmpvaW4oWwogICAgJ2NsYXNzIF9Cb3R0b21MZWRnZXJOYXYgZXh0ZW5kcyBTdGF0ZWZ1bFdpZGdldCB7JywKICAgICcgIGNvbnN0IF9Cb3R0b21MZWRnZXJOYXYoeycsCiAgICAnICAgIHJlcXVpcmVkIHRoaXMuc3luYywnLAogICAgJyAgICByZXF1aXJlZCB0aGlzLnNlbGVjdGVkLCcsCiAgICAnICAgIHJlcXVpcmVkIHRoaXMuY29udHJvbGxlciwnLAogICAgJyAgICByZXF1aXJlZCB0aGlzLm9uU2VsZWN0ZWQsJywKICAgICcgIH0pOycsCiAgICAnJywKICAgICcgIGZpbmFsIExlZGdlclN5bmNTZXJ2aWNlIHN5bmM7JywKICAgICcgIGZpbmFsIGludCBzZWxlY3RlZDsnLAogICAgJyAgZmluYWwgU2Nyb2xsQ29udHJvbGxlciBjb250cm9sbGVyOycsCiAgICAnICBmaW5hbCBWYWx1ZUNoYW5nZWQ8aW50PiBvblNlbGVjdGVkOycsCiAgICAnJywKICAgICcgIEBvdmVycmlkZScsCiAgICAnICBTdGF0ZTxfQm90dG9tTGVkZ2VyTmF2PiBjcmVhdGVTdGF0ZSgpID0+IF9Cb3R0b21MZWRnZXJOYXZTdGF0ZSgpOycsCiAgICAnfScsCiAgICAnJywKICAgICdjbGFzcyBfQm90dG9tTGVkZ2VyTmF2U3RhdGUgZXh0ZW5kcyBTdGF0ZTxfQm90dG9tTGVkZ2VyTmF2PiB7JywKICAgICcgIGxhdGUgTGlzdDxDb2xvcj4gX2NvbG9yczsnLAogICAgJycsCiAgICAnICBMZWRnZXJTeW5jU2VydmljZSBnZXQgc3luYyA9PiB3aWRnZXQuc3luYzsnLAogICAgJyAgaW50IGdldCBzZWxlY3RlZCA9PiB3aWRnZXQuc2VsZWN0ZWQ7JywKICAgICcgIFNjcm9sbENvbnRyb2xsZXIgZ2V0IGNvbnRyb2xsZXIgPT4gd2lkZ2V0LmNvbnRyb2xsZXI7JywKICAgICcgIFZhbHVlQ2hhbmdlZDxpbnQ+IGdldCBvblNlbGVjdGVkID0+IHdpZGdldC5vblNlbGVjdGVkOycsCiAgICAnJywKICAgICcgIEBvdmVycmlkZScsCiAgICAnICB2b2lkIGluaXRTdGF0ZSgpIHsnLAogICAgJyAgICBzdXBlci5pbml0U3RhdGUoKTsnLAogICAgJyAgICBfY29sb3JzID0gX21vZHVsZVRhYkNvbG9ycyhzeW5jLmN1cnJlbnRQcm9qZWN0aW9uKTsnLAogICAgJyAgICBzeW5jLmFkZExpc3RlbmVyKF9oYW5kbGVTeW5jQ2hhbmdlKTsnLAogICAgJyAgfScsCiAgICAnJywKICAgICcgIEBvdmVycmlkZScsCiAgICAnICB2b2lkIGRpZFVwZGF0ZVdpZGdldChjb3ZhcmlhbnQgX0JvdHRvbUxlZGdlck5hdiBvbGRXaWRnZXQpIHsnLAogICAgJyAgICBzdXBlci5kaWRVcGRhdGVXaWRnZXQob2xkV2lkZ2V0KTsnLAogICAgJyAgICBpZiAob2xkV2lkZ2V0LnN5bmMgPT0gd2lkZ2V0LnN5bmMpIHJldHVybjsnLAogICAgJyAgICBvbGRXaWRnZXQuc3luYy5yZW1vdmVMaXN0ZW5lcihfaGFuZGxlU3luY0NoYW5nZSk7JywKICAgICcgICAgX2NvbG9ycyA9IF9tb2R1bGVUYWJDb2xvcnMoc3luYy5jdXJyZW50UHJvamVjdGlvbik7JywKICAgICcgICAgc3luYy5hZGRMaXN0ZW5lcihfaGFuZGxlU3luY0NoYW5nZSk7JywKICAgICcgIH0nLAogICAgJycsCiAgICAnICB2b2lkIF9oYW5kbGVTeW5jQ2hhbmdlKCkgeycsCiAgICAnICAgIGZpbmFsIExpc3Q8Q29sb3I+IGNvbG9ycyA9IF9tb2R1bGVUYWJDb2xvcnMoc3luYy5jdXJyZW50UHJvamVjdGlvbik7JywKICAgICcgICAgaWYgKCFtb3VudGVkIHx8IGxpc3RFcXVhbHMoX2NvbG9ycywgY29sb3JzKSkgcmV0dXJuOycsCiAgICAnICAgIHNldFN0YXRlKCgpID0+IF9jb2xvcnMgPSBjb2xvcnMpOycsCiAgICAnICB9JywKICAgICcnLAogICAgJyAgQG92ZXJyaWRlJywKICAgICcgIHZvaWQgZGlzcG9zZSgpIHsnLAogICAgJyAgICBzeW5jLnJlbW92ZUxpc3RlbmVyKF9oYW5kbGVTeW5jQ2hhbmdlKTsnLAogICAgJyAgICBzdXBlci5kaXNwb3NlKCk7JywKICAgICcgIH0nLAogICAgJycsCiAgICAnICBAb3ZlcnJpZGUnLAogICAgJyAgV2lkZ2V0IGJ1aWxkKEJ1aWxkQ29udGV4dCBjb250ZXh0KSA9PiBfYnVpbGROYXZpZ2F0aW9uKGNvbnRleHQpOycsCiAgICAnJywKICAgIG5hdl9ib2R5X21hcmtlciwKXSkKc291cmNlID0gc291cmNlWzpuYXZfc3RhcnRdICsgbmV3X3ByZWZpeCArIHNvdXJjZVtuYXZfYm9keV9zdGFydCArIGxlbihuYXZfYm9keV9tYXJrZXIpOl0KCm5hdl9ib2R5X3N0YXJ0ID0gc291cmNlLmluZGV4KG5hdl9ib2R5X21hcmtlciwgbmF2X3N0YXJ0KQpuYXZfY29sb3JfbGluZSA9ICcgICAgZmluYWwgTGlzdDxDb2xvcj4gY29sb3JzID0gX21vZHVsZVRhYkNvbG9ycyhzeW5jLmN1cnJlbnRQcm9qZWN0aW9uKTsnCm5hdl9jb2xvcl9pbmRleCA9IHNvdXJjZS5pbmRleChuYXZfY29sb3JfbGluZSwgbmF2X2JvZHlfc3RhcnQpCnNvdXJjZSA9IHNvdXJjZVs6bmF2X2NvbG9yX2luZGV4XSArICcgICAgZmluYWwgTGlzdDxDb2xvcj4gY29sb3JzID0gX2NvbG9yczsnICsgc291cmNlW25hdl9jb2xvcl9pbmRleCArIGxlbihuYXZfY29sb3JfbGluZSk6XQoKc291cmNlID0gcmVwbGFjZV9vbmNlKAogICAgc291cmNlLAogICAgIiAgICBpZiAoKHBvc2l0aW9uLnBpeGVscyAtIHRhcmdldCkuYWJzKCkgPCAuNSkgcmV0dXJuO1xuIgogICAgIiAgICBpZiAoQXBwTW90aW9uLnJlZHVjZShjb250ZXh0KSkge1xuIgogICAgIiAgICAgIHBvc2l0aW9uLmp1bXBUbyh0YXJnZXQpO1xuIgogICAgIiAgICAgIHJldHVybjtcbiIKICAgICIgICAgfVxuIgogICAgIiAgICBfbmF2Q29udHJvbGxlci5hbmltYXRlVG8oXG4iCiAgICAiICAgICAgdGFyZ2V0LFxuIgogICAgIiAgICAgIGR1cmF0aW9uOiBVSUNvbnN0YW50cy5tb3Rpb24sXG4iCiAgICAiICAgICAgY3VydmU6IFVJQ29uc3RhbnRzLm1vdGlvbk91dCxcbiIKICAgICIgICAgKTsiLAogICAgIiAgICBmaW5hbCBkb3VibGUgbmF2VHJhdmVsID0gKHBvc2l0aW9uLnBpeGVscyAtIHRhcmdldCkuYWJzKCk7XG4iCiAgICAiICAgIGlmIChuYXZUcmF2ZWwgPCAuNSkgcmV0dXJuO1xuIgogICAgIiAgICBpZiAoQXBwTW90aW9uLnJlZHVjZShjb250ZXh0KSB8fCBuYXZUcmF2ZWwgPCAzKSB7XG4iCiAgICAiICAgICAgcG9zaXRpb24uanVtcFRvKHRhcmdldCk7XG4iCiAgICAiICAgICAgcmV0dXJuO1xuIgogICAgIiAgICB9XG4iCiAgICAiICAgIGZpbmFsIGRvdWJsZSBub3JtYWxpemVkVHJhdmVsID0gKG5hdlRyYXZlbCAvIGl0ZW1FeHRlbnQpXG4iCiAgICAiICAgICAgICAuY2xhbXAoLjEyLCAxLjApXG4iCiAgICAiICAgICAgICAudG9Eb3VibGUoKTtcbiIKICAgICIgICAgZmluYWwgaW50IGFkYXB0aXZlTWljcm9zID1cbiIKICAgICIgICAgICAgIChVSUNvbnN0YW50cy5tb3Rpb24uaW5NaWNyb3NlY29uZHMgKiBtYXRoLnNxcnQobm9ybWFsaXplZFRyYXZlbCkpXG4iCiAgICAiICAgICAgICAgICAgLnJvdW5kKClcbiIKICAgICIgICAgICAgICAgICAuY2xhbXAoXG4iCiAgICAiICAgICAgICAgICAgICBjb25zdCBEdXJhdGlvbihtaWxsaXNlY29uZHM6IDkwKS5pbk1pY3Jvc2Vjb25kcyxcbiIKICAgICIgICAgICAgICAgICAgIFVJQ29uc3RhbnRzLm1vdGlvbi5pbk1pY3Jvc2Vjb25kcyxcbiIKICAgICIgICAgICAgICAgICApXG4iCiAgICAiICAgICAgICAgICAgLnRvSW50KCk7XG4iCiAgICAiICAgIF9uYXZDb250cm9sbGVyLmFuaW1hdGVUbyhcbiIKICAgICIgICAgICB0YXJnZXQsXG4iCiAgICAiICAgICAgZHVyYXRpb246IER1cmF0aW9uKG1pY3Jvc2Vjb25kczogYWRhcHRpdmVNaWNyb3MpLFxuIgogICAgIiAgICAgIGN1cnZlOiBVSUNvbnN0YW50cy5tb3Rpb25PdXQsXG4iCiAgICAiICAgICk7IiwKICAgICdhZGFwdGl2ZSBib3R0b20tbmF2IHNldHRsZScsCikKCnNvdXJjZSA9IHJlcGxhY2Vfb25jZSgKICAgIHNvdXJjZSwKICAgICcgIE9mZnNldCBfZ2VzdHVyZVZlbG9jaXR5ID0gT2Zmc2V0Lnplcm87JywKICAgICcgIE9mZnNldCBfZ2VzdHVyZVZlbG9jaXR5ID0gT2Zmc2V0Lnplcm87XG4gIGludCBfcHJlc3NNb3Rpb25HZW5lcmF0aW9uID0gMDsnLAogICAgJ3ByZXNzIGdlbmVyYXRpb24gZmllbGQnLAopCnNvdXJjZSA9IHJlcGxhY2Vfb25jZSgKICAgIHNvdXJjZSwKICAgICIgIHZvaWQgX3Jlc2V0UHJlc3NGZWVkYmFjaygpIHtcbiIKICAgICIgICAgX3ByZXNzQ29udHJvbGxlci5zdG9wKCk7XG4iCiAgICAiICAgIGlmIChfcHJlc3NDb250cm9sbGVyLnZhbHVlICE9IDApIF9wcmVzc0NvbnRyb2xsZXIudmFsdWUgPSAwO1xuIgogICAgIiAgICBfdG91Y2hBbGlnbm1lbnQgPSBBbGlnbm1lbnQuY2VudGVyO1xuIgogICAgIiAgICBfcmVsZWFzZUFsaWdubWVudCA9IG51bGw7XG4iCiAgICAiICAgIF9sYXN0VG91Y2hQb3NpdGlvbiA9IG51bGw7XG4iCiAgICAiICAgIF9sYXN0VG91Y2hTYW1wbGVNaWNyb3MgPSAwO1xuIgogICAgIiAgICBfZ2VzdHVyZVZlbG9jaXR5ID0gT2Zmc2V0Lnplcm87XG4iCiAgICAiICB9IiwKICAgICIgIHZvaWQgX3Jlc2V0UHJlc3NGZWVkYmFjaygpIHtcbiIKICAgICIgICAgX3ByZXNzTW90aW9uR2VuZXJhdGlvbisrO1xuIgogICAgIiAgICBfcHJlc3NDb250cm9sbGVyLnN0b3AoKTtcbiIKICAgICIgICAgaWYgKF9wcmVzc0NvbnRyb2xsZXIudmFsdWUgIT0gMCkgX3ByZXNzQ29udHJvbGxlci52YWx1ZSA9IDA7XG4iCiAgICAiICAgIF9jbGVhclRvdWNoU3RhdGUoKTtcbiIKICAgICIgIH1cblxuIgogICAgIiAgdm9pZCBfY2xlYXJUb3VjaFN0YXRlKCkge1xuIgogICAgIiAgICBfdG91Y2hBbGlnbm1lbnQgPSBBbGlnbm1lbnQuY2VudGVyO1xuIgogICAgIiAgICBfcmVsZWFzZUFsaWdubWVudCA9IG51bGw7XG4iCiAgICAiICAgIF9sYXN0VG91Y2hQb3NpdGlvbiA9IG51bGw7XG4iCiAgICAiICAgIF9sYXN0VG91Y2hTYW1wbGVNaWNyb3MgPSAwO1xuIgogICAgIiAgICBfZ2VzdHVyZVZlbG9jaXR5ID0gT2Zmc2V0Lnplcm87XG4iCiAgICAiICB9IiwKICAgICdwcmVzcyByZXNldCBvd25lcnNoaXAnLAopCnNvdXJjZSA9IHJlcGxhY2Vfb25jZSgKICAgIHNvdXJjZSwKICAgICIgIHZvaWQgX2NhcHR1cmVUb3VjaChUYXBEb3duRGV0YWlscyBkZXRhaWxzKSB7XG4iCiAgICAiICAgIF9yZWxlYXNlQWxpZ25tZW50ID0gbnVsbDsiLAogICAgIiAgdm9pZCBfY2FwdHVyZVRvdWNoKFRhcERvd25EZXRhaWxzIGRldGFpbHMpIHtcbiIKICAgICIgICAgX3ByZXNzTW90aW9uR2VuZXJhdGlvbisrO1xuIgogICAgIiAgICBfcmVsZWFzZUFsaWdubWVudCA9IG51bGw7IiwKICAgICduZXcgcHJlc3Mgb3duZXJzaGlwJywKKQoKIyBTY29wZSB0aGlzIHJlcGxhY2VtZW50IHRvIHRoZSBwcmVzc2FibGUgcmVsZWFzZSBibG9jaywgYmVjYXVzZSBvdGhlciBtZXRob2RzIG1heQojIGhhdmUgc3VwZXJmaWNpYWxseSBzaW1pbGFyIHJlZHVjZWQtbW90aW9uIGJyYW5jaGVzLgpwcmVzc19zdGFydCA9IHNvdXJjZS5pbmRleCgnY2xhc3MgX1ByZXNzYWJsZVN0YXRlIGV4dGVuZHMgU3RhdGU8X1ByZXNzYWJsZT4nKQpyZWxlYXNlX3N0YXJ0ID0gc291cmNlLmluZGV4KCcgIHZvaWQgX3JlbGVhc2Uoe2Jvb2wgY2FuY2VsbGVkID0gZmFsc2V9KSB7JywgcHJlc3Nfc3RhcnQpCnJlbGVhc2VfZW5kID0gc291cmNlLmluZGV4KCdcbiAgdm9pZCBfYWN0aXZhdGUoKScsIHJlbGVhc2Vfc3RhcnQpCnJlbGVhc2UgPSBzb3VyY2VbcmVsZWFzZV9zdGFydDpyZWxlYXNlX2VuZF0KcmVsZWFzZSA9IHJlcGxhY2Vfb25jZSgKICAgIHJlbGVhc2UsCiAgICAiICAgIGlmIChBcHBNb3Rpb24ucmVkdWNlKGNvbnRleHQpKSB7XG4iCiAgICAiICAgICAgX3ByZXNzQ29udHJvbGxlci5zdG9wKCk7XG4iCiAgICAiICAgICAgaWYgKF9wcmVzc0NvbnRyb2xsZXIudmFsdWUgIT0gMCkgX3ByZXNzQ29udHJvbGxlci52YWx1ZSA9IDA7XG4iCiAgICAiICAgICAgcmV0dXJuO1xuIgogICAgIiAgICB9IiwKICAgICIgICAgaWYgKEFwcE1vdGlvbi5yZWR1Y2UoY29udGV4dCkpIHtcbiIKICAgICIgICAgICBfcHJlc3NNb3Rpb25HZW5lcmF0aW9uKys7XG4iCiAgICAiICAgICAgX3ByZXNzQ29udHJvbGxlci5zdG9wKCk7XG4iCiAgICAiICAgICAgaWYgKF9wcmVzc0NvbnRyb2xsZXIudmFsdWUgIT0gMCkgX3ByZXNzQ29udHJvbGxlci52YWx1ZSA9IDA7XG4iCiAgICAiICAgICAgX2NsZWFyVG91Y2hTdGF0ZSgpO1xuIgogICAgIiAgICAgIHJldHVybjtcbiIKICAgICIgICAgfSIsCiAgICAncmVkdWNlZC1tb3Rpb24gcmVsZWFzZSBjbGVhbnVwJywKKQpyZWxlYXNlID0gcmVwbGFjZV9vbmNlKAogICAgcmVsZWFzZSwKICAgICIgICAgZmluYWwgZG91YmxlIGdlc3R1cmVSZWxlYXNlVmVsb2NpdHkgPSBfcmVsZWFzZURlcHRoVmVsb2NpdHkoXG4iCiAgICAiICAgICAgZ2VzdHVyZVZlbG9jaXR5LFxuIgogICAgIiAgICAgIGNhbmNlbGxlZDogY2FuY2VsbGVkLFxuIgogICAgIiAgICApOyIsCiAgICAiICAgIGZpbmFsIGRvdWJsZSBwcmVzc0RlcHRoID0gX3ByZXNzQ29udHJvbGxlci52YWx1ZVxuIgogICAgIiAgICAgICAgLmNsYW1wKDAuMCwgMS4wKVxuIgogICAgIiAgICAgICAgLnRvRG91YmxlKCk7XG4iCiAgICAiICAgIGZpbmFsIGRvdWJsZSBkZXB0aENvdXBsaW5nID0gbWF0aC5zcXJ0KHByZXNzRGVwdGgpO1xuIgogICAgIiAgICBmaW5hbCBkb3VibGUgZ2VzdHVyZVJlbGVhc2VWZWxvY2l0eSA9XG4iCiAgICAiICAgICAgICBfcmVsZWFzZURlcHRoVmVsb2NpdHkoXG4iCiAgICAiICAgICAgICAgIGdlc3R1cmVWZWxvY2l0eSxcbiIKICAgICIgICAgICAgICAgY2FuY2VsbGVkOiBjYW5jZWxsZWQsXG4iCiAgICAiICAgICAgICApICpcbiIKICAgICIgICAgICAgIGRlcHRoQ291cGxpbmc7IiwKICAgICdkZXB0aC1jb3VwbGVkIHJlbGVhc2UgdmVsb2NpdHknLAopCnJlbGVhc2UgPSByZXBsYWNlX29uY2UoCiAgICByZWxlYXNlLAogICAgIiAgICBpZiAoX3ByZXNzQ29udHJvbGxlci52YWx1ZS5hYnMoKSA8PSAuMDAwMSAmJlxuIgogICAgIiAgICAgICAgcmVsZWFzZVZlbG9jaXR5LmFicygpIDw9IC4wMDAxKSB7XG4iCiAgICAiICAgICAgaWYgKF9wcmVzc0NvbnRyb2xsZXIudmFsdWUgIT0gMCkgX3ByZXNzQ29udHJvbGxlci52YWx1ZSA9IDA7XG4iCiAgICAiICAgICAgcmV0dXJuO1xuIgogICAgIiAgICB9XG4iCiAgICAiICAgIF9wcmVzc0NvbnRyb2xsZXIuYW5pbWF0ZVdpdGgoXG4iCiAgICAiICAgICAgU3ByaW5nU2ltdWxhdGlvbihcbiIKICAgICIgICAgICAgIFVJQ29uc3RhbnRzLnByZXNzU3ByaW5nLFxuIgogICAgIiAgICAgICAgX3ByZXNzQ29udHJvbGxlci52YWx1ZSxcbiIKICAgICIgICAgICAgIDAsXG4iCiAgICAiICAgICAgICByZWxlYXNlVmVsb2NpdHksXG4iCiAgICAiICAgICAgKSxcbiIKICAgICIgICAgKTsiLAogICAgIiAgICBpZiAoX3ByZXNzQ29udHJvbGxlci52YWx1ZS5hYnMoKSA8PSAuMDAwMSAmJlxuIgogICAgIiAgICAgICAgcmVsZWFzZVZlbG9jaXR5LmFicygpIDw9IC4wMDAxKSB7XG4iCiAgICAiICAgICAgX3ByZXNzTW90aW9uR2VuZXJhdGlvbisrO1xuIgogICAgIiAgICAgIGlmIChfcHJlc3NDb250cm9sbGVyLnZhbHVlICE9IDApIF9wcmVzc0NvbnRyb2xsZXIudmFsdWUgPSAwO1xuIgogICAgIiAgICAgIF9jbGVhclRvdWNoU3RhdGUoKTtcbiIKICAgICIgICAgICByZXR1cm47XG4iCiAgICAiICAgIH1cbiIKICAgICIgICAgZmluYWwgaW50IG1vdGlvbkdlbmVyYXRpb24gPSArK19wcmVzc01vdGlvbkdlbmVyYXRpb247XG4iCiAgICAiICAgIF9wcmVzc0NvbnRyb2xsZXJcbiIKICAgICIgICAgICAgIC5hbmltYXRlV2l0aChcbiIKICAgICIgICAgICAgICAgU3ByaW5nU2ltdWxhdGlvbihcbiIKICAgICIgICAgICAgICAgICBVSUNvbnN0YW50cy5wcmVzc1NwcmluZyxcbiIKICAgICIgICAgICAgICAgICBfcHJlc3NDb250cm9sbGVyLnZhbHVlLFxuIgogICAgIiAgICAgICAgICAgIDAsXG4iCiAgICAiICAgICAgICAgICAgcmVsZWFzZVZlbG9jaXR5LFxuIgogICAgIiAgICAgICAgICApLFxuIgogICAgIiAgICAgICAgKVxuIgogICAgIiAgICAgICAgLndoZW5Db21wbGV0ZU9yQ2FuY2VsKCgpIHtcbiIKICAgICIgICAgICAgICAgaWYgKCFtb3VudGVkIHx8IG1vdGlvbkdlbmVyYXRpb24gIT0gX3ByZXNzTW90aW9uR2VuZXJhdGlvbikgcmV0dXJuO1xuIgogICAgIiAgICAgICAgICBpZiAoX3ByZXNzQ29udHJvbGxlci52YWx1ZS5hYnMoKSA8PSAuMDAyICYmXG4iCiAgICAiICAgICAgICAgICAgICBfcHJlc3NDb250cm9sbGVyLnZhbHVlICE9IDApIHtcbiIKICAgICIgICAgICAgICAgICBfcHJlc3NDb250cm9sbGVyLnZhbHVlID0gMDtcbiIKICAgICIgICAgICAgICAgfVxuIgogICAgIiAgICAgICAgICBfY2xlYXJUb3VjaFN0YXRlKCk7XG4iCiAgICAiICAgICAgICB9KTsiLAogICAgJ2dlbmVyYXRpb24tc2FmZSBzcHJpbmcgY29tcGxldGlvbicsCikKc291cmNlID0gc291cmNlWzpyZWxlYXNlX3N0YXJ0XSArIHJlbGVhc2UgKyBzb3VyY2VbcmVsZWFzZV9lbmQ6XQoKYWZ0ZXJfdmlzdWFsID0ge3Rva2VuOiBzb3VyY2UuY291bnQodG9rZW4pIGZvciB0b2tlbiBpbiB2aXN1YWxfc2VudGluZWxzfQppZiBiZWZvcmVfdmlzdWFsICE9IGFmdGVyX3Zpc3VhbDoKICAgIGNoYW5nZWQgPSB7CiAgICAgICAgdG9rZW46IChiZWZvcmVfdmlzdWFsW3Rva2VuXSwgYWZ0ZXJfdmlzdWFsW3Rva2VuXSkKICAgICAgICBmb3IgdG9rZW4gaW4gdmlzdWFsX3NlbnRpbmVscwogICAgICAgIGlmIGJlZm9yZV92aXN1YWxbdG9rZW5dICE9IGFmdGVyX3Zpc3VhbFt0b2tlbl0KICAgIH0KICAgIHJhaXNlIFN5c3RlbUV4aXQoZid2aXN1YWwgbG9jayB2aW9sYXRlZDoge2NoYW5nZWR9JykKCnRlc3RzID0gcmVwbGFjZV9vbmNlKAogICAgdGVzdHMsCiAgICAiICAgIGV4cGVjdChzb3VyY2UsIGNvbnRhaW5zKCcocG9zaXRpb24ucGl4ZWxzIC0gdGFyZ2V0KS5hYnMoKSA8IC41JykpOyIsCiAgICAiICAgIGV4cGVjdChcbiIKICAgICIgICAgICBzb3VyY2UsXG4iCiAgICAiICAgICAgY29udGFpbnMoJ2ZpbmFsIGRvdWJsZSBuYXZUcmF2ZWwgPSAocG9zaXRpb24ucGl4ZWxzIC0gdGFyZ2V0KS5hYnMoKScpLFxuIgogICAgIiAgICApO1xuIgogICAgIiAgICBleHBlY3Qoc291cmNlLCBjb250YWlucygnaWYgKG5hdlRyYXZlbCA8IC41KSByZXR1cm47JykpO1xuIgogICAgIiAgICBleHBlY3Qoc291cmNlLCBjb250YWlucygnQXBwTW90aW9uLnJlZHVjZShjb250ZXh0KSB8fCBuYXZUcmF2ZWwgPCAzJykpO1xuIgogICAgIiAgICBleHBlY3Qoc291cmNlLCBjb250YWlucygnRHVyYXRpb24obWljcm9zZWNvbmRzOiBhZGFwdGl2ZU1pY3JvcyknKSk7IiwKICAgICduYXZpZ2F0aW9uIHJlZ3Jlc3Npb24gZ3VhcmQnLAopCnRlc3RzID0gcmVwbGFjZV9vbmNlKAogICAgdGVzdHMsCiAgICAiICAgIGV4cGVjdChwcmVzc2FibGVTb3VyY2UsIGNvbnRhaW5zKCdPZmZzZXQgX2dlc3R1cmVWZWxvY2l0eSA9IE9mZnNldC56ZXJvJykpOyIsCiAgICAiICAgIGV4cGVjdChwcmVzc2FibGVTb3VyY2UsIGNvbnRhaW5zKCdPZmZzZXQgX2dlc3R1cmVWZWxvY2l0eSA9IE9mZnNldC56ZXJvJykpO1xuIgogICAgIiAgICBleHBlY3QocHJlc3NhYmxlU291cmNlLCBjb250YWlucygnaW50IF9wcmVzc01vdGlvbkdlbmVyYXRpb24gPSAwJykpO1xuIgogICAgIiAgICBleHBlY3QocHJlc3NhYmxlU291cmNlLCBjb250YWlucygndm9pZCBfY2xlYXJUb3VjaFN0YXRlKCknKSk7XG4iCiAgICAiICAgIGV4cGVjdChcbiIKICAgICIgICAgICBwcmVzc2FibGVTb3VyY2UsXG4iCiAgICAiICAgICAgY29udGFpbnMoJ2ZpbmFsIGRvdWJsZSBkZXB0aENvdXBsaW5nID0gbWF0aC5zcXJ0KHByZXNzRGVwdGgpJyksXG4iCiAgICAiICAgICk7XG4iCiAgICAiICAgIGV4cGVjdChcbiIKICAgICIgICAgICBwcmVzc2FibGVTb3VyY2UsXG4iCiAgICAiICAgICAgY29udGFpbnMoJ21vdGlvbkdlbmVyYXRpb24gIT0gX3ByZXNzTW90aW9uR2VuZXJhdGlvbicpLFxuIgogICAgIiAgICApO1xuIgogICAgIiAgICBleHBlY3QocHJlc3NhYmxlU291cmNlLCBjb250YWlucygnLndoZW5Db21wbGV0ZU9yQ2FuY2VsKCgpIHsnKSk7IiwKICAgICdwcmVzcyBvd25lcnNoaXAgcmVncmVzc2lvbiBndWFyZCcsCikKdGVzdHMgPSByZXBsYWNlX29uY2UoCiAgICB0ZXN0cywKICAgICcgICAgLy8gQnJhbmQvc3RhdGUgY29sb3IgbG9naWMgYW5kIEZpcmViYXNlIGludGVncmF0aW9uIG11c3Qgc3RheSB1bnRvdWNoZWQuJywKICAgICIgICAgZXhwZWN0KFxuIgogICAgIiAgICAgIHNvdXJjZSxcbiIKICAgICIgICAgICBjb250YWlucygnY2xhc3MgX0JvdHRvbUxlZGdlck5hdiBleHRlbmRzIFN0YXRlZnVsV2lkZ2V0JyksXG4iCiAgICAiICAgICk7XG4iCiAgICAiICAgIGV4cGVjdChzb3VyY2UsIGNvbnRhaW5zKCdsaXN0RXF1YWxzKF9jb2xvcnMsIGNvbG9ycyknKSk7XG4iCiAgICAiICAgIGV4cGVjdChzb3VyY2UsIGNvbnRhaW5zKCdmaW5hbCBMaXN0PENvbG9yPiBjb2xvcnMgPSBfY29sb3JzOycpKTtcblxuIgogICAgIiAgICAvLyBCcmFuZC9zdGF0ZSBjb2xvciBsb2dpYyBhbmQgRmlyZWJhc2UgaW50ZWdyYXRpb24gbXVzdCBzdGF5IHVudG91Y2hlZC4iLAogICAgJ2JvdHRvbS1uYXYgcmVidWlsZCBndWFyZCcsCikKCm1haW5fcGF0aC53cml0ZV90ZXh0KHNvdXJjZSkKdGVzdF9wYXRoLndyaXRlX3RleHQodGVzdHMpCg=='))"
+          python3 <<'PY'
+          from pathlib import Path
 
-      - name: Flutter toolchain
+          main_path = Path('lib/main.dart')
+          test_path = Path('test/premium_interaction_physics_test.dart')
+          source = main_path.read_text()
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
+              return text.replace(old, new, 1)
+
+          visual_sentinels = (
+              'static const double cardRadius = 24;',
+              'static const double heroRadius = 28;',
+              'static const double sheetRadius = 36;',
+              'const IconData premiumHomeIcon = Icons.space_dashboard_rounded;',
+              'const IconData premiumExpenseIcon = Icons.shopping_bag_rounded;',
+              'const IconData premiumDeleteIcon = Icons.delete_outline_rounded;',
+              'width: 84,',
+              'height: 70,',
+              'height: 88,',
+              'Color(0xFAFFFFFF), Color(0xF2FFFFFF)',
+              'Color(0xF0121826), Color(0xE3080C18)',
+          )
+          before_visual = {token: source.count(token) for token in visual_sentinels}
+
+          source = replace_once(
+              source,
+              '  static const Duration motion = Duration(milliseconds: 260);\n'
+              '  static const Duration dashboardReveal = Duration(milliseconds: 520);',
+              '  static const Duration motion = Duration(milliseconds: 260);\n'
+              '  static const Duration navMotion = Duration(milliseconds: 220);\n'
+              '  static const Duration dashboardReveal = Duration(milliseconds: 520);',
+              'navigation motion token',
+          )
+
+          old_physics = '''class _LedgerPagePhysics extends PageScrollPhysics {
+            const _LedgerPagePhysics({super.parent});
+
+            static const SpringDescription _pageSettleSpring = SpringDescription(
+              mass: .78,
+              stiffness: 300,
+              damping: 30,
+            );
+
+            @override
+            _LedgerPagePhysics applyTo(ScrollPhysics? ancestor) =>
+                _LedgerPagePhysics(parent: buildParent(ancestor));
+
+            @override
+            SpringDescription get spring => _pageSettleSpring;
+          }'''
+
+          new_physics = '''class _LedgerPagePhysics extends PageScrollPhysics {
+            const _LedgerPagePhysics({super.parent});
+
+            // Slightly under-critical: fast initial response, then one calm settle.
+            // The actual finger release velocity is carried into the simulation.
+            static const SpringDescription _pageSettleSpring = SpringDescription(
+              mass: .86,
+              stiffness: 360,
+              damping: 33,
+            );
+            static const double _velocityProjectionSeconds = .10;
+            static const double _maxProjectedPages = .22;
+            static const double _flingCommitPagesPerSecond = .52;
+
+            @override
+            _LedgerPagePhysics applyTo(ScrollPhysics? ancestor) =>
+                _LedgerPagePhysics(parent: buildParent(ancestor));
+
+            @override
+            SpringDescription get spring => _pageSettleSpring;
+
+            @override
+            Simulation? createBallisticSimulation(
+              ScrollMetrics position,
+              double velocity,
+            ) {
+              if (position.outOfRange ||
+                  (velocity <= 0 && position.pixels <= position.minScrollExtent) ||
+                  (velocity >= 0 && position.pixels >= position.maxScrollExtent)) {
+                return super.createBallisticSimulation(position, velocity);
+              }
+
+              final double pageExtent = position.viewportDimension;
+              if (!pageExtent.isFinite || pageExtent <= 0) {
+                return super.createBallisticSimulation(position, velocity);
+              }
+
+              final Tolerance tolerance = toleranceFor(position);
+              final double currentPage =
+                  (position.pixels - position.minScrollExtent) / pageExtent;
+              final double maxPage =
+                  (position.maxScrollExtent - position.minScrollExtent) /
+                  pageExtent;
+              final double pageVelocity = velocity / pageExtent;
+              final double projectedDelta =
+                  (pageVelocity * _velocityProjectionSeconds)
+                      .clamp(-_maxProjectedPages, _maxProjectedPages)
+                      .toDouble();
+
+              // A decisive fling advances at most one page. A slower release uses
+              // a short velocity projection, so intent near the midpoint wins
+              // without making tiny accidental drags switch modules.
+              final double targetPage =
+                  pageVelocity.abs() >= _flingCommitPagesPerSecond
+                  ? (pageVelocity > 0
+                        ? currentPage.floorToDouble() + 1
+                        : currentPage.ceilToDouble() - 1)
+                  : (currentPage + projectedDelta).roundToDouble();
+              final double clampedPage = targetPage
+                  .clamp(0.0, maxPage)
+                  .toDouble();
+              final double targetPixels =
+                  (position.minScrollExtent + clampedPage * pageExtent)
+                      .clamp(position.minScrollExtent, position.maxScrollExtent)
+                      .toDouble();
+
+              if ((targetPixels - position.pixels).abs() <= tolerance.distance &&
+                  velocity.abs() <= tolerance.velocity) {
+                return null;
+              }
+
+              return ScrollSpringSimulation(
+                spring,
+                position.pixels,
+                targetPixels,
+                velocity,
+                tolerance: tolerance,
+              );
+            }
+          }'''
+          source = replace_once(source, old_physics, new_physics, 'ledger page physics')
+
+          shell_start = source.index('class _AppShellState extends State<AppShell>')
+          shell_end = source.index('class _KeepAlivePage extends StatefulWidget', shell_start)
+          shell = source[shell_start:shell_end]
+          if '_buildSwipeMotionPage' in shell:
+              raise SystemExit('swipe motion stage already exists')
+
+          build_marker = '  @override\n  Widget build(BuildContext context) {'
+          helper = '''  Widget _buildSwipeMotionPage(int index, Widget child) => AnimatedBuilder(
+            animation: _pageController,
+            child: child,
+            builder: (BuildContext context, Widget? stableChild) {
+              final Widget pageChild = stableChild!;
+              if (AppMotion.reduce(context) ||
+                  !_pageController.hasClients ||
+                  !_pageController.position.hasContentDimensions) {
+                return pageChild;
+              }
+
+              final double page =
+                  _pageController.page ?? _settledPage.toDouble();
+              final double delta = (page - index).clamp(-1.0, 1.0).toDouble();
+              final double depth = delta.abs();
+              if (depth <= .0001) return pageChild;
+
+              // Paint-only spatial response: no layout, color, icon, or card-size
+              // mutation. The page follows the finger and returns to identity at rest.
+              final Matrix4 transform = Matrix4.identity()
+                ..setEntry(3, 2, .00075)
+                ..rotateY(-delta * .018);
+              return Transform(
+                alignment: Alignment.center,
+                transform: transform,
+                child: Transform.translate(
+                  offset: Offset(0, depth * 1.8),
+                  child: pageChild,
+                ),
+              );
+            },
+          );
+
+          '''
+          marker_count = shell.count(build_marker)
+          if marker_count != 1:
+              raise SystemExit(
+                  f'app shell build marker: expected 1 match, found {marker_count}'
+              )
+          shell = shell.replace(build_marker, helper + build_marker, 1)
+          source = source[:shell_start] + shell + source[shell_end:]
+
+          source = replace_once(
+              source,
+              '                  children: screens,',
+              '''                  children: List<Widget>.generate(
+                    screens.length,
+                    (int index) => _buildSwipeMotionPage(index, screens[index]),
+                  ),''',
+              'page motion children',
+          )
+
+          source = replace_once(
+              source,
+              '    final Duration navMotion = AppMotion.reduce(context)\n'
+              '        ? Duration.zero\n'
+              '        : UIConstants.motion;',
+              '    final Duration navMotion = AppMotion.reduce(context)\n'
+              '        ? Duration.zero\n'
+              '        : UIConstants.navMotion;',
+              'bottom navigation timing',
+          )
+
+          after_visual = {token: source.count(token) for token in visual_sentinels}
+          if before_visual != after_visual:
+              changed = {
+                  token: (before_visual[token], after_visual[token])
+                  for token in visual_sentinels
+                  if before_visual[token] != after_visual[token]
+              }
+              raise SystemExit(f'visual lock violated: {changed}')
+
+          main_path.write_text(source)
+
+          test_path.write_text('''import 'dart:io';
+
+          import 'package:flutter_test/flutter_test.dart';
+
+          void main() {
+            test('premium swipe physics preserve intent and visual lock', () {
+              final String source = File('lib/main.dart').readAsStringSync();
+
+              expect(
+                source,
+                contains('Duration navMotion = Duration(milliseconds: 220)'),
+              );
+              expect(source, contains('class _LedgerPagePhysics extends PageScrollPhysics'));
+              expect(source, contains('_velocityProjectionSeconds = .10'));
+              expect(source, contains('_maxProjectedPages = .22'));
+              expect(source, contains('_flingCommitPagesPerSecond = .52'));
+              expect(source, contains('Simulation? createBallisticSimulation('));
+              expect(source, contains('final double pageVelocity = velocity / pageExtent'));
+              expect(source, contains('currentPage.floorToDouble() + 1'));
+              expect(source, contains('currentPage.ceilToDouble() - 1'));
+              expect(source, contains('return ScrollSpringSimulation('));
+              expect(source, contains('targetPixels,\n        velocity,'));
+
+              expect(source, contains('Widget _buildSwipeMotionPage('));
+              expect(source, contains('animation: _pageController'));
+              expect(source, contains('AppMotion.reduce(context)'));
+              expect(source, contains('..setEntry(3, 2, .00075)'));
+              expect(source, contains('..rotateY(-delta * .018)'));
+              expect(source, contains('offset: Offset(0, depth * 1.8)'));
+              expect(source, contains('children: List<Widget>.generate('));
+
+              // Resting geometry and semantic icon identity stay untouched.
+              expect(source, contains('width: 84,'));
+              expect(source, contains('height: 70,'));
+              expect(source, contains('height: 88,'));
+              expect(source, contains('const IconData premiumHomeIcon = Icons.space_dashboard_rounded;'));
+              expect(source, contains('const IconData premiumExpenseIcon = Icons.shopping_bag_rounded;'));
+              expect(source, contains('const IconData premiumDeleteIcon = Icons.delete_outline_rounded;'));
+            });
+          }
+          ''')
+          PY
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter stable
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.47.2"
@@ -41,30 +306,38 @@ jobs:
       - name: Resolve packages
         run: flutter pub get
 
-      - name: Format and verify interaction upgrade
-        run: |
-          dart format lib/main.dart test/ui_micro_aesthetics_test.dart
-          git diff --check
-          flutter analyze
-          flutter test
-          flutter build apk --debug
+      - name: Format surgical scope
+        run: dart format --language-version latest lib/main.dart test/premium_interaction_physics_test.dart
 
-      - name: Enforce surgical file scope
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run all tests
+        run: flutter test
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Verify exact change scope
         shell: bash
         run: |
-          changed="$(git diff --name-only)"
-          expected="$(printf 'lib/main.dart\ntest/ui_micro_aesthetics_test.dart')"
-          if [ "$changed" != "$expected" ]; then
-            echo "Unexpected changed files:"
-            printf '%s\n' "$changed"
-            exit 1
-          fi
+          git diff --exit-code -- pubspec.lock
+          mapfile -t changed < <(git diff --name-only)
+          printf 'Changed files:\n%s\n' "${changed[*]}"
+          for file in "${changed[@]}"; do
+            case "$file" in
+              lib/main.dart|test/premium_interaction_physics_test.dart) ;;
+              *) echo "Unexpected modified file: $file"; exit 1 ;;
+            esac
+          done
+          test "${#changed[@]}" -eq 2
 
       - name: Commit and push verified interaction upgrade
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add lib/main.dart test/ui_micro_aesthetics_test.dart
-          git diff --cached --quiet && { echo "No app changes to commit"; exit 1; }
-          git commit -m "perf(ui): harden interaction ownership and adaptive navigation"
+          git add lib/main.dart test/premium_interaction_physics_test.dart
+          git commit -m "Upgrade premium swipe and navigation physics"
+          git pull --rebase origin main
           git push origin HEAD:main
