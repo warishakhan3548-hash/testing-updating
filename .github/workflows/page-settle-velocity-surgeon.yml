@@ -1,0 +1,183 @@
+name: Page Settle Velocity Surgeon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/page-settle-velocity-surgeon.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: page-settle-velocity-surgeon-main
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout exact main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply surgical page-physics patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          main_path = Path('lib/main.dart')
+          source = main_path.read_text()
+
+          visual_sentinels = (
+              'static const double cardRadius = 24;',
+              'static const double heroRadius = 28;',
+              'static const double sheetRadius = 36;',
+              'const IconData premiumHomeIcon = Icons.space_dashboard_rounded;',
+              'const IconData premiumExpenseIcon = Icons.shopping_bag_rounded;',
+              'const IconData premiumDeleteIcon = Icons.delete_outline_rounded;',
+              'Color(0xFAFFFFFF), Color(0xF2FFFFFF)',
+              'Color(0xF0121826), Color(0xE3080C18)',
+              '..setEntry(3, 2, .00075)',
+              '..rotateY(-delta * .018)',
+              'offset: Offset(0, depth * 1.8)',
+          )
+          before_visual = {token: source.count(token) for token in visual_sentinels}
+
+          declaration_old = '''  static const double _flingCommitPagesPerSecond = .52;\n'''
+          declaration_new = '''  static const double _flingCommitPagesPerSecond = .52;\n  // Preserve fast-flick intent without feeding pathological pixel velocity\n  // into the near-critical settle spring. Normalizing by viewport keeps the\n  // same physical response on compact phones, tablets and resized windows.\n  static const double _maxSettlePagesPerSecond = 3.25;\n'''
+          if source.count(declaration_old) != 1:
+              raise SystemExit('page physics declaration anchor must match exactly once')
+          source = source.replace(declaration_old, declaration_new, 1)
+
+          target_old = '''    final double targetPixels =\n        (position.minScrollExtent + clampedPage * pageExtent)\n            .clamp(position.minScrollExtent, position.maxScrollExtent)\n            .toDouble();\n\n    if ((targetPixels - position.pixels).abs() <= tolerance.distance &&\n'''
+          target_new = '''    final double targetPixels =\n        (position.minScrollExtent + clampedPage * pageExtent)\n            .clamp(position.minScrollExtent, position.maxScrollExtent)\n            .toDouble();\n    final double maxSettleVelocity =\n        pageExtent * _maxSettlePagesPerSecond;\n    final double settleVelocity = velocity\n        .clamp(-maxSettleVelocity, maxSettleVelocity)\n        .toDouble();\n\n    if ((targetPixels - position.pixels).abs() <= tolerance.distance &&\n'''
+          if source.count(target_old) != 1:
+              raise SystemExit('target velocity anchor must match exactly once')
+          source = source.replace(target_old, target_new, 1)
+
+          simulation_old = '''    return ScrollSpringSimulation(\n      spring,\n      position.pixels,\n      targetPixels,\n      velocity,\n      tolerance: tolerance,\n    );\n'''
+          simulation_new = '''    return ScrollSpringSimulation(\n      spring,\n      position.pixels,\n      targetPixels,\n      settleVelocity,\n      tolerance: tolerance,\n    );\n'''
+          if source.count(simulation_old) != 1:
+              raise SystemExit('settle simulation anchor must match exactly once')
+          source = source.replace(simulation_old, simulation_new, 1)
+
+          after_visual = {token: source.count(token) for token in visual_sentinels}
+          if before_visual != after_visual:
+              raise SystemExit('visual/icon/layout sentinel changed; refusing patch')
+
+          main_path.write_text(source)
+
+          test_path = Path('test/page_settle_velocity_test.dart')
+          test_path.write_text(r'''import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('page settle velocity is viewport-normalized and energy bounded', () {
+    final String source = File('lib/main.dart').readAsStringSync();
+    final int start = source.indexOf('class _LedgerPagePhysics');
+    final int end = source.indexOf('class AppShell', start);
+
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+
+    final String physics = source.substring(start, end);
+    expect(
+      physics,
+      contains('static const double _maxSettlePagesPerSecond = 3.25;'),
+    );
+    expect(
+      physics,
+      contains('pageExtent * _maxSettlePagesPerSecond'),
+    );
+    expect(
+      physics,
+      contains('.clamp(-maxSettleVelocity, maxSettleVelocity)'),
+    );
+    expect(physics, contains('targetPixels,\n      settleVelocity,'));
+    expect(physics, isNot(contains('targetPixels,\n      velocity,')));
+
+    // Existing intent contract remains intact: a decisive fling can advance
+    // only one page and still uses live gesture direction for its target.
+    expect(
+      physics,
+      contains('static const double _flingCommitPagesPerSecond = .52;'),
+    );
+    expect(
+      physics,
+      contains('currentPage.floorToDouble() + 1'),
+    );
+    expect(
+      physics,
+      contains('currentPage.ceilToDouble() - 1'),
+    );
+  });
+}
+''')
+          PY
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format surgical files
+        run: dart format --language-version latest lib/main.dart test/page_settle_velocity_test.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run interaction regression suite
+        run: >-
+          flutter test
+          test/page_settle_velocity_test.dart
+          test/ui_micro_aesthetics_test.dart
+          test/global_tap_ripple_intent_test.dart
+          test/native_interaction_physics_test.dart
+
+      - name: Guard locked visuals and commit all changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path('lib/main.dart').read_text()
+          required = (
+              'static const double cardRadius = 24;',
+              'static const double heroRadius = 28;',
+              'static const double sheetRadius = 36;',
+              'const IconData premiumHomeIcon = Icons.space_dashboard_rounded;',
+              'const IconData premiumExpenseIcon = Icons.shopping_bag_rounded;',
+              'const IconData premiumDeleteIcon = Icons.delete_outline_rounded;',
+              'Color(0xFAFFFFFF), Color(0xF2FFFFFF)',
+              'Color(0xF0121826), Color(0xE3080C18)',
+              '..setEntry(3, 2, .00075)',
+              '..rotateY(-delta * .018)',
+              'offset: Offset(0, depth * 1.8)',
+              'static const double _maxSettlePagesPerSecond = 3.25;',
+              'targetPixels,\n      settleVelocity,',
+          )
+          missing = [token for token in required if token not in source]
+          if missing:
+              raise SystemExit(f'locked contract missing after format: {missing}')
+          PY
+          rm -f .github/workflows/page-settle-velocity-surgeon.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No staged changes; refusing empty commit."
+            exit 1
+          fi
+          git commit -m "Harden fast-swipe page settle physics [skip ci]"
+          git push origin HEAD:main
