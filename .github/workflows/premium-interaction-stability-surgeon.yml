@@ -1,0 +1,491 @@
+name: Premium Interaction Stability Surgeon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/premium-interaction-stability-surgeon.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: premium-interaction-stability-surgeon-main
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout exact main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Harden tab and navigation interaction state
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          main_path = Path('lib/main.dart')
+          test_path = Path('test/ui_micro_aesthetics_test.dart')
+          source = main_path.read_text()
+          tests = test_path.read_text()
+
+          visual_sentinels = (
+              'static const double cardRadius = 24;',
+              'static const double heroRadius = 28;',
+              'static const double sheetRadius = 36;',
+              'const IconData premiumHomeIcon = Icons.space_dashboard_rounded;',
+              'const IconData premiumExpenseIcon = Icons.shopping_bag_rounded;',
+              'const IconData premiumDeleteIcon = Icons.delete_outline_rounded;',
+              'width: 84,',
+              'height: 70,',
+              'height: 88,',
+              'Color(0xFAFFFFFF), Color(0xF2FFFFFF)',
+              'Color(0xF0121826), Color(0xE3080C18)',
+              'offset: Offset(0, motion * 1.30)',
+              'scale: 1 - (motion * .017)',
+              '..rotateY(-delta * .018)',
+              'offset: Offset(0, depth * 1.8)',
+          )
+          before_visual = {token: source.count(token) for token in visual_sentinels}
+
+          def replace_exact(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
+              return text.replace(old, new, 1)
+
+          shell_start = source.index('class _AppShellState extends State<AppShell>')
+          shell_end = source.index('class _KeepAlivePage extends StatefulWidget', shell_start)
+          shell = source[shell_start:shell_end]
+
+          if 'bool _navCenterScheduled = false;' not in shell:
+              shell = replace_exact(
+                  shell,
+                  '  bool _userPageDragActive = false;\n'
+                  '  final Set<int> _dragHapticPages = <int>{};',
+                  '  bool _userPageDragActive = false;\n'
+                  '  bool _navCenterScheduled = false;\n'
+                  '  final Set<int> _dragHapticPages = <int>{};',
+                  'nav center scheduling field',
+              )
+
+          if 'void didChangeMetrics()' not in shell:
+              shell = replace_exact(
+                  shell,
+                  '  @override\n'
+                  '  void didChangeAppLifecycleState(AppLifecycleState state) {\n'
+                  '    if (state == AppLifecycleState.resumed) {\n'
+                  '      unawaited(widget.sync.integrityCheck());\n'
+                  '    }\n'
+                  '  }\n',
+                  '  @override\n'
+                  '  void didChangeAppLifecycleState(AppLifecycleState state) {\n'
+                  '    if (state == AppLifecycleState.resumed) {\n'
+                  '      unawaited(widget.sync.integrityCheck());\n'
+                  '    }\n'
+                  '  }\n\n'
+                  '  @override\n'
+                  '  void didChangeMetrics() {\n'
+                  '    _scheduleNavigationCenter();\n'
+                  '  }\n',
+                  'viewport metric recenter hook',
+              )
+
+          if 'void _retryPageSelectionWhenAttached(' not in shell:
+              old_select = '''  void _selectTab(int index) {
+    if (index < 0 || index >= _tabs.length) return;
+
+    final bool alreadySettled =
+        _tab == index &&
+        _settledPage == index &&
+        _programmaticPageTarget == null;
+    if (alreadySettled || _programmaticPageTarget == index) return;
+
+    final bool reduceMotion = AppMotion.reduce(context);
+    final int generation = ++_pageMotionGeneration;
+    _userPageDragActive = false;
+    _dragHapticPages.clear();
+
+    if (reduceMotion) {
+      _programmaticPageTarget = null;
+      setState(() {
+        _tab = index;
+        _settledPage = index;
+      });
+      _scrollNavigation(index);
+      if (_pageController.hasClients) _pageController.jumpToPage(index);
+      return;
+    }
+
+    if (_tab != index) setState(() => _tab = index);
+    _scrollNavigation(index);
+
+    if (!_pageController.hasClients) {
+      _programmaticPageTarget = null;
+      return;
+    }
+    _programmaticPageTarget = index;
+
+    final double livePage = _pageController.page ?? _settledPage.toDouble();
+    final int currentPage = livePage.round().clamp(0, _tabs.length - 1).toInt();
+    final int pageDistance = (index - currentPage).abs();
+
+    double animationOrigin = livePage;
+    if (pageDistance > 1) {
+      final int stagingPage = index > currentPage ? index - 1 : index + 1;
+      _pageController.jumpToPage(stagingPage);
+      animationOrigin = stagingPage.toDouble();
+    }
+
+    final Duration pageDuration = _adaptivePageDuration(animationOrigin, index);
+    if (pageDuration == Duration.zero) {
+      _pageController.jumpToPage(index);
+      _finishProgrammaticPageMotion(index, generation);
+      return;
+    }
+
+    unawaited(
+      _pageController
+          .animateToPage(
+            index,
+            duration: pageDuration,
+            curve: UIConstants.motionOut,
+          )
+          .whenComplete(() => _finishProgrammaticPageMotion(index, generation)),
+    );
+  }
+'''
+              new_select = '''  void _retryPageSelectionWhenAttached(int index, int generation) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          _pageMotionGeneration != generation ||
+          _programmaticPageTarget != index) {
+        return;
+      }
+
+      // A PageController can legitimately have no clients during the frame in
+      // which the shell is first attached. Retry through the normal state
+      // machine instead of letting the navigation selection drift away from
+      // the actually visible page.
+      _programmaticPageTarget = null;
+      _selectTab(index);
+    });
+  }
+
+  void _selectTab(int index) {
+    if (index < 0 || index >= _tabs.length) return;
+
+    final bool alreadySettled =
+        _tab == index &&
+        _settledPage == index &&
+        _programmaticPageTarget == null;
+    if (alreadySettled || _programmaticPageTarget == index) return;
+
+    final bool reduceMotion = AppMotion.reduce(context);
+    final int generation = ++_pageMotionGeneration;
+    _userPageDragActive = false;
+    _dragHapticPages.clear();
+
+    if (_tab != index) setState(() => _tab = index);
+    _scrollNavigation(index);
+
+    if (!_pageController.hasClients) {
+      _programmaticPageTarget = index;
+      _retryPageSelectionWhenAttached(index, generation);
+      return;
+    }
+
+    if (reduceMotion) {
+      // Keep the programmatic guard active while jumpToPage emits its page
+      // notification, then atomically hand active-sync ownership to the page
+      // that is actually on screen.
+      _programmaticPageTarget = index;
+      _pageController.jumpToPage(index);
+      _programmaticPageTarget = null;
+      if (_settledPage != index) setState(() => _settledPage = index);
+      return;
+    }
+
+    _programmaticPageTarget = index;
+
+    final double livePage = _pageController.page ?? _settledPage.toDouble();
+    final int currentPage = livePage.round().clamp(0, _tabs.length - 1).toInt();
+    final int pageDistance = (index - currentPage).abs();
+
+    double animationOrigin = livePage;
+    if (pageDistance > 1) {
+      final int stagingPage = index > currentPage ? index - 1 : index + 1;
+      _pageController.jumpToPage(stagingPage);
+      animationOrigin = stagingPage.toDouble();
+    }
+
+    final Duration pageDuration = _adaptivePageDuration(animationOrigin, index);
+    if (pageDuration == Duration.zero) {
+      _pageController.jumpToPage(index);
+      _finishProgrammaticPageMotion(index, generation);
+      return;
+    }
+
+    unawaited(
+      _pageController
+          .animateToPage(
+            index,
+            duration: pageDuration,
+            curve: UIConstants.motionOut,
+          )
+          .whenComplete(() => _finishProgrammaticPageMotion(index, generation)),
+    );
+  }
+'''
+              shell = replace_exact(
+                  shell,
+                  old_select,
+                  new_select,
+                  'tab selection attachment race',
+              )
+
+          if 'void _scheduleNavigationCenter()' not in shell:
+              old_scroll = '''  void _scrollNavigation(int index) {
+    if (!_navController.hasClients) return;
+    final ScrollPosition position = _navController.position;
+    if (!position.hasContentDimensions) return;
+
+    // Existing geometry is 84 wide + 4 margin on each side. Keep those exact
+    // dimensions, but center the selected destination in the visible viewport.
+    const double itemExtent = 92;
+    const double outerPadding = 4;
+    final double target =
+        (outerPadding +
+                index * itemExtent +
+                itemExtent / 2 -
+                position.viewportDimension / 2)
+            .clamp(position.minScrollExtent, position.maxScrollExtent)
+            .toDouble();
+    if ((position.pixels - target).abs() < .5) return;
+    if (AppMotion.reduce(context)) {
+      position.jumpTo(target);
+      return;
+    }
+    _navController.animateTo(
+      target,
+      duration: UIConstants.motion,
+      curve: UIConstants.motionOut,
+    );
+  }
+'''
+              new_scroll = '''  void _scheduleNavigationCenter() {
+    if (_navCenterScheduled) return;
+    _navCenterScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navCenterScheduled = false;
+      if (!mounted) return;
+      _scrollNavigation(_tab);
+    });
+  }
+
+  void _scrollNavigation(int index) {
+    if (!_navController.hasClients) {
+      _scheduleNavigationCenter();
+      return;
+    }
+    final ScrollPosition position = _navController.position;
+    if (!position.hasContentDimensions) {
+      _scheduleNavigationCenter();
+      return;
+    }
+
+    // Existing geometry is 84 wide + 4 margin on each side. Keep those exact
+    // dimensions, but center the selected destination in the visible viewport.
+    const double itemExtent = 92;
+    const double outerPadding = 4;
+    final double target =
+        (outerPadding +
+                index * itemExtent +
+                itemExtent / 2 -
+                position.viewportDimension / 2)
+            .clamp(position.minScrollExtent, position.maxScrollExtent)
+            .toDouble();
+    if ((position.pixels - target).abs() < .5) return;
+    if (AppMotion.reduce(context)) {
+      position.jumpTo(target);
+      return;
+    }
+    _navController.animateTo(
+      target,
+      duration: UIConstants.motion,
+      curve: UIConstants.motionOut,
+    );
+  }
+'''
+              shell = replace_exact(
+                  shell,
+                  old_scroll,
+                  new_scroll,
+                  'navigation readiness recenter',
+              )
+
+          source = source[:shell_start] + shell + source[shell_end:]
+
+          after_visual = {token: source.count(token) for token in visual_sentinels}
+          if before_visual != after_visual:
+              changed = {
+                  token: (before_visual[token], after_visual[token])
+                  for token in visual_sentinels
+                  if before_visual[token] != after_visual[token]
+              }
+              raise SystemExit(f'visual lock violated: {changed}')
+
+          guard_marker = '    // Navigation readiness must never desynchronize the selected tab and page.\n'
+          if guard_marker not in tests:
+              insertion_point = tests.index(
+                  '    // Cross-system motion keeps auth handoffs calm and all route motion optional.\n'
+              )
+              guard = '''    // Navigation readiness must never desynchronize the selected tab and page.
+    final int readinessShellStart = source.indexOf(
+      'class _AppShellState extends State<AppShell>',
+    );
+    final int readinessShellEnd = source.indexOf(
+      'class _KeepAlivePage extends StatefulWidget',
+      readinessShellStart,
+    );
+    expect(readinessShellStart, greaterThanOrEqualTo(0));
+    expect(readinessShellEnd, greaterThan(readinessShellStart));
+    final String readinessShell = source.substring(
+      readinessShellStart,
+      readinessShellEnd,
+    );
+    expect(readinessShell, contains('bool _navCenterScheduled = false;'));
+    expect(
+      readinessShell,
+      contains('void _retryPageSelectionWhenAttached(int index, int generation)'),
+    );
+    expect(
+      readinessShell,
+      contains('WidgetsBinding.instance.addPostFrameCallback((_) {'),
+    );
+    expect(
+      readinessShell,
+      contains('_programmaticPageTarget = index;'),
+    );
+    expect(
+      readinessShell,
+      contains('_retryPageSelectionWhenAttached(index, generation);'),
+    );
+    expect(readinessShell, contains('void didChangeMetrics()'));
+    expect(readinessShell, contains('_scheduleNavigationCenter();'));
+    expect(readinessShell, contains('void _scheduleNavigationCenter()'));
+    expect(
+      readinessShell.split('_scheduleNavigationCenter();').length - 1,
+      greaterThanOrEqualTo(3),
+    );
+    expect(
+      readinessShell,
+      isNot(
+        contains(
+          'if (!_pageController.hasClients) {\n      _programmaticPageTarget = null;\n      return;',
+        ),
+      ),
+    );
+
+'''
+              tests = tests[:insertion_point] + guard + tests[insertion_point:]
+
+          main_path.write_text(source)
+          test_path.write_text(tests)
+          PY
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Format surgical scope
+        run: dart format --language-version latest lib/main.dart test/ui_micro_aesthetics_test.dart
+
+      - name: Verify visual and interaction contracts
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          source = Path('lib/main.dart').read_text()
+          shell_start = source.index('class _AppShellState extends State<AppShell>')
+          shell_end = source.index('class _KeepAlivePage extends StatefulWidget', shell_start)
+          shell = source[shell_start:shell_end]
+
+          required = (
+              'bool _navCenterScheduled = false;',
+              'void didChangeMetrics()',
+              'void _retryPageSelectionWhenAttached(int index, int generation)',
+              '_retryPageSelectionWhenAttached(index, generation);',
+              'void _scheduleNavigationCenter()',
+              'WidgetsBinding.instance.addPostFrameCallback((_) {',
+              'width: 84,',
+              'height: 70,',
+              '..rotateY(-delta * .018)',
+              'offset: Offset(0, depth * 1.8)',
+          )
+          missing = [token for token in required if token not in source]
+          if missing:
+              raise SystemExit(f'missing premium interaction contracts: {missing}')
+
+          stale = (
+              'if (!_pageController.hasClients) {\n      _programmaticPageTarget = null;\n      return;',
+          )
+          present = [token for token in stale if token in shell]
+          if present:
+              raise SystemExit(f'stale navigation race remains: {present}')
+          PY
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run all tests
+        run: flutter test
+
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
+      - name: Verify exact change scope
+        shell: bash
+        run: |
+          git diff --exit-code -- pubspec.lock
+          mapfile -t changed < <(git diff --name-only)
+          printf 'Changed files before self-cleanup:\n%s\n' "${changed[*]}"
+          for file in "${changed[@]}"; do
+            case "$file" in
+              lib/main.dart|test/ui_micro_aesthetics_test.dart) ;;
+              *) echo "Unexpected changed file: $file" >&2; exit 1 ;;
+            esac
+          done
+
+      - name: Self-clean verified surgeon
+        run: git rm .github/workflows/premium-interaction-stability-surgeon.yml
+
+      - name: Commit and push verified interaction hardening
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/main.dart test/ui_micro_aesthetics_test.dart .github/workflows/premium-interaction-stability-surgeon.yml
+          git commit -m "Harden premium navigation interaction state"
+          git push origin HEAD:main
