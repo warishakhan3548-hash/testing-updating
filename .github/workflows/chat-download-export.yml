@@ -1,0 +1,37 @@
+name: Chat Project Export
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/chat-download-export.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Prepare clean Flutter project
+        shell: bash
+        run: |
+          rm -rf .git
+          rm -f .github/workflows/chat-download-export.yml
+
+      - name: Upload complete Flutter project
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aarish_Dairy_Pro_Flutter_latest
+          path: .
+          include-hidden-files: true
+          compression-level: 6
+          retention-days: 1
+          if-no-files-found: error
