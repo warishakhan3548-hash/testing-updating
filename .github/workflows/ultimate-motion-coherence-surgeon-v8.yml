@@ -36,19 +36,152 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCgptYWluX3BhdGggPSBQYXRoKCJsaWIvbWFpbi5kYXJ0IikKc291cmNlID0gbWFpbl9wYXRoLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKQpiZWZvcmUgPSBzb3VyY2UKCmRlZiByZXBsYWNlX29uY2UodGV4dDogc3RyLCBvbGQ6IHN0ciwgbmV3OiBzdHIsIGxhYmVsOiBzdHIpIC0+IHN0cjoKICAgIGNvdW50ID0gdGV4dC5jb3VudChvbGQpCiAgICBpZiBjb3VudCAhPSAxOgogICAgICAgIHJhaXNlIFN5c3RlbUV4aXQoZiJ7bGFiZWx9OiBleHBlY3RlZCBleGFjdGx5IDEgYW5jaG9yLCBmb3VuZCB7Y291bnR9IikKICAgIHJldHVybiB0ZXh0LnJlcGxhY2Uob2xkLCBuZXcsIDEpCgp2aXN1YWxfc2VudGluZWxzID0gKAogICAgInN0YXRpYyBjb25zdCBkb3VibGUgY2FyZFJhZGl1cyA9IDI0OyIsCiAgICAic3RhdGljIGNvbnN0IGRvdWJsZSBoZXJvUmFkaXVzID0gMjg7IiwKICAgICJzdGF0aWMgY29uc3QgZG91YmxlIHNoZWV0UmFkaXVzID0gMzY7IiwKICAgICJjb25zdCBJY29uRGF0YSBwcmVtaXVtSG9tZUljb24gPSBJY29ucy5zcGFjZV9kYXNoYm9hcmRfcm91bmRlZDsiLAogICAgImNvbnN0IEljb25EYXRhIHByZW1pdW1Ib21lSW5hY3RpdmVJY29uID0gSWNvbnMuc3BhY2VfZGFzaGJvYXJkX291dGxpbmVkOyIsCiAgICAiY29uc3QgSWNvbkRhdGEgcHJlbWl1bUV4cGVuc2VJY29uID0gSWNvbnMuc2hvcHBpbmdfYmFnX3JvdW5kZWQ7IiwKICAgICJjb25zdCBJY29uRGF0YSBwcmVtaXVtRXhwZW5zZUluYWN0aXZlSWNvbiA9IEljb25zLnNob3BwaW5nX2JhZ19vdXRsaW5lZDsiLAogICAgImNvbnN0IEljb25EYXRhIHByZW1pdW1EZWxldGVJY29uID0gSWNvbnMuZGVsZXRlX291dGxpbmVfcm91bmRlZDsiLAogICAgIkNvbG9yKDB4RkFGRkZGRkYpLCBDb2xvcigweEYyRkZGRkZGKSIsCiAgICAiQ29sb3IoMHhGMDEyMTgyNiksIENvbG9yKDB4RTMwODBDMTgpIiwKICAgICJ3aWR0aDogODQsIiwKICAgICJoZWlnaHQ6IDcwLCIsCiAgICAiaGVpZ2h0OiA4OCwiLAogICAgIi4uc2V0RW50cnkoMywgMiwgLjAwMDc1KSIsCiAgICAiLi5yb3RhdGVZKC1kZWx0YSAqIC4wMTgpIiwKICAgICJvZmZzZXQ6IE9mZnNldCgwLCBkZXB0aCAqIDEuOCkiLAogICAgIi4uc2V0RW50cnkoMywgMiwgLjAwMTMpIiwKICAgICJvZmZzZXQ6IE9mZnNldCgwLCBtb3Rpb24gKiAxLjMwKSIsCiAgICAic2NhbGU6IDEgLSAobW90aW9uICogLjAxNykiLAopCnZpc3VhbF9iZWZvcmUgPSB7dG9rZW46IHNvdXJjZS5jb3VudCh0b2tlbikgZm9yIHRva2VuIGluIHZpc3VhbF9zZW50aW5lbHN9Cgpzb3VyY2UgPSByZXBsYWNlX29uY2UoCiAgICBzb3VyY2UsCiAgICAiIiIgIHN0YXRpYyBjb25zdCBkb3VibGUgX2ZsaW5nQ29tbWl0UGFnZXNQZXJTZWNvbmQgPSAuNTI7CiIiIiwKICAgICIiIiAgc3RhdGljIGNvbnN0IGRvdWJsZSBfZmxpbmdDb21taXRQYWdlc1BlclNlY29uZCA9IC41MjsKICAvLyBUYXJnZXQgc2VsZWN0aW9uIHN0aWxsIHJlYWRzIHRoZSB1c2VyJ3MgZnVsbCByZWxlYXNlIHZlbG9jaXR5LCBidXQgdGhlCiAgLy8gc3ByaW5nIGl0c2VsZiByZWNlaXZlcyBib3VuZGVkIHZpZXdwb3J0LW5vcm1hbGl6ZWQgZW5lcmd5LiBUaGlzIHByZXZlbnRzCiAgLy8gZXh0cmVtZSBmbGlja3MgZnJvbSBwcm9kdWNpbmcgYW4gb3Zlci1lbmVyZ2l6ZWQgc2V0dGxlIG9uIHNtYWxsIHNjcmVlbnMuCiAgc3RhdGljIGNvbnN0IGRvdWJsZSBfbWF4U2V0dGxlUGFnZXNQZXJTZWNvbmQgPSAzLjI1OwoiIiIsCiAgICAicGFnZSBzZXR0bGUgdmVsb2NpdHkgZGVjbGFyYXRpb24iLAopCgpzb3VyY2UgPSByZXBsYWNlX29uY2UoCiAgICBzb3VyY2UsCiAgICAiIiIgICAgZmluYWwgZG91YmxlIHRhcmdldFBpeGVscyA9CiAgICAgICAgKHBvc2l0aW9uLm1pblNjcm9sbEV4dGVudCArIGNsYW1wZWRQYWdlICogcGFnZUV4dGVudCkKICAgICAgICAgICAgLmNsYW1wKHBvc2l0aW9uLm1pblNjcm9sbEV4dGVudCwgcG9zaXRpb24ubWF4U2Nyb2xsRXh0ZW50KQogICAgICAgICAgICAudG9Eb3VibGUoKTsKCiAgICBpZiAoKHRhcmdldFBpeGVscyAtIHBvc2l0aW9uLnBpeGVscykuYWJzKCkgPD0gdG9sZXJhbmNlLmRpc3RhbmNlICYmCiIiIiwKICAgICIiIiAgICBmaW5hbCBkb3VibGUgdGFyZ2V0UGl4ZWxzID0KICAgICAgICAocG9zaXRpb24ubWluU2Nyb2xsRXh0ZW50ICsgY2xhbXBlZFBhZ2UgKiBwYWdlRXh0ZW50KQogICAgICAgICAgICAuY2xhbXAocG9zaXRpb24ubWluU2Nyb2xsRXh0ZW50LCBwb3NpdGlvbi5tYXhTY3JvbGxFeHRlbnQpCiAgICAgICAgICAgIC50b0RvdWJsZSgpOwogICAgZmluYWwgZG91YmxlIG1heFNldHRsZVZlbG9jaXR5ID0KICAgICAgICBwYWdlRXh0ZW50ICogX21heFNldHRsZVBhZ2VzUGVyU2Vjb25kOwogICAgZmluYWwgZG91YmxlIHNldHRsZVZlbG9jaXR5ID0gdmVsb2NpdHkKICAgICAgICAuY2xhbXAoLW1heFNldHRsZVZlbG9jaXR5LCBtYXhTZXR0bGVWZWxvY2l0eSkKICAgICAgICAudG9Eb3VibGUoKTsKCiAgICBpZiAoKHRhcmdldFBpeGVscyAtIHBvc2l0aW9uLnBpeGVscykuYWJzKCkgPD0gdG9sZXJhbmNlLmRpc3RhbmNlICYmCiIiIiwKICAgICJwYWdlIHNldHRsZSB2ZWxvY2l0eSBjbGFtcCIsCikKCnNvdXJjZSA9IHJlcGxhY2Vfb25jZSgKICAgIHNvdXJjZSwKICAgICIiIiAgICAgIHRhcmdldFBpeGVscywKICAgICAgdmVsb2NpdHksCiAgICAgIHRvbGVyYW5jZTogdG9sZXJhbmNlLAoiIiIsCiAgICAiIiIgICAgICB0YXJnZXRQaXhlbHMsCiAgICAgIHNldHRsZVZlbG9jaXR5LAogICAgICB0b2xlcmFuY2U6IHRvbGVyYW5jZSwKIiIiLAogICAgInBhZ2Ugc2V0dGxlIHNpbXVsYXRpb24gdmVsb2NpdHkiLAopCgpzb3VyY2UgPSByZXBsYWNlX29uY2UoCiAgICBzb3VyY2UsCiAgICAiIiIgICAgZmluYWwgZG91YmxlIGRpcmVjdGlvbmFsRG90ID0KICAgICAgICBfZ2VzdHVyZVZlbG9jaXR5LmR4ICogc2FtcGxlLmR4ICsgX2dlc3R1cmVWZWxvY2l0eS5keSAqIHNhbXBsZS5keTsKICAgIGZpbmFsIGJvb2wgcmV2ZXJzaW5nID0KICAgICAgICBwcmV2aW91c1NwZWVkID4gODAgJiYgc2FtcGxlU3BlZWQgPiA4MCAmJiBkaXJlY3Rpb25hbERvdCA8IDA7CiAgICBmaW5hbCBkb3VibGUgdmVsb2NpdHlSZXNwb25zZVBlclNlY29uZCA9IHJldmVyc2luZyA/IDUyIDogMzI7CiIiIiwKICAgICIiIiAgICBmaW5hbCBkb3VibGUgZGlyZWN0aW9uYWxEb3QgPQogICAgICAgIF9nZXN0dXJlVmVsb2NpdHkuZHggKiBzYW1wbGUuZHggKyBfZ2VzdHVyZVZlbG9jaXR5LmR5ICogc2FtcGxlLmR5OwogICAgZmluYWwgZG91YmxlIGRpcmVjdGlvbkFncmVlbWVudCA9IHByZXZpb3VzU3BlZWQgPiAwICYmIHNhbXBsZVNwZWVkID4gMAogICAgICAgID8gKGRpcmVjdGlvbmFsRG90IC8gKHByZXZpb3VzU3BlZWQgKiBzYW1wbGVTcGVlZCkpCiAgICAgICAgICAgIC5jbGFtcCgtMS4wLCAxLjApCiAgICAgICAgICAgIC50b0RvdWJsZSgpCiAgICAgICAgOiAxOwogICAgLy8gQSBjdXJ2ZWQgZmluZ2VyIHBhdGggY2FuIG1vbWVudGFyaWx5IHBhc3MgbmluZXR5IGRlZ3JlZXMgd2l0aG91dCBiZWluZyBhCiAgICAvLyB0cnVlIHJldmVyc2FsLiBPbmx5IG1hdGVyaWFsbHkgb3Bwb3NpbmcgdmVjdG9ycyBwdXJnZSBzdGFsZSBtb21lbnR1bS4KICAgIGZpbmFsIGJvb2wgcmV2ZXJzaW5nID0gcHJldmlvdXNTcGVlZCA+IDgwICYmCiAgICAgICAgc2FtcGxlU3BlZWQgPiA4MCAmJgogICAgICAgIGRpcmVjdGlvbkFncmVlbWVudCA8IC0uMjA7CiAgICBmaW5hbCBkb3VibGUgdmVsb2NpdHlSZXNwb25zZVBlclNlY29uZCA9IHJldmVyc2luZyA/IDUyIDogMzI7CiIiLAogICAgInJldmVyc2FsIGNsYXNzaWZpY2F0aW9uIiwKKQoKc291cmNlID0gcmVwbGFjZV9vbmNlKAogICAgc291cmNlLAogICAgIiIiICAgIGNvbnN0IGludCBmcmVzaG5lc3NXaW5kb3dNaWNyb3MgPSAxNjAwMDA7CiAgICBpZiAoYWdlTWljcm9zIDw9IDApIHJldHVybiBfZ2VzdHVyZVZlbG9jaXR5OwogICAgaWYgKGFnZU1pY3JvcyA+PSBmcmVzaG5lc3NXaW5kb3dNaWNyb3MpIHJldHVybiBPZmZzZXQuemVybzsKICAgIGZpbmFsIGRvdWJsZSBmcmVzaG5lc3MgPSAxIC0gKGFnZU1pY3JvcyAvIGZyZXNobmVzc1dpbmRvd01pY3Jvcyk7CiAgICBmaW5hbCBkb3VibGUgZWFzZWRGcmVzaG5lc3MgPSBmcmVzaG5lc3MgKiBmcmVzaG5lc3M7CiAgICByZXR1cm4gX2dlc3R1cmVWZWxvY2l0eSAqIGVhc2VkRnJlc2huZXNzOwoiIiIsCiAgICAiIiIgICAgY29uc3QgaW50IGZyZXNobmVzc1dpbmRvd01pY3JvcyA9IDE2MDAwMDsKICAgIGNvbnN0IGludCBtaW5pbXVtRnJlc2huZXNzV2luZG93TWljcm9zID0gOTAwMDA7CiAgICBpZiAoYWdlTWljcm9zIDw9IDApIHJldHVybiBfZ2VzdHVyZVZlbG9jaXR5OwogICAgZmluYWwgZG91YmxlIHNwZWVkSW50ZW50ID0KICAgICAgICAoX2dlc3R1cmVWZWxvY2l0eS5kaXN0YW5jZSAvIDE4MDApLmNsYW1wKDAuMCwgMS4wKS50b0RvdWJsZSgpOwogICAgZmluYWwgaW50IGFkYXB0aXZlRnJlc2huZXNzV2luZG93TWljcm9zID0KICAgICAgICAobWluaW11bUZyZXNobmVzc1dpbmRvd01pY3JvcyArCiAgICAgICAgICAgICAgICAoZnJlc2huZXNzV2luZG93TWljcm9zIC0gbWluaW11bUZyZXNobmVzc1dpbmRvd01pY3JvcykgKgogICAgICAgICAgICAgICAgICAgIHNwZWVkSW50ZW50KQogICAgICAgICAgICAucm91bmQoKTsKICAgIGlmIChhZ2VNaWNyb3MgPj0gYWRhcHRpdmVGcmVzaG5lc3NXaW5kb3dNaWNyb3MpIHJldHVybiBPZmZzZXQuemVybzsKICAgIGZpbmFsIGRvdWJsZSBmcmVzaG5lc3MgPQogICAgICAgIDEgLSAoYWdlTWljcm9zIC8gYWRhcHRpdmVGcmVzaG5lc3NXaW5kb3dNaWNyb3MpOwogICAgZmluYWwgZG91YmxlIGVhc2VkRnJlc2huZXNzID0gZnJlc2huZXNzICogZnJlc2huZXNzOwogICAgcmV0dXJuIF9nZXN0dXJlVmVsb2NpdHkgKiBlYXNlZEZyZXNobmVzczsKIiIiLAogICAgInNwZWVkLWF3YXJlIHJlbGVhc2UgZnJlc2huZXNzIiwKKQoKdmlzdWFsX2FmdGVyID0ge3Rva2VuOiBzb3VyY2UuY291bnQodG9rZW4pIGZvciB0b2tlbiBpbiB2aXN1YWxfc2VudGluZWxzfQppZiB2aXN1YWxfYmVmb3JlICE9IHZpc3VhbF9hZnRlcjoKICAgIGNoYW5nZWQgPSBbCiAgICAgICAgdG9rZW4KICAgICAgICBmb3IgdG9rZW4gaW4gdmlzdWFsX3NlbnRpbmVscwogICAgICAgIGlmIHZpc3VhbF9iZWZvcmVbdG9rZW5dICE9IHZpc3VhbF9hZnRlclt0b2tlbl0KICAgIF0KICAgIHJhaXNlIFN5c3RlbUV4aXQoZiJWSVNVQUwgTE9DSyBWSU9MQVRJT046IHtjaGFuZ2VkfSIpCgpyZXF1aXJlZF9jb250cmFjdHMgPSAoCiAgICAic3RhdGljIGNvbnN0IGRvdWJsZSBfbWF4U2V0dGxlUGFnZXNQZXJTZWNvbmQgPSAzLjI1OyIsCiAgICAicGFnZUV4dGVudCAqIF9tYXhTZXR0bGVQYWdlc1BlclNlY29uZCIsCiAgICAic2V0dGxlVmVsb2NpdHkgPSB2ZWxvY2l0eSIsCiAgICAidGFyZ2V0UGl4ZWxzLFxuICAgICAgc2V0dGxlVmVsb2NpdHksIiwKICAgICJmaW5hbCBkb3VibGUgZGlyZWN0aW9uQWdyZWVtZW50ID0iLAogICAgImRpcmVjdGlvbkFncmVlbWVudCA8IC0uMjA7IiwKICAgICJ2ZWxvY2l0eVJlc3BvbnNlUGVyU2Vjb25kID0gcmV2ZXJzaW5nID8gNTIgOiAzMjsiLAogICAgImNvbnN0IGludCBmcmVzaG5lc3NXaW5kb3dNaWNyb3MgPSAxNjAwMDA7IiwKICAgICJjb25zdCBpbnQgbWluaW11bUZyZXNobmVzc1dpbmRvd01pY3JvcyA9IDkwMDAwOyIsCiAgICAiYWRhcHRpdmVGcmVzaG5lc3NXaW5kb3dNaWNyb3MiLAogICAgImZpbmFsIGRvdWJsZSBlYXNlZEZyZXNobmVzcyA9IGZyZXNobmVzcyAqIGZyZXNobmVzczsiLAopCm1pc3NpbmcgPSBbdG9rZW4gZm9yIHRva2VuIGluIHJlcXVpcmVkX2NvbnRyYWN0cyBpZiB0b2tlbiBub3QgaW4gc291cmNlXQppZiBtaXNzaW5nOgogICAgcmFpc2UgU3lzdGVtRXhpdChmIk1PVElPTiBDT05UUkFDVCBNSVNTSU5HOiB7bWlzc2luZ30iKQoKaWYgc291cmNlID09IGJlZm9yZToKICAgIHJhaXNlIFN5c3RlbUV4aXQoIk5vIHNvdXJjZSBjaGFuZ2VzIHByb2R1Y2VkLiIpCgptYWluX3BhdGgud3JpdGVfdGV4dChzb3VyY2UsIGVuY29kaW5nPSJ1dGYtOCIpCg==' | base64 --decode > /tmp/ultimate_motion_patch.py
-          python3 /tmp/ultimate_motion_patch.py
-          rm -f /tmp/ultimate_motion_patch.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('lib/main.dart')
+          source = path.read_text(encoding='utf-8')
+          before = source
+
+          def replace_once(old, new, label):
+              global source
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 anchor, found {count}')
+              source = source.replace(old, new, 1)
+
+          visual_tokens = (
+              'static const double cardRadius = 24;',
+              'static const double heroRadius = 28;',
+              'static const double sheetRadius = 36;',
+              'const IconData premiumHomeIcon = Icons.space_dashboard_rounded;',
+              'const IconData premiumExpenseIcon = Icons.shopping_bag_rounded;',
+              'const IconData premiumDeleteIcon = Icons.delete_outline_rounded;',
+              'Color(0xFAFFFFFF), Color(0xF2FFFFFF)',
+              'Color(0xF0121826), Color(0xE3080C18)',
+              'width: 84,',
+              'height: 70,',
+              'height: 88,',
+              '..setEntry(3, 2, .00075)',
+              '..rotateY(-delta * .018)',
+              'offset: Offset(0, depth * 1.8)',
+              '..setEntry(3, 2, .0013)',
+              'offset: Offset(0, motion * 1.30)',
+              'scale: 1 - (motion * .017)',
+          )
+          visual_before = {token: source.count(token) for token in visual_tokens}
+
+          replace_once(
+              '  static const double _flingCommitPagesPerSecond = .52;\n',
+              '  static const double _flingCommitPagesPerSecond = .52;\n'
+              '  // Target selection keeps full gesture intent while spring energy is\n'
+              '  // viewport-normalized, preventing extreme flick overshoot.\n'
+              '  static const double _maxSettlePagesPerSecond = 3.25;\n',
+              'page settle declaration',
+          )
+
+          replace_once(
+              '    final double targetPixels =\n'
+              '        (position.minScrollExtent + clampedPage * pageExtent)\n'
+              '            .clamp(position.minScrollExtent, position.maxScrollExtent)\n'
+              '            .toDouble();\n\n'
+              '    if ((targetPixels - position.pixels).abs() <= tolerance.distance &&\n',
+              '    final double targetPixels =\n'
+              '        (position.minScrollExtent + clampedPage * pageExtent)\n'
+              '            .clamp(position.minScrollExtent, position.maxScrollExtent)\n'
+              '            .toDouble();\n'
+              '    final double maxSettleVelocity =\n'
+              '        pageExtent * _maxSettlePagesPerSecond;\n'
+              '    final double settleVelocity = velocity\n'
+              '        .clamp(-maxSettleVelocity, maxSettleVelocity)\n'
+              '        .toDouble();\n\n'
+              '    if ((targetPixels - position.pixels).abs() <= tolerance.distance &&\n',
+              'page settle clamp',
+          )
+
+          replace_once(
+              '      targetPixels,\n      velocity,\n      tolerance: tolerance,\n',
+              '      targetPixels,\n      settleVelocity,\n      tolerance: tolerance,\n',
+              'page settle simulation',
+          )
+
+          replace_once(
+              '    final double directionalDot =\n'
+              '        _gestureVelocity.dx * sample.dx + _gestureVelocity.dy * sample.dy;\n'
+              '    final bool reversing =\n'
+              '        previousSpeed > 80 && sampleSpeed > 80 && directionalDot < 0;\n'
+              '    final double velocityResponsePerSecond = reversing ? 52 : 32;\n',
+              '    final double directionalDot =\n'
+              '        _gestureVelocity.dx * sample.dx + _gestureVelocity.dy * sample.dy;\n'
+              '    final double directionAgreement = previousSpeed > 0 && sampleSpeed > 0\n'
+              '        ? (directionalDot / (previousSpeed * sampleSpeed))\n'
+              '            .clamp(-1.0, 1.0)\n'
+              '            .toDouble()\n'
+              '        : 1;\n'
+              '    // Curved movement is not a reversal; only materially opposing\n'
+              '    // vectors purge stale momentum from the release estimate.\n'
+              '    final bool reversing = previousSpeed > 80 &&\n'
+              '        sampleSpeed > 80 &&\n'
+              '        directionAgreement < -.20;\n'
+              '    final double velocityResponsePerSecond = reversing ? 52 : 32;\n',
+              'reversal classification',
+          )
+
+          replace_once(
+              '    const int freshnessWindowMicros = 160000;\n'
+              '    if (ageMicros <= 0) return _gestureVelocity;\n'
+              '    if (ageMicros >= freshnessWindowMicros) return Offset.zero;\n'
+              '    final double freshness = 1 - (ageMicros / freshnessWindowMicros);\n'
+              '    final double easedFreshness = freshness * freshness;\n'
+              '    return _gestureVelocity * easedFreshness;\n',
+              '    const int freshnessWindowMicros = 160000;\n'
+              '    const int minimumFreshnessWindowMicros = 90000;\n'
+              '    if (ageMicros <= 0) return _gestureVelocity;\n'
+              '    final double speedIntent =\n'
+              '        (_gestureVelocity.distance / 1800).clamp(0.0, 1.0).toDouble();\n'
+              '    final int adaptiveFreshnessWindowMicros =\n'
+              '        (minimumFreshnessWindowMicros +\n'
+              '                (freshnessWindowMicros - minimumFreshnessWindowMicros) *\n'
+              '                    speedIntent)\n'
+              '            .round();\n'
+              '    if (ageMicros >= adaptiveFreshnessWindowMicros) return Offset.zero;\n'
+              '    final double freshness =\n'
+              '        1 - (ageMicros / adaptiveFreshnessWindowMicros);\n'
+              '    final double easedFreshness = freshness * freshness;\n'
+              '    return _gestureVelocity * easedFreshness;\n',
+              'release freshness',
+          )
+
+          visual_after = {token: source.count(token) for token in visual_tokens}
+          if visual_before != visual_after:
+              raise SystemExit('VISUAL LOCK VIOLATION')
+
+          required = (
+              'static const double _maxSettlePagesPerSecond = 3.25;',
+              'targetPixels,\n      settleVelocity,',
+              'final double directionAgreement =',
+              'directionAgreement < -.20;',
+              'velocityResponsePerSecond = reversing ? 52 : 32;',
+              'const int freshnessWindowMicros = 160000;',
+              'const int minimumFreshnessWindowMicros = 90000;',
+              'adaptiveFreshnessWindowMicros',
+              'final double easedFreshness = freshness * freshness;',
+          )
+          missing = [token for token in required if token not in source]
+          if missing:
+              raise SystemExit(f'MOTION CONTRACT MISSING: {missing}')
+          if source == before:
+              raise SystemExit('No source changes produced')
+
+          path.write_text(source, encoding='utf-8')
+          PY
           rm -f .github/workflows/ultimate-motion-coherence-surgeon-v8.yml
 
       - name: Resolve dependencies
         run: flutter pub get
 
       - name: Verify dependency lock stayed untouched
-        shell: bash
-        run: |
-          set -euo pipefail
-          git diff --exit-code -- pubspec.yaml pubspec.lock
+        run: git diff --exit-code -- pubspec.yaml pubspec.lock
 
       - name: Format surgical target
         run: dart format --language-version latest lib/main.dart
@@ -60,11 +193,7 @@ jobs:
           git diff --check
           changed="$(git diff --name-only | sort)"
           expected="$(printf '%s\n' '.github/workflows/ultimate-motion-coherence-surgeon-v8.yml' 'lib/main.dart' | sort)"
-          if [ "$changed" != "$expected" ]; then
-            echo 'Unexpected changed files:'
-            printf '%s\n' "$changed"
-            exit 1
-          fi
+          test "$changed" = "$expected"
 
       - name: Flutter analyze
         run: flutter analyze
@@ -79,10 +208,6 @@ jobs:
           git diff --cached --check
           staged="$(git diff --cached --name-only | sort)"
           expected="$(printf '%s\n' '.github/workflows/ultimate-motion-coherence-surgeon-v8.yml' 'lib/main.dart' | sort)"
-          if [ "$staged" != "$expected" ]; then
-            echo 'Unexpected staged files:'
-            printf '%s\n' "$staged"
-            exit 1
-          fi
+          test "$staged" = "$expected"
           git commit -m "perf(ui): harden kinetic motion coherence [skip ci]"
           git push origin HEAD:main
