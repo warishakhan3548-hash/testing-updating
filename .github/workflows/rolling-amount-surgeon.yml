@@ -27,11 +27,13 @@ jobs:
           test "$(git hash-object lib/main.dart)" = "6547fa0393a011224f20b820fcb81e17397741c6"
           test "$(git hash-object test/ui_micro_aesthetics_test.dart)" = "3babd603f1fbc13d68b0561af9d70b970433982a"
 
-      - name: Apply verified premium motion patch
+      - name: Apply checksum-verified premium motion patch
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' 'H4sIAPPBl2oC/9VbW5PbuLF+Pv4VSFUqolYSLeoujce3sdebih27PLPZh41LBZGQhJgitbzMeHbX/z3dAEiCV1Gzzjk5U2VLAhoN4OsLGg1gMBgQ+tjlm8cHyj3ToUH0qNfrkVzJ/4yGo9lguBwMR2Q4W42GK8syh9ZwMR9OljPSG8Lfo+fPyWA2nPfhN37MyfPnjwj+3fFoT264/ZkFHwL/ljssuI5oxN7xL9wjvyFRCL+5TWzfCyPi+PHGZWQd2oHvujf7gIV733XIJVlclIi5F5H1gX55YUf8ln2I3ZCFQDm6eNSrofzIIh5wb6fTEuS75R51yVseRk/WH/nx6Ep2T8n6mJDmK37+dJG1e0ePT6CLPim29aEUZp6yKBP99vVCojda9BeA3mjZt5YpfJK93uAZYV9glDAH4JfvwAzYwb9lBrtlXmSqqu6F5MS3xEhb/umSeLHrdslaNhHt0+o+Cdgm5q6zIlsKFcji0UBIc89BOIbCxHSZtwPxPr0sSaELohUtSL6LpOWWB2FU0U8PWzx+TP7G2JFEewaqeMtIIKZPNrGzYxHZ+LHnMKcPvyPgAAJlghTUhIGoRQ8po2gf+PFuT3gUZsDNpuQQQtNbFoSMUI8fQFV8D7QkjBh1iL8lexo4A4eHRz+EFik7HpEDdwbbgB6YSW72PCRHUFEW3IJ8QdWAfcyje+LEqGUkoEfukEPsRnwQ0WMozMGPo5SfyyIxIofZfkARP3LnB5/JLvDvSOypqRIYmzUakh9+BcJbbgOAkkMiDzcB/goaRHUC6aUCQczeC7jeJhRGgv7XPOuToia9CsvSuiurMJom8L4kOW34ac8CZiStCHStN7Gp53AHHEeXXD7NfpnwzWauC+qQtfSD19BkRQxBm1e5hCqZbUE/xciq9F8iQ+qsUmodTkk' | base64 -d | gzip -d > /tmp/rolling-ui.patch
+          cat .github/rolling-patch/part1.b64 .github/rolling-patch/part2.b64 .github/rolling-patch/part3.b64 .github/rolling-patch/part4.b64 > /tmp/rolling-ui.b64
+          test "$(sha256sum /tmp/rolling-ui.b64 | awk '{print $1}')" = "84bb03d7ab5eb3168119d99de137176724bddd4f4d841af5643f84892029bf6d"
+          base64 -d /tmp/rolling-ui.b64 | gzip -d > /tmp/rolling-ui.patch
           test "$(sha256sum /tmp/rolling-ui.patch | awk '{print $1}')" = "d55c61939d0181108781ef7989630060e03525a78c91d1d76a8accd3658436a3"
           git apply --check /tmp/rolling-ui.patch
           git apply /tmp/rolling-ui.patch
