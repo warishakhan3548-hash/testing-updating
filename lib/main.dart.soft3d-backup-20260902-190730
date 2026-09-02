@@ -130,39 +130,29 @@ abstract final class AppStyles {
   }
 
   static List<BoxShadow> surfaceDepth(BuildContext context) {
-    // SOFT_3D_UI_V2
-    // Image-10 inspired soft raised surface:
-    // bright upper-left key light,
-    // compact contact shadow,
-    // broad lower-right falloff.
     final bool dark = isDark(context);
-
-    final Color ink = dark ? Colors.black : const Color(0xFF26364D);
-
+    final Color depthInk = dark ? Colors.black : const Color(0xFF172033);
     return <BoxShadow>[
+      // A tight contact layer anchors the card without flattening its edges.
       BoxShadow(
-        color: Colors.white.withAlpha(dark ? 9 : 190),
-        blurRadius: dark ? 12 : 18,
-        spreadRadius: dark ? -6 : -5,
-        offset: const Offset(-5, -5),
+        color: depthInk.withAlpha(dark ? 76 : 22),
+        blurRadius: 5,
+        spreadRadius: -1.25,
+        offset: const Offset(0, 2.5),
       ),
+      // The directional key shadow establishes a clear virtual light source.
       BoxShadow(
-        color: ink.withAlpha(dark ? 92 : 24),
-        blurRadius: 6,
-        spreadRadius: -2,
-        offset: const Offset(0, 3),
+        color: depthInk.withAlpha(dark ? 56 : 18),
+        blurRadius: 22,
+        spreadRadius: -6,
+        offset: const Offset(0, 9),
       ),
+      // The very soft ambient layer creates lift without a grey muddy ring.
       BoxShadow(
-        color: ink.withAlpha(dark ? 72 : 25),
-        blurRadius: dark ? 26 : 30,
-        spreadRadius: -7,
-        offset: const Offset(8, 11),
-      ),
-      BoxShadow(
-        color: ink.withAlpha(dark ? 38 : 12),
+        color: depthInk.withAlpha(dark ? 40 : 12),
         blurRadius: 52,
-        spreadRadius: -16,
-        offset: const Offset(12, 20),
+        spreadRadius: -12,
+        offset: const Offset(0, 20),
       ),
     ];
   }
@@ -191,25 +181,38 @@ abstract final class AppStyles {
   }) {
     final bool dark = isDark(context);
     final Color ambient = _ambientHue(context, color);
-
     return <BoxShadow>[
+      // Dense near-edge corona: the approved mockup is darkest immediately
+      // behind the card, then loses energy smoothly in every direction.
       BoxShadow(
         color: ambient.withAlpha(
           _perceptualAlpha(
             ambient,
-            strong ? (dark ? 50 : 29) : (dark ? 37 : 20),
+            strong ? (dark ? 56 : 38) : (dark ? 43 : 28),
           ),
         ),
-        blurRadius: strong ? 18 : 14,
-        spreadRadius: strong ? -3 : -4,
-        offset: const Offset(1, 4),
+        blurRadius: strong ? 16 : 14,
+        spreadRadius: strong ? -1.25 : -1.5,
+        offset: Offset.zero,
+      ),
+      // Broad ambient falloff stays compact and symmetrical—light, not fire.
+      BoxShadow(
+        color: ambient.withAlpha(
+          _perceptualAlpha(
+            ambient,
+            strong ? (dark ? 32 : 22) : (dark ? 25 : 16),
+          ),
+        ),
+        blurRadius: strong ? 28 : 24,
+        spreadRadius: strong ? -7 : -6,
+        offset: Offset.zero,
       ),
       if (strong)
         BoxShadow(
-          color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 22 : 13)),
-          blurRadius: 34,
-          spreadRadius: -12,
-          offset: const Offset(5, 10),
+          color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 14 : 9)),
+          blurRadius: 44,
+          spreadRadius: -16,
+          offset: Offset.zero,
         ),
       ...surfaceDepth(context),
     ];
@@ -218,13 +221,19 @@ abstract final class AppStyles {
   static List<BoxShadow> railDepth(BuildContext context, Color color) {
     final bool dark = isDark(context);
     final Color ambient = _ambientHue(context, color);
-
     return <BoxShadow>[
+      // Accent-rail cards use the same compact 360-degree light model.
       BoxShadow(
-        color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 43 : 24)),
-        blurRadius: 17,
-        spreadRadius: -4,
-        offset: const Offset(1, 5),
+        color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 48 : 32)),
+        blurRadius: 14,
+        spreadRadius: -1.25,
+        offset: Offset.zero,
+      ),
+      BoxShadow(
+        color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 28 : 18)),
+        blurRadius: 26,
+        spreadRadius: -7,
+        offset: Offset.zero,
       ),
       ...surfaceDepth(context),
     ];
@@ -253,28 +262,25 @@ abstract final class AppStyles {
   }
 
   static List<BoxShadow> jewelDepth(BuildContext context, Color color) {
-    // Compact controls get a tighter raised profile
-    // than full-size cards.
     final bool dark = isDark(context);
-
     return <BoxShadow>[
       BoxShadow(
-        color: Colors.white.withAlpha(dark ? 11 : 165),
-        blurRadius: 10,
-        spreadRadius: -5,
-        offset: const Offset(-3, -3),
+        color: Colors.black.withAlpha(dark ? 30 : 7),
+        blurRadius: 4,
+        spreadRadius: -2,
+        offset: const Offset(0, 1),
       ),
       BoxShadow(
-        color: color.withAlpha(dark ? 38 : 24),
-        blurRadius: 14,
-        spreadRadius: -5,
-        offset: const Offset(2, 5),
-      ),
-      BoxShadow(
-        color: Colors.black.withAlpha(dark ? 72 : 18),
+        color: color.withAlpha(dark ? 31 : 20),
         blurRadius: 18,
         spreadRadius: -6,
-        offset: const Offset(6, 9),
+        offset: const Offset(0, 6),
+      ),
+      BoxShadow(
+        color: Colors.black.withAlpha(dark ? 28 : 7),
+        blurRadius: 30,
+        spreadRadius: -10,
+        offset: const Offset(0, 12),
       ),
     ];
   }
@@ -2894,25 +2900,17 @@ class _GlassCard extends StatelessWidget {
     final List<Color> surfaceColors;
     if (tintColor == null) {
       surfaceColors = dark
-          ? const <Color>[Color(0xF2161D29), Color(0xED0B1019)]
-          : const <Color>[Color(0xFFFDFEFF), Color(0xFFF3F6FA)];
+          ? const <Color>[Color(0xF0121826), Color(0xE3080C18)]
+          : const <Color>[Color(0xFAFFFFFF), Color(0xF2FFFFFF)];
     } else {
       surfaceColors = dark
           ? <Color>[
-              Color.lerp(darkGlassTop, tintColor, .14)!.withAlpha(244),
-              Color.lerp(darkGlassBottom, tintColor, .075)!.withAlpha(230),
+              Color.lerp(darkGlassTop, tintColor, .12)!.withAlpha(240),
+              Color.lerp(darkGlassBottom, tintColor, .06)!.withAlpha(224),
             ]
           : <Color>[
-              Color.lerp(
-                const Color(0xFFFDFEFF),
-                tintColor,
-                .075,
-              )!.withAlpha(252),
-              Color.lerp(
-                const Color(0xFFF1F5F9),
-                tintColor,
-                .045,
-              )!.withAlpha(244),
+              Color.lerp(Colors.white, tintColor, .055)!.withAlpha(248),
+              Color.lerp(Colors.white, tintColor, .028)!.withAlpha(236),
             ];
     }
     final Border border = borderColor != null
@@ -4380,7 +4378,20 @@ class _AiHubButton extends StatelessWidget {
             color: Colors.white.withAlpha(dark ? 48 : 124),
             width: .8,
           ),
-          boxShadow: AppStyles.jewelDepth(context, const Color(0xFF7957E8)),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: const Color(0xFF7957E8).withAlpha(dark ? 76 : 54),
+              blurRadius: 18,
+              spreadRadius: -5,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: Colors.black.withAlpha(dark ? 34 : 12),
+              blurRadius: 6,
+              spreadRadius: -2,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Stack(
           fit: StackFit.expand,
@@ -5782,7 +5793,15 @@ class _MilkRecordsTable extends StatelessWidget {
         border: Border.all(
           color: dark ? Colors.white.withAlpha(18) : appleBlue.withAlpha(16),
         ),
-        boxShadow: AppStyles.surfaceDepth(context),
+        boxShadow: dark
+            ? const <BoxShadow>[]
+            : <BoxShadow>[
+                BoxShadow(
+                  color: const Color(0xFF183960).withAlpha(16),
+                  blurRadius: 30,
+                  offset: const Offset(0, 13),
+                ),
+              ],
       ),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
@@ -6118,7 +6137,15 @@ class _LedgerTableCard extends StatelessWidget {
         border: Border.all(
           color: dark ? Colors.white.withAlpha(18) : appleBlue.withAlpha(16),
         ),
-        boxShadow: AppStyles.surfaceDepth(context),
+        boxShadow: dark
+            ? const <BoxShadow>[]
+            : <BoxShadow>[
+                BoxShadow(
+                  color: const Color(0xFF183960).withAlpha(16),
+                  blurRadius: 30,
+                  offset: const Offset(0, 13),
+                ),
+              ],
       ),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
@@ -9275,7 +9302,6 @@ class _ExternalAiReadyCard extends StatelessWidget {
         color: dark ? purple.withAlpha(28) : purple.withAlpha(14),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: purple.withAlpha(dark ? 78 : 48)),
-        boxShadow: AppStyles.glow(context, purple),
       ),
       child: Row(
         children: <Widget>[
@@ -9358,7 +9384,6 @@ class _AiBatchProgressCard extends StatelessWidget {
         color: dark ? appleBlue.withAlpha(25) : appleBlue.withAlpha(12),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: appleBlue.withAlpha(dark ? 68 : 42)),
-        boxShadow: AppStyles.glow(context, appleBlue),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
