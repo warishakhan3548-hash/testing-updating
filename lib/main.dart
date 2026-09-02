@@ -156,18 +156,19 @@ abstract final class AppStyles {
   // Equal raw opacity makes yellow/green glows look much louder than blue or
   // purple. Luminance compensation keeps every module equally premium.
   static int _perceptualAlpha(Color color, int alpha) {
-    final double gain =
-        (1.04 - color.computeLuminance() * .26).clamp(.78, 1.04).toDouble();
+    final double gain = (1.04 - color.computeLuminance() * .26)
+        .clamp(.78, 1.04)
+        .toDouble();
     return (alpha * gain).round().clamp(0, 255).toInt();
   }
 
   static Color _ambientHue(BuildContext context, Color color) => Color.lerp(
-        color,
-        isDark(context) ? Colors.white : const Color(0xFF172033),
-        // Keep the source hue visually exact; this tiny blend only prevents very
-        // bright colors from looking fluorescent on either canvas.
-        isDark(context) ? .035 : .045,
-      )!;
+    color,
+    isDark(context) ? Colors.white : const Color(0xFF172033),
+    // Keep the source hue visually exact; this tiny blend only prevents very
+    // bright colors from looking fluorescent on either canvas.
+    isDark(context) ? .035 : .045,
+  )!;
 
   static List<BoxShadow> glow(
     BuildContext context,
@@ -290,12 +291,12 @@ abstract final class AppStyles {
   }
 
   static List<Shadow> inkGlow(Color color, {bool strong = false}) => <Shadow>[
-        Shadow(
-          color: color.withAlpha(strong ? 46 : 24),
-          blurRadius: strong ? 8 : 5,
-          offset: Offset.zero,
-        ),
-      ];
+    Shadow(
+      color: color.withAlpha(strong ? 46 : 24),
+      blurRadius: strong ? 8 : 5,
+      offset: Offset.zero,
+    ),
+  ];
 }
 
 const Uuid _ids = Uuid();
@@ -389,19 +390,20 @@ class _AarishDiaryAppState extends State<AarishDiaryApp>
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Aarish Dairy Pro',
-        themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
-        theme: _theme(Brightness.light),
-        darkTheme: _theme(Brightness.dark),
-        themeAnimationDuration:
-            _reduceMotion ? Duration.zero : const Duration(milliseconds: 300),
-        themeAnimationCurve: const Cubic(0.25, 1, 0.5, 1),
-        builder: (BuildContext context, Widget? child) => _GlobalTapRippleLayer(
-          child: _AmbientBackground(child: child ?? const SizedBox.shrink()),
-        ),
-        home: _RootStage(booting: _booting, userId: _userId, sync: widget.sync),
-      );
+    debugShowCheckedModeBanner: false,
+    title: 'Aarish Dairy Pro',
+    themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
+    theme: _theme(Brightness.light),
+    darkTheme: _theme(Brightness.dark),
+    themeAnimationDuration: _reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 300),
+    themeAnimationCurve: const Cubic(0.25, 1, 0.5, 1),
+    builder: (BuildContext context, Widget? child) => _GlobalTapRippleLayer(
+      child: _AmbientBackground(child: child ?? const SizedBox.shrink()),
+    ),
+    home: _RootStage(booting: _booting, userId: _userId, sync: widget.sync),
+  );
 }
 
 class _RootStage extends StatelessWidget {
@@ -432,10 +434,12 @@ class _RootStage extends StatelessWidget {
     }
 
     return AnimatedSwitcher(
-      duration:
-          reduceMotion ? Duration.zero : const Duration(milliseconds: 180),
-      reverseDuration:
-          reduceMotion ? Duration.zero : const Duration(milliseconds: 140),
+      duration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 180),
+      reverseDuration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 140),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
       transitionBuilder: (Widget child, Animation<double> animation) =>
@@ -449,33 +453,35 @@ ThemeData _theme(Brightness brightness) {
   final bool dark = brightness == Brightness.dark;
   final Color surface = dark ? darkGlassTop : Colors.white;
   final Color text = dark ? Colors.white : const Color(0xFF1C1C1E);
-  final Color outline =
-      dark ? Colors.white.withAlpha(35) : Colors.black.withAlpha(11);
+  final Color outline = dark
+      ? Colors.white.withAlpha(35)
+      : Colors.black.withAlpha(11);
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
     scaffoldBackgroundColor: Colors.transparent,
     canvasColor: dark ? const Color(0xFF1C2230) : Colors.white,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: appleBlue,
-      brightness: brightness,
-      surface: surface,
-      error: appleRed,
-    ).copyWith(
-      primary: appleBlue,
-      secondary: appleGreen,
-      surface: surface,
-      error: appleRed,
-      outline: outline,
-    ),
-    textTheme: ThemeData(brightness: brightness)
-        .textTheme
+    colorScheme:
+        ColorScheme.fromSeed(
+          seedColor: appleBlue,
+          brightness: brightness,
+          surface: surface,
+          error: appleRed,
+        ).copyWith(
+          primary: appleBlue,
+          secondary: appleGreen,
+          surface: surface,
+          error: appleRed,
+          outline: outline,
+        ),
+    textTheme: ThemeData(brightness: brightness).textTheme
         .apply(bodyColor: text, displayColor: text),
     iconTheme: IconThemeData(color: text),
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
-    dividerColor:
-        dark ? Colors.white.withAlpha(23) : Colors.black.withAlpha(11),
+    dividerColor: dark
+        ? Colors.white.withAlpha(23)
+        : Colors.black.withAlpha(11),
     textSelectionTheme: TextSelectionThemeData(
       cursorColor: appleBlue,
       selectionColor: appleBlue.withAlpha(54),
@@ -570,12 +576,12 @@ class _RipplePulse {
     required this.downPosition,
     required VoidCallback onTick,
     required TickerProvider vsync,
-  })  : _onTick = onTick,
-        controller = AnimationController(
-          vsync: vsync,
-          duration: const Duration(milliseconds: 200),
-          reverseDuration: const Duration(milliseconds: 65),
-        ) {
+  }) : _onTick = onTick,
+       controller = AnimationController(
+         vsync: vsync,
+         duration: const Duration(milliseconds: 200),
+         reverseDuration: const Duration(milliseconds: 65),
+       ) {
     controller.addListener(_onTick);
   }
 
@@ -782,33 +788,33 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
 
   @override
   Widget build(BuildContext context) => Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: _handlePointerDown,
-        onPointerMove: _handlePointerMove,
-        onPointerUp: _handlePointerUp,
-        onPointerCancel: _handlePointerCancel,
-        child: Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            widget.child,
-            IgnorePointer(
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  painter: _GlobalTapRipplePainter(
-                    pulses: _pulses,
-                    repaint: _rippleRepaint,
-                  ),
-                ),
+    behavior: HitTestBehavior.translucent,
+    onPointerDown: _handlePointerDown,
+    onPointerMove: _handlePointerMove,
+    onPointerUp: _handlePointerUp,
+    onPointerCancel: _handlePointerCancel,
+    child: Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        widget.child,
+        IgnorePointer(
+          child: RepaintBoundary(
+            child: CustomPaint(
+              painter: _GlobalTapRipplePainter(
+                pulses: _pulses,
+                repaint: _rippleRepaint,
               ),
             ),
-          ],
+          ),
         ),
-      );
+      ],
+    ),
+  );
 }
 
 class _GlobalTapRipplePainter extends CustomPainter {
   _GlobalTapRipplePainter({required this.pulses, required Listenable repaint})
-      : super(repaint: repaint);
+    : super(repaint: repaint);
 
   final List<_RipplePulse> pulses;
 
@@ -825,8 +831,9 @@ class _GlobalTapRipplePainter extends CustomPainter {
       final double arrival = Curves.easeOutCubic.transform(
         (raw / .16).clamp(0.0, 1.0).toDouble(),
       );
-      final double fadeProgress =
-          ((raw - .58) / .42).clamp(0.0, 1.0).toDouble();
+      final double fadeProgress = ((raw - .58) / .42)
+          .clamp(0.0, 1.0)
+          .toDouble();
       final double fade = 1 - Curves.easeInCubic.transform(fadeProgress);
       final double opacity = (arrival * fade).clamp(0.0, 1.0).toDouble();
       if (opacity <= 0) continue;
@@ -863,8 +870,10 @@ class _GlobalTapRipplePainter extends CustomPainter {
       if (!pulse.cancelled && raw > .18) {
         final double echo = ((raw - .18) / .64).clamp(0.0, 1.0).toDouble();
         if (echo < 1) {
-          final int echoAlpha =
-              (opacity * (1 - echo) * 58).round().clamp(0, 255).toInt();
+          final int echoAlpha = (opacity * (1 - echo) * 58)
+              .round()
+              .clamp(0, 255)
+              .toInt();
           canvas.drawCircle(
             pulse.origin,
             5 + 26 * UIConstants.motionOut.transform(echo),
@@ -896,8 +905,9 @@ class _AmbientBackground extends StatelessWidget {
       statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
       statusBarBrightness: dark ? Brightness.dark : Brightness.light,
       systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarIconBrightness:
-          dark ? Brightness.light : Brightness.dark,
+      systemNavigationBarIconBrightness: dark
+          ? Brightness.light
+          : Brightness.dark,
       systemNavigationBarDividerColor: Colors.transparent,
     );
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -1000,14 +1010,14 @@ class _OpaqueContentTransitionsBuilder extends PageTransitionsBuilder {
     // Scaffolds can never blend two pages' text together.
     final Widget surface = _AmbientBackground(child: child);
     if (AppMotion.reduce(context)) return surface;
-    final Animation<double> contentOpacity =
-        Tween<double>(begin: .96, end: 1).animate(
-      CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ),
-    );
+    final Animation<double> contentOpacity = Tween<double>(begin: .96, end: 1)
+        .animate(
+          CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          ),
+        );
     return _AmbientBackground(
       child: FadeTransition(opacity: contentOpacity, child: child),
     );
@@ -1017,28 +1027,25 @@ class _OpaqueContentTransitionsBuilder extends PageTransitionsBuilder {
 PageRoute<T> _directRoute<T>({
   required WidgetBuilder destinationBuilder,
   required bool reduceMotion,
-}) =>
-    PageRouteBuilder<T>(
-      opaque: true,
-      allowSnapshotting: true,
-      transitionDuration:
-          reduceMotion ? Duration.zero : UIConstants.directRouteIn,
-      reverseTransitionDuration:
-          reduceMotion ? Duration.zero : UIConstants.directRouteOut,
-      pageBuilder: (
-        BuildContext context,
-        Animation<double> routeAnimation,
-        Animation<double> secondaryAnimation,
-      ) =>
-          destinationBuilder(context),
-      transitionsBuilder: (
-        BuildContext context,
-        Animation<double> animation,
-        Animation<double> secondaryAnimation,
-        Widget child,
-      ) =>
-          _DirectRouteTransition(animation: animation, child: child),
-    );
+}) => PageRouteBuilder<T>(
+  opaque: true,
+  allowSnapshotting: true,
+  transitionDuration: reduceMotion ? Duration.zero : UIConstants.directRouteIn,
+  reverseTransitionDuration: reduceMotion
+      ? Duration.zero
+      : UIConstants.directRouteOut,
+  pageBuilder: (
+    BuildContext context,
+    Animation<double> routeAnimation,
+    Animation<double> secondaryAnimation,
+  ) => destinationBuilder(context),
+  transitionsBuilder: (
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => _DirectRouteTransition(animation: animation, child: child),
+);
 
 class _DirectRouteTransition extends StatelessWidget {
   const _DirectRouteTransition({required this.animation, required this.child});
@@ -1051,14 +1058,14 @@ class _DirectRouteTransition extends StatelessWidget {
     if (AppMotion.reduce(context)) {
       return _AmbientBackground(child: child);
     }
-    final Animation<double> contentOpacity =
-        Tween<double>(begin: .96, end: 1).animate(
-      CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ),
-    );
+    final Animation<double> contentOpacity = Tween<double>(begin: .96, end: 1)
+        .animate(
+          CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          ),
+        );
     return IgnorePointer(
       ignoring: animation.status != AnimationStatus.completed,
       child: _AmbientBackground(
@@ -1110,21 +1117,21 @@ class _LaunchScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              _AppMark(size: 74),
-              SizedBox(height: 22),
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2.4),
-              ),
-            ],
+    body: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _AppMark(size: 74),
+          SizedBox(height: 22),
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2.4),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }
 
 class _AppMark extends StatelessWidget {
@@ -1134,26 +1141,26 @@ class _AppMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: <Color>[appleBlue.withAlpha(48), appleBlue2.withAlpha(22)],
-          ),
-          borderRadius: BorderRadius.circular(size * .27),
-          border: Border.all(color: appleBlue.withAlpha(58)),
-          boxShadow: <BoxShadow>[
-            BoxShadow(color: appleBlue.withAlpha(76), blurRadius: 22),
-          ],
-        ),
-        alignment: Alignment.center,
-        child: SizedBox.square(
-          dimension: size * .52,
-          child: const CustomPaint(painter: _FontAwesomeLeafPainter()),
-        ),
-      );
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[appleBlue.withAlpha(48), appleBlue2.withAlpha(22)],
+      ),
+      borderRadius: BorderRadius.circular(size * .27),
+      border: Border.all(color: appleBlue.withAlpha(58)),
+      boxShadow: <BoxShadow>[
+        BoxShadow(color: appleBlue.withAlpha(76), blurRadius: 22),
+      ],
+    ),
+    alignment: Alignment.center,
+    child: SizedBox.square(
+      dimension: size * .52,
+      child: const CustomPaint(painter: _FontAwesomeLeafPainter()),
+    ),
+  );
 }
 
 class _FontAwesomeLeafPainter extends CustomPainter {
@@ -1335,13 +1342,13 @@ class _LoginScreenState extends State<_LoginScreen> {
                                 blendMode: BlendMode.srcIn,
                                 shaderCallback: (Rect bounds) =>
                                     const LinearGradient(
-                                  colors: <Color>[
-                                    Color(0xFF4285F4),
-                                    Color(0xFFEA4335),
-                                    Color(0xFFFBBC05),
-                                    Color(0xFF34A853),
-                                  ],
-                                ).createShader(bounds),
+                                      colors: <Color>[
+                                        Color(0xFF4285F4),
+                                        Color(0xFFEA4335),
+                                        Color(0xFFFBBC05),
+                                        Color(0xFF34A853),
+                                      ],
+                                    ).createShader(bounds),
                                 child: const Text(
                                   'G',
                                   style: TextStyle(
@@ -1478,6 +1485,9 @@ class _LedgerPagePhysics extends PageScrollPhysics {
   static const double _velocityProjectionSeconds = .10;
   static const double _maxProjectedPages = .22;
   static const double _flingCommitPagesPerSecond = .52;
+  // Target selection keeps full gesture intent while spring energy is
+  // viewport-normalized, preventing extreme flick overshoot.
+  static const double _maxSettlePagesPerSecond = 3.25;
 
   @override
   _LedgerPagePhysics applyTo(ScrollPhysics? ancestor) =>
@@ -1517,14 +1527,18 @@ class _LedgerPagePhysics extends PageScrollPhysics {
     // without making tiny accidental drags change modules.
     final double targetPage = pageVelocity.abs() >= _flingCommitPagesPerSecond
         ? (pageVelocity > 0
-            ? currentPage.floorToDouble() + 1
-            : currentPage.ceilToDouble() - 1)
+              ? currentPage.floorToDouble() + 1
+              : currentPage.ceilToDouble() - 1)
         : (currentPage + projectedDelta).roundToDouble();
     final double clampedPage = targetPage.clamp(0.0, maxPage).toDouble();
     final double targetPixels =
         (position.minScrollExtent + clampedPage * pageExtent)
             .clamp(position.minScrollExtent, position.maxScrollExtent)
             .toDouble();
+    final double maxSettleVelocity = pageExtent * _maxSettlePagesPerSecond;
+    final double settleVelocity = velocity
+        .clamp(-maxSettleVelocity, maxSettleVelocity)
+        .toDouble();
 
     if ((targetPixels - position.pixels).abs() <= tolerance.distance &&
         velocity.abs() <= tolerance.velocity) {
@@ -1535,7 +1549,7 @@ class _LedgerPagePhysics extends PageScrollPhysics {
       spring,
       position.pixels,
       targetPixels,
-      velocity,
+      settleVelocity,
       tolerance: tolerance,
     );
   }
@@ -1588,8 +1602,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Duration _adaptivePageDuration(double originPage, int targetPage) {
-    final double remainingPages =
-        (targetPage - originPage).abs().clamp(0.0, 1.0).toDouble();
+    final double remainingPages = (targetPage - originPage)
+        .abs()
+        .clamp(0.0, 1.0)
+        .toDouble();
     if (remainingPages <= .001) return Duration.zero;
 
     // Distance-aware timing keeps a mid-swipe retarget responsive while a
@@ -1624,7 +1640,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void _selectTab(int index) {
     if (index < 0 || index >= _tabs.length) return;
 
-    final bool alreadySettled = _tab == index &&
+    final bool alreadySettled =
+        _tab == index &&
         _settledPage == index &&
         _programmaticPageTarget == null;
     if (alreadySettled || _programmaticPageTarget == index) return;
@@ -1793,12 +1810,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     // dimensions, but center the selected destination in the visible viewport.
     const double itemExtent = 92;
     const double outerPadding = 4;
-    final double target = (outerPadding +
-            index * itemExtent +
-            itemExtent / 2 -
-            position.viewportDimension / 2)
-        .clamp(position.minScrollExtent, position.maxScrollExtent)
-        .toDouble();
+    final double target =
+        (outerPadding +
+                index * itemExtent +
+                itemExtent / 2 -
+                position.viewportDimension / 2)
+            .clamp(position.minScrollExtent, position.maxScrollExtent)
+            .toDouble();
     if ((position.pixels - target).abs() < .5) return;
     if (AppMotion.reduce(context)) {
       position.jumpTo(target);
@@ -1812,40 +1830,40 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Widget _buildSwipeMotionPage(int index, Widget child) => AnimatedBuilder(
-        animation: _pageController,
-        // Isolate the expensive live screen from the small transform layer.
-        // The page can repaint when its own data changes, while swipe frames
-        // can usually be satisfied by compositor work instead of repainting
-        // every card, list row and shadow below the 3D transform.
-        child: RepaintBoundary(child: child),
-        builder: (BuildContext context, Widget? stableChild) {
-          final Widget pageChild = stableChild!;
-          if (AppMotion.reduce(context) ||
-              !_pageController.hasClients ||
-              !_pageController.position.hasContentDimensions) {
-            return pageChild;
-          }
+    animation: _pageController,
+    // Isolate the expensive live screen from the small transform layer.
+    // The page can repaint when its own data changes, while swipe frames
+    // can usually be satisfied by compositor work instead of repainting
+    // every card, list row and shadow below the 3D transform.
+    child: RepaintBoundary(child: child),
+    builder: (BuildContext context, Widget? stableChild) {
+      final Widget pageChild = stableChild!;
+      if (AppMotion.reduce(context) ||
+          !_pageController.hasClients ||
+          !_pageController.position.hasContentDimensions) {
+        return pageChild;
+      }
 
-          final double page = _pageController.page ?? _settledPage.toDouble();
-          final double delta = (page - index).clamp(-1.0, 1.0).toDouble();
-          final double depth = delta.abs();
-          if (depth <= .0001) return pageChild;
+      final double page = _pageController.page ?? _settledPage.toDouble();
+      final double delta = (page - index).clamp(-1.0, 1.0).toDouble();
+      final double depth = delta.abs();
+      if (depth <= .0001) return pageChild;
 
-          // Paint/compositor-only depth: resting layout, colors, icons and
-          // dimensions are unchanged. Reduced Motion bypasses it completely.
-          final Matrix4 transform = Matrix4.identity()
-            ..setEntry(3, 2, .00075)
-            ..rotateY(-delta * .018);
-          return Transform(
-            alignment: Alignment.center,
-            transform: transform,
-            child: Transform.translate(
-              offset: Offset(0, depth * 1.8),
-              child: pageChild,
-            ),
-          );
-        },
+      // Paint/compositor-only depth: resting layout, colors, icons and
+      // dimensions are unchanged. Reduced Motion bypasses it completely.
+      final Matrix4 transform = Matrix4.identity()
+        ..setEntry(3, 2, .00075)
+        ..rotateY(-delta * .018);
+      return Transform(
+        alignment: Alignment.center,
+        transform: transform,
+        child: Transform.translate(
+          offset: Offset(0, depth * 1.8),
+          child: pageChild,
+        ),
       );
+    },
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -1907,8 +1925,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             animation: widget.sync,
             builder: (BuildContext context, Widget? child) =>
                 widget.sync.isConnected
-                    ? const SizedBox.shrink()
-                    : const _OfflineBanner(),
+                ? const SizedBox.shrink()
+                : const _OfflineBanner(),
           ),
           Expanded(
             child: RepaintBoundary(
@@ -2014,30 +2032,30 @@ class _OfflineBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-        container: true,
-        liveRegion: true,
-        label: 'Offline. Changes will sync automatically.',
-        child: ExcludeSemantics(
-          child: SafeArea(
-            bottom: false,
-            child: Container(
-              width: double.infinity,
-              color: appleOrange,
-              padding: const EdgeInsets.symmetric(vertical: 5),
-              child: const Text(
-                'OFFLINE • Changes will sync automatically',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: .6,
-                ),
-              ),
+    container: true,
+    liveRegion: true,
+    label: 'Offline. Changes will sync automatically.',
+    child: ExcludeSemantics(
+      child: SafeArea(
+        bottom: false,
+        child: Container(
+          width: double.infinity,
+          color: appleOrange,
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: const Text(
+            'OFFLINE • Changes will sync automatically',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .6,
             ),
           ),
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _BottomLedgerNav extends StatelessWidget {
@@ -2055,15 +2073,15 @@ class _BottomLedgerNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: sync,
-        builder: (BuildContext context, Widget? child) =>
-            _buildNavigation(context),
-      );
+    animation: sync,
+    builder: (BuildContext context, Widget? child) => _buildNavigation(context),
+  );
 
   Widget _buildNavigation(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-    final Duration navMotion =
-        AppMotion.reduce(context) ? Duration.zero : UIConstants.navMotion;
+    final Duration navMotion = AppMotion.reduce(context)
+        ? Duration.zero
+        : UIConstants.navMotion;
     final List<Color> colors = _moduleTabColors(sync.currentProjection);
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -2122,8 +2140,9 @@ class _BottomLedgerNav extends StatelessWidget {
                             UIConstants.actionRadius,
                           ),
                           child: AnimatedSlide(
-                            offset:
-                                active ? const Offset(0, -.025) : Offset.zero,
+                            offset: active
+                                ? const Offset(0, -.025)
+                                : Offset.zero,
                             duration: navMotion,
                             curve: UIConstants.motionOut,
                             child: AnimatedContainer(
@@ -2150,7 +2169,8 @@ class _BottomLedgerNav extends StatelessWidget {
                                         icon: active
                                             ? spec.activeIcon
                                             : spec.inactiveIcon,
-                                        size: (active ? 24 : 22.5) *
+                                        size:
+                                            (active ? 24 : 22.5) *
                                             spec.opticalScale,
                                         color: active
                                             ? color
@@ -2234,45 +2254,43 @@ class _PremiumNavIconFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedContainer(
-        duration:
-            AppMotion.reduce(context) ? Duration.zero : UIConstants.motion,
-        curve: UIConstants.motionOut,
-        width: active ? 46 : 39,
-        height: active ? 39 : 35,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(active ? 15 : 13),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: <Color>[
-              color.withAlpha(active ? (dark ? 34 : 26) : (dark ? 16 : 11)),
-              color.withAlpha(active ? (dark ? 14 : 9) : 0),
-            ],
-          ),
-          border: Border.all(
-            color:
-                color.withAlpha(active ? (dark ? 70 : 54) : (dark ? 24 : 18)),
-            width: active ? .9 : .7,
-          ),
-          boxShadow: active
-              ? <BoxShadow>[
-                  BoxShadow(
-                    color: color.withAlpha(dark ? 48 : 34),
-                    blurRadius: 16,
-                    spreadRadius: -5,
-                    offset: const Offset(0, 5),
-                  ),
-                  BoxShadow(
-                    color: Colors.white.withAlpha(dark ? 12 : 88),
-                    blurRadius: 1,
-                    offset: const Offset(0, -1),
-                  ),
-                ]
-              : null,
-        ),
-        child: child,
-      );
+    duration: AppMotion.reduce(context) ? Duration.zero : UIConstants.motion,
+    curve: UIConstants.motionOut,
+    width: active ? 46 : 39,
+    height: active ? 39 : 35,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(active ? 15 : 13),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          color.withAlpha(active ? (dark ? 34 : 26) : (dark ? 16 : 11)),
+          color.withAlpha(active ? (dark ? 14 : 9) : 0),
+        ],
+      ),
+      border: Border.all(
+        color: color.withAlpha(active ? (dark ? 70 : 54) : (dark ? 24 : 18)),
+        width: active ? .9 : .7,
+      ),
+      boxShadow: active
+          ? <BoxShadow>[
+              BoxShadow(
+                color: color.withAlpha(dark ? 48 : 34),
+                blurRadius: 16,
+                spreadRadius: -5,
+                offset: const Offset(0, 5),
+              ),
+              BoxShadow(
+                color: Colors.white.withAlpha(dark ? 12 : 88),
+                blurRadius: 1,
+                offset: const Offset(0, -1),
+              ),
+            ]
+          : null,
+    ),
+    child: child,
+  );
 }
 
 class _BottomNavGlyph extends StatelessWidget {
@@ -2360,7 +2378,7 @@ class _PressableState extends State<_Pressable>
     super.didUpdateWidget(oldWidget);
     final bool interactionDisabled =
         (oldWidget.onTap != null && widget.onTap == null) ||
-            (oldWidget.animatePress && !widget.animatePress);
+        (oldWidget.animatePress && !widget.animatePress);
     if (interactionDisabled) _resetPressFeedback();
   }
 
@@ -2391,10 +2409,12 @@ class _PressableState extends State<_Pressable>
   bool _updateTouchAlignment(Offset localPosition) {
     final Size extent = _gestureExtent;
     if (extent.isEmpty) return false;
-    final double x =
-        (localPosition.dx / extent.width * 2 - 1).clamp(-.72, .72).toDouble();
-    final double y =
-        (localPosition.dy / extent.height * 2 - 1).clamp(-.72, .72).toDouble();
+    final double x = (localPosition.dx / extent.width * 2 - 1)
+        .clamp(-.72, .72)
+        .toDouble();
+    final double y = (localPosition.dy / extent.height * 2 - 1)
+        .clamp(-.72, .72)
+        .toDouble();
     final Alignment nextAlignment = Alignment(x, y);
     final double deltaX = nextAlignment.x - _touchAlignment.x;
     final double deltaY = nextAlignment.y - _touchAlignment.y;
@@ -2442,8 +2462,15 @@ class _PressableState extends State<_Pressable>
     final double previousSpeed = _gestureVelocity.distance;
     final double directionalDot =
         _gestureVelocity.dx * sample.dx + _gestureVelocity.dy * sample.dy;
+    final double directionAgreement = previousSpeed > 0 && sampleSpeed > 0
+        ? (directionalDot / (previousSpeed * sampleSpeed))
+              .clamp(-1.0, 1.0)
+              .toDouble()
+        : 1;
+    // Curved movement is not a reversal; only materially opposing
+    // vectors purge stale momentum from the release estimate.
     final bool reversing =
-        previousSpeed > 80 && sampleSpeed > 80 && directionalDot < 0;
+        previousSpeed > 80 && sampleSpeed > 80 && directionAgreement < -.20;
     final double velocityResponsePerSecond = reversing ? 52 : 32;
     final double maxBlend = reversing ? .84 : .72;
     final double blend =
@@ -2458,9 +2485,18 @@ class _PressableState extends State<_Pressable>
     final int ageMicros =
         _gestureClock.elapsedMicroseconds - _lastTouchSampleMicros;
     const int freshnessWindowMicros = 160000;
+    const int minimumFreshnessWindowMicros = 90000;
     if (ageMicros <= 0) return _gestureVelocity;
-    if (ageMicros >= freshnessWindowMicros) return Offset.zero;
-    final double freshness = 1 - (ageMicros / freshnessWindowMicros);
+    final double speedIntent = (_gestureVelocity.distance / 1800)
+        .clamp(0.0, 1.0)
+        .toDouble();
+    final int adaptiveFreshnessWindowMicros =
+        (minimumFreshnessWindowMicros +
+                (freshnessWindowMicros - minimumFreshnessWindowMicros) *
+                    speedIntent)
+            .round();
+    if (ageMicros >= adaptiveFreshnessWindowMicros) return Offset.zero;
+    final double freshness = 1 - (ageMicros / adaptiveFreshnessWindowMicros);
     final double easedFreshness = freshness * freshness;
     return _gestureVelocity * easedFreshness;
   }
@@ -2506,8 +2542,9 @@ class _PressableState extends State<_Pressable>
       if (_pressController.value != 1) _pressController.value = 1;
       return;
     }
-    final double remainingTravel =
-        (1 - _pressController.value).clamp(0.0, 1.0).toDouble();
+    final double remainingTravel = (1 - _pressController.value)
+        .clamp(0.0, 1.0)
+        .toDouble();
     final int adaptiveMicros = math.max(
       UIConstants.pressReengageFloor.inMicroseconds,
       (UIConstants.pressIn.inMicroseconds * remainingTravel).round(),
@@ -2575,139 +2612,136 @@ class _PressableState extends State<_Pressable>
 
   @override
   Widget build(BuildContext context) => Semantics(
-        button: widget.onTap != null,
-        enabled: widget.onTap != null,
-        label: widget.semanticLabel,
-        selected: widget.selected,
-        onTap: widget.onTap == null ? null : _activate,
-        child: GestureDetector(
-          excludeFromSemantics: true,
-          behavior: HitTestBehavior.opaque,
-          onTapDown:
-              widget.onTap == null || !widget.animatePress ? null : _press,
-          onTapMove:
-              widget.onTap == null || !widget.animatePress ? null : _trackTouch,
-          onTapCancel: widget.onTap == null || !widget.animatePress
-              ? null
-              : () => _release(cancelled: true),
-          onTapUp: widget.onTap == null || !widget.animatePress
-              ? null
-              : (_) => _release(),
-          onTap: widget.onTap == null ? null : _activate,
-          child: AnimatedBuilder(
-            animation: _pressController,
-            child: widget.child,
-            builder: (BuildContext context, Widget? child) {
-              final bool dark = Theme.of(context).brightness == Brightness.dark;
-              final bool reduceMotion = AppMotion.reduce(context);
-              final double feedback = _pressController.value;
-              final double pressed = feedback.clamp(0.0, 1.0).toDouble();
-              final double motion = reduceMotion ? 0 : feedback;
-              final double cardTilt =
-                  reduceMotion || widget.feedbackColor == null
-                      ? 0
-                      : pressed * .0145;
-              final Alignment spatialAlignment =
-                  _releaseAlignment ?? _touchAlignment;
-              final Matrix4 perspective = Matrix4.identity()
-                ..setEntry(3, 2, .0013)
-                ..rotateX(-spatialAlignment.y * cardTilt)
-                ..rotateY(spatialAlignment.x * cardTilt);
-              final Widget compressed = Transform.translate(
-                transformHitTests: false,
-                offset: Offset(0, motion * 1.30),
-                child: Transform.scale(
-                  transformHitTests: false,
-                  scale: 1 - (motion * .017),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: <Widget>[
-                      if (widget.feedbackColor != null)
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius:
-                                    widget.borderRadius ?? BorderRadius.zero,
-                                boxShadow: AppStyles.pressGlow(
-                                  context,
-                                  widget.feedbackColor!,
-                                  pressed,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      child!,
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: ClipRRect(
+    button: widget.onTap != null,
+    enabled: widget.onTap != null,
+    label: widget.semanticLabel,
+    selected: widget.selected,
+    onTap: widget.onTap == null ? null : _activate,
+    child: GestureDetector(
+      excludeFromSemantics: true,
+      behavior: HitTestBehavior.opaque,
+      onTapDown: widget.onTap == null || !widget.animatePress ? null : _press,
+      onTapMove: widget.onTap == null || !widget.animatePress
+          ? null
+          : _trackTouch,
+      onTapCancel: widget.onTap == null || !widget.animatePress
+          ? null
+          : () => _release(cancelled: true),
+      onTapUp: widget.onTap == null || !widget.animatePress
+          ? null
+          : (_) => _release(),
+      onTap: widget.onTap == null ? null : _activate,
+      child: AnimatedBuilder(
+        animation: _pressController,
+        child: widget.child,
+        builder: (BuildContext context, Widget? child) {
+          final bool dark = Theme.of(context).brightness == Brightness.dark;
+          final bool reduceMotion = AppMotion.reduce(context);
+          final double feedback = _pressController.value;
+          final double pressed = feedback.clamp(0.0, 1.0).toDouble();
+          final double motion = reduceMotion ? 0 : feedback;
+          final double cardTilt = reduceMotion || widget.feedbackColor == null
+              ? 0
+              : pressed * .0145;
+          final Alignment spatialAlignment =
+              _releaseAlignment ?? _touchAlignment;
+          final Matrix4 perspective = Matrix4.identity()
+            ..setEntry(3, 2, .0013)
+            ..rotateX(-spatialAlignment.y * cardTilt)
+            ..rotateY(spatialAlignment.x * cardTilt);
+          final Widget compressed = Transform.translate(
+            transformHitTests: false,
+            offset: Offset(0, motion * 1.30),
+            child: Transform.scale(
+              transformHitTests: false,
+              scale: 1 - (motion * .017),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  if (widget.feedbackColor != null)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
                             borderRadius:
                                 widget.borderRadius ?? BorderRadius.zero,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: <Widget>[
-                                DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: <Color>[
-                                        Colors.white.withAlpha(
-                                          (pressed * (dark ? 12 : 20)).round(),
-                                        ),
-                                        Colors.black.withAlpha(
-                                          (pressed * (dark ? 7 : 10)).round(),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                if (widget.feedbackColor != null)
-                                  DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      borderRadius: widget.borderRadius ??
-                                          BorderRadius.zero,
-                                      border: Border.all(
-                                        color: widget.feedbackColor!.withAlpha(
-                                          (pressed * (dark ? 54 : 38)).round(),
-                                        ),
-                                        width: .8,
-                                      ),
-                                      gradient: RadialGradient(
-                                        center: _touchAlignment,
-                                        radius: 1.05,
-                                        colors: <Color>[
-                                          Colors.white.withAlpha(
-                                            (pressed * (dark ? 15 : 26))
-                                                .round(),
-                                          ),
-                                          Colors.transparent,
-                                        ],
-                                        stops: const <double>[0, 1],
-                                      ),
-                                    ),
-                                  ),
-                              ],
+                            boxShadow: AppStyles.pressGlow(
+                              context,
+                              widget.feedbackColor!,
+                              pressed,
                             ),
                           ),
                         ),
                       ),
-                    ],
+                    ),
+                  child!,
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: ClipRRect(
+                        borderRadius: widget.borderRadius ?? BorderRadius.zero,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: <Widget>[
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: <Color>[
+                                    Colors.white.withAlpha(
+                                      (pressed * (dark ? 12 : 20)).round(),
+                                    ),
+                                    Colors.black.withAlpha(
+                                      (pressed * (dark ? 7 : 10)).round(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            if (widget.feedbackColor != null)
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius:
+                                      widget.borderRadius ?? BorderRadius.zero,
+                                  border: Border.all(
+                                    color: widget.feedbackColor!.withAlpha(
+                                      (pressed * (dark ? 54 : 38)).round(),
+                                    ),
+                                    width: .8,
+                                  ),
+                                  gradient: RadialGradient(
+                                    center: _touchAlignment,
+                                    radius: 1.05,
+                                    colors: <Color>[
+                                      Colors.white.withAlpha(
+                                        (pressed * (dark ? 15 : 26)).round(),
+                                      ),
+                                      Colors.transparent,
+                                    ],
+                                    stops: const <double>[0, 1],
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              );
-              if (cardTilt == 0) return compressed;
-              return Transform(
-                alignment: Alignment.center,
-                transform: perspective,
-                transformHitTests: false,
-                child: compressed,
-              );
-            },
-          ),
-        ),
-      );
+                ],
+              ),
+            ),
+          );
+          if (cardTilt == 0) return compressed;
+          return Transform(
+            alignment: Alignment.center,
+            transform: perspective,
+            transformHitTests: false,
+            child: compressed,
+          );
+        },
+      ),
+    ),
+  );
 }
 
 class _GlassCard extends StatelessWidget {
@@ -2754,12 +2788,12 @@ class _GlassCard extends StatelessWidget {
     final Color? resolvedGlowColor = shadowColor ?? tintColor ?? accentColor;
     final List<BoxShadow> shadows = resolvedGlowColor != null
         ? accentColor != null
-            ? AppStyles.railDepth(context, resolvedGlowColor)
-            : AppStyles.glow(
-                context,
-                resolvedGlowColor,
-                strong: tintColor != null,
-              )
+              ? AppStyles.railDepth(context, resolvedGlowColor)
+              : AppStyles.glow(
+                  context,
+                  resolvedGlowColor,
+                  strong: tintColor != null,
+                )
         : AppStyles.surfaceDepth(context);
     final BorderRadius radius = BorderRadius.circular(borderRadius);
     return DecoratedBox(
@@ -3152,23 +3186,23 @@ class _BackCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Pressable(
-        onTap: () => Navigator.of(context).maybePop(),
-        semanticLabel: 'Back',
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.white.withAlpha(13)
-                : Colors.black.withAlpha(10),
-            border: Border.fromBorderSide(AppStyles.hairline(context)),
-            boxShadow: AppStyles.surfaceDepth(context),
-          ),
-          child: const Icon(Icons.chevron_left_rounded),
-        ),
-      );
+    onTap: () => Navigator.of(context).maybePop(),
+    semanticLabel: 'Back',
+    borderRadius: BorderRadius.circular(24),
+    child: Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.white.withAlpha(13)
+            : Colors.black.withAlpha(10),
+        border: Border.fromBorderSide(AppStyles.hairline(context)),
+        boxShadow: AppStyles.surfaceDepth(context),
+      ),
+      child: const Icon(Icons.chevron_left_rounded),
+    ),
+  );
 }
 
 class _SearchBox extends StatefulWidget {
@@ -3271,8 +3305,8 @@ class _DateField extends StatelessWidget {
     final DateTime initial = parsed.isBefore(firstDate)
         ? firstDate
         : parsed.isAfter(lastDate)
-            ? lastDate
-            : parsed;
+        ? lastDate
+        : parsed;
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -3287,15 +3321,15 @@ class _DateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TextField(
-        controller: controller,
-        readOnly: true,
-        enableInteractiveSelection: false,
-        onTap: () => unawaited(_pickDate(context)),
-        decoration: const InputDecoration(
-          labelText: 'Date (YYYY-MM-DD)',
-          prefixIcon: Icon(Icons.calendar_today_rounded),
-        ),
-      );
+    controller: controller,
+    readOnly: true,
+    enableInteractiveSelection: false,
+    onTap: () => unawaited(_pickDate(context)),
+    decoration: const InputDecoration(
+      labelText: 'Date (YYYY-MM-DD)',
+      prefixIcon: Icon(Icons.calendar_today_rounded),
+    ),
+  );
 }
 
 class _EmptyState extends StatelessWidget {
@@ -3313,45 +3347,43 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 58),
-        child: Center(
-          child: Column(
-            children: <Widget>[
-              Container(
-                width: prominent ? 92 : 72,
-                height: prominent ? 92 : 72,
-                decoration: BoxDecoration(
-                  color: color.withAlpha(prominent ? 24 : 14),
-                  shape: BoxShape.circle,
-                  border: Border.fromBorderSide(
-                    AppStyles.hairline(context,
-                        accent: color, active: prominent),
-                  ),
-                  boxShadow: AppStyles.glow(context, color, strong: prominent),
-                ),
-                child: Icon(
-                  icon,
-                  size: prominent ? 42 : 32,
-                  color: color.withAlpha(prominent ? 235 : 150),
-                  shadows: AppStyles.inkGlow(color),
-                ),
+    padding: const EdgeInsets.symmetric(vertical: 58),
+    child: Center(
+      child: Column(
+        children: <Widget>[
+          Container(
+            width: prominent ? 92 : 72,
+            height: prominent ? 92 : 72,
+            decoration: BoxDecoration(
+              color: color.withAlpha(prominent ? 24 : 14),
+              shape: BoxShape.circle,
+              border: Border.fromBorderSide(
+                AppStyles.hairline(context, accent: color, active: prominent),
               ),
-              const SizedBox(height: 16),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: prominent ? color : systemGray,
-                  fontSize: prominent ? 17 : 14,
-                  fontWeight: prominent ? FontWeight.w900 : FontWeight.w700,
-                  shadows:
-                      prominent ? AppStyles.inkGlow(color) : const <Shadow>[],
-                ),
-              ),
-            ],
+              boxShadow: AppStyles.glow(context, color, strong: prominent),
+            ),
+            child: Icon(
+              icon,
+              size: prominent ? 42 : 32,
+              color: color.withAlpha(prominent ? 235 : 150),
+              shadows: AppStyles.inkGlow(color),
+            ),
           ),
-        ),
-      );
+          const SizedBox(height: 16),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: prominent ? color : systemGray,
+              fontSize: prominent ? 17 : 14,
+              fontWeight: prominent ? FontWeight.w900 : FontWeight.w700,
+              shadows: prominent ? AppStyles.inkGlow(color) : const <Shadow>[],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _PrimaryButton extends StatelessWidget {
@@ -3375,53 +3407,52 @@ class _PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Pressable(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(UIConstants.actionRadius),
-        child: Container(
-          constraints:
-              const BoxConstraints(minHeight: UIConstants.minTapTarget),
-          height: compact
-              ? UIConstants.compactButtonHeight
-              : UIConstants.standardButtonHeight,
-          padding: UIConstants.actionPadding,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: tonal
-                  ? <Color>[color.withAlpha(40), color.withAlpha(22)]
-                  : <Color>[color, _toneCompanion(color)],
-            ),
-            borderRadius: BorderRadius.circular(UIConstants.actionRadius),
-            border: Border.fromBorderSide(
-              AppStyles.hairline(context, accent: color, active: true),
-            ),
-            boxShadow: AppStyles.glow(context, color, strong: !tonal),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Icon(
-                icon,
-                color: foregroundColor,
-                size: compact ? 19.5 : 21.5,
-                shadows: AppStyles.inkGlow(foregroundColor),
-              ),
-              const SizedBox(width: 7),
-              Text(
-                label,
-                style: TextStyle(
-                  color: foregroundColor,
-                  fontSize: compact ? 15 : 16.5,
-                  fontWeight: FontWeight.w800,
-                  shadows: AppStyles.inkGlow(foregroundColor),
-                ),
-              ),
-            ],
-          ),
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(UIConstants.actionRadius),
+    child: Container(
+      constraints: const BoxConstraints(minHeight: UIConstants.minTapTarget),
+      height: compact
+          ? UIConstants.compactButtonHeight
+          : UIConstants.standardButtonHeight,
+      padding: UIConstants.actionPadding,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: tonal
+              ? <Color>[color.withAlpha(40), color.withAlpha(22)]
+              : <Color>[color, _toneCompanion(color)],
         ),
-      );
+        borderRadius: BorderRadius.circular(UIConstants.actionRadius),
+        border: Border.fromBorderSide(
+          AppStyles.hairline(context, accent: color, active: true),
+        ),
+        boxShadow: AppStyles.glow(context, color, strong: !tonal),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Icon(
+            icon,
+            color: foregroundColor,
+            size: compact ? 19.5 : 21.5,
+            shadows: AppStyles.inkGlow(foregroundColor),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: TextStyle(
+              color: foregroundColor,
+              fontSize: compact ? 15 : 16.5,
+              fontWeight: FontWeight.w800,
+              shadows: AppStyles.inkGlow(foregroundColor),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _AmountHero extends StatelessWidget {
@@ -3448,8 +3479,7 @@ class _AmountHero extends StatelessWidget {
               darkGlassBottom,
               _toneCompanion(color),
               .16,
-            )!
-                .withAlpha(218),
+            )!.withAlpha(218),
             Color.lerp(Colors.black, color, .18)!.withAlpha(204),
           ]
         : <Color>[
@@ -3458,8 +3488,7 @@ class _AmountHero extends StatelessWidget {
               Colors.white,
               _toneCompanion(color),
               .08,
-            )!
-                .withAlpha(218),
+            )!.withAlpha(218),
             Color.lerp(Colors.white, color, .13)!.withAlpha(194),
           ];
     return Container(
@@ -3500,42 +3529,40 @@ class _HeroValue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: .8,
-              shadows: <Shadow>[
-                Shadow(color: glow.withAlpha(78), blurRadius: 12)
-              ],
-            ),
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: <Widget>[
+      Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: .8,
+          shadows: <Shadow>[Shadow(color: glow.withAlpha(78), blurRadius: 12)],
+        ),
+      ),
+      const SizedBox(height: 4),
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          value,
+          maxLines: 1,
+          softWrap: false,
+          style: TextStyle(
+            color: color,
+            fontSize: 32,
+            fontWeight: FontWeight.w700,
+            fontFeatures: AppStyles.tabularFigures,
+            letterSpacing: -.8,
+            shadows: <Shadow>[
+              Shadow(color: glow.withAlpha(94), blurRadius: 16),
+            ],
           ),
-          const SizedBox(height: 4),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              maxLines: 1,
-              softWrap: false,
-              style: TextStyle(
-                color: color,
-                fontSize: 32,
-                fontWeight: FontWeight.w700,
-                fontFeatures: AppStyles.tabularFigures,
-                letterSpacing: -.8,
-                shadows: <Shadow>[
-                  Shadow(color: glow.withAlpha(94), blurRadius: 16),
-                ],
-              ),
-            ),
-          ),
-        ],
-      );
+        ),
+      ),
+    ],
+  );
 }
 
 class _ListCard extends StatelessWidget {
@@ -3550,9 +3577,9 @@ class _ListCard extends StatelessWidget {
     this.onDelete,
     this.avatarText,
   }) : assert(
-          onTap == null || destinationBuilder == null,
-          'Provide at most one of onTap or destinationBuilder.',
-        );
+         onTap == null || destinationBuilder == null,
+         'Provide at most one of onTap or destinationBuilder.',
+       );
 
   final String title;
   final String subtitle;
@@ -3567,113 +3594,112 @@ class _ListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget buildCard(VoidCallback? action) => _Pressable(
-          onTap: action,
-          animatePress: destinationBuilder == null,
-          borderRadius: BorderRadius.circular(UIConstants.cardRadius),
-          feedbackColor: color,
-          child: _GlassCard(
-            borderRadius: UIConstants.cardRadius,
-            padding: UIConstants.compactCardPadding,
-            accentColor: color,
-            shadowColor: color,
-            child: Row(
-              children: <Widget>[
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: <Color>[color.withAlpha(34), color.withAlpha(16)],
-                    ),
-                    borderRadius:
-                        BorderRadius.circular(UIConstants.compactRadius),
-                    border: Border.fromBorderSide(
-                      AppStyles.hairline(context, accent: color, active: true),
-                    ),
-                    boxShadow: AppStyles.jewelDepth(context, color),
-                  ),
-                  child: avatarText == null
-                      ? Icon(
-                          icon,
-                          color: color,
-                          size: 20,
-                          shadows: AppStyles.inkGlow(color),
-                        )
-                      : Center(
-                          child: Text(
-                            avatarText!,
-                            style: TextStyle(
-                              color: color,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              shadows: AppStyles.inkGlow(color),
-                            ),
-                          ),
-                        ),
+      onTap: action,
+      animatePress: destinationBuilder == null,
+      borderRadius: BorderRadius.circular(UIConstants.cardRadius),
+      feedbackColor: color,
+      child: _GlassCard(
+        borderRadius: UIConstants.cardRadius,
+        padding: UIConstants.compactCardPadding,
+        accentColor: color,
+        shadowColor: color,
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[color.withAlpha(34), color.withAlpha(16)],
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                borderRadius: BorderRadius.circular(UIConstants.compactRadius),
+                border: Border.fromBorderSide(
+                  AppStyles.hairline(context, accent: color, active: true),
+                ),
+                boxShadow: AppStyles.jewelDepth(context, color),
+              ),
+              child: avatarText == null
+                  ? Icon(
+                      icon,
+                      color: color,
+                      size: 20,
+                      shadows: AppStyles.inkGlow(color),
+                    )
+                  : Center(
+                      child: Text(
+                        avatarText!,
                         style: TextStyle(
                           color: color,
-                          fontSize: 16,
+                          fontSize: 18,
                           fontWeight: FontWeight.w700,
                           shadows: AppStyles.inkGlow(color),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: color.withAlpha(190),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (trailing != null) ...<Widget>[
-                  const SizedBox(width: 8),
+                    ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
                   Text(
-                    trailing!,
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: color,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      fontFeatures: AppStyles.tabularFigures,
                       shadows: AppStyles.inkGlow(color),
                     ),
                   ),
-                ],
-                if (onDelete != null)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 9),
-                    child: _DeleteActionButton(
-                      onTap: onDelete!,
-                      semanticLabel: 'Delete $title',
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color.withAlpha(190),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
-                  )
-                else if (action != null)
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: color.withAlpha(150),
-                    shadows: AppStyles.inkGlow(color),
                   ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
+            if (trailing != null) ...<Widget>[
+              const SizedBox(width: 8),
+              Text(
+                trailing!,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: AppStyles.tabularFigures,
+                  shadows: AppStyles.inkGlow(color),
+                ),
+              ),
+            ],
+            if (onDelete != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 9),
+                child: _DeleteActionButton(
+                  onTap: onDelete!,
+                  semanticLabel: 'Delete $title',
+                ),
+              )
+            else if (action != null)
+              Icon(
+                Icons.chevron_right_rounded,
+                color: color.withAlpha(150),
+                shadows: AppStyles.inkGlow(color),
+              ),
+          ],
+        ),
+      ),
+    );
 
     final Widget card = destinationBuilder == null
         ? buildCard(onTap)
@@ -3698,29 +3724,29 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
-          children: <Widget>[
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -.2,
-                  shadows: color == null
-                      ? null
-                      : <Shadow>[
-                          Shadow(color: color!.withAlpha(68), blurRadius: 10),
-                        ],
-                ),
-              ),
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -.2,
+              shadows: color == null
+                  ? null
+                  : <Shadow>[
+                      Shadow(color: color!.withAlpha(68), blurRadius: 10),
+                    ],
             ),
-            ...actions,
-          ],
+          ),
         ),
-      );
+        ...actions,
+      ],
+    ),
+  );
 }
 
 class _MonthYearPicker extends StatelessWidget {
@@ -3740,23 +3766,23 @@ class _MonthYearPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<int> years = availablePeriods
-        .map((DateTime period) => period.year)
-        .toSet()
-        .toList()
-      ..sort((int a, int b) => b.compareTo(a));
-    final int? selectedYear =
-        years.contains(year) ? year : (years.isEmpty ? null : years.first);
+    final List<int> years =
+        availablePeriods.map((DateTime period) => period.year).toSet().toList()
+          ..sort((int a, int b) => b.compareTo(a));
+    final int? selectedYear = years.contains(year)
+        ? year
+        : (years.isEmpty ? null : years.first);
     final List<int> months = selectedYear == null
         ? <int>[]
         : (availablePeriods
-            .where((DateTime period) => period.year == selectedYear)
-            .map((DateTime period) => period.month)
-            .toSet()
-            .toList()
-          ..sort());
-    final int? selectedMonth =
-        months.contains(month) ? month : (months.isEmpty ? null : months.last);
+              .where((DateTime period) => period.year == selectedYear)
+              .map((DateTime period) => period.month)
+              .toSet()
+              .toList()
+            ..sort());
+    final int? selectedMonth = months.contains(month)
+        ? month
+        : (months.isEmpty ? null : months.last);
     return Row(
       children: <Widget>[
         Expanded(
@@ -3825,19 +3851,19 @@ class _MonthYearPicker extends StatelessWidget {
 }
 
 InputDecoration _pickerDecoration([Color color = appleBlue]) => InputDecoration(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(UIConstants.inputRadius),
-        borderSide: BorderSide(
-          color: color.withAlpha(55),
-          width: UIConstants.borderWidth,
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(UIConstants.inputRadius),
-        borderSide: BorderSide(color: color, width: 1.4),
-      ),
-    );
+  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+  enabledBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(UIConstants.inputRadius),
+    borderSide: BorderSide(
+      color: color.withAlpha(55),
+      width: UIConstants.borderWidth,
+    ),
+  ),
+  focusedBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(UIConstants.inputRadius),
+    borderSide: BorderSide(color: color, width: 1.4),
+  ),
+);
 
 class _SheetFrame extends StatelessWidget {
   const _SheetFrame({
@@ -4080,14 +4106,14 @@ Color _expenseToneForTotal(double total) =>
     total > .000001 ? semanticRed : appleBlue;
 
 List<Color> _moduleTabColors(LedgerProjection projection) => <Color>[
-      appleBlue,
-      _tone(projection.milkLifetimeNet),
-      _tone(projection.creditLifetimeNet),
-      _expenseToneForTotal(projection.expenseMonthTotal),
-      _tone(projection.salaryMonthNet),
-      diaryOrange,
-      appleBlue,
-    ];
+  appleBlue,
+  _tone(projection.milkLifetimeNet),
+  _tone(projection.creditLifetimeNet),
+  _expenseToneForTotal(projection.expenseMonthTotal),
+  _tone(projection.salaryMonthNet),
+  diaryOrange,
+  appleBlue,
+];
 
 class _AiHubButton extends StatelessWidget {
   const _AiHubButton({required this.onTap});
@@ -4346,10 +4372,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ],
                             ),
                           ),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            color: systemGray,
-                          ),
+                          Icon(Icons.chevron_right_rounded, color: systemGray),
                         ],
                       ),
                     ),
@@ -4371,41 +4394,40 @@ class _SyncPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-          decoration: BoxDecoration(
-            color: appleBlue.withAlpha(20),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: appleBlue.withAlpha(40)),
+    alignment: Alignment.centerLeft,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: appleBlue.withAlpha(20),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: appleBlue.withAlpha(40)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (sync.syncing)
+            const SizedBox(
+              width: 13,
+              height: 13,
+              child: CircularProgressIndicator(strokeWidth: 1.8),
+            )
+          else
+            const Icon(Icons.cloud_upload_rounded, color: appleBlue, size: 15),
+          const SizedBox(width: 7),
+          Text(
+            sync.syncing
+                ? 'Syncing safely…'
+                : '${sync.pendingWrites} change(s) queued',
+            style: const TextStyle(
+              color: appleBlue,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              if (sync.syncing)
-                const SizedBox(
-                  width: 13,
-                  height: 13,
-                  child: CircularProgressIndicator(strokeWidth: 1.8),
-                )
-              else
-                const Icon(Icons.cloud_upload_rounded,
-                    color: appleBlue, size: 15),
-              const SizedBox(width: 7),
-              Text(
-                sync.syncing
-                    ? 'Syncing safely…'
-                    : '${sync.pendingWrites} change(s) queued',
-                style: const TextStyle(
-                  color: appleBlue,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }
 
 class _MetricCard extends StatelessWidget {
@@ -4423,46 +4445,46 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _GlassCard(
-        padding: UIConstants.compactCardPadding,
-        borderRadius: UIConstants.cardRadius,
-        tintColor: color,
-        shadowColor: color,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            _LedgerIcon(icon: icon, color: color, size: 46),
-            const Spacer(),
-            Text(
-              label.toUpperCase(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: systemGray,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                letterSpacing: .65,
-              ),
-            ),
-            const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  fontFeatures: AppStyles.tabularFigures,
-                  letterSpacing: -.7,
-                  shadows: AppStyles.inkGlow(color, strong: true),
-                ),
-              ),
-            ),
-          ],
+    padding: UIConstants.compactCardPadding,
+    borderRadius: UIConstants.cardRadius,
+    tintColor: color,
+    shadowColor: color,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        _LedgerIcon(icon: icon, color: color, size: 46),
+        const Spacer(),
+        Text(
+          label.toUpperCase(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: systemGray,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            letterSpacing: .65,
+          ),
         ),
-      );
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              fontFeatures: AppStyles.tabularFigures,
+              letterSpacing: -.7,
+              shadows: AppStyles.inkGlow(color, strong: true),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _LedgerIcon extends StatelessWidget {
@@ -4544,13 +4566,15 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final List<PartyBalance> balances =
-        widget.sync.currentProjection.partyBalances
-            .where(
-              (PartyBalance item) =>
-                  item.name.toLowerCase().contains(_query.toLowerCase()),
-            )
-            .toList();
+    final List<PartyBalance> balances = widget
+        .sync
+        .currentProjection
+        .partyBalances
+        .where(
+          (PartyBalance item) =>
+              item.name.toLowerCase().contains(_query.toLowerCase()),
+        )
+        .toList();
     return Scaffold(
       body: Column(
         children: <Widget>[
@@ -4600,8 +4624,9 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
                 else
                   ...balances.map((PartyBalance item) {
                     final Color color = _tone(item.net);
-                    final String label =
-                        item.net >= 0 ? 'TO RECEIVE' : 'TO PAY';
+                    final String label = item.net >= 0
+                        ? 'TO RECEIVE'
+                        : 'TO PAY';
                     return _ListCard(
                       title: item.name,
                       subtitle:
@@ -4730,16 +4755,13 @@ class _MilkScreenState extends State<MilkScreen> {
     }
     await _runMutation(
       context,
-      () => widget.sync.write(
-          'milkDB/$customerName',
-          <String, dynamic>{
-            'rate': customerRate,
-            'type': type,
-            'records': <dynamic>[],
-            'canonicalNameV18': customerName.toLowerCase(),
-            'createdAtV18': DateTime.now().toIso8601String(),
-          },
-          reason: 'milk-profile-create'),
+      () => widget.sync.write('milkDB/$customerName', <String, dynamic>{
+        'rate': customerRate,
+        'type': type,
+        'records': <dynamic>[],
+        'canonicalNameV18': customerName.toLowerCase(),
+        'createdAtV18': DateTime.now().toIso8601String(),
+      }, reason: 'milk-profile-create'),
       'Customer added safely!',
     );
   }
@@ -4749,14 +4771,16 @@ class _MilkScreenState extends State<MilkScreen> {
     final Map<String, dynamic> database = _map(widget.sync.state['milkDB']);
     final LedgerProjection projection = widget.sync.currentProjection;
     final Color moduleColor = _tone(projection.milkLifetimeNet);
-    final List<String> names = database.keys
-        .where(
-          (String name) => name.toLowerCase().contains(_query.toLowerCase()),
-        )
-        .toList()
-      ..sort(
-        (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
-      );
+    final List<String> names =
+        database.keys
+            .where(
+              (String name) =>
+                  name.toLowerCase().contains(_query.toLowerCase()),
+            )
+            .toList()
+          ..sort(
+            (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
+          );
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -5142,37 +5166,35 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: widget.sync,
-        builder: (BuildContext context, Widget? child) {
-          final Map<String, dynamic> database =
-              _map(widget.sync.state['milkDB']);
-          final Map<String, dynamic>? profile =
-              database[widget.customerName] is Map
-                  ? _map(database[widget.customerName])
-                  : null;
-          if (profile == null) {
-            return const Scaffold(
-              body: Center(
-                child: _EmptyState(
-                  Icons.water_drop_rounded,
-                  'Customer no longer exists',
-                ),
-              ),
-            );
-          }
-          final List<Map<String, dynamic>> allRecords =
-              _rows(profile['records']);
-          final List<DateTime> availablePeriods = LedgerMath.recordPeriods(
-            allRecords,
-          );
-          final DateTime? selectedPeriod = LedgerMath.resolveRecordPeriod(
-            availablePeriods,
-            month: _month,
-            year: _year,
-          );
-          final int selectedMonth = selectedPeriod?.month ?? _month;
-          final int selectedYear = selectedPeriod?.year ?? _year;
-          final List<Map<String, dynamic>> records = allRecords
+    animation: widget.sync,
+    builder: (BuildContext context, Widget? child) {
+      final Map<String, dynamic> database = _map(widget.sync.state['milkDB']);
+      final Map<String, dynamic>? profile = database[widget.customerName] is Map
+          ? _map(database[widget.customerName])
+          : null;
+      if (profile == null) {
+        return const Scaffold(
+          body: Center(
+            child: _EmptyState(
+              Icons.water_drop_rounded,
+              'Customer no longer exists',
+            ),
+          ),
+        );
+      }
+      final List<Map<String, dynamic>> allRecords = _rows(profile['records']);
+      final List<DateTime> availablePeriods = LedgerMath.recordPeriods(
+        allRecords,
+      );
+      final DateTime? selectedPeriod = LedgerMath.resolveRecordPeriod(
+        availablePeriods,
+        month: _month,
+        year: _year,
+      );
+      final int selectedMonth = selectedPeriod?.month ?? _month;
+      final int selectedYear = selectedPeriod?.year ?? _year;
+      final List<Map<String, dynamic>> records =
+          allRecords
               .where(
                 (Map<String, dynamic> row) =>
                     LedgerMath.inMonth(row, selectedMonth, selectedYear),
@@ -5182,116 +5204,115 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
               (Map<String, dynamic> a, Map<String, dynamic> b) =>
                   '${b['date']}'.compareTo('${a['date']}'),
             );
-          final MilkTotals totals = LedgerMath.milkTotals(
-            profile,
-            month: selectedMonth,
-            year: selectedYear,
-          );
-          final Color color = _tone(totals.netAmount);
-          return Scaffold(
-            body: Column(
-              children: <Widget>[
-                _ScreenHeader(
-                  leading: const _BackCircle(),
-                  title: widget.customerName,
-                  color: color,
-                  actions: <Widget>[
-                    _DeleteActionButton(
-                      padding: const EdgeInsets.only(left: 6),
-                      semanticLabel: 'Delete customer and milk records',
-                      onTap: () => unawaited(_deleteProfile()),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: UIConstants.screenPadding,
-                    children: <Widget>[
-                      _MonthYearPicker(
-                        month: selectedMonth,
-                        year: selectedYear,
-                        availablePeriods: availablePeriods,
-                        onChanged: (int month, int year) => setState(() {
-                          _month = month;
-                          _year = year;
-                        }),
-                      ),
-                      const SizedBox(height: 16),
-                      _MilkDetailHero(
-                        amount: _signedMoney(totals.netAmount),
-                        totalKg: '${totals.netKg.abs().toStringAsFixed(2)} KG',
-                        color: color,
-                      ),
-                      const SizedBox(height: 24),
-                      _SectionTitle(
-                        'Daily Entries',
-                        color: appleBlue,
-                        actions: <Widget>[
-                          _SoftShareButton(
-                            label: 'Share',
-                            icon: Icons.share_rounded,
-                            color: appleBlue,
-                            semanticLabel: 'Share this section as PDF',
-                            compact: false,
-                            onTap: () => unawaited(
-                              _ExportService.sharePdf(
-                                '${widget.customerName} Milk Bill',
-                                <String>[
-                                  'Date',
-                                  'Flow',
-                                  'Morning',
-                                  'Evening',
-                                  'Total',
-                                ],
-                                records.map((Map<String, dynamic> row) {
-                                  final double quantity =
-                                      LedgerMath.milkQuantity(
-                                    row,
-                                  );
-                                  final String flow = LedgerMath.milkFlow(
-                                    row,
-                                    profile,
-                                  );
-                                  return <String>[
-                                    _displayDate(row['date']),
-                                    flow,
-                                    '${LedgerMath.number(row['morning']).toStringAsFixed(2)} KG',
-                                    '${LedgerMath.number(row['evening']).toStringAsFixed(2)} KG',
-                                    '${quantity.toStringAsFixed(2)} KG',
-                                  ];
-                                }).toList(),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _MiniAction(
-                            label: 'Add',
-                            icon: Icons.add_rounded,
-                            color: color,
-                            onTap: () => unawaited(_addEntry(profile)),
-                          ),
-                        ],
-                      ),
-                      if (records.isEmpty)
-                        const _EmptyState(
-                          Icons.water_drop_outlined,
-                          'No milk entries yet',
-                        )
-                      else
-                        _MilkRecordsTable(
-                          records: records,
-                          profile: profile,
-                          onDelete: (String id) => unawaited(_deleteEntry(id)),
-                        ),
-                    ],
-                  ),
+      final MilkTotals totals = LedgerMath.milkTotals(
+        profile,
+        month: selectedMonth,
+        year: selectedYear,
+      );
+      final Color color = _tone(totals.netAmount);
+      return Scaffold(
+        body: Column(
+          children: <Widget>[
+            _ScreenHeader(
+              leading: const _BackCircle(),
+              title: widget.customerName,
+              color: color,
+              actions: <Widget>[
+                _DeleteActionButton(
+                  padding: const EdgeInsets.only(left: 6),
+                  semanticLabel: 'Delete customer and milk records',
+                  onTap: () => unawaited(_deleteProfile()),
                 ),
               ],
             ),
-          );
-        },
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: UIConstants.screenPadding,
+                children: <Widget>[
+                  _MonthYearPicker(
+                    month: selectedMonth,
+                    year: selectedYear,
+                    availablePeriods: availablePeriods,
+                    onChanged: (int month, int year) => setState(() {
+                      _month = month;
+                      _year = year;
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  _MilkDetailHero(
+                    amount: _signedMoney(totals.netAmount),
+                    totalKg: '${totals.netKg.abs().toStringAsFixed(2)} KG',
+                    color: color,
+                  ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(
+                    'Daily Entries',
+                    color: appleBlue,
+                    actions: <Widget>[
+                      _SoftShareButton(
+                        label: 'Share',
+                        icon: Icons.share_rounded,
+                        color: appleBlue,
+                        semanticLabel: 'Share this section as PDF',
+                        compact: false,
+                        onTap: () => unawaited(
+                          _ExportService.sharePdf(
+                            '${widget.customerName} Milk Bill',
+                            <String>[
+                              'Date',
+                              'Flow',
+                              'Morning',
+                              'Evening',
+                              'Total',
+                            ],
+                            records.map((Map<String, dynamic> row) {
+                              final double quantity = LedgerMath.milkQuantity(
+                                row,
+                              );
+                              final String flow = LedgerMath.milkFlow(
+                                row,
+                                profile,
+                              );
+                              return <String>[
+                                _displayDate(row['date']),
+                                flow,
+                                '${LedgerMath.number(row['morning']).toStringAsFixed(2)} KG',
+                                '${LedgerMath.number(row['evening']).toStringAsFixed(2)} KG',
+                                '${quantity.toStringAsFixed(2)} KG',
+                              ];
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _MiniAction(
+                        label: 'Add',
+                        icon: Icons.add_rounded,
+                        color: color,
+                        onTap: () => unawaited(_addEntry(profile)),
+                      ),
+                    ],
+                  ),
+                  if (records.isEmpty)
+                    const _EmptyState(
+                      Icons.water_drop_outlined,
+                      'No milk entries yet',
+                    )
+                  else
+                    _MilkRecordsTable(
+                      records: records,
+                      profile: profile,
+                      onDelete: (String id) => unawaited(_deleteEntry(id)),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
+    },
+  );
 }
 
 class _MilkDetailHero extends StatelessWidget {
@@ -5560,8 +5581,9 @@ class _MilkRecordsTable extends StatelessWidget {
               Container(
                 height: 48,
                 padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
-                color:
-                    dark ? Colors.white.withAlpha(7) : const Color(0xFFF9FBFE),
+                color: dark
+                    ? Colors.white.withAlpha(7)
+                    : const Color(0xFFF9FBFE),
                 child: Row(
                   children: <Widget>[
                     Expanded(
@@ -5618,19 +5640,19 @@ class _MilkTableHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: alignment,
-        child: Text(
-          label,
-          maxLines: 1,
-          style: TextStyle(
-            color: appleBlue,
-            fontSize: compact ? 9.2 : 10.5,
-            height: 1,
-            fontWeight: FontWeight.w700,
-            letterSpacing: compact ? .15 : .45,
-          ),
-        ),
-      );
+    alignment: alignment,
+    child: Text(
+      label,
+      maxLines: 1,
+      style: TextStyle(
+        color: appleBlue,
+        fontSize: compact ? 9.2 : 10.5,
+        height: 1,
+        fontWeight: FontWeight.w700,
+        letterSpacing: compact ? .15 : .45,
+      ),
+    ),
+  );
 }
 
 class _MilkTableRow extends StatelessWidget {
@@ -5777,21 +5799,21 @@ class _MilkValueCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            value,
-            maxLines: 1,
-            style: TextStyle(
-              color: color,
-              fontSize: compact ? 13 : (strong ? 16 : 15),
-              fontWeight: FontWeight.w700,
-              fontFeatures: AppStyles.tabularFigures,
-              letterSpacing: strong ? -.25 : 0,
-            ),
-          ),
+    child: FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        value,
+        maxLines: 1,
+        style: TextStyle(
+          color: color,
+          fontSize: compact ? 13 : (strong ? 16 : 15),
+          fontWeight: FontWeight.w700,
+          fontFeatures: AppStyles.tabularFigures,
+          letterSpacing: strong ? -.25 : 0,
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _MiniAction extends StatelessWidget {
@@ -5809,44 +5831,42 @@ class _MiniAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Pressable(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(UIConstants.compactRadius),
-        child: Container(
-          constraints:
-              const BoxConstraints(minHeight: UIConstants.minTapTarget),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: <Color>[color.withAlpha(35), color.withAlpha(17)],
-            ),
-            borderRadius: BorderRadius.circular(UIConstants.compactRadius),
-            border: Border.fromBorderSide(
-              AppStyles.hairline(context, accent: color, active: true),
-            ),
-            boxShadow: AppStyles.glow(context, color),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Icon(icon,
-                  size: 17, color: color, shadows: AppStyles.inkGlow(color)),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  shadows: AppStyles.inkGlow(color),
-                ),
-              ),
-            ],
-          ),
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(UIConstants.compactRadius),
+    child: Container(
+      constraints: const BoxConstraints(minHeight: UIConstants.minTapTarget),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[color.withAlpha(35), color.withAlpha(17)],
         ),
-      );
+        borderRadius: BorderRadius.circular(UIConstants.compactRadius),
+        border: Border.fromBorderSide(
+          AppStyles.hairline(context, accent: color, active: true),
+        ),
+        boxShadow: AppStyles.glow(context, color),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Icon(icon, size: 17, color: color, shadows: AppStyles.inkGlow(color)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              shadows: AppStyles.inkGlow(color),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _LedgerTableRowData {
@@ -5905,8 +5925,9 @@ class _LedgerTableCard extends StatelessWidget {
               Container(
                 constraints: const BoxConstraints(minHeight: 48),
                 padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14),
-                color:
-                    dark ? Colors.white.withAlpha(7) : const Color(0xFFF9FBFE),
+                color: dark
+                    ? Colors.white.withAlpha(7)
+                    : const Color(0xFFF9FBFE),
                 child: Row(
                   children: <Widget>[
                     for (int i = 0; i < headers.length; i++)
@@ -6070,23 +6091,23 @@ class _LedgerAmountCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: Alignment.centerLeft,
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            value,
-            maxLines: 1,
-            style: TextStyle(
-              color: color,
-              fontSize: 15.5,
-              fontWeight: FontWeight.w700,
-              fontFeatures: AppStyles.tabularFigures,
-              letterSpacing: -.25,
-            ),
-          ),
+    alignment: Alignment.centerLeft,
+    child: FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Text(
+        value,
+        maxLines: 1,
+        style: TextStyle(
+          color: color,
+          fontSize: 15.5,
+          fontWeight: FontWeight.w700,
+          fontFeatures: AppStyles.tabularFigures,
+          letterSpacing: -.25,
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _LedgerBadgeCell extends StatelessWidget {
@@ -6097,28 +6118,28 @@ class _LedgerBadgeCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-          decoration: BoxDecoration(
-            color: color.withAlpha(15),
-            borderRadius: BorderRadius.circular(9),
-            border: Border.all(color: color.withAlpha(52)),
-          ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: 9.8,
-              height: 1,
-              fontWeight: FontWeight.w700,
-              letterSpacing: .2,
-            ),
-          ),
+    alignment: Alignment.centerLeft,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withAlpha(15),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: color.withAlpha(52)),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontSize: 9.8,
+          height: 1,
+          fontWeight: FontWeight.w700,
+          letterSpacing: .2,
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _LedgerDetailCell extends StatelessWidget {
@@ -6134,26 +6155,26 @@ class _LedgerDetailCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: Alignment.centerLeft,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 5),
-            _LedgerBadgeCell(label: badge, color: color),
-          ],
+    alignment: Alignment.centerLeft,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: color,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
+          ),
         ),
-      );
+        const SizedBox(height: 5),
+        _LedgerBadgeCell(label: badge, color: color),
+      ],
+    ),
+  );
 }
 
 class SalaryScreen extends StatefulWidget {
@@ -6235,8 +6256,9 @@ class _SalaryScreenState extends State<SalaryScreen> {
       return;
     }
     final String personName = _cleanKey(name.text);
-    final String companyName =
-        company.text.trim().isEmpty ? '—' : company.text.trim();
+    final String companyName = company.text.trim().isEmpty
+        ? '—'
+        : company.text.trim();
     name.dispose();
     company.dispose();
     if (personName.isEmpty) {
@@ -6252,14 +6274,11 @@ class _SalaryScreenState extends State<SalaryScreen> {
     }
     await _runMutation(
       context,
-      () => widget.sync.write(
-          'salaryDB/$personName',
-          <String, dynamic>{
-            'company': companyName,
-            'type': type,
-            'records': <dynamic>[],
-          },
-          reason: 'salary-profile-create'),
+      () => widget.sync.write('salaryDB/$personName', <String, dynamic>{
+        'company': companyName,
+        'type': type,
+        'records': <dynamic>[],
+      }, reason: 'salary-profile-create'),
       type == 'lene_wala'
           ? 'Receiving salary profile added!'
           : 'Paying salary profile added!',
@@ -6271,14 +6290,16 @@ class _SalaryScreenState extends State<SalaryScreen> {
     final Map<String, dynamic> database = _map(widget.sync.state['salaryDB']);
     final LedgerProjection projection = widget.sync.currentProjection;
     final Color moduleColor = _tone(projection.salaryMonthNet);
-    final List<String> names = database.keys
-        .where(
-          (String name) => name.toLowerCase().contains(_query.toLowerCase()),
-        )
-        .toList()
-      ..sort(
-        (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
-      );
+    final List<String> names =
+        database.keys
+            .where(
+              (String name) =>
+                  name.toLowerCase().contains(_query.toLowerCase()),
+            )
+            .toList()
+          ..sort(
+            (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
+          );
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -6463,35 +6484,33 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: widget.sync,
-        builder: (BuildContext context, Widget? child) {
-          final Map<String, dynamic> database =
-              _map(widget.sync.state['salaryDB']);
-          if (database[widget.personName] is! Map) {
-            return const Scaffold(
-              body: Center(
-                child: _EmptyState(
-                  Icons.groups_rounded,
-                  'Profile no longer exists',
-                ),
-              ),
-            );
-          }
-          final Map<String, dynamic> profile =
-              _map(database[widget.personName]);
-          final List<Map<String, dynamic>> allRecords =
-              _rows(profile['records']);
-          final List<DateTime> availablePeriods = LedgerMath.recordPeriods(
-            allRecords,
-          );
-          final DateTime? selectedPeriod = LedgerMath.resolveRecordPeriod(
-            availablePeriods,
-            month: _month,
-            year: _year,
-          );
-          final int selectedMonth = selectedPeriod?.month ?? _month;
-          final int selectedYear = selectedPeriod?.year ?? _year;
-          final List<Map<String, dynamic>> records = allRecords
+    animation: widget.sync,
+    builder: (BuildContext context, Widget? child) {
+      final Map<String, dynamic> database = _map(widget.sync.state['salaryDB']);
+      if (database[widget.personName] is! Map) {
+        return const Scaffold(
+          body: Center(
+            child: _EmptyState(
+              Icons.groups_rounded,
+              'Profile no longer exists',
+            ),
+          ),
+        );
+      }
+      final Map<String, dynamic> profile = _map(database[widget.personName]);
+      final List<Map<String, dynamic>> allRecords = _rows(profile['records']);
+      final List<DateTime> availablePeriods = LedgerMath.recordPeriods(
+        allRecords,
+      );
+      final DateTime? selectedPeriod = LedgerMath.resolveRecordPeriod(
+        availablePeriods,
+        month: _month,
+        year: _year,
+      );
+      final int selectedMonth = selectedPeriod?.month ?? _month;
+      final int selectedYear = selectedPeriod?.year ?? _year;
+      final List<Map<String, dynamic>> records =
+          allRecords
               .where(
                 (Map<String, dynamic> row) =>
                     LedgerMath.inMonth(row, selectedMonth, selectedYear),
@@ -6501,126 +6520,125 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
               (Map<String, dynamic> a, Map<String, dynamic> b) =>
                   '${b['date']}'.compareTo('${a['date']}'),
             );
-          final double total = records.fold<double>(
-            0,
-            (double sum, Map<String, dynamic> row) =>
-                sum + LedgerMath.number(row['amount']),
-          );
-          final double signed = profile['type'] == 'lene_wala' ? total : -total;
-          final Color color = _tone(signed);
-          return Scaffold(
-            body: Column(
-              children: <Widget>[
-                _ScreenHeader(
-                  leading: const _BackCircle(),
-                  title: widget.personName,
-                  color: color,
-                  actions: <Widget>[
-                    _DeleteActionButton(
-                      padding: const EdgeInsets.only(left: 6),
-                      semanticLabel: 'Delete salary profile',
-                      onTap: () => unawaited(_deleteProfile()),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: UIConstants.screenPadding,
-                    children: <Widget>[
-                      _MonthYearPicker(
-                        month: selectedMonth,
-                        year: selectedYear,
-                        availablePeriods: availablePeriods,
-                        onChanged: (int month, int year) => setState(() {
-                          _month = month;
-                          _year = year;
-                        }),
-                      ),
-                      const SizedBox(height: 16),
-                      _AmountHero(
-                        label: 'Total Salary (This Month)',
-                        value: _signedMoney(signed),
-                        color: color,
-                      ),
-                      const SizedBox(height: 24),
-                      _SectionTitle(
-                        'Daily Entries',
-                        color: appleBlue,
-                        actions: <Widget>[
-                          _SoftShareButton(
-                            label: 'Share',
-                            icon: Icons.share_rounded,
-                            color: appleBlue,
-                            semanticLabel: 'Share this section as PDF',
-                            compact: false,
-                            onTap: () => unawaited(
-                              _ExportService.sharePdf(
-                                '${widget.personName} Salary',
-                                <String>['Date', 'Amount'],
-                                records
-                                    .map(
-                                      (Map<String, dynamic> row) => <String>[
-                                        _displayDate(row['date']),
-                                        _plainMoney(
-                                          (profile['type'] == 'lene_wala'
-                                                  ? 1
-                                                  : -1) *
-                                              LedgerMath.number(row['amount']),
-                                        ),
-                                      ],
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _MiniAction(
-                            label: 'Add',
-                            icon: Icons.add_rounded,
-                            color: color,
-                            onTap: () => unawaited(_addEntry(profile, color)),
-                          ),
-                        ],
-                      ),
-                      if (records.isEmpty)
-                        const _EmptyState(
-                          Icons.currency_rupee_rounded,
-                          'No salary entries yet',
-                        )
-                      else
-                        _LedgerTableCard(
-                          headers: const <String>['DATE', 'AMOUNT'],
-                          flexes: const <int>[42, 42],
-                          rows: records.map((Map<String, dynamic> row) {
-                            final double rowSigned =
-                                (profile['type'] == 'lene_wala' ? 1 : -1) *
-                                    LedgerMath.number(row['amount']);
-                            final Color rowColor = _tone(rowSigned);
-                            return _LedgerTableRowData(
-                              cells: <Widget>[
-                                _LedgerDateCell(
-                                    date: row['date'], color: rowColor),
-                                _LedgerAmountCell(
-                                  value: _signedMoney(rowSigned),
-                                  color: rowColor,
-                                ),
-                              ],
-                              onDelete: () =>
-                                  unawaited(_deleteEntry('${row['id']}')),
-                              semanticLabel:
-                                  'Delete ${_displayDate(row['date'])} salary entry',
-                            );
-                          }).toList(),
-                        ),
-                    ],
-                  ),
+      final double total = records.fold<double>(
+        0,
+        (double sum, Map<String, dynamic> row) =>
+            sum + LedgerMath.number(row['amount']),
+      );
+      final double signed = profile['type'] == 'lene_wala' ? total : -total;
+      final Color color = _tone(signed);
+      return Scaffold(
+        body: Column(
+          children: <Widget>[
+            _ScreenHeader(
+              leading: const _BackCircle(),
+              title: widget.personName,
+              color: color,
+              actions: <Widget>[
+                _DeleteActionButton(
+                  padding: const EdgeInsets.only(left: 6),
+                  semanticLabel: 'Delete salary profile',
+                  onTap: () => unawaited(_deleteProfile()),
                 ),
               ],
             ),
-          );
-        },
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: UIConstants.screenPadding,
+                children: <Widget>[
+                  _MonthYearPicker(
+                    month: selectedMonth,
+                    year: selectedYear,
+                    availablePeriods: availablePeriods,
+                    onChanged: (int month, int year) => setState(() {
+                      _month = month;
+                      _year = year;
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  _AmountHero(
+                    label: 'Total Salary (This Month)',
+                    value: _signedMoney(signed),
+                    color: color,
+                  ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(
+                    'Daily Entries',
+                    color: appleBlue,
+                    actions: <Widget>[
+                      _SoftShareButton(
+                        label: 'Share',
+                        icon: Icons.share_rounded,
+                        color: appleBlue,
+                        semanticLabel: 'Share this section as PDF',
+                        compact: false,
+                        onTap: () => unawaited(
+                          _ExportService.sharePdf(
+                            '${widget.personName} Salary',
+                            <String>['Date', 'Amount'],
+                            records
+                                .map(
+                                  (Map<String, dynamic> row) => <String>[
+                                    _displayDate(row['date']),
+                                    _plainMoney(
+                                      (profile['type'] == 'lene_wala'
+                                              ? 1
+                                              : -1) *
+                                          LedgerMath.number(row['amount']),
+                                    ),
+                                  ],
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _MiniAction(
+                        label: 'Add',
+                        icon: Icons.add_rounded,
+                        color: color,
+                        onTap: () => unawaited(_addEntry(profile, color)),
+                      ),
+                    ],
+                  ),
+                  if (records.isEmpty)
+                    const _EmptyState(
+                      Icons.currency_rupee_rounded,
+                      'No salary entries yet',
+                    )
+                  else
+                    _LedgerTableCard(
+                      headers: const <String>['DATE', 'AMOUNT'],
+                      flexes: const <int>[42, 42],
+                      rows: records.map((Map<String, dynamic> row) {
+                        final double rowSigned =
+                            (profile['type'] == 'lene_wala' ? 1 : -1) *
+                            LedgerMath.number(row['amount']);
+                        final Color rowColor = _tone(rowSigned);
+                        return _LedgerTableRowData(
+                          cells: <Widget>[
+                            _LedgerDateCell(date: row['date'], color: rowColor),
+                            _LedgerAmountCell(
+                              value: _signedMoney(rowSigned),
+                              color: rowColor,
+                            ),
+                          ],
+                          onDelete: () =>
+                              unawaited(_deleteEntry('${row['id']}')),
+                          semanticLabel:
+                              'Delete ${_displayDate(row['date'])} salary entry',
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
+    },
+  );
 }
 
 class CreditScreen extends StatefulWidget {
@@ -6647,64 +6665,64 @@ class _CreditScreenState extends State<CreditScreen> {
       StatefulBuilder(
         builder: (BuildContext sheetContext, StateSetter setSheetState) =>
             _SheetFrame(
-          title: 'Credit / Loan Entry',
-          children: <Widget>[
-            _DateField(controller: date),
-            const SizedBox(height: 12),
-            TextField(
-              controller: name,
-              readOnly: fixedName != null,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Person name',
-                prefixIcon: Icon(Icons.person_rounded),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: amount,
-              autofocus: fixedName != null,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-              ],
-              decoration: const InputDecoration(
-                labelText: 'Amount',
-                prefixText: '₹ ',
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
+              title: 'Credit / Loan Entry',
               children: <Widget>[
-                Expanded(
-                  child: _TransactionPairButton(
-                    label: 'Given',
-                    icon: Icons.add_rounded,
-                    color: appleGreen,
-                    onTap: () {
-                      type = 'credit';
-                      Navigator.pop(sheetContext, true);
-                    },
+                _DateField(controller: date),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: name,
+                  readOnly: fixedName != null,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Person name',
+                    prefixIcon: Icon(Icons.person_rounded),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _TransactionPairButton(
-                    label: 'Taken',
-                    icon: Icons.remove_rounded,
-                    color: appleRed,
-                    onTap: () {
-                      type = 'debit';
-                      Navigator.pop(sheetContext, true);
-                    },
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amount,
+                  autofocus: fixedName != null,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
                   ),
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'Amount',
+                    prefixText: '₹ ',
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _TransactionPairButton(
+                        label: 'Given',
+                        icon: Icons.add_rounded,
+                        color: appleGreen,
+                        onTap: () {
+                          type = 'credit';
+                          Navigator.pop(sheetContext, true);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _TransactionPairButton(
+                        label: 'Taken',
+                        icon: Icons.remove_rounded,
+                        color: appleRed,
+                        onTap: () {
+                          type = 'debit';
+                          Navigator.pop(sheetContext, true);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
       ),
     );
     if (save != true || !mounted) {
@@ -6732,16 +6750,13 @@ class _CreditScreenState extends State<CreditScreen> {
     final String id = _newId('udh');
     await _runMutation(
       context,
-      () => widget.sync.write(
-          'udharDB/$id',
-          <String, dynamic>{
-            'id': id,
-            'date': entryDate,
-            'name': person,
-            'amount': entryAmount,
-            'type': type,
-          },
-          reason: 'credit-entry-save'),
+      () => widget.sync.write('udharDB/$id', <String, dynamic>{
+        'id': id,
+        'date': entryDate,
+        'name': person,
+        'amount': entryAmount,
+        'type': type,
+      }, reason: 'credit-entry-save'),
       'Credit entry saved safely!',
     );
   }
@@ -6782,8 +6797,8 @@ class _CreditScreenState extends State<CreditScreen> {
                 label: net > 0
                     ? 'Net Balance / Profit'
                     : net < 0
-                        ? 'Net Balance / Loss'
-                        : 'Net Balance',
+                    ? 'Net Balance / Loss'
+                    : 'Net Balance',
                 value: _signedMoney(net),
                 color: balanceColor,
               ),
@@ -6804,7 +6819,11 @@ class _CreditScreenState extends State<CreditScreen> {
                   return _ListCard(
                     title: group.name,
                     subtitle:
-                        '${group.net > 0 ? 'To Receive' : group.net < 0 ? 'To Pay' : 'Settled'} • Last ${_displayDate(group.lastDate)}',
+                        '${group.net > 0
+                            ? 'To Receive'
+                            : group.net < 0
+                            ? 'To Pay'
+                            : 'Settled'} • Last ${_displayDate(group.lastDate)}',
                     icon: Icons.person_rounded,
                     color: color,
                     avatarText: group.name.trim().isEmpty
@@ -6918,16 +6937,13 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
     final String id = _newId('udh');
     await _runMutation(
       context,
-      () => widget.sync.write(
-          'udharDB/$id',
-          <String, dynamic>{
-            'id': id,
-            'date': entryDate,
-            'name': widget.personName,
-            'amount': entryAmount,
-            'type': type,
-          },
-          reason: 'credit-entry-save'),
+      () => widget.sync.write('udharDB/$id', <String, dynamic>{
+        'id': id,
+        'date': entryDate,
+        'name': widget.personName,
+        'amount': entryAmount,
+        'type': type,
+      }, reason: 'credit-entry-save'),
       type == 'credit' ? 'Given entry saved!' : 'Taken entry saved!',
     );
     final DateTime parsed = LedgerMath.strictDate(entryDate)!;
@@ -6981,26 +6997,27 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: widget.sync,
-        builder: (BuildContext context, Widget? child) {
-          final List<Map<String, dynamic>> allRecords =
-              _rows(widget.sync.state['udharDB'])
-                  .where(
-                    (Map<String, dynamic> row) =>
-                        LedgerMath.cleanName(row['name']) == widget.personName,
-                  )
-                  .toList();
-          final List<DateTime> availablePeriods = LedgerMath.recordPeriods(
-            allRecords,
-          );
-          final DateTime? selectedPeriod = LedgerMath.resolveRecordPeriod(
-            availablePeriods,
-            month: _month,
-            year: _year,
-          );
-          final int selectedMonth = selectedPeriod?.month ?? _month;
-          final int selectedYear = selectedPeriod?.year ?? _year;
-          final List<Map<String, dynamic>> records = allRecords
+    animation: widget.sync,
+    builder: (BuildContext context, Widget? child) {
+      final List<Map<String, dynamic>> allRecords =
+          _rows(widget.sync.state['udharDB'])
+              .where(
+                (Map<String, dynamic> row) =>
+                    LedgerMath.cleanName(row['name']) == widget.personName,
+              )
+              .toList();
+      final List<DateTime> availablePeriods = LedgerMath.recordPeriods(
+        allRecords,
+      );
+      final DateTime? selectedPeriod = LedgerMath.resolveRecordPeriod(
+        availablePeriods,
+        month: _month,
+        year: _year,
+      );
+      final int selectedMonth = selectedPeriod?.month ?? _month;
+      final int selectedYear = selectedPeriod?.year ?? _year;
+      final List<Map<String, dynamic>> records =
+          allRecords
               .where(
                 (Map<String, dynamic> row) =>
                     LedgerMath.inMonth(row, selectedMonth, selectedYear),
@@ -7010,130 +7027,128 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
               (Map<String, dynamic> a, Map<String, dynamic> b) =>
                   '${b['date']}'.compareTo('${a['date']}'),
             );
-          final double net = records.fold<double>(
-            0,
-            (double sum, Map<String, dynamic> row) =>
-                sum + LedgerMath.creditSigned(row),
-          );
-          final Color color = _tone(net);
-          return Scaffold(
-            body: Column(
-              children: <Widget>[
-                _ScreenHeader(
-                  leading: const _BackCircle(),
-                  title: widget.personName,
-                  color: color,
-                  actions: <Widget>[
-                    _DeleteActionButton(
-                      padding: const EdgeInsets.only(left: 6),
-                      semanticLabel: 'Delete credit profile',
-                      onTap: () => unawaited(_deleteProfile(allRecords)),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: UIConstants.screenPadding,
-                    children: <Widget>[
-                      _MonthYearPicker(
-                        month: selectedMonth,
-                        year: selectedYear,
-                        availablePeriods: availablePeriods,
-                        onChanged: (int month, int year) => setState(() {
-                          _month = month;
-                          _year = year;
-                        }),
-                      ),
-                      const SizedBox(height: 16),
-                      _AmountHero(
-                        label: net > 0
-                            ? 'To Receive'
-                            : net < 0
-                                ? 'To Pay'
-                                : 'Net Balance',
-                        value: _signedMoney(net),
-                        color: color,
-                      ),
-                      const SizedBox(height: 24),
-                      _SectionTitle(
-                        'Credit Entries',
-                        color: appleBlue,
-                        actions: <Widget>[
-                          _SoftShareButton(
-                            label: 'Share',
-                            icon: Icons.share_rounded,
-                            color: appleBlue,
-                            semanticLabel: 'Share this section as PDF',
-                            compact: false,
-                            onTap: () => unawaited(
-                              _ExportService.sharePdf(
-                                '${widget.personName} Credit Ledger',
-                                <String>['Date', 'Type', 'Amount'],
-                                records
-                                    .map(
-                                      (Map<String, dynamic> row) => <String>[
-                                        _displayDate(row['date']),
-                                        LedgerMath.creditSigned(row) >= 0
-                                            ? 'Given'
-                                            : 'Taken',
-                                        _plainMoney(
-                                            LedgerMath.creditSigned(row)),
-                                      ],
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _MiniAction(
-                            label: 'Add',
-                            icon: Icons.add_rounded,
-                            color: appleGreen,
-                            onTap: () => unawaited(_addEntry()),
-                          ),
-                        ],
-                      ),
-                      if (records.isEmpty)
-                        const _EmptyState(
-                          Icons.account_balance_wallet_outlined,
-                          'No credit entries yet',
-                        )
-                      else
-                        _LedgerTableCard(
-                          headers: const <String>['DATE', 'DETAIL', 'AMOUNT'],
-                          flexes: const <int>[29, 28, 31],
-                          rows: records.map((Map<String, dynamic> row) {
-                            final double signed = LedgerMath.creditSigned(row);
-                            final Color rowColor = _tone(signed);
-                            return _LedgerTableRowData(
-                              cells: <Widget>[
-                                _LedgerDateCell(
-                                    date: row['date'], color: rowColor),
-                                _LedgerBadgeCell(
-                                  label: signed >= 0 ? 'GIVEN' : 'TAKEN',
-                                  color: rowColor,
-                                ),
-                                _LedgerAmountCell(
-                                  value: _signedMoney(signed),
-                                  color: rowColor,
-                                ),
-                              ],
-                              onDelete: () =>
-                                  unawaited(_deleteEntry('${row['id']}')),
-                              semanticLabel:
-                                  'Delete ${_displayDate(row['date'])} credit entry',
-                            );
-                          }).toList(),
-                        ),
-                    ],
-                  ),
+      final double net = records.fold<double>(
+        0,
+        (double sum, Map<String, dynamic> row) =>
+            sum + LedgerMath.creditSigned(row),
+      );
+      final Color color = _tone(net);
+      return Scaffold(
+        body: Column(
+          children: <Widget>[
+            _ScreenHeader(
+              leading: const _BackCircle(),
+              title: widget.personName,
+              color: color,
+              actions: <Widget>[
+                _DeleteActionButton(
+                  padding: const EdgeInsets.only(left: 6),
+                  semanticLabel: 'Delete credit profile',
+                  onTap: () => unawaited(_deleteProfile(allRecords)),
                 ),
               ],
             ),
-          );
-        },
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: UIConstants.screenPadding,
+                children: <Widget>[
+                  _MonthYearPicker(
+                    month: selectedMonth,
+                    year: selectedYear,
+                    availablePeriods: availablePeriods,
+                    onChanged: (int month, int year) => setState(() {
+                      _month = month;
+                      _year = year;
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  _AmountHero(
+                    label: net > 0
+                        ? 'To Receive'
+                        : net < 0
+                        ? 'To Pay'
+                        : 'Net Balance',
+                    value: _signedMoney(net),
+                    color: color,
+                  ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(
+                    'Credit Entries',
+                    color: appleBlue,
+                    actions: <Widget>[
+                      _SoftShareButton(
+                        label: 'Share',
+                        icon: Icons.share_rounded,
+                        color: appleBlue,
+                        semanticLabel: 'Share this section as PDF',
+                        compact: false,
+                        onTap: () => unawaited(
+                          _ExportService.sharePdf(
+                            '${widget.personName} Credit Ledger',
+                            <String>['Date', 'Type', 'Amount'],
+                            records
+                                .map(
+                                  (Map<String, dynamic> row) => <String>[
+                                    _displayDate(row['date']),
+                                    LedgerMath.creditSigned(row) >= 0
+                                        ? 'Given'
+                                        : 'Taken',
+                                    _plainMoney(LedgerMath.creditSigned(row)),
+                                  ],
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _MiniAction(
+                        label: 'Add',
+                        icon: Icons.add_rounded,
+                        color: appleGreen,
+                        onTap: () => unawaited(_addEntry()),
+                      ),
+                    ],
+                  ),
+                  if (records.isEmpty)
+                    const _EmptyState(
+                      Icons.account_balance_wallet_outlined,
+                      'No credit entries yet',
+                    )
+                  else
+                    _LedgerTableCard(
+                      headers: const <String>['DATE', 'DETAIL', 'AMOUNT'],
+                      flexes: const <int>[29, 28, 31],
+                      rows: records.map((Map<String, dynamic> row) {
+                        final double signed = LedgerMath.creditSigned(row);
+                        final Color rowColor = _tone(signed);
+                        return _LedgerTableRowData(
+                          cells: <Widget>[
+                            _LedgerDateCell(date: row['date'], color: rowColor),
+                            _LedgerBadgeCell(
+                              label: signed >= 0 ? 'GIVEN' : 'TAKEN',
+                              color: rowColor,
+                            ),
+                            _LedgerAmountCell(
+                              value: _signedMoney(signed),
+                              color: rowColor,
+                            ),
+                          ],
+                          onDelete: () =>
+                              unawaited(_deleteEntry('${row['id']}')),
+                          semanticLabel:
+                              'Delete ${_displayDate(row['date'])} credit entry',
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
+    },
+  );
 }
 
 class ExpenseScreen extends StatefulWidget {
@@ -7150,12 +7165,11 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     final DateTime now = DateTime.now();
     final List<Map<String, dynamic>> records =
         _rows(widget.sync.state['expenseDB']).where((Map<String, dynamic> row) {
-      return LedgerMath.inMonth(row, now.month, now.year);
-    }).toList()
-          ..sort(
-            (Map<String, dynamic> a, Map<String, dynamic> b) =>
-                '${b['date'] ?? ''}'.compareTo('${a['date'] ?? ''}'),
-          );
+          return LedgerMath.inMonth(row, now.month, now.year);
+        }).toList()..sort(
+          (Map<String, dynamic> a, Map<String, dynamic> b) =>
+              '${b['date'] ?? ''}'.compareTo('${a['date'] ?? ''}'),
+        );
     await _ExportService.sharePdf(
       'Monthly Expenses - ${DateFormat('MMMM yyyy').format(now)}',
       <String>['Date', 'Category', 'Amount'],
@@ -7224,8 +7238,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       return;
     }
     final String entryDate = date.text.trim();
-    final String entryCategory =
-        _cleanKey(category.text).isEmpty ? 'Other' : _cleanKey(category.text);
+    final String entryCategory = _cleanKey(category.text).isEmpty
+        ? 'Other'
+        : _cleanKey(category.text);
     final double entryAmount = double.tryParse(amount.text) ?? 0;
     date.dispose();
     category.dispose();
@@ -7237,15 +7252,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     final String id = _newId('exp');
     await _runMutation(
       context,
-      () => widget.sync.write(
-          'expenseDB/$id',
-          <String, dynamic>{
-            'id': id,
-            'date': entryDate,
-            'category': entryCategory,
-            'amount': entryAmount,
-          },
-          reason: 'expense-entry-save'),
+      () => widget.sync.write('expenseDB/$id', <String, dynamic>{
+        'id': id,
+        'date': entryDate,
+        'category': entryCategory,
+        'amount': entryAmount,
+      }, reason: 'expense-entry-save'),
       'Expense saved safely!',
     );
   }
@@ -7382,15 +7394,12 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     final String id = _newId('exp');
     await _runMutation(
       context,
-      () => widget.sync.write(
-          'expenseDB/$id',
-          <String, dynamic>{
-            'id': id,
-            'date': entryDate,
-            'category': widget.category,
-            'amount': entryAmount,
-          },
-          reason: 'expense-entry-save'),
+      () => widget.sync.write('expenseDB/$id', <String, dynamic>{
+        'id': id,
+        'date': entryDate,
+        'category': widget.category,
+        'amount': entryAmount,
+      }, reason: 'expense-entry-save'),
       'Expense saved safely!',
     );
     final DateTime parsed = LedgerMath.strictDate(entryDate)!;
@@ -7450,27 +7459,28 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: widget.sync,
-        builder: (BuildContext context, Widget? child) {
-          final List<Map<String, dynamic>> allRecords =
-              _rows(widget.sync.state['expenseDB'])
-                  .where(
-                    (Map<String, dynamic> row) =>
-                        _cleanKey(row['category']).toLowerCase() ==
-                        widget.category.toLowerCase(),
-                  )
-                  .toList();
-          final List<DateTime> availablePeriods = LedgerMath.recordPeriods(
-            allRecords,
-          );
-          final DateTime? selectedPeriod = LedgerMath.resolveRecordPeriod(
-            availablePeriods,
-            month: _month,
-            year: _year,
-          );
-          final int selectedMonth = selectedPeriod?.month ?? _month;
-          final int selectedYear = selectedPeriod?.year ?? _year;
-          final List<Map<String, dynamic>> records = allRecords
+    animation: widget.sync,
+    builder: (BuildContext context, Widget? child) {
+      final List<Map<String, dynamic>> allRecords =
+          _rows(widget.sync.state['expenseDB'])
+              .where(
+                (Map<String, dynamic> row) =>
+                    _cleanKey(row['category']).toLowerCase() ==
+                    widget.category.toLowerCase(),
+              )
+              .toList();
+      final List<DateTime> availablePeriods = LedgerMath.recordPeriods(
+        allRecords,
+      );
+      final DateTime? selectedPeriod = LedgerMath.resolveRecordPeriod(
+        availablePeriods,
+        month: _month,
+        year: _year,
+      );
+      final int selectedMonth = selectedPeriod?.month ?? _month;
+      final int selectedYear = selectedPeriod?.year ?? _year;
+      final List<Map<String, dynamic>> records =
+          allRecords
               .where(
                 (Map<String, dynamic> row) =>
                     LedgerMath.inMonth(row, selectedMonth, selectedYear),
@@ -7480,121 +7490,120 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
               (Map<String, dynamic> a, Map<String, dynamic> b) =>
                   '${b['date']}'.compareTo('${a['date']}'),
             );
-          final double total = records.fold<double>(
-            0,
-            (double sum, Map<String, dynamic> row) =>
-                sum + LedgerMath.number(row['amount']).abs(),
-          );
-          final Color detailColor = _expenseToneForTotal(total);
-          return Scaffold(
-            body: Column(
-              children: <Widget>[
-                _ScreenHeader(
-                  leading: const _BackCircle(),
-                  title: widget.category,
-                  color: detailColor,
-                  actions: <Widget>[
-                    _DeleteActionButton(
-                      padding: const EdgeInsets.only(left: 6),
-                      semanticLabel: 'Delete expense category',
-                      onTap: () => unawaited(_deleteCategory(allRecords)),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: UIConstants.screenPadding,
-                    children: <Widget>[
-                      _MonthYearPicker(
-                        month: selectedMonth,
-                        year: selectedYear,
-                        availablePeriods: availablePeriods,
-                        onChanged: (int month, int year) => setState(() {
-                          _month = month;
-                          _year = year;
-                        }),
-                      ),
-                      const SizedBox(height: 16),
-                      _AmountHero(
-                        label: 'Category Total',
-                        value: '-${_money(total)}',
-                        color: detailColor,
-                      ),
-                      const SizedBox(height: 24),
-                      _SectionTitle(
-                        'Expense Entries',
-                        color: appleBlue,
-                        actions: <Widget>[
-                          _SoftShareButton(
-                            label: 'Share',
-                            icon: Icons.share_rounded,
-                            color: appleBlue,
-                            semanticLabel: 'Share this section as PDF',
-                            compact: false,
-                            onTap: () => unawaited(
-                              _ExportService.sharePdf(
-                                '${widget.category} Expenses',
-                                <String>['Date', 'Amount'],
-                                records
-                                    .map(
-                                      (Map<String, dynamic> row) => <String>[
-                                        _displayDate(row['date']),
-                                        '-${_plainMoney(row['amount'])}',
-                                      ],
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _MiniAction(
-                            label: 'Add',
-                            icon: Icons.add_rounded,
-                            color: semanticRed,
-                            onTap: () => unawaited(_addExpense()),
-                          ),
-                        ],
-                      ),
-                      if (records.isEmpty)
-                        const _EmptyState(
-                          premiumExpenseIcon,
-                          'No expense entries yet',
-                        )
-                      else
-                        _LedgerTableCard(
-                          headers: const <String>['DATE', 'AMOUNT'],
-                          flexes: const <int>[42, 42],
-                          rows: records
-                              .map(
-                                (Map<String, dynamic> row) =>
-                                    _LedgerTableRowData(
-                                  cells: <Widget>[
-                                    _LedgerDateCell(
-                                      date: row['date'],
-                                      color: semanticRed,
-                                    ),
-                                    _LedgerAmountCell(
-                                      value: '-${_money(row['amount'])}',
-                                      color: semanticRed,
-                                    ),
-                                  ],
-                                  onDelete: () =>
-                                      unawaited(_deleteEntry('${row['id']}')),
-                                  semanticLabel:
-                                      'Delete ${_displayDate(row['date'])} expense entry',
-                                ),
-                              )
-                              .toList(),
-                        ),
-                    ],
-                  ),
+      final double total = records.fold<double>(
+        0,
+        (double sum, Map<String, dynamic> row) =>
+            sum + LedgerMath.number(row['amount']).abs(),
+      );
+      final Color detailColor = _expenseToneForTotal(total);
+      return Scaffold(
+        body: Column(
+          children: <Widget>[
+            _ScreenHeader(
+              leading: const _BackCircle(),
+              title: widget.category,
+              color: detailColor,
+              actions: <Widget>[
+                _DeleteActionButton(
+                  padding: const EdgeInsets.only(left: 6),
+                  semanticLabel: 'Delete expense category',
+                  onTap: () => unawaited(_deleteCategory(allRecords)),
                 ),
               ],
             ),
-          );
-        },
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: UIConstants.screenPadding,
+                children: <Widget>[
+                  _MonthYearPicker(
+                    month: selectedMonth,
+                    year: selectedYear,
+                    availablePeriods: availablePeriods,
+                    onChanged: (int month, int year) => setState(() {
+                      _month = month;
+                      _year = year;
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  _AmountHero(
+                    label: 'Category Total',
+                    value: '-${_money(total)}',
+                    color: detailColor,
+                  ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(
+                    'Expense Entries',
+                    color: appleBlue,
+                    actions: <Widget>[
+                      _SoftShareButton(
+                        label: 'Share',
+                        icon: Icons.share_rounded,
+                        color: appleBlue,
+                        semanticLabel: 'Share this section as PDF',
+                        compact: false,
+                        onTap: () => unawaited(
+                          _ExportService.sharePdf(
+                            '${widget.category} Expenses',
+                            <String>['Date', 'Amount'],
+                            records
+                                .map(
+                                  (Map<String, dynamic> row) => <String>[
+                                    _displayDate(row['date']),
+                                    '-${_plainMoney(row['amount'])}',
+                                  ],
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _MiniAction(
+                        label: 'Add',
+                        icon: Icons.add_rounded,
+                        color: semanticRed,
+                        onTap: () => unawaited(_addExpense()),
+                      ),
+                    ],
+                  ),
+                  if (records.isEmpty)
+                    const _EmptyState(
+                      premiumExpenseIcon,
+                      'No expense entries yet',
+                    )
+                  else
+                    _LedgerTableCard(
+                      headers: const <String>['DATE', 'AMOUNT'],
+                      flexes: const <int>[42, 42],
+                      rows: records
+                          .map(
+                            (Map<String, dynamic> row) => _LedgerTableRowData(
+                              cells: <Widget>[
+                                _LedgerDateCell(
+                                  date: row['date'],
+                                  color: semanticRed,
+                                ),
+                                _LedgerAmountCell(
+                                  value: '-${_money(row['amount'])}',
+                                  color: semanticRed,
+                                ),
+                              ],
+                              onDelete: () =>
+                                  unawaited(_deleteEntry('${row['id']}')),
+                              semanticLabel:
+                                  'Delete ${_displayDate(row['date'])} expense entry',
+                            ),
+                          )
+                          .toList(),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
+    },
+  );
 }
 
 const int _diaryTitleMaxLength = 500;
@@ -7634,8 +7643,9 @@ class _DiaryEditorSheetState extends State<_DiaryEditorSheet> {
     _content = TextEditingController(
       text: '${widget.existing?['content'] ?? ''}',
     );
-    _entryId =
-        widget.existing == null ? _newId('dia') : '${widget.existing!['id']}';
+    _entryId = widget.existing == null
+        ? _newId('dia')
+        : '${widget.existing!['id']}';
   }
 
   @override
@@ -7674,8 +7684,9 @@ class _DiaryEditorSheetState extends State<_DiaryEditorSheet> {
     FocusScope.of(context).unfocus();
     final String entryDate = _date.text.trim();
     final DateTime? parsedDate = LedgerMath.strictDate(entryDate);
-    final String entryTitle =
-        _title.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final String entryTitle = _title.text
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
     final String entryContent = _cleanDiaryContent(_content.text);
     if (parsedDate == null || entryContent.isEmpty) {
       setState(() {
@@ -7702,8 +7713,9 @@ class _DiaryEditorSheetState extends State<_DiaryEditorSheet> {
           'content': entryContent,
           'updated': DateTime.now().millisecondsSinceEpoch,
         },
-        reason:
-            widget.existing == null ? 'diary-entry-save' : 'diary-entry-update',
+        reason: widget.existing == null
+            ? 'diary-entry-save'
+            : 'diary-entry-update',
       );
       HapticFeedback.successNotification();
       if (mounted) Navigator.pop(context, parsedDate);
@@ -7719,64 +7731,64 @@ class _DiaryEditorSheetState extends State<_DiaryEditorSheet> {
 
   @override
   Widget build(BuildContext context) => _SheetFrame(
-        title: widget.existing == null ? 'New Diary Page' : 'Edit Page',
-        children: <Widget>[
-          _DateField(controller: _date),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _title,
-            textCapitalization: TextCapitalization.sentences,
-            textInputAction: TextInputAction.next,
-            inputFormatters: <TextInputFormatter>[
-              LengthLimitingTextInputFormatter(_diaryTitleMaxLength),
-            ],
-            decoration: const InputDecoration(
-              labelText: 'Title',
-              prefixIcon: Icon(Icons.title_rounded),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _content,
-            autofocus: widget.existing == null,
-            minLines: 7,
-            maxLines: 14,
-            textCapitalization: TextCapitalization.sentences,
-            inputFormatters: <TextInputFormatter>[
-              LengthLimitingTextInputFormatter(_diaryContentMaxLength),
-            ],
-            decoration: const InputDecoration(
-              labelText: 'Write your diary…',
-              alignLabelWithHint: true,
-            ),
-          ),
-          if (_error != null) ...<Widget>[
-            const SizedBox(height: 12),
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                _error!,
-                style: const TextStyle(
-                  color: appleRed,
-                  fontSize: 12,
-                  height: 1.35,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 20),
-          IgnorePointer(
-            ignoring: _saving,
-            child: _PrimaryButton(
-              label: _saving ? 'Saving…' : 'Save Page',
-              color: diaryOrange,
-              icon: _saving ? Icons.sync_rounded : Icons.save_rounded,
-              onTap: () => unawaited(_submit()),
-            ),
-          ),
+    title: widget.existing == null ? 'New Diary Page' : 'Edit Page',
+    children: <Widget>[
+      _DateField(controller: _date),
+      const SizedBox(height: 12),
+      TextField(
+        controller: _title,
+        textCapitalization: TextCapitalization.sentences,
+        textInputAction: TextInputAction.next,
+        inputFormatters: <TextInputFormatter>[
+          LengthLimitingTextInputFormatter(_diaryTitleMaxLength),
         ],
-      );
+        decoration: const InputDecoration(
+          labelText: 'Title',
+          prefixIcon: Icon(Icons.title_rounded),
+        ),
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: _content,
+        autofocus: widget.existing == null,
+        minLines: 7,
+        maxLines: 14,
+        textCapitalization: TextCapitalization.sentences,
+        inputFormatters: <TextInputFormatter>[
+          LengthLimitingTextInputFormatter(_diaryContentMaxLength),
+        ],
+        decoration: const InputDecoration(
+          labelText: 'Write your diary…',
+          alignLabelWithHint: true,
+        ),
+      ),
+      if (_error != null) ...<Widget>[
+        const SizedBox(height: 12),
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            _error!,
+            style: const TextStyle(
+              color: appleRed,
+              fontSize: 12,
+              height: 1.35,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+      const SizedBox(height: 20),
+      IgnorePointer(
+        ignoring: _saving,
+        child: _PrimaryButton(
+          label: _saving ? 'Saving…' : 'Save Page',
+          color: diaryOrange,
+          icon: _saving ? Icons.sync_rounded : Icons.save_rounded,
+          onTap: () => unawaited(_submit()),
+        ),
+      ),
+    ],
+  );
 }
 
 Future<DateTime?> _saveDiarySheet(
@@ -7858,9 +7870,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final List<Map<String, dynamic>> dated = <Map<String, dynamic>>[];
     final List<Map<String, dynamic>> needsDate = <Map<String, dynamic>>[];
     for (final Map<String, dynamic> row in _allEntries) {
-      final String haystack = '${row['title'] ?? ''} ${row['content'] ?? ''} '
-              '${row['date'] ?? ''} ${_displayDate(row['date'])}'
-          .toLowerCase();
+      final String haystack =
+          '${row['title'] ?? ''} ${row['content'] ?? ''} '
+                  '${row['date'] ?? ''} ${_displayDate(row['date'])}'
+              .toLowerCase();
       if (!words.every(haystack.contains)) continue;
       if (LedgerMath.strictDate(row['date']) == null) {
         needsDate.add(row);
@@ -7871,12 +7884,12 @@ class _DiaryScreenState extends State<DiaryScreen> {
     dated.sort((Map<String, dynamic> a, Map<String, dynamic> b) {
       final int byDate =
           (LedgerMath.date(b['date'])?.millisecondsSinceEpoch ?? -1).compareTo(
-        LedgerMath.date(a['date'])?.millisecondsSinceEpoch ?? -1,
-      );
+            LedgerMath.date(a['date'])?.millisecondsSinceEpoch ?? -1,
+          );
       return byDate != 0
           ? byDate
           : LedgerMath.number(b['updated'])
-              .compareTo(LedgerMath.number(a['updated']));
+                .compareTo(LedgerMath.number(a['updated']));
     });
     needsDate.sort((Map<String, dynamic> a, Map<String, dynamic> b) {
       final int byUpdated = LedgerMath.number(b['updated'])
@@ -7918,8 +7931,9 @@ class _DiaryScreenState extends State<DiaryScreen> {
   }
 
   Widget _diaryEntryCard(Map<String, dynamic> entry, {bool needsDate = false}) {
-    final String preview =
-        '${entry['content'] ?? ''}'.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final String preview = '${entry['content'] ?? ''}'
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
     final String entryTitle = '${entry['title'] ?? 'Untitled'}';
     final String dateLabel = needsDate
         ? 'DATE NEEDS CORRECTION'
@@ -8044,14 +8058,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final int contentItemCount = loading
         ? 1
         : hasVisibleEntries
-            ? entries.length +
-                (needsDateEntries.isEmpty ? 0 : needsDateEntries.length + 1)
-            : 1;
+        ? entries.length +
+              (needsDateEntries.isEmpty ? 0 : needsDateEntries.length + 1)
+        : 1;
     final String emptyMessage = allEntries.isEmpty
         ? 'No diary pages yet'
         : _query.trim().isNotEmpty
-            ? 'No matching diary pages'
-            : 'No diary pages found';
+        ? 'No matching diary pages'
+        : 'No diary pages found';
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -8242,106 +8256,106 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: widget.sync,
-        builder: (BuildContext context, Widget? child) {
-          Map<String, dynamic>? entry;
-          for (final Map<String, dynamic> row in _rows(
-            widget.sync.state['diaryDB'],
-          )) {
-            if ('${row['id']}' == widget.entryId) {
-              entry = row;
-              break;
-            }
-          }
-          if (entry == null) {
-            return const Scaffold(
-              body: Center(
-                child: _EmptyState(
-                  Icons.auto_stories_rounded,
-                  'Diary page no longer exists',
-                ),
-              ),
-            );
-          }
-          final Map<String, dynamic> current = entry;
-          return Scaffold(
-            body: Column(
-              children: <Widget>[
-                _ScreenHeader(
-                  leading: const _BackCircle(),
-                  title: '${current['title'] ?? 'Untitled'}',
+    animation: widget.sync,
+    builder: (BuildContext context, Widget? child) {
+      Map<String, dynamic>? entry;
+      for (final Map<String, dynamic> row in _rows(
+        widget.sync.state['diaryDB'],
+      )) {
+        if ('${row['id']}' == widget.entryId) {
+          entry = row;
+          break;
+        }
+      }
+      if (entry == null) {
+        return const Scaffold(
+          body: Center(
+            child: _EmptyState(
+              Icons.auto_stories_rounded,
+              'Diary page no longer exists',
+            ),
+          ),
+        );
+      }
+      final Map<String, dynamic> current = entry;
+      return Scaffold(
+        body: Column(
+          children: <Widget>[
+            _ScreenHeader(
+              leading: const _BackCircle(),
+              title: '${current['title'] ?? 'Untitled'}',
+              color: diaryOrange,
+              actions: <Widget>[
+                _CircleAction(
+                  icon: Icons.edit_rounded,
                   color: diaryOrange,
-                  actions: <Widget>[
-                    _CircleAction(
-                      icon: Icons.edit_rounded,
-                      color: diaryOrange,
-                      semanticLabel: 'Edit diary page',
-                      onTap: () => unawaited(_edit(context, current)),
-                    ),
-                    _CircleAction(
-                      icon: Icons.share_rounded,
-                      color: appleBlue,
-                      semanticLabel: 'Share diary page',
-                      onTap: () => unawaited(_share(context, current)),
-                    ),
-                    _DeleteActionButton(
-                      padding: const EdgeInsets.only(left: 6),
-                      semanticLabel: 'Delete diary page',
-                      onTap: () => unawaited(_delete(context)),
-                    ),
-                  ],
+                  semanticLabel: 'Edit diary page',
+                  onTap: () => unawaited(_edit(context, current)),
                 ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: UIConstants.screenPadding,
-                    child: _GlassCard(
-                      borderColor: diaryOrange.withAlpha(65),
-                      shadowColor: diaryOrange.withAlpha(35),
-                      tintColor: diaryOrange,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            '${current['title'] ?? 'Untitled'}',
-                            style: const TextStyle(
-                              color: diaryOrange,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -.35,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            _displayDate(current['date']).toUpperCase(),
-                            style: const TextStyle(
-                              color: diaryOrange,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          SelectableText(
-                            '${current['content'] ?? ''}',
-                            style: const TextStyle(
-                              color: diaryOrange,
-                              fontSize: 17,
-                              height: 1.9,
-                              fontStyle: FontStyle.italic,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                _CircleAction(
+                  icon: Icons.share_rounded,
+                  color: appleBlue,
+                  semanticLabel: 'Share diary page',
+                  onTap: () => unawaited(_share(context, current)),
+                ),
+                _DeleteActionButton(
+                  padding: const EdgeInsets.only(left: 6),
+                  semanticLabel: 'Delete diary page',
+                  onTap: () => unawaited(_delete(context)),
                 ),
               ],
             ),
-          );
-        },
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: UIConstants.screenPadding,
+                child: _GlassCard(
+                  borderColor: diaryOrange.withAlpha(65),
+                  shadowColor: diaryOrange.withAlpha(35),
+                  tintColor: diaryOrange,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        '${current['title'] ?? 'Untitled'}',
+                        style: const TextStyle(
+                          color: diaryOrange,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -.35,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        _displayDate(current['date']).toUpperCase(),
+                        style: const TextStyle(
+                          color: diaryOrange,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SelectableText(
+                        '${current['content'] ?? ''}',
+                        style: const TextStyle(
+                          color: diaryOrange,
+                          fontSize: 17,
+                          height: 1.9,
+                          fontStyle: FontStyle.italic,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       );
+    },
+  );
 }
 
 class _BusinessTone {
@@ -8436,14 +8450,11 @@ class _BusinessScreenState extends State<BusinessScreen> {
     }
     await _runMutation(
       context,
-      () => widget.sync.write(
-          'projectDB/$project',
-          <String, dynamic>{
-            'records': <dynamic>[],
-            'created': DateTime.now().millisecondsSinceEpoch,
-            'safeKeyCore': true,
-          },
-          reason: 'business-project-create'),
+      () => widget.sync.write('projectDB/$project', <String, dynamic>{
+        'records': <dynamic>[],
+        'created': DateTime.now().millisecondsSinceEpoch,
+        'safeKeyCore': true,
+      }, reason: 'business-project-create'),
       'Business account created!',
     );
   }
@@ -8473,14 +8484,16 @@ class _BusinessScreenState extends State<BusinessScreen> {
     final Map<String, dynamic> database = _map(widget.sync.state['projectDB']);
     final Map<String, int> recordCounts =
         widget.sync.currentProjection.businessRecordCounts;
-    final List<String> names = database.keys
-        .where(
-          (String name) => name.toLowerCase().contains(_query.toLowerCase()),
-        )
-        .toList()
-      ..sort(
-        (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
-      );
+    final List<String> names =
+        database.keys
+            .where(
+              (String name) =>
+                  name.toLowerCase().contains(_query.toLowerCase()),
+            )
+            .toList()
+          ..sort(
+            (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
+          );
     return Column(
       children: <Widget>[
         _ScreenHeader(
@@ -8556,69 +8569,69 @@ class BusinessDetailScreen extends StatelessWidget {
       StatefulBuilder(
         builder: (BuildContext sheetContext, StateSetter setSheetState) =>
             _SheetFrame(
-          title: 'Business Entry',
-          children: <Widget>[
-            _DateField(controller: date),
-            const SizedBox(height: 12),
-            TextField(
-              controller: title,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Detail / title',
-                prefixIcon: Icon(Icons.notes_rounded),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: amount,
-              autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              title: 'Business Entry',
+              children: <Widget>[
+                _DateField(controller: date),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: title,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Detail / title',
+                    prefixIcon: Icon(Icons.notes_rounded),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amount,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'Amount',
+                    prefixText: '₹ ',
+                  ),
+                ),
+                const SizedBox(height: 15),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _businessTones.entries
+                      .map(
+                        (MapEntry<String, _BusinessTone> entry) => ChoiceChip(
+                          selected: tone == entry.key,
+                          label: Text(entry.value.badge),
+                          avatar: Icon(
+                            entry.value.icon,
+                            size: 16,
+                            color: entry.value.color,
+                          ),
+                          selectedColor: entry.value.color.withAlpha(45),
+                          shape: const StadiumBorder(),
+                          showCheckmark: false,
+                          side: BorderSide(
+                            color: entry.value.color.withAlpha(70),
+                          ),
+                          onSelected: (_) {
+                            HapticFeedback.selectionClick();
+                            setSheetState(() => tone = entry.key);
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 20),
+                _PrimaryButton(
+                  label: 'Save Entry',
+                  color: _businessTones[tone]!.color,
+                  onTap: () => Navigator.pop(sheetContext, true),
+                ),
               ],
-              decoration: const InputDecoration(
-                labelText: 'Amount',
-                prefixText: '₹ ',
-              ),
             ),
-            const SizedBox(height: 15),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _businessTones.entries
-                  .map(
-                    (MapEntry<String, _BusinessTone> entry) => ChoiceChip(
-                      selected: tone == entry.key,
-                      label: Text(entry.value.badge),
-                      avatar: Icon(
-                        entry.value.icon,
-                        size: 16,
-                        color: entry.value.color,
-                      ),
-                      selectedColor: entry.value.color.withAlpha(45),
-                      shape: const StadiumBorder(),
-                      showCheckmark: false,
-                      side: BorderSide(
-                        color: entry.value.color.withAlpha(70),
-                      ),
-                      onSelected: (_) {
-                        HapticFeedback.selectionClick();
-                        setSheetState(() => tone = entry.key);
-                      },
-                    ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 20),
-            _PrimaryButton(
-              label: 'Save Entry',
-              color: _businessTones[tone]!.color,
-              onTap: () => Navigator.pop(sheetContext, true),
-            ),
-          ],
-        ),
       ),
     );
     if (save != true || !context.mounted) {
@@ -8628,8 +8641,9 @@ class BusinessDetailScreen extends StatelessWidget {
       return;
     }
     final String entryDate = date.text.trim();
-    final String entryTitle =
-        title.text.trim().isEmpty ? 'Record' : title.text.trim();
+    final String entryTitle = title.text.trim().isEmpty
+        ? 'Record'
+        : title.text.trim();
     final double entryAmount = double.tryParse(amount.text) ?? 0;
     date.dispose();
     title.dispose();
@@ -8645,16 +8659,13 @@ class BusinessDetailScreen extends StatelessWidget {
     final String id = _newId('prj');
     await _runMutation(
       context,
-      () => sync.write(
-          'projectDB/$projectName/records/$id',
-          <String, dynamic>{
-            'id': id,
-            'date': entryDate,
-            'title': entryTitle,
-            'amount': entryAmount,
-            'color': tone,
-          },
-          reason: 'business-entry-save'),
+      () => sync.write('projectDB/$projectName/records/$id', <String, dynamic>{
+        'id': id,
+        'date': entryDate,
+        'title': entryTitle,
+        'amount': entryAmount,
+        'color': tone,
+      }, reason: 'business-entry-save'),
       'Business entry saved!',
     );
   }
@@ -8702,69 +8713,69 @@ class BusinessDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: sync,
-        builder: (BuildContext context, Widget? child) {
-          final Map<String, dynamic> database = _map(sync.state['projectDB']);
-          if (database[projectName] is! Map) {
-            return const Scaffold(
-              body: Center(
-                child: _EmptyState(
-                  Icons.business_center_rounded,
-                  'Account no longer exists',
+    animation: sync,
+    builder: (BuildContext context, Widget? child) {
+      final Map<String, dynamic> database = _map(sync.state['projectDB']);
+      if (database[projectName] is! Map) {
+        return const Scaffold(
+          body: Center(
+            child: _EmptyState(
+              Icons.business_center_rounded,
+              'Account no longer exists',
+            ),
+          ),
+        );
+      }
+      final Map<String, dynamic> project = _map(database[projectName]);
+      final List<Map<String, dynamic>> records = _rows(project['records'])
+        ..sort(
+          (Map<String, dynamic> a, Map<String, dynamic> b) =>
+              '${b['date']}'.compareTo('${a['date']}'),
+        );
+      final Map<String, double> totals = <String, double>{
+        for (final String key in _businessTones.keys) key: 0,
+      };
+      for (final Map<String, dynamic> row in records) {
+        final String key = _businessTones.containsKey('${row['color']}')
+            ? '${row['color']}'
+            : 'blue';
+        totals[key] =
+            (totals[key] ?? 0) + LedgerMath.number(row['amount']).abs();
+      }
+      return Scaffold(
+        body: Column(
+          children: <Widget>[
+            _ScreenHeader(
+              leading: const _BackCircle(),
+              title: projectName,
+              color: appleBlue,
+              actions: <Widget>[
+                _DeleteActionButton(
+                  padding: const EdgeInsets.only(left: 6),
+                  semanticLabel: 'Delete business account',
+                  onTap: () => unawaited(_deleteProject(context)),
                 ),
-              ),
-            );
-          }
-          final Map<String, dynamic> project = _map(database[projectName]);
-          final List<Map<String, dynamic>> records = _rows(project['records'])
-            ..sort(
-              (Map<String, dynamic> a, Map<String, dynamic> b) =>
-                  '${b['date']}'.compareTo('${a['date']}'),
-            );
-          final Map<String, double> totals = <String, double>{
-            for (final String key in _businessTones.keys) key: 0,
-          };
-          for (final Map<String, dynamic> row in records) {
-            final String key = _businessTones.containsKey('${row['color']}')
-                ? '${row['color']}'
-                : 'blue';
-            totals[key] =
-                (totals[key] ?? 0) + LedgerMath.number(row['amount']).abs();
-          }
-          return Scaffold(
-            body: Column(
-              children: <Widget>[
-                _ScreenHeader(
-                  leading: const _BackCircle(),
-                  title: projectName,
-                  color: appleBlue,
-                  actions: <Widget>[
-                    _DeleteActionButton(
-                      padding: const EdgeInsets.only(left: 6),
-                      semanticLabel: 'Delete business account',
-                      onTap: () => unawaited(_deleteProject(context)),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: UIConstants.screenPadding,
-                    children: <Widget>[
-                      if (totals.values.any((double value) => value > 0))
-                        GridView.count(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 11,
-                          mainAxisSpacing: 11,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          clipBehavior: Clip.none,
-                          childAspectRatio: 1.55,
-                          children: totals.entries
-                              .where(
+              ],
+            ),
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: UIConstants.screenPadding,
+                children: <Widget>[
+                  if (totals.values.any((double value) => value > 0))
+                    GridView.count(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 11,
+                      mainAxisSpacing: 11,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      clipBehavior: Clip.none,
+                      childAspectRatio: 1.55,
+                      children: totals.entries
+                          .where(
                             (MapEntry<String, double> item) => item.value > 0,
                           )
-                              .map((MapEntry<String, double> item) {
+                          .map((MapEntry<String, double> item) {
                             final _BusinessTone tone =
                                 _businessTones[item.key]!;
                             return _GlassCard(
@@ -8799,94 +8810,95 @@ class BusinessDetailScreen extends StatelessWidget {
                                 ],
                               ),
                             );
-                          }).toList(),
-                        ),
-                      const SizedBox(height: 24),
-                      _SectionTitle(
-                        'All Entries',
+                          })
+                          .toList(),
+                    ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(
+                    'All Entries',
+                    color: appleBlue,
+                    actions: <Widget>[
+                      _SoftShareButton(
+                        label: 'Share',
+                        icon: Icons.share_rounded,
                         color: appleBlue,
-                        actions: <Widget>[
-                          _SoftShareButton(
-                            label: 'Share',
-                            icon: Icons.share_rounded,
-                            color: appleBlue,
-                            semanticLabel: 'Share this section as PDF',
-                            compact: false,
-                            onTap: () => unawaited(
-                              _ExportService.sharePdf(
-                                '$projectName Business Khata',
-                                <String>['Date', 'Detail', 'Type', 'Amount'],
-                                records.map((Map<String, dynamic> row) {
-                                  final String key = _businessTones
-                                          .containsKey('${row['color']}')
-                                      ? '${row['color']}'
-                                      : 'blue';
-                                  return <String>[
-                                    _displayDate(row['date']),
-                                    '${row['title'] ?? 'Record'}',
-                                    _businessTones[key]!.badge,
-                                    _plainMoney(row['amount']),
-                                  ];
-                                }).toList(),
-                              ),
-                            ),
+                        semanticLabel: 'Share this section as PDF',
+                        compact: false,
+                        onTap: () => unawaited(
+                          _ExportService.sharePdf(
+                            '$projectName Business Khata',
+                            <String>['Date', 'Detail', 'Type', 'Amount'],
+                            records.map((Map<String, dynamic> row) {
+                              final String key =
+                                  _businessTones.containsKey('${row['color']}')
+                                  ? '${row['color']}'
+                                  : 'blue';
+                              return <String>[
+                                _displayDate(row['date']),
+                                '${row['title'] ?? 'Record'}',
+                                _businessTones[key]!.badge,
+                                _plainMoney(row['amount']),
+                              ];
+                            }).toList(),
                           ),
-                          const SizedBox(width: 8),
-                          _MiniAction(
-                            label: 'Entry',
-                            icon: Icons.add_rounded,
-                            color: appleBlue,
-                            onTap: () => unawaited(_addEntry(context)),
-                          ),
-                        ],
-                      ),
-                      if (records.isEmpty)
-                        const _EmptyState(
-                          Icons.business_center_outlined,
-                          'No records logged yet',
-                        )
-                      else
-                        _LedgerTableCard(
-                          headers: const <String>['DATE', 'DETAIL', 'AMOUNT'],
-                          flexes: const <int>[24, 36, 28],
-                          rows: records.map((Map<String, dynamic> row) {
-                            final String key =
-                                _businessTones.containsKey('${row['color']}')
-                                    ? '${row['color']}'
-                                    : 'blue';
-                            final _BusinessTone tone = _businessTones[key]!;
-                            return _LedgerTableRowData(
-                              cells: <Widget>[
-                                _LedgerDateCell(
-                                  date: row['date'],
-                                  color: tone.color,
-                                  stacked: true,
-                                ),
-                                _LedgerDetailCell(
-                                  title: '${row['title'] ?? 'Record'}',
-                                  badge: tone.badge,
-                                  color: tone.color,
-                                ),
-                                _LedgerAmountCell(
-                                  value: _money(row['amount']),
-                                  color: tone.color,
-                                ),
-                              ],
-                              onDelete: () => unawaited(
-                                  _deleteEntry(context, '${row['id']}')),
-                              semanticLabel:
-                                  'Delete ${row['title'] ?? 'Record'} business entry',
-                            );
-                          }).toList(),
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      _MiniAction(
+                        label: 'Entry',
+                        icon: Icons.add_rounded,
+                        color: appleBlue,
+                        onTap: () => unawaited(_addEntry(context)),
+                      ),
                     ],
                   ),
-                ),
-              ],
+                  if (records.isEmpty)
+                    const _EmptyState(
+                      Icons.business_center_outlined,
+                      'No records logged yet',
+                    )
+                  else
+                    _LedgerTableCard(
+                      headers: const <String>['DATE', 'DETAIL', 'AMOUNT'],
+                      flexes: const <int>[24, 36, 28],
+                      rows: records.map((Map<String, dynamic> row) {
+                        final String key =
+                            _businessTones.containsKey('${row['color']}')
+                            ? '${row['color']}'
+                            : 'blue';
+                        final _BusinessTone tone = _businessTones[key]!;
+                        return _LedgerTableRowData(
+                          cells: <Widget>[
+                            _LedgerDateCell(
+                              date: row['date'],
+                              color: tone.color,
+                              stacked: true,
+                            ),
+                            _LedgerDetailCell(
+                              title: '${row['title'] ?? 'Record'}',
+                              badge: tone.badge,
+                              color: tone.color,
+                            ),
+                            _LedgerAmountCell(
+                              value: _money(row['amount']),
+                              color: tone.color,
+                            ),
+                          ],
+                          onDelete: () =>
+                              unawaited(_deleteEntry(context, '${row['id']}')),
+                          semanticLabel:
+                              'Delete ${row['title'] ?? 'Record'} business entry',
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
             ),
-          );
-        },
+          ],
+        ),
       );
+    },
+  );
 }
 
 class _AiMessage {
@@ -9130,8 +9142,8 @@ class _AiBatchProgressCard extends StatelessWidget {
     final String status = job.paused
         ? 'Paused safely${job.lastError.isEmpty ? '' : ' • ${job.lastError}'}'
         : writing
-            ? 'Saving next ${job.nextChunkSize}…'
-            : 'Next ${job.nextChunkSize} in $_countdown';
+        ? 'Saving next ${job.nextChunkSize}…'
+        : 'Next ${job.nextChunkSize} in $_countdown';
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
@@ -9183,8 +9195,9 @@ class _AiBatchProgressCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(99),
             child: LinearProgressIndicator(
               minHeight: 5,
-              value:
-                  job.actions.isEmpty ? 0 : job.completed / job.actions.length,
+              value: job.actions.isEmpty
+                  ? 0
+                  : job.completed / job.actions.length,
               color: job.paused ? appleOrange : appleBlue,
               backgroundColor: systemGray.withAlpha(30),
             ),
@@ -9273,20 +9286,21 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
         : AiBatchJob.tryDecode(
             widget.sync.readSetting(_scopedSetting(_batchJobSetting, ownerUid)),
           );
-    final AiBatchJob? batchJob =
-        storedBatch?.ownerUid == ownerUid ? storedBatch : null;
+    final AiBatchJob? batchJob = storedBatch?.ownerUid == ownerUid
+        ? storedBatch
+        : null;
     final String externalSnapshotId = ownerUid.isEmpty
         ? ''
         : widget.sync.readSetting(
-              _scopedSetting(_externalSnapshotIdSetting, ownerUid),
-            ) ??
-            '';
+                _scopedSetting(_externalSnapshotIdSetting, ownerUid),
+              ) ??
+              '';
     final String externalStateFingerprint = ownerUid.isEmpty
         ? ''
         : widget.sync.readSetting(
-              _scopedSetting(_externalFingerprintSetting, ownerUid),
-            ) ??
-            '';
+                _scopedSetting(_externalFingerprintSetting, ownerUid),
+              ) ??
+              '';
     final List<String> completedFingerprints = ownerUid.isEmpty
         ? <String>[]
         : _decodeFingerprintHistory(
@@ -9338,72 +9352,72 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       StatefulBuilder(
         builder: (BuildContext sheetContext, StateSetter setSheetState) =>
             _SheetFrame(
-          title: 'Gemini AI Setup',
-          beforeTitle: _ExternalAiConnectPrelude(
-            onTap: () => unawaited(_shareExternalAiPackage(sheetContext)),
-          ),
-          children: <Widget>[
-            TextField(
-              controller: key,
-              obscureText: obscure,
-              enableSuggestions: false,
-              autocorrect: false,
-              decoration: InputDecoration(
-                labelText: 'Gemini API key',
-                prefixIcon: const Icon(Icons.key_rounded),
-                suffixIcon: IconButton(
-                  onPressed: () {
-                    HapticFeedback.selectionClick();
-                    setSheetState(() => obscure = !obscure);
-                  },
-                  icon: Icon(
-                    obscure
-                        ? Icons.visibility_rounded
-                        : Icons.visibility_off_rounded,
+              title: 'Gemini AI Setup',
+              beforeTitle: _ExternalAiConnectPrelude(
+                onTap: () => unawaited(_shareExternalAiPackage(sheetContext)),
+              ),
+              children: <Widget>[
+                TextField(
+                  controller: key,
+                  obscureText: obscure,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  decoration: InputDecoration(
+                    labelText: 'Gemini API key',
+                    prefixIcon: const Icon(Icons.key_rounded),
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        HapticFeedback.selectionClick();
+                        setSheetState(() => obscure = !obscure);
+                      },
+                      icon: Icon(
+                        obscure
+                            ? Icons.visibility_rounded
+                            : Icons.visibility_off_rounded,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: model,
-              decoration: const InputDecoration(labelText: 'Model'),
-              items: const <DropdownMenuItem<String>>[
-                DropdownMenuItem(
-                  value: 'gemini-2.5-flash',
-                  child: Text('Gemini 2.5 Flash'),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: model,
+                  decoration: const InputDecoration(labelText: 'Model'),
+                  items: const <DropdownMenuItem<String>>[
+                    DropdownMenuItem(
+                      value: 'gemini-2.5-flash',
+                      child: Text('Gemini 2.5 Flash'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'gemini-2.0-flash',
+                      child: Text('Gemini 2.0 Flash'),
+                    ),
+                  ],
+                  onChanged: (String? value) {
+                    if (value != null) {
+                      HapticFeedback.selectionClick();
+                      setSheetState(() => model = value);
+                    }
+                  },
                 ),
-                DropdownMenuItem(
-                  value: 'gemini-2.0-flash',
-                  child: Text('Gemini 2.0 Flash'),
+                const SizedBox(height: 12),
+                const Text(
+                  'The key is stored in Android secure storage and sent only to Google Gemini. It is never uploaded to Firebase.',
+                  style: TextStyle(
+                    color: systemGray,
+                    fontSize: 11.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _PrimaryButton(
+                  label: 'Save AI Setup',
+                  icon: Icons.lock_rounded,
+                  color: const Color(0xFF8E62D9),
+                  onTap: () => Navigator.pop(sheetContext, true),
                 ),
               ],
-              onChanged: (String? value) {
-                if (value != null) {
-                  HapticFeedback.selectionClick();
-                  setSheetState(() => model = value);
-                }
-              },
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'The key is stored in Android secure storage and sent only to Google Gemini. It is never uploaded to Firebase.',
-              style: TextStyle(
-                color: systemGray,
-                fontSize: 11.5,
-                height: 1.4,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 20),
-            _PrimaryButton(
-              label: 'Save AI Setup',
-              icon: Icons.lock_rounded,
-              color: const Color(0xFF8E62D9),
-              onTap: () => Navigator.pop(sheetContext, true),
-            ),
-          ],
-        ),
       ),
     );
     if (save == true && mounted) {
@@ -9539,8 +9553,9 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _clearExternalSnapshot() async {
-    final String ownerUid =
-        _externalOwnerUid.isNotEmpty ? _externalOwnerUid : _currentOwnerUid;
+    final String ownerUid = _externalOwnerUid.isNotEmpty
+        ? _externalOwnerUid
+        : _currentOwnerUid;
     if (ownerUid.isNotEmpty) {
       await widget.sync.writeSetting(
         _scopedSetting(_externalSnapshotIdSetting, ownerUid),
@@ -9705,8 +9720,8 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
           prompt,
           outcome.reply.isEmpty
               ? plan.actions.isEmpty
-                  ? 'No ledger change was needed.'
-                  : 'I proposed ${plan.actions.length} ledger change(s).'
+                    ? 'No ledger change was needed.'
+                    : 'I proposed ${plan.actions.length} ledger change(s).'
               : outcome.reply,
         );
       }
@@ -9717,8 +9732,9 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
         if (apply && mounted) {
           await _startAiBatch(
             plan,
-            fingerprint:
-                localEnvelope ? outcome.envelopeFingerprint : _newId('aijob'),
+            fingerprint: localEnvelope
+                ? outcome.envelopeFingerprint
+                : _newId('aijob'),
             snapshotId: outcome.snapshotId,
           );
           if (localEnvelope) await _clearExternalSnapshot();
@@ -9729,14 +9745,14 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       if (mounted) {
         final String? statusMessage = plan.actions.isEmpty
             ? outcome.reply.isEmpty
-                ? 'Koi change zaroori nahi tha.'
-                : outcome.reply
+                  ? 'Koi change zaroori nahi tha.'
+                  : outcome.reply
             : reviewCancelled
-                ? 'Review cancelled — koi change apply nahi hua.'
-                : _batchJob != null
-                    ? '${plan.actions.length} changes approved hain. Safe '
-                        '25-record batches mein process ho rahe hain.'
-                    : null;
+            ? 'Review cancelled — koi change apply nahi hua.'
+            : _batchJob != null
+            ? '${plan.actions.length} changes approved hain. Safe '
+                  '25-record batches mein process ho rahe hain.'
+            : null;
         if (statusMessage != null) {
           setState(() => _messages.add(_AiMessage(statusMessage, false)));
         }
@@ -9897,8 +9913,9 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
     _countdownTimer?.cancel();
     if (mounted) setState(() => _batchWriting = true);
     final int candidate = current.nextIndex + AiBridgeProtocol.chunkSize;
-    final int end =
-        candidate < current.actions.length ? candidate : current.actions.length;
+    final int end = candidate < current.actions.length
+        ? candidate
+        : current.actions.length;
     final List<Map<String, dynamic>> chunk = current.actions.sublist(
       current.nextIndex,
       end,
@@ -10263,166 +10280,163 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        body: Column(
-          children: <Widget>[
-            _ScreenHeader(
-              leading: const _BackCircle(),
-              title: 'Gemini AI Hub',
+    body: Column(
+      children: <Widget>[
+        _ScreenHeader(
+          leading: const _BackCircle(),
+          title: 'Gemini AI Hub',
+          color: const Color(0xFF8E62D9),
+          actions: <Widget>[
+            _CircleAction(
+              icon: Icons.settings_rounded,
               color: const Color(0xFF8E62D9),
-              actions: <Widget>[
-                _CircleAction(
-                  icon: Icons.settings_rounded,
-                  color: const Color(0xFF8E62D9),
-                  onTap: () => unawaited(_configure()),
-                ),
-              ],
-            ),
-            Expanded(
-              child: ListView.builder(
-                controller: _scroll,
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
-                itemCount: _messages.length,
-                itemBuilder: (BuildContext context, int index) {
-                  final _AiMessage message = _messages[index];
-                  return Align(
-                    alignment: message.user
-                        ? Alignment.centerRight
-                        : Alignment.centerLeft,
-                    child: Container(
-                      constraints: BoxConstraints(
-                        maxWidth: MediaQuery.sizeOf(context).width * .82,
-                      ),
-                      margin: const EdgeInsets.only(bottom: 11),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 15,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: message.user
-                            ? const LinearGradient(
-                                colors: <Color>[appleBlue, Color(0xFF0056B3)],
-                              )
-                            : null,
-                        color: message.user
-                            ? null
-                            : Theme.of(context).brightness == Brightness.dark
-                                ? const Color(0xFF1C1C1E)
-                                : Colors.white,
-                        borderRadius: BorderRadius.only(
-                          topLeft: const Radius.circular(19),
-                          topRight: const Radius.circular(19),
-                          bottomLeft: Radius.circular(message.user ? 19 : 5),
-                          bottomRight: Radius.circular(message.user ? 5 : 19),
-                        ),
-                        boxShadow: <BoxShadow>[
-                          BoxShadow(
-                            color: Colors.black.withAlpha(15),
-                            blurRadius: 15,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        message.text,
-                        style: TextStyle(
-                          color: message.user ? Colors.white : null,
-                          fontSize: 14,
-                          height: 1.42,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            if (_batchJob != null)
-              _AiBatchProgressCard(
-                job: _batchJob!,
-                secondsRemaining: _batchSecondsRemaining,
-                writing: _batchWriting,
-                onCancel: _batchWriting
-                    ? null
-                    : () => unawaited(_cancelRemainingBatch()),
-                onRetry: () => unawaited(_retryBatch()),
-              )
-            else if (_externalSnapshotId.isNotEmpty)
-              _ExternalAiReadyCard(
-                onPaste: () => unawaited(_pasteExternalResponse()),
-                onDismiss: () => unawaited(_clearExternalSnapshot()),
-              ),
-            SafeArea(
-              top: false,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(12, 9, 10, 10),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? const Color(0xFF111113)
-                      : Colors.white,
-                  boxShadow: const <BoxShadow>[
-                    BoxShadow(color: Colors.black12, blurRadius: 18),
-                  ],
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: <Widget>[
-                    Expanded(
-                      child: TextField(
-                        controller: _input,
-                        enabled: _batchJob == null,
-                        minLines: 1,
-                        maxLines: 5,
-                        textCapitalization: TextCapitalization.sentences,
-                        onSubmitted: (_) => unawaited(_send()),
-                        decoration: const InputDecoration(
-                          hintText: 'Ask or paste AI JSON…',
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 15,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _Pressable(
-                      onTap: _busy || _batchJob != null
-                          ? null
-                          : () => unawaited(_send()),
-                      borderRadius: BorderRadius.circular(23),
-                      child: Container(
-                        width: 46,
-                        height: 46,
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: <Color>[
-                              Color(0xFF4285F4),
-                              Color(0xFF9B72CB)
-                            ],
-                          ),
-                          shape: BoxShape.circle,
-                        ),
-                        child: _busy
-                            ? const Padding(
-                                padding: EdgeInsets.all(13),
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.arrow_upward_rounded,
-                                color: Colors.white,
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              onTap: () => unawaited(_configure()),
             ),
           ],
         ),
-      );
+        Expanded(
+          child: ListView.builder(
+            controller: _scroll,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+            itemCount: _messages.length,
+            itemBuilder: (BuildContext context, int index) {
+              final _AiMessage message = _messages[index];
+              return Align(
+                alignment: message.user
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.sizeOf(context).width * .82,
+                  ),
+                  margin: const EdgeInsets.only(bottom: 11),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 15,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: message.user
+                        ? const LinearGradient(
+                            colors: <Color>[appleBlue, Color(0xFF0056B3)],
+                          )
+                        : null,
+                    color: message.user
+                        ? null
+                        : Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF1C1C1E)
+                        : Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(19),
+                      topRight: const Radius.circular(19),
+                      bottomLeft: Radius.circular(message.user ? 19 : 5),
+                      bottomRight: Radius.circular(message.user ? 5 : 19),
+                    ),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: Colors.black.withAlpha(15),
+                        blurRadius: 15,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    message.text,
+                    style: TextStyle(
+                      color: message.user ? Colors.white : null,
+                      fontSize: 14,
+                      height: 1.42,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (_batchJob != null)
+          _AiBatchProgressCard(
+            job: _batchJob!,
+            secondsRemaining: _batchSecondsRemaining,
+            writing: _batchWriting,
+            onCancel: _batchWriting
+                ? null
+                : () => unawaited(_cancelRemainingBatch()),
+            onRetry: () => unawaited(_retryBatch()),
+          )
+        else if (_externalSnapshotId.isNotEmpty)
+          _ExternalAiReadyCard(
+            onPaste: () => unawaited(_pasteExternalResponse()),
+            onDismiss: () => unawaited(_clearExternalSnapshot()),
+          ),
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 9, 10, 10),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF111113)
+                  : Colors.white,
+              boxShadow: const <BoxShadow>[
+                BoxShadow(color: Colors.black12, blurRadius: 18),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Expanded(
+                  child: TextField(
+                    controller: _input,
+                    enabled: _batchJob == null,
+                    minLines: 1,
+                    maxLines: 5,
+                    textCapitalization: TextCapitalization.sentences,
+                    onSubmitted: (_) => unawaited(_send()),
+                    decoration: const InputDecoration(
+                      hintText: 'Ask or paste AI JSON…',
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 15,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _Pressable(
+                  onTap: _busy || _batchJob != null
+                      ? null
+                      : () => unawaited(_send()),
+                  borderRadius: BorderRadius.circular(23),
+                  child: Container(
+                    width: 46,
+                    height: 46,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: <Color>[Color(0xFF4285F4), Color(0xFF9B72CB)],
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: _busy
+                        ? const Padding(
+                            padding: EdgeInsets.all(13),
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.arrow_upward_rounded,
+                            color: Colors.white,
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _GeminiLedgerClient {
@@ -10539,8 +10553,8 @@ String _plainMoney(dynamic value) {
   final String sign = number < 0
       ? '-'
       : number > 0
-          ? '+'
-          : '';
+      ? '+'
+      : '';
   return '${sign}Rs ${NumberFormat('#,##,##0.##', 'en_IN').format(number.abs())}';
 }
 
@@ -10684,34 +10698,34 @@ class _ExportCenterPalette {
   final Color selectedShadow;
 
   List<BoxShadow> get cardShadows => <BoxShadow>[
-        BoxShadow(
-          color: cardShadow,
-          blurRadius: 24,
-          spreadRadius: -7,
-          offset: const Offset(0, 10),
-        ),
-        BoxShadow(
-          color: cardGlow,
-          blurRadius: 18,
-          spreadRadius: -8,
-          offset: Offset.zero,
-        ),
-      ];
+    BoxShadow(
+      color: cardShadow,
+      blurRadius: 24,
+      spreadRadius: -7,
+      offset: const Offset(0, 10),
+    ),
+    BoxShadow(
+      color: cardGlow,
+      blurRadius: 18,
+      spreadRadius: -8,
+      offset: Offset.zero,
+    ),
+  ];
 
   List<BoxShadow> get selectedShadows => <BoxShadow>[
-        BoxShadow(
-          color: selectedShadow,
-          blurRadius: 22,
-          spreadRadius: -5,
-          offset: const Offset(0, 8),
-        ),
-        BoxShadow(
-          color: cardShadow,
-          blurRadius: 9,
-          spreadRadius: -5,
-          offset: const Offset(0, 4),
-        ),
-      ];
+    BoxShadow(
+      color: selectedShadow,
+      blurRadius: 22,
+      spreadRadius: -5,
+      offset: const Offset(0, 8),
+    ),
+    BoxShadow(
+      color: cardShadow,
+      blurRadius: 9,
+      spreadRadius: -5,
+      offset: const Offset(0, 4),
+    ),
+  ];
 }
 
 class _ExportButtonContent extends StatelessWidget {
@@ -10733,30 +10747,30 @@ class _ExportButtonContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(icon, color: iconColor, size: iconSize),
-              const SizedBox(width: 7),
-              Text(
-                label,
-                maxLines: 1,
-                softWrap: false,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: fontSize,
-                  height: 1,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -.2,
-                ),
-              ),
-            ],
+    child: FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.center,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, color: iconColor, size: iconSize),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            style: TextStyle(
+              color: textColor,
+              fontSize: fontSize,
+              height: 1,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -.2,
+            ),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }
 
 Future<void> _showExportCenter(
@@ -10940,14 +10954,13 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
     _ExportScopeSpec left,
     _ExportScopeSpec right,
     _ExportCenterPalette palette,
-  ) =>
-      Row(
-        children: <Widget>[
-          Expanded(child: _scopeButton(left, palette)),
-          const SizedBox(width: 12),
-          Expanded(child: _scopeButton(right, palette)),
-        ],
-      );
+  ) => Row(
+    children: <Widget>[
+      Expanded(child: _scopeButton(left, palette)),
+      const SizedBox(width: 12),
+      Expanded(child: _scopeButton(right, palette)),
+    ],
+  );
 
   Widget _scopeButton(
     _ExportScopeSpec spec,
@@ -10985,13 +10998,12 @@ class _ExportCenterSheetState extends State<_ExportCenterSheet> {
   }
 
   String _formatHint() => switch (_format) {
-        _ExportFormat.pdf =>
-          'Premium PDF app ke current colors, borders, cards aur dark/light mode se banegi.',
-        _ExportFormat.csv =>
-          'CSV Backup clean spreadsheet-ready data ke saath banega.',
-        _ExportFormat.aiLedger =>
-          'AI Ledger AI-readable structured format me complete ledger banayega.',
-      };
+    _ExportFormat.pdf => 'Premium PDF app ke current colors, borders, cards aur dark/light mode se banegi.',
+    _ExportFormat.csv =>
+      'CSV Backup clean spreadsheet-ready data ke saath banega.',
+    _ExportFormat.aiLedger =>
+      'AI Ledger AI-readable structured format me complete ledger banayega.',
+  };
 }
 
 class _ExportDataset {
@@ -11312,8 +11324,8 @@ class _ExportService {
         final double signed = color == 'green'
             ? amount
             : color == 'red'
-                ? -amount
-                : 0;
+            ? -amount
+            : 0;
         rows.add(<String>[
           'Business',
           entry.key,
@@ -11322,8 +11334,8 @@ class _ExportService {
           color == 'green'
               ? 'Receive / Inflow'
               : color == 'red'
-                  ? 'Pay / Outflow'
-                  : 'Neutral / Informational',
+              ? 'Pay / Outflow'
+              : 'Neutral / Informational',
           _decimal(signed),
           'Original amount ${_decimal(amount)}; color $color',
         ]);
@@ -11404,17 +11416,18 @@ class _ExportService {
   }
 
   static _ExportDataset _creditDataset(Map<String, dynamic> state) {
-    final List<List<String>> rows =
-        _rows(state['udharDB']).map((Map<String, dynamic> row) {
-      final double signed = LedgerMath.creditSigned(row);
-      return <String>[
-        signed >= 0 ? 'Given / To Receive' : 'Taken / To Pay',
-        '${row['name'] ?? ''}',
-        '${row['date'] ?? ''}',
-        '${row['detail'] ?? row['note'] ?? row['description'] ?? ''}',
-        _decimal(signed),
-      ];
-    }).toList();
+    final List<List<String>> rows = _rows(state['udharDB'])
+        .map((Map<String, dynamic> row) {
+          final double signed = LedgerMath.creditSigned(row);
+          return <String>[
+            signed >= 0 ? 'Given / To Receive' : 'Taken / To Pay',
+            '${row['name'] ?? ''}',
+            '${row['date'] ?? ''}',
+            '${row['detail'] ?? row['note'] ?? row['description'] ?? ''}',
+            _decimal(signed),
+          ];
+        })
+        .toList();
     return _ExportDataset(
       title: 'Credit Ledger',
       headers: const <String>[
@@ -11488,8 +11501,8 @@ class _ExportService {
         final double signed = color == 'green'
             ? amount
             : color == 'red'
-                ? -amount
-                : 0;
+            ? -amount
+            : 0;
         rows.add(<String>[
           entry.key,
           '${row['date'] ?? ''}',
@@ -11497,8 +11510,8 @@ class _ExportService {
           color == 'green'
               ? 'Receive / Inflow'
               : color == 'red'
-                  ? 'Pay / Outflow'
-                  : 'Neutral / Informational',
+              ? 'Pay / Outflow'
+              : 'Neutral / Informational',
           _decimal(amount),
           _decimal(signed),
         ]);
