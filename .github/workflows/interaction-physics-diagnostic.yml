@@ -49,15 +49,30 @@ jobs:
           from pathlib import Path
 
           path = Path('test/ui_micro_aesthetics_test.dart')
-          text = path.read_text()
-          old = "contains('final canOwnTapStart = _tapWins && !_pointerCancelled;'),"
-          new = "contains('final canOwnTapStart ='),"
-          count = text.count(old)
-          if count != 1:
+          lines = path.read_text().splitlines()
+          hits = [
+              i for i, line in enumerate(lines)
+              if 'canOwnTapStart' in line and '_tapWins' in line and '_pointerCancelled' in line
+          ]
+          if len(hits) != 1:
               raise SystemExit(
-                  f'Expected exactly one brittle canOwnTapStart assertion, found {count}'
+                  f'Expected exactly one brittle canOwnTapStart assertion line, found {len(hits)}'
               )
-          path.write_text(text.replace(old, new, 1))
+
+          hit = hits[0]
+          start = hit
+          while start >= 0 and 'expect(' not in lines[start]:
+              start -= 1
+          end = hit
+          while end < len(lines) and ');' not in lines[end]:
+              end += 1
+          if start < 0 or end >= len(lines):
+              raise SystemExit('Could not isolate canOwnTapStart expectation block')
+
+          indent = lines[start][:len(lines[start]) - len(lines[start].lstrip())]
+          replacement = f"{indent}expect(pressableSource, contains('final canOwnTapStart ='));"
+          lines[start:end + 1] = [replacement]
+          path.write_text('\n'.join(lines) + '\n')
           PY
 
       - name: Flutter toolchain
