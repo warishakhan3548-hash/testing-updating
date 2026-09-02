@@ -115,10 +115,10 @@ jobs:
           '''
           source = replace_exact(source, old_main, new_main, 'startup fallback')
 
-          old_notification = '''  bool _handlePageScrollNotification(ScrollNotification notification) {
+          notification_anchor = '''bool _handlePageScrollNotification(ScrollNotification notification) {
             if (notification is ScrollStartNotification &&
           '''
-          new_notification = '''  bool _handlePageScrollNotification(ScrollNotification notification) {
+          notification_replacement = '''bool _handlePageScrollNotification(ScrollNotification notification) {
             if (notification.depth != 0 || notification.metrics.axis != Axis.horizontal) {
               return false;
             }
@@ -126,8 +126,8 @@ jobs:
           '''
           source = replace_exact(
               source,
-              old_notification,
-              new_notification,
+              notification_anchor,
+              notification_replacement,
               'PageView notification isolation',
           )
 
