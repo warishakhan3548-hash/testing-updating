@@ -7974,7 +7974,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 color: moduleColor,
               ),
               const SizedBox(height: 24),
-              const _SectionTitle('Categories'),
+              const _SectionTitle('Categories', color: appleBlue),
               if (groups.isEmpty)
                 const _EmptyState(premiumExpenseIcon, 'No expenses this month')
               else
