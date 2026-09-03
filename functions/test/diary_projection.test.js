@@ -106,6 +106,15 @@ test('projection strips prototype-pollution field names recursively', () => {
   assert.equal({}.polluted, undefined);
 });
 
+test('projection rejects unsafe entry identities at every ingestion path', () => {
+  for (const id of ['__proto__', 'constructor', 'prototype']) {
+    assert.equal(normalizeSourceEntry({date: '2026-08-31'}, id), null);
+    assert.equal(extractDiaryPaths({
+      deltaPaths: JSON.stringify([`diaryDB/${id}`]),
+    }), null);
+  }
+});
+
 test('period index cannot be rolled back by a late projection event', () => {
   assert.deepEqual(updatePeriodIndex({p: '2026-09', v: 8}, {
     _period: '2026-08',
