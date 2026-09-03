@@ -4068,30 +4068,18 @@ class _AmountHero extends StatelessWidget {
     required this.label,
     required this.value,
     required this.color,
-    this.secondaryLabel,
-    this.secondaryValue,
   });
 
   final String label;
   final String value;
   final Color color;
-  final String? secondaryLabel;
-  final String? secondaryValue;
 
   @override
   Widget build(BuildContext context) {
-    // UNIFIED_MILK_AMOUNT_HERO_V1
-    //
-    // This stays the single visual source of truth for amount hero cards.
-    // Existing Credit / Salary / Expense cards take the original single-value
-    // path unchanged. Milk optionally adds one compact secondary statistic.
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-    final bool hasSecondary = secondaryLabel != null && secondaryValue != null;
-
     final Color textColor = dark
         ? Color.lerp(Colors.white, color, .72)!
         : Color.lerp(const Color(0xFF06111F), color, .60)!;
-
     final List<Color> background = dark
         ? <Color>[
             Color.lerp(darkGlassTop, color, .21)!.withAlpha(232),
@@ -4111,14 +4099,6 @@ class _AmountHero extends StatelessWidget {
             )!.withAlpha(218),
             Color.lerp(Colors.white, color, .13)!.withAlpha(194),
           ];
-
-    final Widget primary = _HeroValue(
-      label: label,
-      value: value,
-      color: textColor,
-      glow: color,
-    );
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -4132,68 +4112,12 @@ class _AmountHero extends StatelessWidget {
         border: AppStyles.glassBorder(context),
         boxShadow: AppStyles.glow(context, color, strong: true),
       ),
-      child: hasSecondary
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: <Widget>[
-                Expanded(flex: 7, child: primary),
-                const SizedBox(width: 14),
-                Container(
-                  width: 1,
-                  height: 54,
-                  color: color.withAlpha(dark ? 54 : 25),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  flex: 4,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: <Widget>[
-                      Text(
-                        secondaryLabel!.toUpperCase(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: .75,
-                          shadows: <Shadow>[
-                            Shadow(color: color.withAlpha(68), blurRadius: 10),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          secondaryValue!,
-                          maxLines: 1,
-                          softWrap: false,
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 19,
-                            fontWeight: FontWeight.w700,
-                            fontFeatures: AppStyles.tabularFigures,
-                            letterSpacing: -.35,
-                            shadows: <Shadow>[
-                              Shadow(
-                                color: color.withAlpha(82),
-                                blurRadius: 13,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            )
-          : primary,
+      child: _HeroValue(
+        label: label,
+        value: value,
+        color: textColor,
+        glow: color,
+      ),
     );
   }
 }
@@ -6015,17 +5939,10 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                     }),
                   ),
                   const SizedBox(height: 16),
-                  _AmountHero(
-                    label: totals.netAmount > 0
-                        ? 'To Receive'
-                        : totals.netAmount < 0
-                        ? 'To Pay'
-                        : 'Net Balance',
-                    value: _signedMoney(totals.netAmount),
+                  _MilkDetailHero(
+                    amount: _signedMoney(totals.netAmount),
+                    totalKg: '${totals.netKg.abs().toStringAsFixed(2)} KG',
                     color: color,
-                    secondaryLabel: 'Total Milk',
-                    secondaryValue:
-                        '${totals.netKg.abs().toStringAsFixed(2)} KG',
                   ),
                   const SizedBox(height: 24),
                   _SectionTitle(
@@ -6095,6 +6012,147 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
       );
     },
   );
+}
+
+class _MilkDetailHero extends StatelessWidget {
+  const _MilkDetailHero({
+    required this.amount,
+    required this.totalKg,
+    required this.color,
+  });
+
+  final String amount;
+  final String totalKg;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final Color surface = dark ? const Color(0xFF121720) : Colors.white;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 150),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 23),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            color.withAlpha(dark ? 34 : 19),
+            surface,
+            color.withAlpha(dark ? 19 : 10),
+          ],
+          stops: const <double>[0, .58, 1],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: color.withAlpha(dark ? 72 : 54)),
+        boxShadow: dark
+            ? const <BoxShadow>[]
+            : <BoxShadow>[
+                BoxShadow(
+                  color: color.withAlpha(34),
+                  blurRadius: 34,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 14),
+                ),
+              ],
+      ),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final bool compact = constraints.maxWidth < 330;
+          return Row(
+            children: <Widget>[
+              if (!compact) ...<Widget>[
+                _LedgerIcon(
+                  icon: Icons.water_drop_rounded,
+                  color: color,
+                  size: 54,
+                ),
+                const SizedBox(width: 16),
+              ],
+              Expanded(
+                flex: 6,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'MONTH BILL',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .85,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        amount,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: compact ? 34 : 39,
+                          height: 1,
+                          fontWeight: FontWeight.w900,
+                          fontFeatures: AppStyles.tabularFigures,
+                          letterSpacing: -1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 82,
+                margin: const EdgeInsets.symmetric(horizontal: 14),
+                color: color.withAlpha(dark ? 48 : 28),
+              ),
+              Expanded(
+                flex: 4,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: <Widget>[
+                    Text(
+                      'TOTAL MILK',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .75,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        totalKg,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: compact ? 20 : 23,
+                          fontWeight: FontWeight.w900,
+                          fontFeatures: AppStyles.tabularFigures,
+                          letterSpacing: -.45,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 }
 
 class _SoftShareButton extends StatelessWidget {
