@@ -66,6 +66,24 @@ test('projected entry is absolute, idempotent, and leaves a tombstone', () => {
   });
 });
 
+test('legacy projected rows without source hashes cannot survive deletion', () => {
+  const legacyProjected = {
+    id: 'dia_legacy',
+    date: '2026-08-01',
+    title: 'Legacy projection',
+    _period: '2026-08',
+  };
+
+  const deleted = forceProjectedEntry(legacyProjected, null, 'dia_legacy');
+
+  assert.deepEqual(deleted, {
+    _deleted: true,
+    _period: null,
+    _sourceHash: sourceHash(null),
+    _version: 1,
+  });
+});
+
 test('projection strips prototype-pollution field names', () => {
   const malicious = JSON.parse(
     '{"date":"2026-08-31","title":"Safe","__proto__":{"polluted":true},' +
