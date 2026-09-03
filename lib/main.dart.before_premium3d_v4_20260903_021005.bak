@@ -35,7 +35,7 @@ const Color appleOrange = Color(0xFFFF9500);
 const Color diaryOrange = Color(0xFFF5A623);
 const Color diaryOrange2 = Color(0xFFFFB340);
 const Color systemGray = Color(0xFF8E8E93);
-const Color lightCanvas = Color(0xFFF3F5F8);
+const Color lightCanvas = Color(0xFFF5F5F7);
 const Color darkGlassTop = Color(0xFF121826);
 const Color darkGlassBottom = Color(0xFF080C18);
 const Color exportIndigo = Color(0xFF5E5CE6);
@@ -130,35 +130,42 @@ abstract final class AppStyles {
   }
 
   static List<BoxShadow> surfaceDepth(BuildContext context) {
-    // PREMIUM_SOFT_3D_V4
+    // PREMIUM_SOFT_3D_V3B
     //
-    // Crisp contact depth + broad grounding depth.
-    // The card reads as a real raised ceramic slab without
-    // stacking excessive expensive blur layers.
+    // Unified premium raised-surface lighting.
+    // Upper-left key light + contact shadow +
+    // lower-right depth + broad grounding shadow.
     final bool dark = isDark(context);
 
-    final Color ink = dark ? Colors.black : const Color(0xFF243247);
+    final Color ink = dark ? Colors.black : const Color(0xFF26364D);
 
     return <BoxShadow>[
       BoxShadow(
-        color: Colors.white.withAlpha(dark ? 12 : 248),
-        blurRadius: dark ? 13 : 18,
-        spreadRadius: -5,
-        offset: const Offset(-6, -6),
+        color: Colors.white.withAlpha(dark ? 10 : 230),
+        blurRadius: dark ? 12 : 15,
+        spreadRadius: dark ? -6 : -4,
+        offset: const Offset(-5, -5),
       ),
 
       BoxShadow(
-        color: ink.withAlpha(dark ? 102 : 38),
-        blurRadius: 3.5,
-        spreadRadius: -1,
+        color: ink.withAlpha(dark ? 94 : 30),
+        blurRadius: 7,
+        spreadRadius: -2,
         offset: const Offset(0, 4),
       ),
 
       BoxShadow(
-        color: ink.withAlpha(dark ? 70 : 24),
-        blurRadius: dark ? 27 : 25,
-        spreadRadius: -7,
-        offset: const Offset(8, 12),
+        color: ink.withAlpha(dark ? 72 : 24),
+        blurRadius: dark ? 26 : 24,
+        spreadRadius: -6,
+        offset: const Offset(7, 11),
+      ),
+
+      BoxShadow(
+        color: ink.withAlpha(dark ? 40 : 13),
+        blurRadius: dark ? 52 : 44,
+        spreadRadius: -13,
+        offset: const Offset(10, 18),
       ),
     ];
   }
@@ -186,7 +193,6 @@ abstract final class AppStyles {
     bool strong = false,
   }) {
     final bool dark = isDark(context);
-
     final Color ambient = _ambientHue(context, color);
 
     return <BoxShadow>[
@@ -194,10 +200,10 @@ abstract final class AppStyles {
         color: ambient.withAlpha(
           _perceptualAlpha(
             ambient,
-            strong ? (dark ? 58 : 48) : (dark ? 45 : 35),
+            strong ? (dark ? 56 : 44) : (dark ? 42 : 31),
           ),
         ),
-        blurRadius: strong ? 24 : 19,
+        blurRadius: strong ? 24 : 18,
         spreadRadius: strong ? -4 : -5,
         offset: const Offset(1, 6),
       ),
@@ -205,9 +211,9 @@ abstract final class AppStyles {
       if (strong)
         BoxShadow(
           color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 25 : 20)),
-          blurRadius: 38,
-          spreadRadius: -12,
-          offset: const Offset(5, 12),
+          blurRadius: 40,
+          spreadRadius: -11,
+          offset: const Offset(4, 12),
         ),
 
       ...surfaceDepth(context),
@@ -216,15 +222,14 @@ abstract final class AppStyles {
 
   static List<BoxShadow> railDepth(BuildContext context, Color color) {
     final bool dark = isDark(context);
-
     final Color ambient = _ambientHue(context, color);
 
     return <BoxShadow>[
       BoxShadow(
-        color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 52 : 40)),
-        blurRadius: 21,
+        color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 50 : 37)),
+        blurRadius: 22,
         spreadRadius: -5,
-        offset: const Offset(0, 6),
+        offset: const Offset(1, 7),
       ),
 
       ...surfaceDepth(context),
@@ -258,31 +263,24 @@ abstract final class AppStyles {
 
     return <BoxShadow>[
       BoxShadow(
-        color: Colors.white.withAlpha(dark ? 13 : 238),
-        blurRadius: 11,
+        color: Colors.white.withAlpha(dark ? 12 : 220),
+        blurRadius: 12,
         spreadRadius: -4,
         offset: const Offset(-4, -4),
       ),
 
       BoxShadow(
-        color: color.withAlpha(dark ? 46 : 40),
-        blurRadius: 15,
-        spreadRadius: -5,
-        offset: const Offset(2, 5),
-      ),
-
-      BoxShadow(
-        color: Colors.black.withAlpha(dark ? 84 : 28),
-        blurRadius: 3.5,
-        spreadRadius: -1,
-        offset: const Offset(0, 4),
-      ),
-
-      BoxShadow(
-        color: Colors.black.withAlpha(dark ? 66 : 17),
+        color: color.withAlpha(dark ? 44 : 38),
         blurRadius: 18,
-        spreadRadius: -7,
-        offset: const Offset(6, 9),
+        spreadRadius: -5,
+        offset: const Offset(2, 6),
+      ),
+
+      BoxShadow(
+        color: Colors.black.withAlpha(dark ? 76 : 24),
+        blurRadius: 20,
+        spreadRadius: -6,
+        offset: const Offset(6, 10),
       ),
     ];
   }
@@ -2219,207 +2217,135 @@ class _BottomLedgerNav extends StatelessWidget {
 
   Widget _buildNavigation(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-
     final Duration navMotion = AppMotion.reduce(context)
         ? Duration.zero
         : UIConstants.navMotion;
-
     final List<Color> colors = _moduleTabColors(sync.currentProjection);
-
-    final int safeSelected = colors.isEmpty
-        ? 0
-        : selected.clamp(0, colors.length - 1).toInt();
-
-    final Color activeColor = colors.isEmpty ? appleBlue : colors[safeSelected];
-
-    final BorderRadius radius = BorderRadius.circular(30);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 4, 10, 7),
-
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: radius,
-
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: activeColor.withAlpha(dark ? 34 : 22),
-              blurRadius: 25,
-              spreadRadius: -8,
-              offset: const Offset(0, 7),
-            ),
-
-            ...AppStyles.surfaceDepth(context),
-          ],
-        ),
-
-        child: ClipRRect(
-          borderRadius: radius,
-
-          clipBehavior: Clip.antiAlias,
-
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withAlpha(dark ? 108 : 16),
+            blurRadius: dark ? 42 : 34,
+            spreadRadius: -12,
+            offset: const Offset(0, -10),
+          ),
+        ],
+      ),
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 22, sigmaY: 22),
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
                 colors: dark
-                    ? const <Color>[Color(0xFF18202D), Color(0xFF0B111A)]
-                    : const <Color>[Color(0xFFFFFFFF), Color(0xFFF0F4F8)],
+                    ? const <Color>[Color(0xE0121928), Color(0xD0080D18)]
+                    : const <Color>[Color(0xF3FFFFFF), Color(0xE4FFFFFF)],
               ),
-
-              border: Border.all(
-                color: dark
-                    ? Colors.white.withAlpha(28)
-                    : Colors.white.withAlpha(230),
-                width: .9,
+              border: Border(
+                top: BorderSide(
+                  color: dark
+                      ? Colors.white.withAlpha(22)
+                      : Colors.white.withAlpha(210),
+                  width: .8,
+                ),
               ),
             ),
-
             child: SafeArea(
               top: false,
-
               child: SizedBox(
-                height: 86,
-
+                height: 88,
                 child: SingleChildScrollView(
                   controller: controller,
-
                   scrollDirection: Axis.horizontal,
-
                   physics: const BouncingScrollPhysics(),
-
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
-
                     child: Row(
                       children: List<Widget>.generate(_tabs.length, (
                         int index,
                       ) {
                         final _TabSpec spec = _tabs[index];
-
                         final bool active = index == selected;
-
                         final Color color = colors[index];
-
                         return _Pressable(
                           onTap: () => onSelected(index),
-
                           semanticLabel: '${spec.label} tab',
-
                           selected: active,
-
                           borderRadius: BorderRadius.circular(
                             UIConstants.actionRadius,
                           ),
-
                           child: AnimatedSlide(
                             offset: active
                                 ? const Offset(0, -.025)
                                 : Offset.zero,
-
                             duration: navMotion,
-
                             curve: UIConstants.motionOut,
-
                             child: AnimatedContainer(
                               duration: navMotion,
-
                               curve: UIConstants.motionOut,
-
                               width: 84,
-
-                              height: 68,
-
+                              height: 70,
                               margin: const EdgeInsets.symmetric(horizontal: 4),
-
                               decoration: const BoxDecoration(
                                 color: Colors.transparent,
                               ),
-
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
-
                                 children: <Widget>[
                                   AnimatedScale(
                                     scale: active ? 1.045 : 1,
-
                                     duration: navMotion,
-
                                     curve: UIConstants.motionOut,
-
                                     child: _PremiumNavIconFrame(
                                       color: color,
-
                                       active: active,
-
                                       dark: dark,
-
                                       child: _BottomNavGlyph(
                                         icon: active
                                             ? spec.activeIcon
                                             : spec.inactiveIcon,
-
                                         size:
                                             (active ? 24 : 22.5) *
                                             spec.opticalScale,
-
                                         color: active
                                             ? color
                                             : color.withAlpha(dark ? 164 : 160),
-
                                         active: active,
-
                                         dark: dark,
                                       ),
                                     ),
                                   ),
-
                                   const SizedBox(height: 3),
-
                                   AnimatedDefaultTextStyle(
                                     duration: navMotion,
-
                                     curve: UIConstants.motionOut,
-
                                     style: TextStyle(
                                       color: active
                                           ? color
                                           : color.withAlpha(dark ? 176 : 188),
-
                                       fontSize: active ? 12.5 : 12,
-
                                       fontWeight: active
                                           ? FontWeight.w800
                                           : FontWeight.w600,
-
                                       letterSpacing: active ? -.12 : 0,
-
                                       shadows: active
                                           ? AppStyles.inkGlow(color)
                                           : null,
                                     ),
-
                                     child: Text(spec.label),
                                   ),
-
                                   const SizedBox(height: 4),
-
                                   AnimatedContainer(
                                     duration: navMotion,
-
                                     curve: UIConstants.motionOut,
-
                                     width: active ? 24 : 0,
-
                                     height: 2.5,
-
                                     decoration: BoxDecoration(
                                       color: color.withAlpha(active ? 188 : 0),
-
                                       borderRadius: BorderRadius.circular(99),
-
                                       boxShadow: active
                                           ? <BoxShadow>[
                                               BoxShadow(
@@ -2467,44 +2393,40 @@ class _PremiumNavIconFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedContainer(
     duration: AppMotion.reduce(context) ? Duration.zero : UIConstants.motion,
-
     curve: UIConstants.motionOut,
-
     width: active ? 46 : 39,
-
-    height: active ? 40 : 35,
-
+    height: active ? 39 : 35,
     alignment: Alignment.center,
-
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(active ? 15 : 13),
-
       gradient: LinearGradient(
         begin: Alignment.topLeft,
-
         end: Alignment.bottomRight,
-
-        colors: active
-            ? dark
-                  ? <Color>[
-                      Color.lerp(const Color(0xFF1B2432), color, .18)!,
-                      Color.lerp(const Color(0xFF0D131C), color, .09)!,
-                    ]
-                  : <Color>[
-                      Color.lerp(Colors.white, color, .14)!,
-                      Color.lerp(const Color(0xFFF0F4F8), color, .07)!,
-                    ]
-            : <Color>[color.withAlpha(dark ? 15 : 8), Colors.transparent],
+        colors: <Color>[
+          color.withAlpha(active ? (dark ? 34 : 26) : (dark ? 16 : 11)),
+          color.withAlpha(active ? (dark ? 14 : 9) : 0),
+        ],
       ),
-
       border: Border.all(
-        color: color.withAlpha(active ? (dark ? 82 : 66) : (dark ? 24 : 18)),
+        color: color.withAlpha(active ? (dark ? 70 : 54) : (dark ? 24 : 18)),
         width: active ? .9 : .7,
       ),
-
-      boxShadow: active ? AppStyles.jewelDepth(context, color) : null,
+      boxShadow: active
+          ? <BoxShadow>[
+              BoxShadow(
+                color: color.withAlpha(dark ? 48 : 34),
+                blurRadius: 16,
+                spreadRadius: -5,
+                offset: const Offset(0, 5),
+              ),
+              BoxShadow(
+                color: Colors.white.withAlpha(dark ? 12 : 88),
+                blurRadius: 1,
+                offset: const Offset(0, -1),
+              ),
+            ]
+          : null,
     ),
-
     child: child,
   );
 }
@@ -2975,91 +2897,65 @@ class _GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-
-    final Color? semantic = shadowColor ?? tintColor ?? accentColor;
-
-    final BorderRadius radius = BorderRadius.circular(borderRadius);
-
     final List<Color> surfaceColors;
-
-    if (dark) {
-      surfaceColors = tintColor == null
-          ? const <Color>[
-              Color(0xFF1A2230),
-              Color(0xFF111823),
-              Color(0xFF0A0F18),
+    if (tintColor == null) {
+      surfaceColors = dark
+          ? const <Color>[Color(0xF2161D29), Color(0xED0B1019)]
+          : const <Color>[Color(0xFFFDFEFF), Color(0xFFF3F6FA)];
+    } else {
+      surfaceColors = dark
+          ? <Color>[
+              Color.lerp(darkGlassTop, tintColor, .14)!.withAlpha(244),
+              Color.lerp(darkGlassBottom, tintColor, .075)!.withAlpha(230),
             ]
           : <Color>[
-              Color.lerp(const Color(0xFF1A2230), tintColor, .10)!,
-              Color.lerp(const Color(0xFF111823), tintColor, .07)!,
-              Color.lerp(const Color(0xFF0A0F18), tintColor, .04)!,
-            ];
-    } else {
-      surfaceColors = tintColor == null
-          ? const <Color>[
-              Color(0xFFFFFFFF),
-              Color(0xFFFAFCFE),
-              Color(0xFFEEF2F6),
-            ]
-          : <Color>[
-              Color.lerp(Colors.white, tintColor, .026)!,
-              Color.lerp(const Color(0xFFFAFCFE), tintColor, .020)!,
-              Color.lerp(const Color(0xFFEEF2F6), tintColor, .014)!,
+              Color.lerp(
+                const Color(0xFFFDFEFF),
+                tintColor,
+                .075,
+              )!.withAlpha(252),
+              Color.lerp(
+                const Color(0xFFF1F5F9),
+                tintColor,
+                .045,
+              )!.withAlpha(244),
             ];
     }
-
-    final Color resolvedBorder;
-
-    if (borderColor != null) {
-      resolvedBorder = borderColor!;
-    } else if (semantic == null) {
-      resolvedBorder = dark
-          ? Colors.white.withAlpha(30)
-          : const Color(0xFFFFFFFF);
-    } else {
-      resolvedBorder = Color.alphaBlend(
-        semantic.withAlpha(dark ? 28 : 17),
-        dark ? Colors.white.withAlpha(30) : const Color(0xF0FFFFFF),
-      );
-    }
-
-    final List<BoxShadow> shadows = semantic == null
-        ? AppStyles.surfaceDepth(context)
-        : accentColor != null
-        ? AppStyles.railDepth(context, semantic)
-        : AppStyles.glow(context, semantic, strong: tintColor != null);
-
+    final Border border = borderColor != null
+        ? Border.all(color: borderColor!, width: UIConstants.borderWidth)
+        : AppStyles.glassBorder(context, accent: accentColor);
+    final Color? resolvedGlowColor = shadowColor ?? tintColor ?? accentColor;
+    final List<BoxShadow> shadows = resolvedGlowColor != null
+        ? accentColor != null
+              ? AppStyles.railDepth(context, resolvedGlowColor)
+              : AppStyles.glow(
+                  context,
+                  resolvedGlowColor,
+                  strong: tintColor != null,
+                )
+        : AppStyles.surfaceDepth(context);
+    final BorderRadius radius = BorderRadius.circular(borderRadius);
     return DecoratedBox(
       decoration: BoxDecoration(borderRadius: radius, boxShadow: shadows),
-
       child: ClipRRect(
         borderRadius: radius,
         clipBehavior: Clip.antiAlias,
-
         child: DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              stops: const <double>[0, .52, 1],
               colors: surfaceColors,
             ),
             borderRadius: radius,
           ),
-
           child: DecoratedBox(
             position: DecorationPosition.foreground,
-
-            decoration: BoxDecoration(
-              borderRadius: radius,
-              border: Border.all(
-                color: resolvedBorder,
-                width: UIConstants.borderWidth,
-              ),
-            ),
-
+            decoration: BoxDecoration(borderRadius: radius, border: border),
             child: Stack(
               children: <Widget>[
+                // One continuous lighting field replaces the short straight
+                // edge strips that terminated before the rounded corners.
                 Positioned.fill(
                   child: IgnorePointer(
                     child: DecoratedBox(
@@ -3067,38 +2963,18 @@ class _GlassCard extends StatelessWidget {
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          stops: const <double>[0, .24, .70, 1],
+                          stops: const <double>[0, .32, .68, 1],
                           colors: <Color>[
-                            Colors.white.withAlpha(dark ? 18 : 112),
+                            Colors.white.withAlpha(dark ? 15 : 31),
                             Colors.transparent,
                             Colors.transparent,
-                            Colors.black.withAlpha(dark ? 26 : 10),
+                            Colors.black.withAlpha(dark ? 22 : 7),
                           ],
                         ),
                       ),
                     ),
                   ),
                 ),
-
-                if (semantic != null)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            center: Alignment.bottomRight,
-                            radius: 1.28,
-                            colors: <Color>[
-                              semantic.withAlpha(dark ? 18 : 12),
-                              Colors.transparent,
-                            ],
-                            stops: const <double>[0, .72],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
                 if (accentColor != null)
                   Positioned.fill(
                     child: IgnorePointer(
@@ -3111,7 +2987,6 @@ class _GlassCard extends StatelessWidget {
                       ),
                     ),
                   ),
-
                 Padding(padding: padding, child: child),
               ],
             ),
@@ -3163,9 +3038,9 @@ class _CardAccentPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = color.withAlpha(dark ? 58 : 45)
+        ..color = color.withAlpha(dark ? 48 : 32)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = UIConstants.accentStroke + 5
+        ..strokeWidth = UIConstants.accentStroke + 4
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round,
     );
@@ -3318,56 +3193,55 @@ class _CircleAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-
     return Padding(
       padding: const EdgeInsets.only(left: 6),
-
       child: _Pressable(
         onTap: onTap,
-
         semanticLabel: semanticLabel,
-
         borderRadius: BorderRadius.circular(24),
-
-        feedbackColor: color,
-
         child: Container(
           width: 48,
           height: 48,
-
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-
-              colors: dark
-                  ? <Color>[
-                      Color.lerp(const Color(0xFF1B2432), color, .16)!,
-                      Color.lerp(const Color(0xFF0D131C), color, .08)!,
-                    ]
-                  : <Color>[
-                      Color.lerp(Colors.white, color, .10)!,
-                      Color.lerp(const Color(0xFFF0F4F8), color, .05)!,
-                    ],
+              colors: <Color>[
+                color.withAlpha(dark ? 42 : 29),
+                color.withAlpha(dark ? 18 : 10),
+              ],
             ),
-
-            border: Border.all(
-              color: color.withAlpha(dark ? 84 : 62),
-              width: UIConstants.borderWidth,
+            border: Border.fromBorderSide(
+              AppStyles.hairline(context, accent: color, active: true),
             ),
-
             boxShadow: AppStyles.jewelDepth(context, color),
           ),
-
-          child: Center(
-            child: Icon(
-              icon,
-              size: 21.5,
-              color: color,
-              shadows: AppStyles.inkGlow(color, strong: true),
-            ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              Positioned(
+                left: 13,
+                right: 13,
+                top: 0,
+                height: 1,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(dark ? 44 : 142),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              Center(
+                child: Icon(
+                  icon,
+                  size: 21.5,
+                  color: color,
+                  shadows: AppStyles.inkGlow(color),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -3450,49 +3324,24 @@ class _BackCircle extends StatelessWidget {
   const _BackCircle();
 
   @override
-  Widget build(BuildContext context) {
-    final bool dark = Theme.of(context).brightness == Brightness.dark;
-
-    return _Pressable(
-      onTap: () => Navigator.of(context).maybePop(),
-
-      semanticLabel: 'Back',
-
-      borderRadius: BorderRadius.circular(24),
-
-      feedbackColor: appleBlue,
-
-      child: Container(
-        width: 48,
-        height: 48,
-
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-
-          gradient: dark
-              ? const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: <Color>[Color(0xFF1B2432), Color(0xFF0D131C)],
-                )
-              : const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: <Color>[Color(0xFFFFFFFF), Color(0xFFF0F4F8)],
-                ),
-
-          border: Border.all(
-            color: appleBlue.withAlpha(dark ? 62 : 34),
-            width: UIConstants.borderWidth,
-          ),
-
-          boxShadow: AppStyles.jewelDepth(context, appleBlue),
-        ),
-
-        child: const Icon(Icons.chevron_left_rounded, color: appleBlue),
+  Widget build(BuildContext context) => _Pressable(
+    onTap: () => Navigator.of(context).maybePop(),
+    semanticLabel: 'Back',
+    borderRadius: BorderRadius.circular(24),
+    child: Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.white.withAlpha(13)
+            : Colors.black.withAlpha(10),
+        border: Border.fromBorderSide(AppStyles.hairline(context)),
+        boxShadow: AppStyles.surfaceDepth(context),
       ),
-    );
-  }
+      child: const Icon(Icons.chevron_left_rounded),
+    ),
+  );
 }
 
 class _BounceTextButton extends StatelessWidget {
@@ -3608,6 +3457,7 @@ class _SearchBox extends StatefulWidget {
 
 class _SearchBoxState extends State<_SearchBox> {
   Timer? _debounce;
+
   late final FocusNode _focusNode;
 
   @override
@@ -3659,12 +3509,13 @@ class _SearchBoxState extends State<_SearchBox> {
 
     final BorderRadius radius = BorderRadius.circular(22);
 
+    final Color surface = dark
+        ? const Color(0xF0161D29)
+        : const Color(0xFFFAFCFF);
+
     final Color edge = focused
-        ? widget.color.withAlpha(dark ? 138 : 104)
-        : Color.alphaBlend(
-            widget.color.withAlpha(dark ? 38 : 25),
-            dark ? Colors.white.withAlpha(28) : const Color(0xE8FFFFFF),
-          );
+        ? widget.color.withAlpha(dark ? 132 : 96)
+        : widget.color.withAlpha(dark ? 52 : 42);
 
     return AnimatedContainer(
       duration: AppMotion.reduce(context)
@@ -3674,18 +3525,7 @@ class _SearchBoxState extends State<_SearchBox> {
       curve: UIConstants.motionOut,
 
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-
-          colors: dark
-              ? const <Color>[Color(0xFF1A2230), Color(0xFF0D131D)]
-              : const <Color>[Color(0xFFFFFFFF), Color(0xFFF0F4F8)],
-        ),
-
         borderRadius: radius,
-
-        border: Border.all(color: edge, width: focused ? 1.25 : .8),
 
         boxShadow: focused
             ? AppStyles.glow(context, widget.color, strong: true)
@@ -3717,7 +3557,7 @@ class _SearchBoxState extends State<_SearchBox> {
 
           filled: true,
 
-          fillColor: Colors.transparent,
+          fillColor: surface,
 
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 20,
@@ -3739,11 +3579,23 @@ class _SearchBoxState extends State<_SearchBox> {
 
           prefixIconConstraints: const BoxConstraints(minWidth: 54),
 
-          border: InputBorder.none,
+          border: OutlineInputBorder(
+            borderRadius: radius,
 
-          enabledBorder: InputBorder.none,
+            borderSide: BorderSide(color: edge, width: focused ? 1.35 : 1),
+          ),
 
-          focusedBorder: InputBorder.none,
+          enabledBorder: OutlineInputBorder(
+            borderRadius: radius,
+
+            borderSide: BorderSide(color: edge, width: 1),
+          ),
+
+          focusedBorder: OutlineInputBorder(
+            borderRadius: radius,
+
+            borderSide: BorderSide(color: edge, width: 1.35),
+          ),
         ),
       ),
     );
@@ -4052,173 +3904,107 @@ class _ListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool dark = Theme.of(context).brightness == Brightness.dark;
-
-    final BorderRadius radius = BorderRadius.circular(26);
-
     Widget buildCard(VoidCallback? action) => _Pressable(
       onTap: action,
-      borderRadius: radius,
+      borderRadius: BorderRadius.circular(UIConstants.cardRadius),
       feedbackColor: color,
-
       child: _GlassCard(
-        borderRadius: 26,
-
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
-
+        borderRadius: UIConstants.cardRadius,
+        padding: UIConstants.compactCardPadding,
         accentColor: color,
-        tintColor: color,
         shadowColor: color,
-
         child: Row(
           children: <Widget>[
             Container(
-              width: 52,
-              height: 52,
-
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-
-                  colors: dark
-                      ? <Color>[
-                          Color.lerp(const Color(0xFF1B2432), color, .18)!,
-                          Color.lerp(const Color(0xFF0D131C), color, .10)!,
-                        ]
-                      : <Color>[
-                          Color.lerp(Colors.white, color, .13)!,
-                          Color.lerp(const Color(0xFFF0F4F8), color, .07)!,
-                        ],
+                  colors: <Color>[color.withAlpha(34), color.withAlpha(16)],
                 ),
-
-                borderRadius: BorderRadius.circular(18),
-
-                border: Border.all(
-                  color: color.withAlpha(dark ? 92 : 72),
-                  width: UIConstants.borderWidth,
+                borderRadius: BorderRadius.circular(UIConstants.compactRadius),
+                border: Border.fromBorderSide(
+                  AppStyles.hairline(context, accent: color, active: true),
                 ),
-
                 boxShadow: AppStyles.jewelDepth(context, color),
               ),
-
               child: avatarText == null
                   ? Icon(
                       icon,
                       color: color,
-                      size: 22,
-                      shadows: AppStyles.inkGlow(color, strong: true),
+                      size: 20,
+                      shadows: AppStyles.inkGlow(color),
                     )
                   : Center(
                       child: Text(
                         avatarText!,
                         style: TextStyle(
                           color: color,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          shadows: AppStyles.inkGlow(color, strong: true),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          shadows: AppStyles.inkGlow(color),
                         ),
                       ),
                     ),
             ),
-
             const SizedBox(width: 16),
-
             Expanded(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-
                 crossAxisAlignment: CrossAxisAlignment.start,
-
                 children: <Widget>[
                   Text(
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-
                     style: TextStyle(
                       color: color,
-                      fontSize: 17.5,
-                      height: 1.05,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -.25,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                       shadows: AppStyles.inkGlow(color),
                     ),
                   ),
-
-                  const SizedBox(height: 6),
-
+                  const SizedBox(height: 4),
                   Text(
                     subtitle,
-
                     maxLines: 1,
-
                     overflow: TextOverflow.ellipsis,
-
                     style: TextStyle(
-                      color: color.withAlpha(dark ? 205 : 188),
-                      fontSize: 13.5,
-                      height: 1.15,
-                      fontWeight: FontWeight.w700,
+                      color: color.withAlpha(190),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
             ),
-
             if (trailing != null) ...<Widget>[
-              const SizedBox(width: 10),
-
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 108),
-
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-
-                  alignment: Alignment.centerRight,
-
-                  child: Text(
-                    trailing!,
-
-                    maxLines: 1,
-
-                    softWrap: false,
-
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 18.5,
-                      fontWeight: FontWeight.w800,
-                      fontFeatures: AppStyles.tabularFigures,
-                      letterSpacing: -.35,
-                      shadows: AppStyles.inkGlow(color, strong: true),
-                    ),
-                  ),
+              const SizedBox(width: 8),
+              Text(
+                trailing!,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: AppStyles.tabularFigures,
+                  shadows: AppStyles.inkGlow(color),
                 ),
               ),
             ],
-
             if (onDelete != null)
               Padding(
                 padding: const EdgeInsets.only(left: 9),
-
                 child: _DeleteActionButton(
                   onTap: onDelete!,
                   semanticLabel: 'Delete $title',
                 ),
               )
             else if (action != null)
-              Padding(
-                padding: const EdgeInsets.only(left: 4),
-
-                child: Icon(
-                  Icons.chevron_right_rounded,
-
-                  size: 28,
-
-                  color: color.withAlpha(dark ? 190 : 166),
-
-                  shadows: AppStyles.inkGlow(color),
-                ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: color.withAlpha(150),
+                shadows: AppStyles.inkGlow(color),
               ),
           ],
         ),
@@ -4231,8 +4017,7 @@ class _ListCard extends StatelessWidget {
             destinationBuilder: destinationBuilder!,
             sourceBuilder: (VoidCallback action) => buildCard(action),
           );
-
-    return Padding(padding: const EdgeInsets.only(bottom: 14), child: card);
+    return Padding(padding: const EdgeInsets.only(bottom: 12), child: card);
   }
 }
 
@@ -4814,8 +4599,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 GridView.count(
                   crossAxisCount: 2,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 13,
+                  mainAxisSpacing: 13,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   clipBehavior: Clip.none,
@@ -4852,10 +4637,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   destinationBuilder: (_) => PartyLedgerScreen(sync: sync),
                   sourceBuilder: (VoidCallback openRoute) => _Pressable(
                     onTap: openRoute,
-                    borderRadius: BorderRadius.circular(28),
+                    borderRadius: BorderRadius.circular(24),
                     feedbackColor: const Color(0xFF9333EA),
                     child: const _GlassCard(
-                      borderRadius: 28,
                       shadowColor: Color(0xFF9333EA),
                       child: Row(
                         children: <Widget>[
@@ -4961,55 +4745,39 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _GlassCard(
-    padding: const EdgeInsets.all(18),
-
-    borderRadius: 28,
-
+    padding: UIConstants.compactCardPadding,
+    borderRadius: UIConstants.cardRadius,
     tintColor: color,
-
     shadowColor: color,
-
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-
       mainAxisAlignment: MainAxisAlignment.center,
-
       children: <Widget>[
-        _LedgerIcon(icon: icon, color: color, size: 50),
-
+        _LedgerIcon(icon: icon, color: color, size: 46),
         const Spacer(),
-
         Text(
           label.toUpperCase(),
-
           maxLines: 1,
-
           overflow: TextOverflow.ellipsis,
-
           style: const TextStyle(
             color: systemGray,
-            fontSize: 10.5,
-            fontWeight: FontWeight.w700,
-            letterSpacing: .72,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            letterSpacing: .65,
           ),
         ),
-
-        const SizedBox(height: 5),
-
+        const SizedBox(height: 4),
         FittedBox(
           fit: BoxFit.scaleDown,
-
           alignment: Alignment.centerLeft,
-
           child: Text(
             value,
-
             style: TextStyle(
               color: color,
-              fontSize: 25.5,
-              fontWeight: FontWeight.w800,
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
               fontFeatures: AppStyles.tabularFigures,
-              letterSpacing: -.8,
+              letterSpacing: -.7,
               shadows: AppStyles.inkGlow(color, strong: true),
             ),
           ),
@@ -5029,63 +4797,47 @@ class _LedgerIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-
-    final double radius = size * .33;
-
+    final double radius = size * .32;
     return Container(
       width: size,
       height: size,
-
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
-
           end: Alignment.bottomRight,
-
-          colors: dark
-              ? <Color>[
-                  Color.lerp(const Color(0xFF1B2432), color, .18)!,
-                  Color.lerp(const Color(0xFF0D131C), color, .09)!,
-                ]
-              : <Color>[
-                  Color.lerp(Colors.white, color, .14)!,
-                  Color.lerp(const Color(0xFFF0F4F8), color, .07)!,
-                ],
+          colors: <Color>[
+            color.withAlpha(dark ? 48 : 34),
+            color.withAlpha(dark ? 26 : 16),
+          ],
         ),
-
         borderRadius: BorderRadius.circular(radius),
-
         border: Border.all(
-          color: color.withAlpha(dark ? 92 : 74),
+          color: color.withAlpha(dark ? 88 : 72),
           width: UIConstants.borderWidth,
         ),
-
         boxShadow: AppStyles.jewelDepth(context, color),
       ),
-
       child: Stack(
         fit: StackFit.expand,
-
         children: <Widget>[
           Positioned(
             left: radius * .55,
             right: radius * .55,
-            top: 1,
+            top: 0,
             height: 1,
-
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: <Color>[
                     Colors.transparent,
-                    Colors.white.withAlpha(dark ? 70 : 210),
+                    Colors.white.withAlpha(dark ? 68 : 178),
                     Colors.transparent,
                   ],
                 ),
               ),
             ),
           ),
-
           Center(
             child: Icon(
               icon,
