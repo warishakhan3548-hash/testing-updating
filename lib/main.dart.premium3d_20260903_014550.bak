@@ -130,42 +130,39 @@ abstract final class AppStyles {
   }
 
   static List<BoxShadow> surfaceDepth(BuildContext context) {
-    // PREMIUM_SOFT_3D_V3B
-    //
-    // Unified premium raised-surface lighting.
-    // Upper-left key light + contact shadow +
-    // lower-right depth + broad grounding shadow.
+    // SOFT_3D_UI_V2
+    // Image-10 inspired soft raised surface:
+    // bright upper-left key light,
+    // compact contact shadow,
+    // broad lower-right falloff.
     final bool dark = isDark(context);
 
     final Color ink = dark ? Colors.black : const Color(0xFF26364D);
 
     return <BoxShadow>[
       BoxShadow(
-        color: Colors.white.withAlpha(dark ? 10 : 230),
-        blurRadius: dark ? 12 : 15,
-        spreadRadius: dark ? -6 : -4,
+        color: Colors.white.withAlpha(dark ? 9 : 190),
+        blurRadius: dark ? 12 : 18,
+        spreadRadius: dark ? -6 : -5,
         offset: const Offset(-5, -5),
       ),
-
       BoxShadow(
-        color: ink.withAlpha(dark ? 94 : 30),
-        blurRadius: 7,
+        color: ink.withAlpha(dark ? 92 : 24),
+        blurRadius: 6,
         spreadRadius: -2,
-        offset: const Offset(0, 4),
+        offset: const Offset(0, 3),
       ),
-
       BoxShadow(
-        color: ink.withAlpha(dark ? 72 : 24),
-        blurRadius: dark ? 26 : 24,
-        spreadRadius: -6,
-        offset: const Offset(7, 11),
+        color: ink.withAlpha(dark ? 72 : 25),
+        blurRadius: dark ? 26 : 30,
+        spreadRadius: -7,
+        offset: const Offset(8, 11),
       ),
-
       BoxShadow(
-        color: ink.withAlpha(dark ? 40 : 13),
-        blurRadius: dark ? 52 : 44,
-        spreadRadius: -13,
-        offset: const Offset(10, 18),
+        color: ink.withAlpha(dark ? 38 : 12),
+        blurRadius: 52,
+        spreadRadius: -16,
+        offset: const Offset(12, 20),
       ),
     ];
   }
@@ -200,22 +197,20 @@ abstract final class AppStyles {
         color: ambient.withAlpha(
           _perceptualAlpha(
             ambient,
-            strong ? (dark ? 56 : 44) : (dark ? 42 : 31),
+            strong ? (dark ? 50 : 29) : (dark ? 37 : 20),
           ),
         ),
-        blurRadius: strong ? 24 : 18,
-        spreadRadius: strong ? -4 : -5,
-        offset: const Offset(1, 6),
+        blurRadius: strong ? 18 : 14,
+        spreadRadius: strong ? -3 : -4,
+        offset: const Offset(1, 4),
       ),
-
       if (strong)
         BoxShadow(
-          color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 25 : 20)),
-          blurRadius: 40,
-          spreadRadius: -11,
-          offset: const Offset(4, 12),
+          color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 22 : 13)),
+          blurRadius: 34,
+          spreadRadius: -12,
+          offset: const Offset(5, 10),
         ),
-
       ...surfaceDepth(context),
     ];
   }
@@ -226,12 +221,11 @@ abstract final class AppStyles {
 
     return <BoxShadow>[
       BoxShadow(
-        color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 50 : 37)),
-        blurRadius: 22,
-        spreadRadius: -5,
-        offset: const Offset(1, 7),
+        color: ambient.withAlpha(_perceptualAlpha(ambient, dark ? 43 : 24)),
+        blurRadius: 17,
+        spreadRadius: -4,
+        offset: const Offset(1, 5),
       ),
-
       ...surfaceDepth(context),
     ];
   }
@@ -259,28 +253,28 @@ abstract final class AppStyles {
   }
 
   static List<BoxShadow> jewelDepth(BuildContext context, Color color) {
+    // Compact controls get a tighter raised profile
+    // than full-size cards.
     final bool dark = isDark(context);
 
     return <BoxShadow>[
       BoxShadow(
-        color: Colors.white.withAlpha(dark ? 12 : 220),
-        blurRadius: 12,
-        spreadRadius: -4,
-        offset: const Offset(-4, -4),
-      ),
-
-      BoxShadow(
-        color: color.withAlpha(dark ? 44 : 38),
-        blurRadius: 18,
+        color: Colors.white.withAlpha(dark ? 11 : 165),
+        blurRadius: 10,
         spreadRadius: -5,
-        offset: const Offset(2, 6),
+        offset: const Offset(-3, -3),
       ),
-
       BoxShadow(
-        color: Colors.black.withAlpha(dark ? 76 : 24),
-        blurRadius: 20,
+        color: color.withAlpha(dark ? 38 : 24),
+        blurRadius: 14,
+        spreadRadius: -5,
+        offset: const Offset(2, 5),
+      ),
+      BoxShadow(
+        color: Colors.black.withAlpha(dark ? 72 : 18),
+        blurRadius: 18,
         spreadRadius: -6,
-        offset: const Offset(6, 10),
+        offset: const Offset(6, 9),
       ),
     ];
   }
@@ -3458,24 +3452,8 @@ class _SearchBox extends StatefulWidget {
 class _SearchBoxState extends State<_SearchBox> {
   Timer? _debounce;
 
-  late final FocusNode _focusNode;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _focusNode = FocusNode()..addListener(_handleFocusChanged);
-  }
-
-  void _handleFocusChanged() {
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
   void _onChanged(String value) {
     _debounce?.cancel();
-
     _debounce = Timer(
       const Duration(milliseconds: 140),
       () => widget.onChanged(value),
@@ -3484,118 +3462,58 @@ class _SearchBoxState extends State<_SearchBox> {
 
   void _onSubmitted(String value) {
     _debounce?.cancel();
-
     widget.onChanged(value);
-
     FocusManager.instance.primaryFocus?.unfocus();
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
-
-    _focusNode
-      ..removeListener(_handleFocusChanged)
-      ..dispose();
-
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-
-    final bool focused = _focusNode.hasFocus;
-
-    final BorderRadius radius = BorderRadius.circular(22);
-
-    final Color surface = dark
-        ? const Color(0xF0161D29)
-        : const Color(0xFFFAFCFF);
-
-    final Color edge = focused
-        ? widget.color.withAlpha(dark ? 132 : 96)
-        : widget.color.withAlpha(dark ? 52 : 42);
-
-    return AnimatedContainer(
-      duration: AppMotion.reduce(context)
-          ? Duration.zero
-          : const Duration(milliseconds: 180),
-
-      curve: UIConstants.motionOut,
-
-      decoration: BoxDecoration(
-        borderRadius: radius,
-
-        boxShadow: focused
-            ? AppStyles.glow(context, widget.color, strong: true)
-            : AppStyles.glow(context, widget.color),
+    final OutlineInputBorder idleBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(UIConstants.inputRadius),
+      borderSide: AppStyles.hairline(context, accent: widget.color),
+    );
+    return TextField(
+      onChanged: _onChanged,
+      onSubmitted: _onSubmitted,
+      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+      cursorColor: widget.color,
+      textInputAction: TextInputAction.search,
+      style: TextStyle(
+        color: widget.color,
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+        shadows: AppStyles.inkGlow(widget.color),
       ),
-
-      child: TextField(
-        focusNode: _focusNode,
-
-        onChanged: _onChanged,
-
-        onSubmitted: _onSubmitted,
-
-        onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-
-        cursorColor: widget.color,
-
-        textInputAction: TextInputAction.search,
-
-        style: TextStyle(
+      decoration: InputDecoration(
+        hintText: widget.hint,
+        filled: true,
+        fillColor: widget.color.withAlpha(dark ? 12 : 8),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 16,
+        ),
+        hintStyle: TextStyle(
+          color: widget.color.withAlpha(160),
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+        prefixIcon: Icon(
+          Icons.search_rounded,
           color: widget.color,
-          fontSize: 16.5,
-          fontWeight: FontWeight.w700,
           shadows: AppStyles.inkGlow(widget.color),
         ),
-
-        decoration: InputDecoration(
-          hintText: widget.hint,
-
-          filled: true,
-
-          fillColor: surface,
-
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 18,
-          ),
-
-          hintStyle: TextStyle(
-            color: widget.color.withAlpha(dark ? 176 : 164),
-            fontSize: 16.5,
-            fontWeight: FontWeight.w600,
-          ),
-
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            color: widget.color,
-            size: 25,
-            shadows: AppStyles.inkGlow(widget.color, strong: true),
-          ),
-
-          prefixIconConstraints: const BoxConstraints(minWidth: 54),
-
-          border: OutlineInputBorder(
-            borderRadius: radius,
-
-            borderSide: BorderSide(color: edge, width: focused ? 1.35 : 1),
-          ),
-
-          enabledBorder: OutlineInputBorder(
-            borderRadius: radius,
-
-            borderSide: BorderSide(color: edge, width: 1),
-          ),
-
-          focusedBorder: OutlineInputBorder(
-            borderRadius: radius,
-
-            borderSide: BorderSide(color: edge, width: 1.35),
-          ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 48),
+        enabledBorder: idleBorder,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(UIConstants.inputRadius),
+          borderSide: BorderSide(color: widget.color, width: 1.4),
         ),
       ),
     );
