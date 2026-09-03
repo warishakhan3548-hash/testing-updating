@@ -66,7 +66,7 @@ function normalizeSourceEntry(value, entryId) {
   if (!isPlainObject(value)) return null;
   const result = {};
   for (const [key, item] of Object.entries(value)) {
-    if (!RESERVED_FIELDS.has(key)) result[key] = item;
+    if (!RESERVED_FIELDS.has(key)) result[key] = stableValue(item);
   }
   result.id = entryId;
   return result;
