@@ -20,20 +20,11 @@ const List<String> ledgerRoots = <String>[
 
 const int ledgerDeltaPathLimit = 24;
 
-const Set<String> _listRoots = <String>{
-  'udharDB',
-  'expenseDB',
-  'diaryDB',
-};
+const Set<String> _listRoots = <String>{'udharDB', 'expenseDB', 'diaryDB'};
 
-const Set<String> _groupedRoots = <String>{
-  'milkDB',
-  'salaryDB',
-  'projectDB',
-};
+const Set<String> _groupedRoots = <String>{'milkDB', 'salaryDB', 'projectDB'};
 
-final RegExp ledgerWriterIdPattern =
-    RegExp(r'^writer_[A-Za-z0-9_-]{10,40}$');
+final RegExp ledgerWriterIdPattern = RegExp(r'^writer_[A-Za-z0-9_-]{10,40}$');
 
 class LedgerSyncException implements Exception {
   const LedgerSyncException(this.message);
@@ -64,20 +55,20 @@ class PendingWrite {
   final String reason;
 
   factory PendingWrite.fromJson(Map<String, dynamic> json) => PendingWrite(
-        id: '${json['id'] ?? ''}',
-        path: '${json['path'] ?? ''}',
-        value: json['value'],
-        createdAt: _asInt(json['createdAt']),
-        reason: '${json['reason'] ?? 'local-mutation'}',
-      );
+    id: '${json['id'] ?? ''}',
+    path: '${json['path'] ?? ''}',
+    value: json['value'],
+    createdAt: _asInt(json['createdAt']),
+    reason: '${json['reason'] ?? 'local-mutation'}',
+  );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'id': id,
-        'path': path,
-        'value': value,
-        'createdAt': createdAt,
-        'reason': reason,
-      };
+    'id': id,
+    'path': path,
+    'value': value,
+    'createdAt': createdAt,
+    'reason': reason,
+  };
 }
 
 class SyncEnvelope {
@@ -92,14 +83,14 @@ class SyncEnvelope {
   });
 
   factory SyncEnvelope.empty() => SyncEnvelope(
-        state: LedgerCodec.emptyState(),
-        outbox: const <PendingWrite>[],
-        changeToken: '',
-        revision: 0,
-        tableRevisions: const <String, int>{},
-        tableClocks: const <String, Map<String, String>>{},
-        lastFullAuditAt: 0,
-      );
+    state: LedgerCodec.emptyState(),
+    outbox: const <PendingWrite>[],
+    changeToken: '',
+    revision: 0,
+    tableRevisions: const <String, int>{},
+    tableClocks: const <String, Map<String, String>>{},
+    lastFullAuditAt: 0,
+  );
 
   factory SyncEnvelope.fromJson(Map<String, dynamic> json) {
     final List<PendingWrite> writes = <PendingWrite>[];
@@ -117,8 +108,9 @@ class SyncEnvelope {
       }
     }
     final Map<String, int> tableRevisions = <String, int>{};
-    for (final MapEntry<String, dynamic> entry
-        in LedgerCodec.objectMap(json['tableRevisions']).entries) {
+    for (final MapEntry<String, dynamic> entry in LedgerCodec.objectMap(
+      json['tableRevisions'],
+    ).entries) {
       final int value = _asInt(entry.value);
       if (value > 0) tableRevisions[entry.key] = value;
     }
@@ -142,28 +134,28 @@ class SyncEnvelope {
   final int lastFullAuditAt;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'version': 1,
-        'state': state,
-        'outbox': outbox.map((PendingWrite write) => write.toJson()).toList(),
-        'changeToken': changeToken,
-        'revision': revision,
-        'tableRevisions': tableRevisions,
-        'tableClocks': tableClocks,
-        'lastFullAuditAt': lastFullAuditAt,
-      };
+    'version': 1,
+    'state': state,
+    'outbox': outbox.map((PendingWrite write) => write.toJson()).toList(),
+    'changeToken': changeToken,
+    'revision': revision,
+    'tableRevisions': tableRevisions,
+    'tableClocks': tableClocks,
+    'lastFullAuditAt': lastFullAuditAt,
+  };
 }
 
 class LedgerCodec {
   LedgerCodec._();
 
   static Map<String, dynamic> emptyState() => <String, dynamic>{
-        'milkDB': <String, dynamic>{},
-        'udharDB': <Map<String, dynamic>>[],
-        'expenseDB': <Map<String, dynamic>>[],
-        'salaryDB': <String, dynamic>{},
-        'diaryDB': <Map<String, dynamic>>[],
-        'projectDB': <String, dynamic>{},
-      };
+    'milkDB': <String, dynamic>{},
+    'udharDB': <Map<String, dynamic>>[],
+    'expenseDB': <Map<String, dynamic>>[],
+    'salaryDB': <String, dynamic>{},
+    'diaryDB': <Map<String, dynamic>>[],
+    'projectDB': <String, dynamic>{},
+  };
 
   static Map<String, dynamic> objectMap(dynamic value) {
     if (value is! Map) return <String, dynamic>{};
@@ -236,8 +228,9 @@ class LedgerCodec {
     }
     for (final String root in _groupedRoots) {
       final Map<String, dynamic> profiles = <String, dynamic>{};
-      for (final MapEntry<String, dynamic> entry
-          in objectMap(source[root]).entries) {
+      for (final MapEntry<String, dynamic> entry in objectMap(
+        source[root],
+      ).entries) {
         if (entry.value is! Map) continue;
         final Map<String, dynamic> profile = objectMap(clone(entry.value));
         profile['records'] = canonicalList(profile['records']);
@@ -322,7 +315,9 @@ class LedgerCodec {
     if (parts.length != 4 || parts[2] != 'records') return false;
 
     final String id = parts[3];
-    final List<Map<String, dynamic>> records = canonicalList(profile['records']);
+    final List<Map<String, dynamic>> records = canonicalList(
+      profile['records'],
+    );
     final int index = records.indexWhere(
       (Map<String, dynamic> row) => '${row['id'] ?? row['key']}' == id,
     );
@@ -347,10 +342,7 @@ class LedgerCodec {
 }
 
 class DiarySourceVersion {
-  const DiarySourceVersion({
-    required this.revision,
-    required this.clockHash,
-  });
+  const DiarySourceVersion({required this.revision, required this.clockHash});
 
   factory DiarySourceVersion.fromMetadata(dynamic value) {
     final Map<String, dynamic> metadata = LedgerCodec.objectMap(value);
@@ -376,10 +368,7 @@ class DiarySourceVersion {
 class DiaryReadConsistency {
   DiaryReadConsistency._();
 
-  static bool sameSource(
-    DiarySourceVersion left,
-    DiarySourceVersion right,
-  ) =>
+  static bool sameSource(DiarySourceVersion left, DiarySourceVersion right) =>
       left.cacheKey == right.cacheKey;
 
   static bool canApplyProjectedMonth({
@@ -400,10 +389,10 @@ class DiaryProjectionMetadata {
   });
 
   const DiaryProjectionMetadata.unavailable()
-      : schemaVersion = 0,
-        ready = false,
-        sourceRevision = -1,
-        sourceClockHash = '';
+    : schemaVersion = 0,
+      ready = false,
+      sourceRevision = -1,
+      sourceClockHash = '';
 
   factory DiaryProjectionMetadata.fromValue(dynamic value) {
     final Map<String, dynamic> map = LedgerCodec.objectMap(value);
@@ -477,8 +466,7 @@ class DiaryMonthCodec {
   }) {
     final String expectedPeriod = periodKey(year, month);
     final List<Map<String, dynamic>> result = <Map<String, dynamic>>[];
-    for (final Map<String, dynamic> raw
-        in LedgerCodec.canonicalList(value)) {
+    for (final Map<String, dynamic> raw in LedgerCodec.canonicalList(value)) {
       if (raw['_deleted'] == true || '${raw['_period']}' != expectedPeriod) {
         continue;
       }
@@ -491,10 +479,8 @@ class DiaryMonthCodec {
 
   static List<Map<String, dynamic>> decodeInvalidEntries(dynamic value) {
     final List<Map<String, dynamic>> result = <Map<String, dynamic>>[];
-    for (final Map<String, dynamic> raw
-        in LedgerCodec.canonicalList(value)) {
-      if (raw['_deleted'] == true ||
-          '${raw['_period']}' != invalidPeriodKey) {
+    for (final Map<String, dynamic> raw in LedgerCodec.canonicalList(value)) {
+      if (raw['_deleted'] == true || '${raw['_period']}' != invalidPeriodKey) {
         continue;
       }
       final Map<String, dynamic> entry = _publicEntry(raw);
@@ -521,8 +507,9 @@ class DiaryMonthCodec {
     final String target = periodKey(year, month);
     final Map<String, Map<String, dynamic>> byId =
         <String, Map<String, dynamic>>{};
-    for (final Map<String, dynamic> row
-        in LedgerCodec.canonicalList(state['diaryDB'])) {
+    for (final Map<String, dynamic> row in LedgerCodec.canonicalList(
+      state['diaryDB'],
+    )) {
       if (periodForRecord(row) == target) continue;
       byId['${row['id'] ?? row['key']}'] = row;
     }
@@ -541,8 +528,9 @@ class DiaryMonthCodec {
   ) {
     final Map<String, Map<String, dynamic>> byId =
         <String, Map<String, dynamic>>{};
-    for (final Map<String, dynamic> row
-        in LedgerCodec.canonicalList(state['diaryDB'])) {
+    for (final Map<String, dynamic> row in LedgerCodec.canonicalList(
+      state['diaryDB'],
+    )) {
       if (periodForRecord(row) == null) continue;
       byId['${row['id'] ?? row['key']}'] = row;
     }
@@ -564,9 +552,7 @@ class OutboxPlanner {
   static const int maxBatchBytes = 12 * 1024 * 1024;
 
   static bool overlaps(String left, String right) =>
-      left == right ||
-      left.startsWith('$right/') ||
-      right.startsWith('$left/');
+      left == right || left.startsWith('$right/') || right.startsWith('$left/');
 
   static List<PendingWrite> nextCompatibleBatch(
     List<PendingWrite> queue, {
@@ -612,8 +598,7 @@ class LedgerFirebasePolicy {
   static const int maxRelativeDepth = 29;
   static const int maxValueNesting = 24;
   static const int maxMutationBytes = 8 * 1024 * 1024;
-  static final RegExp _forbiddenKey =
-      RegExp(r'[.#$\[\]/\u0000-\u001F\u007F]');
+  static final RegExp _forbiddenKey = RegExp(r'[.#$\[\]/\u0000-\u001F\u007F]');
   static const Set<String> _unsafeObjectKeys = <String>{
     '__proto__',
     'constructor',
@@ -646,7 +631,8 @@ class LedgerFirebasePolicy {
       throw LedgerSyncException('Unsupported list path: $rawPath');
     }
     if (_groupedRoots.contains(parts.first)) {
-      final bool valid = parts.length <= 2 ||
+      final bool valid =
+          parts.length <= 2 ||
           (parts.length == 3 && parts[2] == 'records') ||
           (parts.length == 4 && parts[2] == 'records');
       if (!valid) {
@@ -750,9 +736,7 @@ class DeltaPathCodec {
   }
 
   static List<String> decode(dynamic value) {
-    if (value is! String ||
-        value.isEmpty ||
-        value.length > maxEncodedLength) {
+    if (value is! String || value.isEmpty || value.length > maxEncodedLength) {
       return const <String>[];
     }
     try {
@@ -799,10 +783,10 @@ class LedgerDeltaPolicy {
   }) {
     final Set<String> changed = <String>{};
     for (final String root in ledgerRoots) {
-      final Map<String, String> remote = remoteClocks[root] ??
-          const <String, String>{};
-      final Map<String, String> local = localClocks[root] ??
-          const <String, String>{};
+      final Map<String, String> remote =
+          remoteClocks[root] ?? const <String, String>{};
+      final Map<String, String> local =
+          localClocks[root] ?? const <String, String>{};
       if (remote.isNotEmpty || local.isNotEmpty) {
         if (!_sameWriterClocks(remote, local)) changed.add(root);
       } else {
@@ -831,10 +815,10 @@ class LedgerDeltaPolicy {
       return false;
     }
     for (final String root in changedRoots) {
-      final Map<String, String> remote = remoteClocks[root] ??
-          const <String, String>{};
-      final Map<String, String> local = localClocks[root] ??
-          const <String, String>{};
+      final Map<String, String> remote =
+          remoteClocks[root] ?? const <String, String>{};
+      final Map<String, String> local =
+          localClocks[root] ?? const <String, String>{};
       final Set<String> writers = <String>{...remote.keys, ...local.keys};
       final List<String> changedWriters = writers
           .where((String writer) => remote[writer] != local[writer])
@@ -978,6 +962,7 @@ class LedgerProjection {
     final Map<String, double> partyMilk = <String, double>{};
     final Map<String, _CreditSummaryBuilder> partyCredit =
         <String, _CreditSummaryBuilder>{};
+    final Map<String, String> partyDisplayNames = <String, String>{};
     final Map<String, _ExpenseSummaryBuilder> expenseByCategory =
         <String, _ExpenseSummaryBuilder>{};
     final Map<String, int> businessRecordCounts = <String, int>{};
@@ -993,8 +978,9 @@ class LedgerProjection {
     double salaryMonthNet = 0;
     double expenseMonthTotal = 0;
 
-    for (final MapEntry<String, dynamic> entry
-        in LedgerCodec.objectMap(state['milkDB']).entries) {
+    for (final MapEntry<String, dynamic> entry in LedgerCodec.objectMap(
+      state['milkDB'],
+    ).entries) {
       final MilkTotals lifetime = LedgerMath.milkTotals(entry.value);
       final MilkTotals monthly = LedgerMath.milkTotals(
         entry.value,
@@ -1017,20 +1003,24 @@ class LedgerProjection {
 
       final String partyName = LedgerMath.cleanName(entry.key);
       if (partyName.isNotEmpty) {
-        partyMilk[partyName] =
-            (partyMilk[partyName] ?? 0) + lifetime.netAmount;
+        final String partyKey = partyName.toLowerCase();
+        partyDisplayNames.putIfAbsent(partyKey, () => partyName);
+        partyMilk[partyKey] = (partyMilk[partyKey] ?? 0) + lifetime.netAmount;
       }
     }
 
-    for (final Map<String, dynamic> row
-        in LedgerCodec.canonicalList(state['udharDB'])) {
+    for (final Map<String, dynamic> row in LedgerCodec.canonicalList(
+      state['udharDB'],
+    )) {
       final double signed = LedgerMath.creditSigned(row);
       creditLifetimeNet += signed;
       final String partyName = LedgerMath.cleanName(row['name']);
       if (partyName.isEmpty) continue;
+      final String partyKey = partyName.toLowerCase();
+      partyDisplayNames.putIfAbsent(partyKey, () => partyName);
       final _CreditSummaryBuilder builder = partyCredit.putIfAbsent(
-        partyName,
-        () => _CreditSummaryBuilder(partyName),
+        partyKey,
+        () => _CreditSummaryBuilder(partyDisplayNames[partyKey]!),
       );
       builder.net += signed;
       final String rowDate = '${row['date'] ?? ''}';
@@ -1050,8 +1040,9 @@ class LedgerProjection {
       }
     }
 
-    for (final Map<String, dynamic> row
-        in LedgerCodec.canonicalList(state['expenseDB'])) {
+    for (final Map<String, dynamic> row in LedgerCodec.canonicalList(
+      state['expenseDB'],
+    )) {
       final String cleanedCategory = LedgerMath.cleanKey(row['category']);
       final String category = cleanedCategory.isEmpty
           ? 'Other'
@@ -1072,8 +1063,9 @@ class LedgerProjection {
       }
     }
 
-    for (final MapEntry<String, dynamic> entry
-        in LedgerCodec.objectMap(state['salaryDB']).entries) {
+    for (final MapEntry<String, dynamic> entry in LedgerCodec.objectMap(
+      state['salaryDB'],
+    ).entries) {
       final double net = LedgerMath.salaryNet(entry.value, month, year);
       salaryNetByProfile[entry.key] = net;
       salaryMonthNet += net;
@@ -1084,8 +1076,9 @@ class LedgerProjection {
       }
     }
 
-    for (final MapEntry<String, dynamic> entry
-        in LedgerCodec.objectMap(state['projectDB']).entries) {
+    for (final MapEntry<String, dynamic> entry in LedgerCodec.objectMap(
+      state['projectDB'],
+    ).entries) {
       businessRecordCounts[entry.key] = LedgerCodec.canonicalList(
         LedgerCodec.objectMap(entry.value)['records'],
       ).length;
@@ -1097,10 +1090,10 @@ class LedgerProjection {
     };
     final List<PartyBalance> partyBalances = partyNames
         .map(
-          (String name) => PartyBalance(
-            name: name,
-            milk: partyMilk[name] ?? 0,
-            credit: partyCredit[name]?.net ?? 0,
+          (String key) => PartyBalance(
+            name: partyDisplayNames[key] ?? partyCredit[key]?.name ?? key,
+            milk: partyMilk[key] ?? 0,
+            credit: partyCredit[key]?.net ?? 0,
           ),
         )
         .toList();
@@ -1133,14 +1126,13 @@ class LedgerProjection {
           ),
         )
         .toList();
-    expenseCategories.sort(
-      (ExpenseCategorySummary a, ExpenseCategorySummary b) {
-        final int byLatest = b.lastDate.compareTo(a.lastDate);
-        return byLatest != 0
-            ? byLatest
-            : a.category.compareTo(b.category);
-      },
-    );
+    expenseCategories.sort((
+      ExpenseCategorySummary a,
+      ExpenseCategorySummary b,
+    ) {
+      final int byLatest = b.lastDate.compareTo(a.lastDate);
+      return byLatest != 0 ? byLatest : a.category.compareTo(b.category);
+    });
 
     return LedgerProjection._(
       month: month,
@@ -1157,16 +1149,12 @@ class LedgerProjection {
       milkTotalsByProfile: Map<String, MilkTotals>.unmodifiable(
         milkTotalsByProfile,
       ),
-      salaryNetByProfile: Map<String, double>.unmodifiable(
-        salaryNetByProfile,
-      ),
+      salaryNetByProfile: Map<String, double>.unmodifiable(salaryNetByProfile),
       creditParties: List<CreditPartySummary>.unmodifiable(creditParties),
       expenseCategories: List<ExpenseCategorySummary>.unmodifiable(
         expenseCategories,
       ),
-      businessRecordCounts: Map<String, int>.unmodifiable(
-        businessRecordCounts,
-      ),
+      businessRecordCounts: Map<String, int>.unmodifiable(businessRecordCounts),
       milkLifetimeNet: milkLifetimeNet,
       creditLifetimeNet: creditLifetimeNet,
       salaryMonthNet: salaryMonthNet,
@@ -1209,7 +1197,8 @@ class LedgerMath {
 
   static DateTime? strictDate(dynamic value) {
     final String raw = '${value ?? ''}'.trim();
-    final RegExpMatch? match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(raw);
+    final RegExpMatch? match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$')
+        .firstMatch(raw);
     if (match == null) return null;
     final int year = int.parse(match.group(1)!);
     final int month = int.parse(match.group(2)!);
@@ -1271,8 +1260,9 @@ class LedgerMath {
   static String milkFlow(dynamic record, dynamic customer) {
     final Map<String, dynamic> row = LedgerCodec.objectMap(record);
     final Map<String, dynamic> profile = LedgerCodec.objectMap(customer);
-    final String raw = '${row['flow'] ?? row['milkFlow'] ?? row['direction'] ?? row['entryType'] ?? row['type'] ?? row['mode'] ?? ''}'
-        .toLowerCase();
+    final String raw =
+        '${row['flow'] ?? row['milkFlow'] ?? row['direction'] ?? row['entryType'] ?? row['type'] ?? row['mode'] ?? ''}'
+            .toLowerCase();
     const List<String> taken = <String>[
       'taken',
       'take',
@@ -1308,7 +1298,11 @@ class LedgerMath {
     final double evening = number(row['evening']);
     if (morning != 0 || evening != 0) return (morning + evening).abs();
     return number(
-      row['kg'] ?? row['qty'] ?? row['quantity'] ?? row['totalKg'] ?? row['total'],
+      row['kg'] ??
+          row['qty'] ??
+          row['quantity'] ??
+          row['totalKg'] ??
+          row['total'],
     ).abs();
   }
 
@@ -1321,14 +1315,11 @@ class LedgerMath {
     return profileRate > 0 ? profileRate : defaultMilkRate;
   }
 
-  static MilkTotals milkTotals(
-    dynamic customer, {
-    int? month,
-    int? year,
-  }) {
+  static MilkTotals milkTotals(dynamic customer, {int? month, int? year}) {
     final Map<String, dynamic> profile = LedgerCodec.objectMap(customer);
-    final List<Map<String, dynamic>> rows =
-        LedgerCodec.canonicalList(profile['records']);
+    final List<Map<String, dynamic>> rows = LedgerCodec.canonicalList(
+      profile['records'],
+    );
     double givenKg = 0;
     double takenKg = 0;
     double givenAmount = 0;
@@ -1359,10 +1350,15 @@ class LedgerMath {
   static double creditSigned(dynamic entry) {
     final Map<String, dynamic> row = LedgerCodec.objectMap(entry);
     final double amount = number(
-      row['amount'] ?? row['amt'] ?? row['total'] ?? row['price'] ?? row['value'],
+      row['amount'] ??
+          row['amt'] ??
+          row['total'] ??
+          row['price'] ??
+          row['value'],
     ).abs();
-    final String raw = '${row['type'] ?? row['entryType'] ?? row['flow'] ?? row['direction'] ?? row['status'] ?? row['mode'] ?? ''}'
-        .toLowerCase();
+    final String raw =
+        '${row['type'] ?? row['entryType'] ?? row['flow'] ?? row['direction'] ?? row['status'] ?? row['mode'] ?? ''}'
+            .toLowerCase();
     if (raw.contains('debit') ||
         raw.contains('dena') ||
         raw.contains('pay') ||
@@ -1379,8 +1375,9 @@ class LedgerMath {
   static double salaryNet(dynamic person, int month, int year) {
     final Map<String, dynamic> profile = LedgerCodec.objectMap(person);
     double total = 0;
-    for (final Map<String, dynamic> row
-        in LedgerCodec.canonicalList(profile['records'])) {
+    for (final Map<String, dynamic> row in LedgerCodec.canonicalList(
+      profile['records'],
+    )) {
       if (inMonth(row, month, year)) total += number(row['amount']);
     }
     return profile['type'] == 'lene_wala' ? total : -total;
@@ -1398,8 +1395,9 @@ class LedgerMath {
     double creditReceive = 0;
     double creditPay = 0;
 
-    for (final dynamic customer
-        in LedgerCodec.objectMap(state['milkDB']).values) {
+    for (final dynamic customer in LedgerCodec.objectMap(
+      state['milkDB'],
+    ).values) {
       final MilkTotals monthly = milkTotals(customer, month: month, year: year);
       final MilkTotals lifetime = milkTotals(customer);
       if (monthly.netAmount >= 0) {
@@ -1414,17 +1412,21 @@ class LedgerMath {
       }
     }
 
-    for (final Map<String, dynamic> row
-        in LedgerCodec.canonicalList(state['expenseDB'])) {
+    for (final Map<String, dynamic> row in LedgerCodec.canonicalList(
+      state['expenseDB'],
+    )) {
       if (inMonth(row, month, year)) expense += number(row['amount']).abs();
     }
 
     final Map<String, double> creditByParty = <String, double>{};
-    for (final Map<String, dynamic> row
-        in LedgerCodec.canonicalList(state['udharDB'])) {
+    for (final Map<String, dynamic> row in LedgerCodec.canonicalList(
+      state['udharDB'],
+    )) {
       final String name = cleanName(row['name']);
       if (name.isEmpty) continue;
-      creditByParty[name] = (creditByParty[name] ?? 0) + creditSigned(row);
+      final String partyKey = name.toLowerCase();
+      creditByParty[partyKey] =
+          (creditByParty[partyKey] ?? 0) + creditSigned(row);
     }
     for (final double raw in creditByParty.values) {
       final double net = _cleanZero(raw);
@@ -1437,8 +1439,9 @@ class LedgerMath {
       }
     }
 
-    for (final dynamic person
-        in LedgerCodec.objectMap(state['salaryDB']).values) {
+    for (final dynamic person in LedgerCodec.objectMap(
+      state['salaryDB'],
+    ).values) {
       final double net = salaryNet(person, month, year);
       if (net >= 0) {
         revenue += net;
@@ -1460,25 +1463,33 @@ class LedgerMath {
   static List<PartyBalance> partyBalances(Map<String, dynamic> state) {
     final Map<String, double> milk = <String, double>{};
     final Map<String, double> credit = <String, double>{};
-    for (final MapEntry<String, dynamic> entry
-        in LedgerCodec.objectMap(state['milkDB']).entries) {
+    final Map<String, String> displayNames = <String, String>{};
+    for (final MapEntry<String, dynamic> entry in LedgerCodec.objectMap(
+      state['milkDB'],
+    ).entries) {
       final String name = cleanName(entry.key);
       if (name.isEmpty) continue;
-      milk[name] = (milk[name] ?? 0) + milkTotals(entry.value).netAmount;
+      final String partyKey = name.toLowerCase();
+      displayNames.putIfAbsent(partyKey, () => name);
+      milk[partyKey] =
+          (milk[partyKey] ?? 0) + milkTotals(entry.value).netAmount;
     }
-    for (final Map<String, dynamic> row
-        in LedgerCodec.canonicalList(state['udharDB'])) {
+    for (final Map<String, dynamic> row in LedgerCodec.canonicalList(
+      state['udharDB'],
+    )) {
       final String name = cleanName(row['name']);
       if (name.isEmpty) continue;
-      credit[name] = (credit[name] ?? 0) + creditSigned(row);
+      final String partyKey = name.toLowerCase();
+      displayNames.putIfAbsent(partyKey, () => name);
+      credit[partyKey] = (credit[partyKey] ?? 0) + creditSigned(row);
     }
     final Set<String> names = <String>{...milk.keys, ...credit.keys};
     final List<PartyBalance> result = names
         .map(
-          (String name) => PartyBalance(
-            name: name,
-            milk: milk[name] ?? 0,
-            credit: credit[name] ?? 0,
+          (String key) => PartyBalance(
+            name: displayNames[key] ?? key,
+            milk: milk[key] ?? 0,
+            credit: credit[key] ?? 0,
           ),
         )
         .toList();
@@ -1505,11 +1516,9 @@ class LedgerMath {
 }
 
 class LedgerSyncService extends ChangeNotifier {
-  LedgerSyncService({
-    FirebaseAuth? auth,
-    FirebaseDatabase? database,
-  })  : auth = auth ?? FirebaseAuth.instance,
-        database = database ?? FirebaseDatabase.instance;
+  LedgerSyncService({FirebaseAuth? auth, FirebaseDatabase? database})
+    : auth = auth ?? FirebaseAuth.instance,
+      database = database ?? FirebaseDatabase.instance;
 
   final FirebaseAuth auth;
   final FirebaseDatabase database;
@@ -1604,8 +1613,7 @@ class LedgerSyncService extends ChangeNotifier {
     Map<String, Map<String, String>>? tableClocks,
   }) {
     final Map<String, int> revisions = tableRevisions ?? _tableRevisions;
-    final Map<String, Map<String, String>> clocks =
-        tableClocks ?? _tableClocks;
+    final Map<String, Map<String, String>> clocks = tableClocks ?? _tableClocks;
     return DiarySourceVersion(
       revision: revisions['diaryDB'] ?? 0,
       clockHash: LedgerDeltaPolicy.tableClockHash(
@@ -1621,13 +1629,13 @@ class LedgerSyncService extends ChangeNotifier {
 
   List<DateTime> get diaryAvailablePeriods {
     final Map<int, DateTime> periods = <int, DateTime>{};
-    for (final DateTime period
-        in LedgerMath.recordPeriods(_state['diaryDB'])) {
+    for (final DateTime period in LedgerMath.recordPeriods(_state['diaryDB'])) {
       periods[period.year * 100 + period.month] = period;
     }
     if (diaryMonthlyMode) {
-      for (final DateTime period
-          in DiaryMonthCodec.periodsFromIndex(_diaryPeriodsByEntry)) {
+      for (final DateTime period in DiaryMonthCodec.periodsFromIndex(
+        _diaryPeriodsByEntry,
+      )) {
         periods[period.year * 100 + period.month] = period;
       }
     }
@@ -1737,9 +1745,52 @@ class LedgerSyncService extends ChangeNotifier {
     }
   }
 
+  void _scheduleObservedMetadataCheck(
+    String uid,
+    Map<String, dynamic> meta,
+  ) {
+    if (_disposed || uid != _activeUid) return;
+
+    final String remoteToken = '${meta['changeToken'] ?? ''}';
+
+    final Map<String, Map<String, String>> remoteClocks =
+        LedgerCodec.canonicalTableClocks(meta['tableClocks']);
+
+    bool tableClockChanged = false;
+
+    final Set<String> roots = <String>{
+      ...remoteClocks.keys,
+      ..._tableClocks.keys,
+    };
+
+    for (final String root in roots) {
+      final Map<String, String> remote =
+          remoteClocks[root] ?? const <String, String>{};
+
+      final Map<String, String> local =
+          _tableClocks[root] ?? const <String, String>{};
+
+      if (!mapEquals(remote, local)) {
+        tableClockChanged = true;
+        break;
+      }
+    }
+
+    final bool tokenChanged =
+        remoteToken.isNotEmpty && remoteToken != _changeToken;
+
+    if (!tokenChanged && !tableClockChanged) return;
+
+    _scheduleReconcile(
+      const Duration(milliseconds: 180),
+      tableClockChanged ? 'remote-vector-clock' : 'remote-token',
+      expectedRemoteToken: remoteToken.isEmpty ? null : remoteToken,
+    );
+  }
+
+
   void _resetDiaryProjection() {
-    _advertisedDiaryProjection =
-        const DiaryProjectionMetadata.unavailable();
+    _advertisedDiaryProjection = const DiaryProjectionMetadata.unavailable();
     _diaryProjection = const DiaryProjectionMetadata.unavailable();
     _diaryPeriodsByEntry = <String, dynamic>{};
     _loadedDiaryMonthVersions.clear();
@@ -1796,16 +1847,15 @@ class LedgerSyncService extends ChangeNotifier {
     Map<String, int>? tableRevisions,
     Map<String, Map<String, String>>? tableClocks,
     int? lastFullAuditAt,
-  }) =>
-      SyncEnvelope(
-        state: state ?? _state,
-        outbox: outbox ?? _outbox,
-        changeToken: changeToken ?? _changeToken,
-        revision: revision ?? _revision,
-        tableRevisions: tableRevisions ?? _tableRevisions,
-        tableClocks: tableClocks ?? _tableClocks,
-        lastFullAuditAt: lastFullAuditAt ?? _lastFullAuditAt,
-      );
+  }) => SyncEnvelope(
+    state: state ?? _state,
+    outbox: outbox ?? _outbox,
+    changeToken: changeToken ?? _changeToken,
+    revision: revision ?? _revision,
+    tableRevisions: tableRevisions ?? _tableRevisions,
+    tableClocks: tableClocks ?? _tableClocks,
+    lastFullAuditAt: lastFullAuditAt ?? _lastFullAuditAt,
+  );
 
   Future<void> _persistEnvelope(String uid, SyncEnvelope envelope) async {
     await _box.put('ledger.$uid', jsonEncode(envelope.toJson()));
@@ -1820,14 +1870,15 @@ class LedgerSyncService extends ChangeNotifier {
     if (_diaryProjection.matchesSource(source)) return true;
 
     DiaryProjectionMetadata metadata = _advertisedDiaryProjection;
-    final bool shouldProbe = metadata.ready ||
-        _lastDiaryProjectionProbeSource != source.cacheKey;
+    final bool shouldProbe =
+        metadata.ready || _lastDiaryProjectionProbeSource != source.cacheKey;
     if (!shouldProbe) return false;
     _lastDiaryProjectionProbeSource = source.cacheKey;
 
     try {
-      final DataSnapshot metadataSnapshot =
-          await reference.child('meta/diary').get();
+      final DataSnapshot metadataSnapshot = await reference
+          .child('meta/diary')
+          .get();
       if (uid != _activeUid) return false;
       metadata = DiaryProjectionMetadata.fromValue(metadataSnapshot.value);
       _advertisedDiaryProjection = metadata;
@@ -1837,10 +1888,12 @@ class LedgerSyncService extends ChangeNotifier {
         return false;
       }
 
-      final DataSnapshot periodsSnapshot =
-          await reference.child('diaryPeriods').get();
-      final DataSnapshot confirmationSnapshot =
-          await reference.child('meta/diary').get();
+      final DataSnapshot periodsSnapshot = await reference
+          .child('diaryPeriods')
+          .get();
+      final DataSnapshot confirmationSnapshot = await reference
+          .child('meta/diary')
+          .get();
       if (uid != _activeUid) return false;
       final DiaryProjectionMetadata confirmed =
           DiaryProjectionMetadata.fromValue(confirmationSnapshot.value);
@@ -1854,8 +1907,7 @@ class LedgerSyncService extends ChangeNotifier {
 
       _diaryProjection = confirmed;
       _advertisedDiaryProjection = confirmed;
-      _diaryPeriodsByEntry =
-          LedgerCodec.objectMap(periodsSnapshot.value);
+      _diaryPeriodsByEntry = LedgerCodec.objectMap(periodsSnapshot.value);
       _diaryPeriodVersion++;
       await _persistDiaryProjectionCache(uid);
       return true;
@@ -1891,12 +1943,14 @@ class LedgerSyncService extends ChangeNotifier {
           .equalTo(DiaryMonthCodec.invalidPeriodKey);
       final Future<DataSnapshot> diaryRead = diaryQuery.get();
       final Future<DataSnapshot> invalidDiaryRead = invalidDiaryQuery.get();
-      final Future<DataSnapshot> metadataRead =
-          projection.child('meta/diary').get();
       final List<DataSnapshot> rootSnapshots = await Future.wait(rootReads);
       final DataSnapshot diarySnapshot = await diaryRead;
       final DataSnapshot invalidDiarySnapshot = await invalidDiaryRead;
-      final DataSnapshot metadataSnapshot = await metadataRead;
+      // Confirm projection metadata only after the entry queries complete.
+      // Starting this read in parallel can pair old metadata with newer rows.
+      final DataSnapshot metadataSnapshot = await projection
+          .child('meta/diary')
+          .get();
       if (uid != _activeUid || auth.currentUser?.uid != uid) return null;
       final DiaryProjectionMetadata confirmed =
           DiaryProjectionMetadata.fromValue(metadataSnapshot.value);
@@ -1922,9 +1976,8 @@ class LedgerSyncService extends ChangeNotifier {
           month: month,
         ),
       );
-      _loadedDiaryMonthVersions[
-        DiaryMonthCodec.periodKey(year, month)
-      ] = sourceVersion.cacheKey;
+      // Do not mark this month as loaded yet. The caller must first commit
+      // this reconstructed state and its matching sync metadata atomically.
       return state;
     } catch (_) {
       // Missing rules, index or projection data must never block legacy V12.
@@ -1938,64 +1991,75 @@ class LedgerSyncService extends ChangeNotifier {
 
   void _attachUserStreams(String uid) {
     if (_disposed || uid != _activeUid) return;
-    _connectionSubscription = database.ref('.info/connected').onValue.listen(
-      (DatabaseEvent event) {
-        if (uid != _activeUid) return;
-        _connected = event.snapshot.value == true;
-        _notify();
-        if (_connected == true) {
-          _scheduleReconcile(const Duration(milliseconds: 120), 'connection');
-        }
-      },
-      onError: (Object error) {
-        _lastError = error;
-        _notify();
-      },
-    );
-    _tokenSubscription = _appDataRef!
-        .child('_syncMeta/changeToken')
+    _connectionSubscription = database
+        .ref('.info/connected')
         .onValue
-        .listen((DatabaseEvent event) {
-      if (uid != _activeUid) return;
-      final String remoteToken = '${event.snapshot.value ?? ''}';
-      if (remoteToken.isNotEmpty && remoteToken != _changeToken) {
-        _scheduleReconcile(
-          const Duration(milliseconds: 180),
-          'remote-token',
-          expectedRemoteToken: remoteToken,
+        .listen(
+          (DatabaseEvent event) {
+            if (uid != _activeUid) return;
+            _connected = event.snapshot.value == true;
+            _notify();
+            if (_connected == true) {
+              _scheduleReconcile(
+                const Duration(milliseconds: 120),
+                'connection',
+              );
+            }
+          },
+          onError: (Object error) {
+            _lastError = error;
+            _notify();
+          },
         );
-      }
-    }, onError: (Object error) {
-      _lastError = error;
-      _notify();
-    });
+    _tokenSubscription = _appDataRef!
+        .child('_syncMeta')
+        .onValue
+        .listen(
+          (DatabaseEvent event) {
+            if (uid != _activeUid) return;
+
+            final Map<String, dynamic> meta =
+                LedgerCodec.objectMap(event.snapshot.value);
+
+            _scheduleObservedMetadataCheck(uid, meta);
+          },
+          onError: (Object error) {
+            _lastError = error;
+            _notify();
+          },
+        );
     _diaryProjectionSubscription = _ledgerV2Ref!
         .child('meta/diary')
         .onValue
-        .listen((DatabaseEvent event) {
-      if (uid != _activeUid) return;
-      final DiaryProjectionMetadata next =
-          DiaryProjectionMetadata.fromValue(event.snapshot.value);
-      final bool changed =
-          next.ready != _advertisedDiaryProjection.ready ||
-              next.schemaVersion != _advertisedDiaryProjection.schemaVersion ||
-              next.sourceRevision != _advertisedDiaryProjection.sourceRevision ||
-              next.sourceClockHash !=
-                  _advertisedDiaryProjection.sourceClockHash;
-      _advertisedDiaryProjection = next;
-      if (changed &&
-          (next.ready || _diaryProjection.ready) &&
-          !_booting) {
-        _scheduleReconcile(
-          const Duration(milliseconds: 260),
-          'diary-projection',
+        .listen(
+          (DatabaseEvent event) {
+            if (uid != _activeUid) return;
+            final DiaryProjectionMetadata next =
+                DiaryProjectionMetadata.fromValue(event.snapshot.value);
+            final bool changed =
+                next.ready != _advertisedDiaryProjection.ready ||
+                next.schemaVersion !=
+                    _advertisedDiaryProjection.schemaVersion ||
+                next.sourceRevision !=
+                    _advertisedDiaryProjection.sourceRevision ||
+                next.sourceClockHash !=
+                    _advertisedDiaryProjection.sourceClockHash;
+            _advertisedDiaryProjection = next;
+            if (changed &&
+                (next.ready || _diaryProjection.ready) &&
+                !_booting) {
+              _scheduleReconcile(
+                const Duration(milliseconds: 260),
+                'diary-projection',
+              );
+            }
+          },
+          onError: (_) {
+            if (uid != _activeUid) return;
+            _advertisedDiaryProjection =
+                const DiaryProjectionMetadata.unavailable();
+          },
         );
-      }
-    }, onError: (_) {
-      if (uid != _activeUid) return;
-      _advertisedDiaryProjection =
-          const DiaryProjectionMetadata.unavailable();
-    });
   }
 
   Future<void> _detachUserStreams() async {
@@ -2038,16 +2102,13 @@ class LedgerSyncService extends ChangeNotifier {
     if (active != null) return active;
 
     late final Future<void> tracked;
-    tracked = _loadDiaryMonth(
-      year: year,
-      month: month,
-      source: source,
-    ).whenComplete(() {
-      if (identical(_diaryMonthLoads[period], tracked)) {
-        _diaryMonthLoads.remove(period);
-        if (_activeUid != null) _notify();
-      }
-    });
+    tracked = _loadDiaryMonth(year: year, month: month, source: source)
+        .whenComplete(() {
+          if (identical(_diaryMonthLoads[period], tracked)) {
+            _diaryMonthLoads.remove(period);
+            if (_activeUid != null) _notify();
+          }
+        });
     _diaryMonthLoads[period] = tracked;
     _diaryMonthErrors.remove(period);
     _notify();
@@ -2077,8 +2138,9 @@ class LedgerSyncService extends ChangeNotifier {
     Object? lastFailure;
     for (int attempt = 0; attempt < 3; attempt++) {
       try {
-        final DataSnapshot beforeSnapshot =
-            await appData.child('_syncMeta').get();
+        final DataSnapshot beforeSnapshot = await appData
+            .child('_syncMeta')
+            .get();
         if (uid != _activeUid || auth.currentUser?.uid != uid) {
           throw const LedgerSyncException(
             'Account changed while loading Diary history.',
@@ -2089,8 +2151,9 @@ class LedgerSyncService extends ChangeNotifier {
             'Firebase disconnected while loading Diary history.',
           );
         }
-        final DiarySourceVersion before =
-            DiarySourceVersion.fromMetadata(beforeSnapshot.value);
+        final DiarySourceVersion before = DiarySourceVersion.fromMetadata(
+          beforeSnapshot.value,
+        );
         final DiarySourceVersion current = _diarySourceVersion();
         if (!DiaryReadConsistency.sameSource(before, current)) {
           await reconcile(reason: 'diary-history-refresh');
@@ -2098,14 +2161,14 @@ class LedgerSyncService extends ChangeNotifier {
         }
         // A revision of zero is legacy metadata and cannot prove that an older
         // client updated the change token. Re-read that history conservatively.
-        if (before.revision > 0 &&
-            _completeDiarySourceKey == before.cacheKey) {
+        if (before.revision > 0 && _completeDiarySourceKey == before.cacheKey) {
           return;
         }
 
         final DataSnapshot diarySnapshot = await appData.child('diaryDB').get();
-        final DataSnapshot afterSnapshot =
-            await appData.child('_syncMeta').get();
+        final DataSnapshot afterSnapshot = await appData
+            .child('_syncMeta')
+            .get();
         if (uid != _activeUid || auth.currentUser?.uid != uid) {
           throw const LedgerSyncException(
             'Account changed while loading Diary history.',
@@ -2116,8 +2179,9 @@ class LedgerSyncService extends ChangeNotifier {
             'Firebase disconnected while loading Diary history.',
           );
         }
-        final DiarySourceVersion after =
-            DiarySourceVersion.fromMetadata(afterSnapshot.value);
+        final DiarySourceVersion after = DiarySourceVersion.fromMetadata(
+          afterSnapshot.value,
+        );
         if (!DiaryReadConsistency.sameSource(before, after)) continue;
 
         bool applied = false;
@@ -2131,11 +2195,10 @@ class LedgerSyncService extends ChangeNotifier {
           final DiarySourceVersion latestLocal = _diarySourceVersion();
           if (!DiaryReadConsistency.sameSource(after, latestLocal)) return;
 
-          final Map<String, dynamic> nextState =
-              LedgerCodec.normalizeState(_state);
-          nextState['diaryDB'] = LedgerCodec.canonicalList(
-            diarySnapshot.value,
+          final Map<String, dynamic> nextState = LedgerCodec.normalizeState(
+            _state,
           );
+          nextState['diaryDB'] = LedgerCodec.canonicalList(diarySnapshot.value);
           // Writes made while the network snapshot was in flight must remain
           // visible and win over that snapshot, including pending deletes.
           for (final PendingWrite write in _outbox) {
@@ -2149,11 +2212,14 @@ class LedgerSyncService extends ChangeNotifier {
           _invalidateProjectionCache();
           _completeDiarySourceKey = after.cacheKey;
           _loadedDiaryMonthVersions.clear();
-          for (final DateTime period
-              in LedgerMath.recordPeriods(nextState['diaryDB'])) {
-            _loadedDiaryMonthVersions[
-              DiaryMonthCodec.periodKey(period.year, period.month)
-            ] = after.cacheKey;
+          for (final DateTime period in LedgerMath.recordPeriods(
+            nextState['diaryDB'],
+          )) {
+            _loadedDiaryMonthVersions[DiaryMonthCodec.periodKey(
+                  period.year,
+                  period.month,
+                )] =
+                after.cacheKey;
           }
           _lastError = null;
           applied = true;
@@ -2196,28 +2262,42 @@ class LedgerSyncService extends ChangeNotifier {
           .child('diaryEntries')
           .orderByChild('_period')
           .equalTo(period);
-      final List<DataSnapshot> snapshots = await Future.wait(<Future<DataSnapshot>>[
-        query.get(),
-        projection.child('meta/diary').get(),
-      ]);
+      // Read projected rows first, then fence them with fresh metadata.
+      //
+      // Reading rows and metadata in parallel can pair a newer row snapshot
+      // with older projection metadata during a Cloud Function update.
+      final DataSnapshot entriesSnapshot = await query.get();
+
       if (!SyncConnectionPolicy.canContactServer(_connected)) {
         throw const LedgerSyncException(
           'Firebase disconnected while loading this Diary month.',
         );
       }
+
+      final DataSnapshot metadataSnapshot =
+          await projection.child('meta/diary').get();
+
+      if (!SyncConnectionPolicy.canContactServer(_connected)) {
+        throw const LedgerSyncException(
+          'Firebase disconnected while validating this Diary month.',
+        );
+      }
+
       final DiaryProjectionMetadata confirmed =
-          DiaryProjectionMetadata.fromValue(snapshots[1].value);
+          DiaryProjectionMetadata.fromValue(metadataSnapshot.value);
+
       if (!confirmed.matchesSource(source)) {
         throw const LedgerSyncException(
           'Diary changed while loading. Please try this month again.',
         );
       }
+
       final List<Map<String, dynamic>> entries =
           DiaryMonthCodec.decodeMonthEntries(
-        snapshots[0].value,
-        year: year,
-        month: month,
-      );
+            entriesSnapshot.value,
+            year: year,
+            month: month,
+          );
 
       await _locked<void>(() async {
         if (uid != _activeUid || auth.currentUser?.uid != uid) return;
@@ -2229,8 +2309,9 @@ class LedgerSyncService extends ChangeNotifier {
         )) {
           return;
         }
-        final Map<String, dynamic> nextState =
-            LedgerCodec.normalizeState(_state);
+        final Map<String, dynamic> nextState = LedgerCodec.normalizeState(
+          _state,
+        );
         DiaryMonthCodec.replaceMonth(
           nextState,
           year: year,
@@ -2257,19 +2338,162 @@ class LedgerSyncService extends ChangeNotifier {
     }
   }
 
+  static const Set<String> _concurrentProfileRoots = <String>{
+    'milkDB',
+    'salaryDB',
+    'projectDB',
+  };
+
+  Map<String, dynamic>? _groupedProfileDiff(
+    String path,
+    dynamic incoming,
+  ) {
+    if (incoming == null || incoming is! Map) return null;
+
+    final List<String> parts = path.split('/');
+
+    // Only direct profile writes:
+    //
+    //   milkDB/<name>
+    //   salaryDB/<name>
+    //   projectDB/<name>
+    //
+    // Child record operations already have safe leaf-level paths.
+    if (parts.length != 2 ||
+        !_concurrentProfileRoots.contains(parts.first)) {
+      return null;
+    }
+
+    final String root = parts.first;
+    final String profileName = parts[1];
+
+    final Map<String, dynamic> database =
+        LedgerCodec.objectMap(_state[root]);
+
+    final dynamic existingValue = database[profileName];
+
+    // A genuinely new profile has no concurrent child data to preserve.
+    if (existingValue is! Map) return null;
+
+    final Map<String, dynamic> existing =
+        LedgerCodec.objectMap(existingValue);
+
+    final Map<String, dynamic> next =
+        LedgerCodec.objectMap(incoming);
+
+    final Map<String, dynamic> result = <String, dynamic>{};
+
+    final Set<String> fields = <String>{
+      ...existing.keys,
+      ...next.keys,
+    };
+
+    for (final String field in fields) {
+      final dynamic oldValue = existing[field];
+      final dynamic newValue = next[field];
+
+      if (field != 'records') {
+        if (!deepCollectionEquals(oldValue, newValue)) {
+          result['$path/$field'] = newValue;
+        }
+
+        continue;
+      }
+
+      final List<dynamic> oldRecords =
+          LedgerCodec.canonicalList(oldValue);
+
+      final List<dynamic> newRecords =
+          LedgerCodec.canonicalList(newValue);
+
+      final Map<String, dynamic> oldById = <String, dynamic>{};
+      final Map<String, dynamic> newById = <String, dynamic>{};
+
+      for (final dynamic item in oldRecords) {
+        if (item is! Map) continue;
+
+        final Map<String, dynamic> row =
+            LedgerCodec.objectMap(item);
+
+        final String id =
+            '${row['id'] ?? row['key'] ?? ''}'.trim();
+
+        if (id.isNotEmpty) {
+          oldById[id] = row;
+        }
+      }
+
+      for (final dynamic item in newRecords) {
+        if (item is! Map) continue;
+
+        final Map<String, dynamic> row =
+            LedgerCodec.objectMap(item);
+
+        final String id =
+            '${row['id'] ?? row['key'] ?? ''}'.trim();
+
+        if (id.isNotEmpty) {
+          newById[id] = row;
+        }
+      }
+
+      // If legacy records have no stable IDs, retaining the existing parent
+      // behavior is safer than inventing record identities.
+      if (oldById.length != oldRecords.length ||
+          newById.length != newRecords.length) {
+        return null;
+      }
+
+      final Set<String> ids = <String>{
+        ...oldById.keys,
+        ...newById.keys,
+      };
+
+      for (final String id in ids) {
+        final dynamic oldRecord = oldById[id];
+        final dynamic newRecord = newById[id];
+
+        if (!deepCollectionEquals(oldRecord, newRecord)) {
+          result['$path/records/$id'] = newRecord;
+        }
+      }
+    }
+
+    return result;
+  }
+
+
   Future<void> write(
     String path,
     dynamic value, {
     String reason = 'user-mutation',
-  }) =>
-      writeBatch(<String, dynamic>{path: value}, reason: reason);
+  }) => writeBatch(<String, dynamic>{path: value}, reason: reason);
 
   Future<void> writeBatch(
     Map<String, dynamic> writes, {
     String reason = 'user-batch',
   }) async {
     if (writes.isEmpty) return;
+
     await _locked<void>(() async {
+      final Map<String, dynamic> expandedWrites = <String, dynamic>{};
+
+      for (final MapEntry<String, dynamic> entry in writes.entries) {
+        final String normalizedPath =
+            LedgerFirebasePolicy.validatePath(entry.key);
+
+        final Map<String, dynamic>? groupedDiff =
+            _groupedProfileDiff(normalizedPath, entry.value);
+
+        if (groupedDiff != null) {
+          expandedWrites.addAll(groupedDiff);
+        } else {
+          expandedWrites[normalizedPath] = entry.value;
+        }
+      }
+
+      if (expandedWrites.isEmpty) return;
+
       if (_disposed) {
         throw const LedgerSyncException('Sync service is no longer available.');
       }
@@ -2280,7 +2504,8 @@ class LedgerSyncService extends ChangeNotifier {
       final Map<String, dynamic> nextState = LedgerCodec.normalizeState(_state);
       final List<PendingWrite> nextOutbox = List<PendingWrite>.from(_outbox);
       int sequence = 0;
-      for (final MapEntry<String, dynamic> entry in writes.entries) {
+      for (final MapEntry<String, dynamic> entry
+          in expandedWrites.entries) {
         final String path = LedgerFirebasePolicy.validatePath(entry.key);
         final dynamic safeValue = LedgerFirebasePolicy.sanitizeValue(
           entry.value,
@@ -2335,23 +2560,17 @@ class LedgerSyncService extends ChangeNotifier {
   }) {
     if (_disposed) return;
     _reconcileTimer?.cancel();
-    _reconcileTimer = Timer(
-      delay,
-      () {
-        if (_disposed) return;
-        if (expectedRemoteToken != null &&
-            (expectedRemoteToken.isEmpty ||
-                expectedRemoteToken == _changeToken)) {
-          return;
-        }
-        unawaited(
-          reconcile(
-            reason: reason,
-            expectedRemoteToken: expectedRemoteToken,
-          ),
-        );
-      },
-    );
+    _reconcileTimer = Timer(delay, () {
+      if (_disposed) return;
+      if (expectedRemoteToken != null &&
+          (expectedRemoteToken.isEmpty ||
+              expectedRemoteToken == _changeToken)) {
+        return;
+      }
+      unawaited(
+        reconcile(reason: reason, expectedRemoteToken: expectedRemoteToken),
+      );
+    });
   }
 
   Future<bool> flush({bool throwOnFailure = false}) =>
@@ -2370,8 +2589,9 @@ class LedgerSyncService extends ChangeNotifier {
       int batches = 0;
       while (_outbox.isNotEmpty && batches < 8) {
         if (uid != _activeUid || auth.currentUser?.uid != uid) return false;
-        final List<PendingWrite> batch =
-            OutboxPlanner.nextCompatibleBatch(_outbox);
+        final List<PendingWrite> batch = OutboxPlanner.nextCompatibleBatch(
+          _outbox,
+        );
         if (batch.isEmpty) break;
         final Map<String, Object?> payload = <String, Object?>{};
         final Map<String, dynamic> delta = <String, dynamic>{};
@@ -2379,8 +2599,7 @@ class LedgerSyncService extends ChangeNotifier {
         for (final PendingWrite write in batch) {
           // Revalidate persisted operations at upload time as well. This
           // protects upgrades from malformed legacy or tampered local queues.
-          final String safePath =
-              LedgerFirebasePolicy.validatePath(write.path);
+          final String safePath = LedgerFirebasePolicy.validatePath(write.path);
           final dynamic safeValue = LedgerFirebasePolicy.sanitizeValue(
             write.value,
             safePath,
@@ -2401,8 +2620,9 @@ class LedgerSyncService extends ChangeNotifier {
         payload['_syncMeta/rev'] = revision;
         payload['_syncMeta/prevRev'] = previousRevision;
         payload['_syncMeta/changeToken'] = token;
-        payload['_syncMeta/prevToken'] =
-            previousToken.isEmpty ? null : previousToken;
+        payload['_syncMeta/prevToken'] = previousToken.isEmpty
+            ? null
+            : previousToken;
         payload['_syncMeta/writerId'] = _writerId;
         payload['_syncMeta/mode'] = 'AARISH_FIREBASE_COST_CORE_V12_VECTOR';
         payload['_syncMeta/updatedAt'] = ServerValue.timestamp;
@@ -2411,27 +2631,32 @@ class LedgerSyncService extends ChangeNotifier {
           payload['_syncMeta/tableClocks/$root/$_writerId'] = token;
         }
         final String deltaJson = jsonEncode(delta);
-        payload['_syncMeta/deltaWrites'] =
-            deltaJson.length < 2500 ? deltaJson : null;
+        payload['_syncMeta/deltaWrites'] = deltaJson.length < 2500
+            ? deltaJson
+            : null;
         payload['_syncMeta/deltaPaths'] = DeltaPathCodec.encode(
           batch.map((PendingWrite write) => write.path),
         );
 
         await reference.update(payload);
 
-        final Set<String> acknowledged =
-            batch.map((PendingWrite write) => write.id).toSet();
+        final Set<String> acknowledged = batch
+            .map((PendingWrite write) => write.id)
+            .toSet();
         final List<PendingWrite> remaining = _outbox
             .where((PendingWrite write) => !acknowledged.contains(write.id))
             .toList();
-        final Map<String, int> nextTableRevisions =
-            Map<String, int>.from(_tableRevisions);
+        final Map<String, int> nextTableRevisions = Map<String, int>.from(
+          _tableRevisions,
+        );
         final Map<String, Map<String, String>> nextTableClocks =
             LedgerCodec.canonicalTableClocks(_tableClocks);
         for (final String root in touchedRoots) {
           nextTableRevisions[root] = revision;
-          nextTableClocks.putIfAbsent(root, () => <String, String>{})[_writerId] =
-              token;
+          nextTableClocks.putIfAbsent(
+            root,
+            () => <String, String>{},
+          )[_writerId] = token;
         }
         final SyncEnvelope acknowledgedEnvelope = _currentEnvelope(
           outbox: remaining,
@@ -2473,27 +2698,22 @@ class LedgerSyncService extends ChangeNotifier {
     _retryTimer?.cancel();
     final int seconds = math.min(60, 2 << math.min(_retryAttempt, 4));
     _retryAttempt++;
-    _retryTimer = Timer(
-      Duration(seconds: seconds),
-      () {
-        if (!_disposed) unawaited(reconcile(reason: 'retry'));
-      },
-    );
+    _retryTimer = Timer(Duration(seconds: seconds), () {
+      if (!_disposed) unawaited(reconcile(reason: 'retry'));
+    });
   }
 
   Future<bool> reconcile({
     String reason = 'manual',
     bool force = false,
     String? expectedRemoteToken,
-  }) =>
-      _locked<bool>(() async {
-        if (expectedRemoteToken != null &&
-            (expectedRemoteToken.isEmpty ||
-                expectedRemoteToken == _changeToken)) {
-          return true;
-        }
-        return _reconcileLocked(reason: reason, force: force);
-      });
+  }) => _locked<bool>(() async {
+    if (expectedRemoteToken != null &&
+        (expectedRemoteToken.isEmpty || expectedRemoteToken == _changeToken)) {
+      return true;
+    }
+    return _reconcileLocked(reason: reason, force: force);
+  });
 
   Future<bool> _reconcileLocked({
     required String reason,
@@ -2513,26 +2733,29 @@ class LedgerSyncService extends ChangeNotifier {
         passive &&
         _outbox.isEmpty &&
         passiveElapsed >= 0 &&
-        passiveElapsed <
-            _passiveReconcileCooldown.inMilliseconds) {
+        passiveElapsed < _passiveReconcileCooldown.inMilliseconds) {
       return true;
     }
     _syncing = true;
     _notify();
     try {
-      final DataSnapshot metaSnapshot = await reference.child('_syncMeta').get();
+      final DataSnapshot metaSnapshot = await reference
+          .child('_syncMeta')
+          .get();
       if (uid != _activeUid ||
           auth.currentUser?.uid != uid ||
           !SyncConnectionPolicy.canContactServer(_connected)) {
         return false;
       }
       _lastMetadataReadAt = DateTime.now().millisecondsSinceEpoch;
-      final Map<String, dynamic> meta =
-          LedgerCodec.objectMap(metaSnapshot.value);
+      final Map<String, dynamic> meta = LedgerCodec.objectMap(
+        metaSnapshot.value,
+      );
       final String remoteToken = '${meta['changeToken'] ?? ''}';
       final int remoteRevision = _asInt(meta['rev']);
-      final Map<String, dynamic> rawRemoteTables =
-          LedgerCodec.objectMap(meta['tables']);
+      final Map<String, dynamic> rawRemoteTables = LedgerCodec.objectMap(
+        meta['tables'],
+      );
       final Map<String, int> remoteTables = <String, int>{};
       for (final MapEntry<String, dynamic> entry in rawRemoteTables.entries) {
         remoteTables[entry.key] = _asInt(entry.value);
@@ -2553,7 +2776,8 @@ class LedgerSyncService extends ChangeNotifier {
         lastFullAuditAt: _lastFullAuditAt,
         interval: _automaticFullAuditInterval,
       );
-      final bool tokenChanged = remoteToken != _changeToken ||
+      final bool tokenChanged =
+          remoteToken != _changeToken ||
           (remoteToken.isEmpty && remoteRevision != _revision);
       final bool cloudChanged = tokenChanged || changedRoots.isNotEmpty;
       final bool requireFull = force || fullAuditDue;
@@ -2561,8 +2785,9 @@ class LedgerSyncService extends ChangeNotifier {
         tableRevisions: remoteTables,
         tableClocks: remoteTableClocks,
       );
-      bool diaryProjectionAvailable =
-          _diaryProjection.matchesSource(remoteDiarySource);
+      bool diaryProjectionAvailable = _diaryProjection.matchesSource(
+        remoteDiarySource,
+      );
       if (requireFull ||
           changedRoots.contains('diaryDB') ||
           reason == 'diary-projection') {
@@ -2598,11 +2823,12 @@ class LedgerSyncService extends ChangeNotifier {
             final Set<String> deltaRoots = <String>{};
             bool valid = deltas.isNotEmpty;
             for (final MapEntry<String, dynamic> entry in deltas.entries) {
-              final String safePath =
-                  LedgerFirebasePolicy.validatePath(entry.key);
+              final String safePath = LedgerFirebasePolicy.validatePath(
+                entry.key,
+              );
               deltaRoots.add(safePath.split('/').first);
-              valid = valid &&
-                  LedgerCodec.applyPath(base, safePath, entry.value);
+              valid =
+                  valid && LedgerCodec.applyPath(base, safePath, entry.value);
             }
             if (valid &&
                 LedgerDeltaPolicy.canApplyDelta(
@@ -2641,7 +2867,8 @@ class LedgerSyncService extends ChangeNotifier {
           } catch (_) {
             valid = false;
           }
-          valid = valid &&
+          valid =
+              valid &&
               LedgerDeltaPolicy.canApplyDelta(
                 remoteWriterId: remoteWriterId,
                 predecessorToken: predecessor,
@@ -2660,8 +2887,9 @@ class LedgerSyncService extends ChangeNotifier {
                   ),
                 )
                 .toList(growable: false);
-            final List<MapEntry<String, dynamic>> values =
-                await Future.wait(reads);
+            final List<MapEntry<String, dynamic>> values = await Future.wait(
+              reads,
+            );
             if (uid != _activeUid ||
                 auth.currentUser?.uid != uid ||
                 !SyncConnectionPolicy.canContactServer(_connected)) {
@@ -2682,22 +2910,26 @@ class LedgerSyncService extends ChangeNotifier {
       }
 
       int nextFullAuditAt = _lastFullAuditAt;
+      String? projectedDiaryPeriod;
       if (!usedDelta && !usedTargetedReads) {
         if (requireFull || remoteTables.isEmpty) {
           final DateTime currentMonth = DateTime.now();
-          final Map<String, dynamic>? projectedState =
-              diaryProjectionAvailable
-                  ? await _readStateWithProjectedDiary(
-                      uid: uid,
-                      appData: reference,
-                      sourceVersion: remoteDiarySource,
-                      year: currentMonth.year,
-                      month: currentMonth.month,
-                    )
-                  : null;
+          final Map<String, dynamic>? projectedState = diaryProjectionAvailable
+              ? await _readStateWithProjectedDiary(
+                  uid: uid,
+                  appData: reference,
+                  sourceVersion: remoteDiarySource,
+                  year: currentMonth.year,
+                  month: currentMonth.month,
+                )
+              : null;
           if (!SyncConnectionPolicy.canContactServer(_connected)) return false;
           if (projectedState != null) {
             base = projectedState;
+            projectedDiaryPeriod = DiaryMonthCodec.periodKey(
+              currentMonth.year,
+              currentMonth.month,
+            );
           } else {
             final DataSnapshot fullSnapshot = await reference.get();
             if (uid != _activeUid ||
@@ -2721,8 +2953,9 @@ class LedgerSyncService extends ChangeNotifier {
                 ),
               )
               .toList();
-          final List<MapEntry<String, dynamic>> values =
-              await Future.wait(reads);
+          final List<MapEntry<String, dynamic>> values = await Future.wait(
+            reads,
+          );
           if (uid != _activeUid ||
               auth.currentUser?.uid != uid ||
               !SyncConnectionPolicy.canContactServer(_connected)) {
@@ -2734,6 +2967,33 @@ class LedgerSyncService extends ChangeNotifier {
             );
             base[entry.key] = oneRoot[entry.key];
           }
+        }
+      }
+
+      // Delta payloads live inside the metadata snapshot itself. Every other
+      // reconciliation path performs one or more later RTDB reads, so confirm
+      // that no remote writer advanced the authoritative metadata in between.
+      // Without this fence, data from revision N+1 can be committed locally with
+      // revision/token N, creating a mixed snapshot until a later reconcile.
+      if (!usedDelta) {
+        final DataSnapshot confirmationSnapshot = await reference
+            .child('_syncMeta')
+            .get();
+        if (uid != _activeUid ||
+            auth.currentUser?.uid != uid ||
+            !SyncConnectionPolicy.canContactServer(_connected)) {
+          return false;
+        }
+        final Map<String, dynamic> confirmationMeta = LedgerCodec.objectMap(
+          confirmationSnapshot.value,
+        );
+        final String confirmedToken =
+            '${confirmationMeta['changeToken'] ?? ''}';
+        final int confirmedRevision = _asInt(confirmationMeta['rev']);
+        if (confirmedToken != remoteToken ||
+            confirmedRevision != remoteRevision) {
+          _scheduleReconcile(const Duration(milliseconds: 40), 'snapshot-race');
+          return false;
         }
       }
 
@@ -2756,6 +3016,10 @@ class LedgerSyncService extends ChangeNotifier {
       await _persistEnvelope(uid, reconciled);
       if (uid != _activeUid) return false;
       _state = base;
+      if (projectedDiaryPeriod != null) {
+        _loadedDiaryMonthVersions[projectedDiaryPeriod] =
+            remoteDiarySource.cacheKey;
+      }
       _invalidateProjectionCache();
       _changeToken = remoteToken;
       _revision = remoteRevision;

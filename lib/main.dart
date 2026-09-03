@@ -6,7 +6,8 @@ import 'dart:ui' as ui;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart' show TapMoveDetails, kPrimaryButton, kTouchSlop;
+import 'package:flutter/gestures.dart'
+    show TapMoveDetails, kPrimaryButton, kTouchSlop;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -429,6 +430,9 @@ class _AarishDiaryAppState extends State<AarishDiaryApp>
 
   @override
   Widget build(BuildContext context) => MaterialApp(
+    navigatorKey: ValueKey<String>(
+      _userId == null ? 'auth:signed-out' : 'auth:${_userId!}',
+    ),
     debugShowCheckedModeBanner: false,
     title: 'Aarish Dairy Pro',
     themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
@@ -469,7 +473,7 @@ class _RootStage extends StatelessWidget {
       stageKey = 'login';
     } else {
       stage = AppShell(sync: sync);
-      stageKey = 'app';
+      stageKey = 'app:$userId';
     }
 
     return AnimatedSwitcher(
@@ -1054,10 +1058,7 @@ class _OpaqueContentTransitionsBuilder extends PageTransitionsBuilder {
         opacity: contentOpacity,
         child: SlideTransition(
           position: contentOffset,
-          child: ScaleTransition(
-            scale: contentScale,
-            child: child,
-          ),
+          child: ScaleTransition(scale: contentScale, child: child),
         ),
       ),
     );
@@ -1683,8 +1684,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int get _settledPageIndex => _settledPage.value;
 
   void _handleTabColorSync() {
-    final List<Color> next =
-        _moduleTabColors(widget.sync.currentProjection);
+    final List<Color> next = _moduleTabColors(widget.sync.currentProjection);
 
     if (listEquals(_tabColors.value, next)) return;
 
@@ -1696,9 +1696,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     super.initState();
 
     _tabColors = ValueNotifier<List<Color>>(
-      List<Color>.unmodifiable(
-        _moduleTabColors(widget.sync.currentProjection),
-      ),
+      List<Color>.unmodifiable(_moduleTabColors(widget.sync.currentProjection)),
     );
 
     widget.sync.addListener(_handleTabColorSync);
@@ -2149,18 +2147,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       ),
       bottomNavigationBar: ValueListenableBuilder<List<Color>>(
         valueListenable: _tabColors,
-        builder:
-            (BuildContext context, List<Color> colors, Widget? child) =>
-                ValueListenableBuilder<int>(
-          valueListenable: _tabSelection,
-          builder: (BuildContext context, int selected, Widget? child) =>
-              _BottomLedgerNav(
-            colors: colors,
-            selected: selected,
-            controller: _navController,
-            onSelected: _selectTab,
-          ),
-        ),
+        builder: (BuildContext context, List<Color> colors, Widget? child) =>
+            ValueListenableBuilder<int>(
+              valueListenable: _tabSelection,
+              builder: (BuildContext context, int selected, Widget? child) =>
+                  _BottomLedgerNav(
+                    colors: colors,
+                    selected: selected,
+                    controller: _navController,
+                    onSelected: _selectTab,
+                  ),
+            ),
       ),
     );
   }
@@ -2569,9 +2566,7 @@ class _PremiumNavIconFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedContainer(
-    duration: AppMotion.reduce(context)
-        ? Duration.zero
-        : UIConstants.navMotion,
+    duration: AppMotion.reduce(context) ? Duration.zero : UIConstants.navMotion,
 
     curve: UIConstants.motionOut,
 
@@ -5811,8 +5806,7 @@ class _MilkScreenState extends State<MilkScreen> {
             ),
             itemBuilder: (BuildContext context, int index) {
               final String name = names[index];
-              final MilkTotals totals =
-                  projection.milkTotalsByProfile[name]!;
+              final MilkTotals totals = projection.milkTotalsByProfile[name]!;
               final Color color = _tone(totals.netAmount);
 
               return _ListCard(
@@ -5820,13 +5814,12 @@ class _MilkScreenState extends State<MilkScreen> {
                 subtitle: '${totals.netKg.abs().toStringAsFixed(2)} KG',
                 icon: Icons.water_drop_rounded,
                 color: color,
-                avatarText:
-                    name.trim().isEmpty ? 'M' : name.trim()[0].toUpperCase(),
+                avatarText: name.trim().isEmpty
+                    ? 'M'
+                    : name.trim()[0].toUpperCase(),
                 trailing: _signedMoney(totals.netAmount),
-                destinationBuilder: (_) => MilkDetailScreen(
-                  sync: widget.sync,
-                  customerName: name,
-                ),
+                destinationBuilder: (_) =>
+                    MilkDetailScreen(sync: widget.sync, customerName: name),
               );
             },
           ),
@@ -7187,13 +7180,12 @@ class _SalaryScreenState extends State<SalaryScreen> {
                     '${profile['company'] ?? '—'} • ${net >= 0 ? 'To Receive' : 'To Pay'}',
                 icon: Icons.currency_rupee_rounded,
                 color: color,
-                avatarText:
-                    name.trim().isEmpty ? 'S' : name.trim()[0].toUpperCase(),
+                avatarText: name.trim().isEmpty
+                    ? 'S'
+                    : name.trim()[0].toUpperCase(),
                 trailing: _signedMoney(net),
-                destinationBuilder: (_) => SalaryDetailScreen(
-                  sync: widget.sync,
-                  personName: name,
-                ),
+                destinationBuilder: (_) =>
+                    SalaryDetailScreen(sync: widget.sync, personName: name),
               );
             },
           ),
@@ -7852,7 +7844,8 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
           _rows(widget.sync.state['udharDB'])
               .where(
                 (Map<String, dynamic> row) =>
-                    LedgerMath.cleanName(row['name']) == widget.personName,
+                    LedgerMath.cleanName(row['name']).toLowerCase() ==
+                    widget.personName.toLowerCase(),
               )
               .toList();
       final List<DateTime> availablePeriods = LedgerMath.recordPeriods(
@@ -8147,10 +8140,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 color: moduleColor,
               ),
               const SizedBox(height: 24),
-              const _SectionTitle(
-                'Categories',
-                color: appleBlue,
-              ),
+              const _SectionTitle('Categories', color: appleBlue),
             ],
             itemCount: groups.length,
             emptyState: const _EmptyState(
@@ -8165,8 +8155,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 subtitle: 'Last entry: ${_displayDay(group.lastDate)}',
                 icon: premiumExpenseIcon,
                 color: semanticRed,
-                trailing:
-                    group.monthTotal > 0 ? '-${_money(group.monthTotal)}' : '—',
+                trailing: group.monthTotal > 0
+                    ? '-${_money(group.monthTotal)}'
+                    : '—',
                 destinationBuilder: (_) => ExpenseDetailScreen(
                   sync: widget.sync,
                   category: group.category,
@@ -9386,10 +9377,8 @@ class _BusinessScreenState extends State<BusinessScreen> {
                 icon: Icons.business_center_rounded,
                 color: appleBlue,
                 onDelete: () => unawaited(_deleteProject(name)),
-                destinationBuilder: (_) => BusinessDetailScreen(
-                  sync: widget.sync,
-                  projectName: name,
-                ),
+                destinationBuilder: (_) =>
+                    BusinessDetailScreen(sync: widget.sync, projectName: name),
               );
             },
           ),
@@ -10066,6 +10055,20 @@ class _AiBatchProgressCard extends StatelessWidget {
   }
 }
 
+const String _defaultGeminiModel = 'gemini-2.5-flash';
+const Set<String> _supportedGeminiModels = <String>{
+  'gemini-2.5-flash',
+  'gemini-3.6-flash',
+};
+
+String _normalizeGeminiModel(String? value) {
+  final String model = value?.trim() ?? '';
+  // Gemini 2.0 Flash was shut down; migrate persisted legacy selections to
+  // Google's replacement instead of letting the request fail at runtime.
+  if (model == 'gemini-2.0-flash') return 'gemini-3.6-flash';
+  return _supportedGeminiModels.contains(model) ? model : _defaultGeminiModel;
+}
+
 class AiHubScreen extends StatefulWidget {
   const AiHubScreen({required this.sync, super.key});
 
@@ -10093,7 +10096,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
   ];
   final List<_AiMessage> _geminiHistory = <_AiMessage>[];
   String _apiKey = '';
-  String _model = 'gemini-2.5-flash';
+  String _model = _defaultGeminiModel;
   String _externalSnapshotId = '';
   String _externalStateFingerprint = '';
   String _externalOwnerUid = '';
@@ -10136,8 +10139,9 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
 
   Future<void> _loadSettings() async {
     final String key = await _secureStorage.read(key: 'gemini.apiKey') ?? '';
-    final String model =
-        widget.sync.readSetting('gemini.model') ?? 'gemini-2.5-flash';
+    final String model = _normalizeGeminiModel(
+      widget.sync.readSetting('gemini.model'),
+    );
     final String ownerUid = _currentOwnerUid;
     final AiBatchJob? storedBatch = ownerUid.isEmpty
         ? null
@@ -10244,8 +10248,8 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
                       child: Text('Gemini 2.5 Flash'),
                     ),
                     DropdownMenuItem(
-                      value: 'gemini-2.0-flash',
-                      child: Text('Gemini 2.0 Flash'),
+                      value: 'gemini-3.6-flash',
+                      child: Text('Gemini 3.6 Flash'),
                     ),
                   ],
                   onChanged: (String? value) {
@@ -11307,8 +11311,10 @@ class _GeminiLedgerClient {
     required Map<String, dynamic> state,
     required List<_AiMessage> history,
   }) async {
-    final Uri uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=${Uri.encodeQueryComponent(apiKey)}',
+    final String safeModel = _normalizeGeminiModel(model);
+    final Uri uri = Uri.https(
+      'generativelanguage.googleapis.com',
+      '/v1beta/models/$safeModel:generateContent',
     );
     final String snapshot = jsonEncode(_compactState(state));
     final String instruction = AiBridgeProtocol.directGeminiInstruction(
@@ -11317,7 +11323,10 @@ class _GeminiLedgerClient {
     final http.Response response = await http
         .post(
           uri,
-          headers: const <String, String>{'Content-Type': 'application/json'},
+          headers: <String, String>{
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
           body: jsonEncode(<String, dynamic>{
             'systemInstruction': <String, dynamic>{
               'parts': <Map<String, String>>[
@@ -11344,7 +11353,9 @@ class _GeminiLedgerClient {
             ],
             'generationConfig': <String, dynamic>{
               'temperature': 0.15,
-              'maxOutputTokens': model.startsWith('gemini-2.5') ? 32768 : 8192,
+              'maxOutputTokens': safeModel.startsWith('gemini-2.5')
+                  ? 32768
+                  : 8192,
               'responseMimeType': 'application/json',
             },
           }),
@@ -12467,8 +12478,22 @@ class _ExportService {
     return value.toStringAsFixed(2);
   }
 
-  static String _csvCell(String value) =>
-      '"${value.replaceAll('"', '""').replaceAll('\r\n', '\n').replaceAll('\r', '\n')}"';
+  static String _csvCell(String value) {
+    final String normalized = value
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n');
+    final String candidate = normalized.trimLeft();
+    final bool plainNumber = RegExp(r'^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$')
+        .hasMatch(candidate);
+    final bool formulaLike =
+        candidate.isNotEmpty && '=+-@'.contains(candidate[0]) && !plainNumber;
+    final bool controlPrefixed =
+        normalized.startsWith('\t') || normalized.startsWith('\n');
+    final String safe = formulaLike || controlPrefixed
+        ? "'$normalized"
+        : normalized;
+    return '"${safe.replaceAll('"', '""')}"';
+  }
 
   static String _safeFilename(String value) => value
       .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')
