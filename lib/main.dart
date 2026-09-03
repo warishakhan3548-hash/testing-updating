@@ -4864,6 +4864,13 @@ String _displayDate(dynamic value) {
       : DateFormat('dd MMM yyyy').format(date);
 }
 
+String _displayDay(dynamic value) {
+  final DateTime? date = LedgerMath.date(value);
+  return date == null ? '—' : DateFormat('dd').format(date);
+}
+
+// LAST_ENTRY_DAY_ONLY_V1
+
 String _money(dynamic value) {
   final double number = LedgerMath.number(value).abs();
   return '₹${NumberFormat('#,##,##0', 'en_IN').format(number.round())}';
@@ -7488,7 +7495,7 @@ class _CreditScreenState extends State<CreditScreen> {
 
                   return _ListCard(
                     title: group.name,
-                    subtitle: 'Last entry: ${_displayDate(group.lastDate)}',
+                    subtitle: 'Last entry: ${_displayDay(group.lastDate)}',
                     icon: Icons.person_rounded,
                     color: color,
                     avatarText: group.name.trim().isEmpty
@@ -7975,7 +7982,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                   (ExpenseCategorySummary group) => _ListCard(
                     title: group.category,
                     // EXPENSE_LAST_ENTRY_ONLY_V1
-                    subtitle: 'Last entry: ${_displayDate(group.lastDate)}',
+                    subtitle: 'Last entry: ${_displayDay(group.lastDate)}',
                     icon: premiumExpenseIcon,
                     color: semanticRed,
                     trailing: group.monthTotal > 0
