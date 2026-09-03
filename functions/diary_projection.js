@@ -62,8 +62,16 @@ function diaryClockHash(metadata) {
   return sourceHash(canonicalDiaryClocks(metadata));
 }
 
+function safeDiaryEntryId(entryId) {
+  return typeof entryId === 'string' &&
+    entryId.length > 0 &&
+    entryId.length <= 180 &&
+    !UNSAFE_OBJECT_KEYS.has(entryId) &&
+    !/[.#$\[\]\u0000-\u001f\u007f]/.test(entryId);
+}
+
 function normalizeSourceEntry(value, entryId) {
-  if (!isPlainObject(value)) return null;
+  if (!isPlainObject(value) || !safeDiaryEntryId(entryId)) return null;
   const result = {};
   for (const [key, item] of Object.entries(value)) {
     if (!RESERVED_FIELDS.has(key)) result[key] = stableValue(item);
@@ -140,11 +148,7 @@ function safeDiaryPath(path) {
   if (typeof path !== 'string' || path.length > 400) return null;
   const parts = path.split('/');
   if (parts.length !== 2 || parts[0] !== 'diaryDB') return null;
-  const id = parts[1];
-  if (!id || id.length > 180 || /[.#$\[\]\u0000-\u001f\u007f]/.test(id)) {
-    return null;
-  }
-  return path;
+  return safeDiaryEntryId(parts[1]) ? path : null;
 }
 
 function parseJsonObject(value, maxLength) {
