@@ -9412,7 +9412,7 @@ class _BusinessScreenState extends State<BusinessScreen> {
   }
 }
 
-class BusinessDetailScreen extends StatelessWidget {
+class BusinessDetailScreen extends StatefulWidget {
   const BusinessDetailScreen({
     required this.sync,
     required this.projectName,
@@ -9421,6 +9421,17 @@ class BusinessDetailScreen extends StatelessWidget {
 
   final LedgerSyncService sync;
   final String projectName;
+
+  @override
+  State<BusinessDetailScreen> createState() => _BusinessDetailScreenState();
+}
+
+class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
+  int _month = DateTime.now().month;
+  int _year = DateTime.now().year;
+
+  LedgerSyncService get sync => widget.sync;
+  String get projectName => widget.projectName;
 
   Future<void> _addEntry(BuildContext context) async {
     final TextEditingController date = TextEditingController(text: _today());
@@ -9590,11 +9601,44 @@ class BusinessDetailScreen extends StatelessWidget {
         );
       }
       final Map<String, dynamic> project = _map(database[projectName]);
-      final List<Map<String, dynamic>> records = _rows(project['records'])
-        ..sort(
-          (Map<String, dynamic> a, Map<String, dynamic> b) =>
-              '${b['date']}'.compareTo('${a['date']}'),
-        );
+
+      final List<Map<String, dynamic>> allRecords =
+          _rows(project['records']);
+
+      final List<DateTime> availablePeriods =
+          LedgerMath.recordPeriods(
+        allRecords,
+      );
+
+      final DateTime? selectedPeriod =
+          LedgerMath.resolveRecordPeriod(
+        availablePeriods,
+        month: _month,
+        year: _year,
+      );
+
+      final int selectedMonth =
+          selectedPeriod?.month ?? _month;
+
+      final int selectedYear =
+          selectedPeriod?.year ?? _year;
+
+      final List<Map<String, dynamic>> records =
+          allRecords
+              .where(
+                (Map<String, dynamic> row) =>
+                    LedgerMath.inMonth(
+                  row,
+                  selectedMonth,
+                  selectedYear,
+                ),
+              )
+              .toList()
+            ..sort(
+              (Map<String, dynamic> a, Map<String, dynamic> b) =>
+                  '${b['date']}'.compareTo('${a['date']}'),
+            );
+
       final Map<String, double> totals = <String, double>{
         for (final String key in _businessTones.keys) key: 0,
       };
@@ -9625,6 +9669,21 @@ class BusinessDetailScreen extends StatelessWidget {
                 physics: const BouncingScrollPhysics(),
                 padding: UIConstants.screenPadding,
                 children: <Widget>[
+                  _MonthYearPicker(
+                    month: selectedMonth,
+                    year: selectedYear,
+                    availablePeriods: availablePeriods,
+                    color: appleBlue,
+                    onChanged: (int month, int year) {
+                      setState(() {
+                        _month = month;
+                        _year = year;
+                      });
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
                   if (totals.values.any((double value) => value > 0))
                     GridView.count(
                       crossAxisCount: 2,
