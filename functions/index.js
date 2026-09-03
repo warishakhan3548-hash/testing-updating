@@ -44,11 +44,22 @@ async function projectEntryValue(root, entryId, sourceValue) {
     await periodRef.remove();
     return;
   }
-  await periodRef.transaction(
+  const periodTransaction = await periodRef.transaction(
     (current) => updatePeriodIndex(current, projected),
     undefined,
     false,
   );
+  if (!periodTransaction.committed) {
+    throw new Error(`Diary period transaction aborted for ${entryId}`);
+  }
+  if (projected._deleted === true) {
+    // The transaction version-orders the delete against older projection work;
+    // once accepted, no persistent tombstone is needed in either read index.
+    await root.child('ledgerV2').update({
+      [`diaryEntries/${entryId}`]: null,
+      [`diaryPeriods/${entryId}`]: null,
+    });
+  }
 }
 
 async function projectEntry(root, entryId) {
@@ -79,6 +90,13 @@ async function removeProjectedEntryIds(root, ids) {
 }
 
 async function stableFullRebuild(root) {
+  // Never advertise an old projection version while its rows are being
+  // rewritten. Clients use `ready` as the read barrier.
+  await root.child('ledgerV2/meta/diary').update({
+    ready: false,
+    schemaVersion: SCHEMA_VERSION,
+    updatedAt: ServerValue.TIMESTAMP,
+  });
   for (let attempt = 0; attempt < MAX_REBUILD_ATTEMPTS; attempt += 1) {
     const beforeMeta = await root.child('appData/_syncMeta').get();
     const sourceVersionBefore = sourceVersion(beforeMeta.val());
@@ -196,14 +214,49 @@ async function drainQueue(uid, owner) {
         continue;
       }
 
+      const taskSource = {
+        revision: Number(next.revision),
+        clockHash: String(next.clockHash || ''),
+      };
+      const sourceBeforeSnapshot = await root.child(
+        'appData/_syncMeta',
+      ).get();
+      const sourceBefore = sourceVersion(sourceBeforeSnapshot.val());
+
+      // projectEntryIds reads live source rows. Do not publish an older queue
+      // version if the source has already advanced.
+      if (!sameSourceVersion(sourceBefore, taskSource)) {
+        await stableFullRebuild(root);
+        await clearQueuedTasks(root, tasks.map((task) => task.key));
+        continue;
+      }
+
+      await root.child('ledgerV2/meta/diary').update({
+        ready: false,
+        schemaVersion: SCHEMA_VERSION,
+        updatedAt: ServerValue.TIMESTAMP,
+      });
+
       const ids = next.paths.map((path) => path.split('/')[1]);
       await projectEntryIds(root, Array.from(new Set(ids)).sort());
+
+      // Fence the live row reads against a concurrent source write.
+      const sourceAfterSnapshot = await root.child(
+        'appData/_syncMeta',
+      ).get();
+      const sourceAfter = sourceVersion(sourceAfterSnapshot.val());
+      if (!sameSourceVersion(sourceAfter, taskSource)) {
+        await stableFullRebuild(root);
+        await clearQueuedTasks(root, tasks.map((task) => task.key));
+        continue;
+      }
+
       await root.child('ledgerV2').update({
         [`_projectionQueue/diary/${next.key}`]: null,
         'meta/diary/ready': true,
         'meta/diary/schemaVersion': SCHEMA_VERSION,
-        'meta/diary/sourceRevision': Number(next.revision),
-        'meta/diary/sourceClockHash': next.clockHash,
+        'meta/diary/sourceRevision': taskSource.revision,
+        'meta/diary/sourceClockHash': taskSource.clockHash,
         'meta/diary/updatedAt': ServerValue.TIMESTAMP,
       });
     }

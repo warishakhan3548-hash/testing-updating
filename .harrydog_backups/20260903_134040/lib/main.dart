@@ -5047,44 +5047,6 @@ Future<bool> _runMutation(
   }
 }
 
-final RegExp _decimalInputPattern = RegExp(r'^\d*(?:\.\d*)?$');
-final TextInputFormatter _decimalInputFormatter =
-    TextInputFormatter.withFunction(
-      (TextEditingValue oldValue, TextEditingValue newValue) =>
-          _decimalInputPattern.hasMatch(newValue.text) ? newValue : oldValue,
-    );
-
-Future<void> _sharePdfSafely(
-  BuildContext context,
-  String title,
-  List<String> headers,
-  List<List<String>> rows,
-) async {
-  try {
-    await _ExportService.sharePdf(title, headers, rows);
-  } catch (error, stackTrace) {
-    debugPrint('PDF share failed: $error\n$stackTrace');
-    if (context.mounted) {
-      _toast(context, 'PDF sharing failed. Please try again.', error: true);
-    }
-  }
-}
-
-Future<void> _setDarkModeSafely(
-  BuildContext context,
-  LedgerSyncService sync,
-  bool value,
-) async {
-  try {
-    await sync.setDarkMode(value);
-  } catch (error, stackTrace) {
-    debugPrint('Theme preference save failed: $error\n$stackTrace');
-    if (context.mounted) {
-      _toast(context, 'Theme preference could not be saved.', error: true);
-    }
-  }
-}
-
 String _newId(String prefix) =>
     '${prefix}_${DateTime.now().millisecondsSinceEpoch}_${_ids.v4().replaceAll('-', '').substring(0, 8)}';
 
@@ -5308,8 +5270,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               semanticLabel: sync.darkMode
                   ? 'Switch to light theme'
                   : 'Switch to dark theme',
-              onTap: () =>
-                  unawaited(_setDarkModeSafely(context, sync, !sync.darkMode)),
+              onTap: () => unawaited(sync.setDarkMode(!sync.darkMode)),
             ),
             _CircleAction(
               icon: Icons.logout_rounded,
@@ -5674,8 +5635,7 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
                 color: exportIndigo,
                 semanticLabel: 'Share Party Ledger PDF',
                 onTap: () => unawaited(
-                  _sharePdfSafely(
-                    context,
+                  _ExportService.sharePdf(
                     'Party Ledger',
                     <String>['Party', 'Milk', 'Credit', 'Net'],
                     balances
@@ -5771,7 +5731,9 @@ class _MilkScreenState extends State<MilkScreen> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              inputFormatters: <TextInputFormatter>[_decimalInputFormatter],
+              inputFormatters: <TextInputFormatter>[
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
               decoration: const InputDecoration(
                 hintText: 'Rate per KG (₹)',
                 prefixIcon: Icon(Icons.currency_rupee_rounded),
@@ -5815,13 +5777,11 @@ class _MilkScreenState extends State<MilkScreen> {
       return;
     }
     final String customerName = _cleanKey(name.text);
-    final double? customerRate = double.tryParse(rate.text.trim());
+    final double customerRate =
+        double.tryParse(rate.text) ?? LedgerMath.defaultMilkRate;
     name.dispose();
     rate.dispose();
-    if (customerName.isEmpty ||
-        customerRate == null ||
-        !customerRate.isFinite ||
-        customerRate <= 0) {
+    if (customerName.isEmpty || customerRate <= 0) {
       _toast(context, 'Enter a valid name and rate.', error: true);
       return;
     }
@@ -6095,7 +6055,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                       decimal: true,
                     ),
                     inputFormatters: <TextInputFormatter>[
-                      _decimalInputFormatter,
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                     ],
                     decoration: const InputDecoration(labelText: 'Morning KG'),
                   ),
@@ -6108,7 +6068,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                       decimal: true,
                     ),
                     inputFormatters: <TextInputFormatter>[
-                      _decimalInputFormatter,
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                     ],
                     decoration: const InputDecoration(labelText: 'Evening KG'),
                   ),
@@ -6347,8 +6307,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                         semanticLabel: 'Share this section as PDF',
                         compact: false,
                         onTap: () => unawaited(
-                          _sharePdfSafely(
-                            context,
+                          _ExportService.sharePdf(
                             '${widget.customerName} Milk Bill',
                             <String>[
                               'Date',
@@ -7321,7 +7280,9 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
             controller: amount,
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: <TextInputFormatter>[_decimalInputFormatter],
+            inputFormatters: <TextInputFormatter>[
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+            ],
             decoration: const InputDecoration(
               labelText: 'Amount',
               prefixText: '₹ ',
@@ -7507,8 +7468,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                         semanticLabel: 'Share this section as PDF',
                         compact: false,
                         onTap: () => unawaited(
-                          _sharePdfSafely(
-                            context,
+                          _ExportService.sharePdf(
                             '${widget.personName} Salary',
                             <String>['Date', 'Amount'],
                             records
@@ -7619,7 +7579,9 @@ class _CreditScreenState extends State<CreditScreen> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  inputFormatters: <TextInputFormatter>[_decimalInputFormatter],
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  ],
                   decoration: const InputDecoration(
                     labelText: 'Amount',
                     prefixText: '₹ ',
@@ -7812,7 +7774,9 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              inputFormatters: <TextInputFormatter>[_decimalInputFormatter],
+              inputFormatters: <TextInputFormatter>[
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
               decoration: const InputDecoration(
                 labelText: 'Amount',
                 prefixText: '₹ ',
@@ -7902,7 +7866,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
     );
   }
 
-  Future<void> _deleteProfile() async {
+  Future<void> _deleteProfile(List<Map<String, dynamic>> records) async {
     if (!await _confirm(
       context,
       'Delete ${widget.personName}?',
@@ -7911,14 +7875,6 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
       return;
     }
     if (!mounted) return;
-    final List<Map<String, dynamic>> records =
-        _rows(widget.sync.state['udharDB'])
-            .where(
-              (Map<String, dynamic> row) =>
-                  LedgerMath.cleanName(row['name']).toLowerCase() ==
-                  widget.personName.toLowerCase(),
-            )
-            .toList();
     final Map<String, dynamic> deletes = <String, dynamic>{
       for (final Map<String, dynamic> row in records)
         'udharDB/${row['id']}': null,
@@ -7983,7 +7939,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
                 _DeleteActionButton(
                   padding: const EdgeInsets.only(left: 6),
                   semanticLabel: 'Delete credit profile',
-                  onTap: () => unawaited(_deleteProfile()),
+                  onTap: () => unawaited(_deleteProfile(allRecords)),
                 ),
               ],
             ),
@@ -8023,8 +7979,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
                         semanticLabel: 'Share this section as PDF',
                         compact: false,
                         onTap: () => unawaited(
-                          _sharePdfSafely(
-                            context,
+                          _ExportService.sharePdf(
                             '${widget.personName} Credit Ledger',
                             <String>['Date', 'Type', 'Amount'],
                             records
@@ -8110,8 +8065,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           (Map<String, dynamic> a, Map<String, dynamic> b) =>
               '${b['date'] ?? ''}'.compareTo('${a['date'] ?? ''}'),
         );
-    await _sharePdfSafely(
-      context,
+    await _ExportService.sharePdf(
       'Monthly Expenses - ${DateFormat('MMMM yyyy').format(now)}',
       <String>['Date', 'Category', 'Amount'],
       records
@@ -8155,7 +8109,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             controller: amount,
             autofocus: fixedCategory != null,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: <TextInputFormatter>[_decimalInputFormatter],
+            inputFormatters: <TextInputFormatter>[
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+            ],
             decoration: const InputDecoration(
               labelText: 'Amount',
               prefixText: '₹ ',
@@ -8300,7 +8256,9 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
             controller: amount,
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: <TextInputFormatter>[_decimalInputFormatter],
+            inputFormatters: <TextInputFormatter>[
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+            ],
             decoration: const InputDecoration(
               labelText: 'Amount',
               prefixText: '₹ ',
@@ -8369,7 +8327,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     );
   }
 
-  Future<void> _deleteCategory() async {
+  Future<void> _deleteCategory(List<Map<String, dynamic>> allRecords) async {
     if (!await _confirm(
       context,
       'Delete ${widget.category}?',
@@ -8378,14 +8336,6 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
       return;
     }
     if (!mounted) return;
-    final List<Map<String, dynamic>> allRecords =
-        _rows(widget.sync.state['expenseDB'])
-            .where(
-              (Map<String, dynamic> row) =>
-                  _cleanKey(row['category']).toLowerCase() ==
-                  widget.category.toLowerCase(),
-            )
-            .toList();
     final Map<String, dynamic> deletes = <String, dynamic>{
       for (final Map<String, dynamic> row in allRecords)
         'expenseDB/${row['id']}': null,
@@ -8453,7 +8403,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                 _DeleteActionButton(
                   padding: const EdgeInsets.only(left: 6),
                   semanticLabel: 'Delete expense category',
-                  onTap: () => unawaited(_deleteCategory()),
+                  onTap: () => unawaited(_deleteCategory(allRecords)),
                 ),
               ],
             ),
@@ -8489,8 +8439,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                         semanticLabel: 'Share this section as PDF',
                         compact: false,
                         onTap: () => unawaited(
-                          _sharePdfSafely(
-                            context,
+                          _ExportService.sharePdf(
                             '${widget.category} Expenses',
                             <String>['Date', 'Amount'],
                             records
@@ -9552,7 +9501,9 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  inputFormatters: <TextInputFormatter>[_decimalInputFormatter],
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  ],
                   decoration: const InputDecoration(
                     labelText: 'Amount',
                     prefixText: '₹ ',
@@ -9619,7 +9570,7 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
       return;
     }
     final String id = _newId('prj');
-    final bool saved = await _runMutation(
+    await _runMutation(
       context,
       () => sync.write('projectDB/$projectName/records/$id', <String, dynamic>{
         'id': id,
@@ -9630,12 +9581,6 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
       }, reason: 'business-entry-save'),
       'Business entry saved!',
     );
-    if (!saved || !mounted) return;
-    final DateTime parsed = LedgerMath.strictDate(entryDate)!;
-    setState(() {
-      _month = parsed.month;
-      _year = parsed.year;
-    });
   }
 
   Future<void> _deleteEntry(BuildContext context, String id) async {
@@ -9832,8 +9777,7 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
                         semanticLabel: 'Share this section as PDF',
                         compact: false,
                         onTap: () => unawaited(
-                          _sharePdfSafely(
-                            context,
+                          _ExportService.sharePdf(
                             '$projectName Business Khata',
                             <String>['Date', 'Detail', 'Type', 'Amount'],
                             records.map((Map<String, dynamic> row) {

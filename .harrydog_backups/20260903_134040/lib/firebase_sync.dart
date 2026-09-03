@@ -1584,8 +1584,6 @@ class LedgerSyncService extends ChangeNotifier {
   bool _disposed = false;
   bool? _connected;
   Object? _lastError;
-  SyncEnvelope? _pendingServerAck;
-  String? _pendingServerAckUid;
   DiaryProjectionMetadata _advertisedDiaryProjection =
       const DiaryProjectionMetadata.unavailable();
   DiaryProjectionMetadata _diaryProjection =
@@ -1730,8 +1728,6 @@ class LedgerSyncService extends ChangeNotifier {
       _lastError = null;
       _retryAttempt = 0;
       _lastMetadataReadAt = 0;
-      _pendingServerAck = null;
-      _pendingServerAckUid = null;
       _resetDiaryProjection();
 
       if (nextUid == null || nextUid.isEmpty) {
@@ -1883,23 +1879,6 @@ class LedgerSyncService extends ChangeNotifier {
 
   Future<void> _persistEnvelope(String uid, SyncEnvelope envelope) async {
     await _box.put('ledger.$uid', jsonEncode(envelope.toJson()));
-  }
-
-  Future<void> _persistPendingServerAckLocked(String uid) async {
-    final SyncEnvelope? pending = _pendingServerAck;
-    if (pending == null) return;
-    if (_pendingServerAckUid != uid) {
-      throw const LedgerSyncException(
-        'Account changed before local sync acknowledgement.',
-      );
-    }
-    await _persistEnvelope(uid, pending);
-    if (uid == _activeUid &&
-        _pendingServerAckUid == uid &&
-        identical(_pendingServerAck, pending)) {
-      _pendingServerAck = null;
-      _pendingServerAckUid = null;
-    }
   }
 
   Future<bool> _refreshDiaryProjection(
@@ -2117,10 +2096,9 @@ class LedgerSyncService extends ChangeNotifier {
   }
 
   Future<void> setDarkMode(bool value) async {
-    if (_disposed || value == _darkMode) return;
-    await _box.put('setting.darkMode', '$value');
     if (_disposed) return;
     _darkMode = value;
+    await _box.put('setting.darkMode', '$value');
     _notify();
   }
 
@@ -2578,7 +2556,6 @@ class LedgerSyncService extends ChangeNotifier {
       if (uid == null || uid.isEmpty || auth.currentUser?.uid != uid) {
         throw const LedgerSyncException('Please sign in before saving data.');
       }
-      await _persistPendingServerAckLocked(uid);
       final Map<String, dynamic> nextState = LedgerCodec.normalizeState(_state);
       final List<PendingWrite> nextOutbox = List<PendingWrite>.from(_outbox);
       int sequence = 0;
@@ -2657,20 +2634,7 @@ class LedgerSyncService extends ChangeNotifier {
     if (_disposed) return false;
     final String? uid = _activeUid;
     final DatabaseReference? reference = _appDataRef;
-    if (uid == null || reference == null) return true;
-    try {
-      await _persistPendingServerAckLocked(uid);
-    } catch (error) {
-      _lastError = error;
-      _scheduleRetry();
-      if (throwOnFailure) rethrow;
-      return false;
-    }
-    if (_outbox.isEmpty) {
-      _lastError = null;
-      _retryAttempt = 0;
-      return true;
-    }
+    if (uid == null || reference == null || _outbox.isEmpty) return true;
     if (!SyncConnectionPolicy.canContactServer(_connected)) return false;
     _syncing = true;
     _notify();
@@ -2759,20 +2723,18 @@ class LedgerSyncService extends ChangeNotifier {
           tableRevisions: nextTableRevisions,
           tableClocks: nextTableClocks,
         );
-        // Firebase has committed this batch, but its local acknowledgement is
-        // not durable until Hive accepts the exact envelope below. The gate is
-        // deliberately installed before any later batch can advance
-        // lastBatchIds; this preserves single-batch crash recovery even when a
-        // local storage write fails after a successful server update.
-        _pendingServerAck = acknowledgedEnvelope;
-        _pendingServerAckUid = uid;
+        // Firebase has already committed this batch atomically. A local Hive
+        // acknowledgement failure must not leave a server-committed operation
+        // live in memory where a later edit can change its recovery batch hash.
+        // Keep the old disk envelope until this put succeeds: after a process
+        // crash, lastBatchIds still proves that exact durable prefix committed.
         _outbox = remaining;
         _changeToken = token;
         _revision = revision;
         _tableRevisions = nextTableRevisions;
         _tableClocks = nextTableClocks;
         _retryAttempt = 0;
-        await _persistPendingServerAckLocked(uid);
+        await _persistEnvelope(uid, acknowledgedEnvelope);
         _lastError = null;
         batches++;
         _notify();
@@ -2822,13 +2784,6 @@ class LedgerSyncService extends ChangeNotifier {
     final String? uid = _activeUid;
     final DatabaseReference? reference = _appDataRef;
     if (uid == null || reference == null || auth.currentUser?.uid != uid) {
-      return false;
-    }
-    try {
-      await _persistPendingServerAckLocked(uid);
-    } catch (error) {
-      _lastError = error;
-      _scheduleRetry();
       return false;
     }
     if (!SyncConnectionPolicy.canContactServer(_connected)) return false;
@@ -3181,13 +3136,13 @@ class LedgerSyncService extends ChangeNotifier {
   }
 
   Future<bool> drainBeforeLogout() async {
-    if (_outbox.isEmpty && _pendingServerAck == null) return true;
+    if (_outbox.isEmpty) return true;
     try {
       await flush(throwOnFailure: true);
     } catch (_) {
       return false;
     }
-    return _outbox.isEmpty && _pendingServerAck == null;
+    return _outbox.isEmpty;
   }
 
   Future<void> integrityCheck() async {
