@@ -139,7 +139,7 @@ async function acquireLock(root, owner) {
   const lockRef = root.child('ledgerV2/_projectionLock/diary');
   const now = Date.now();
   const result = await lockRef.transaction((current) => {
-    if (current && current.expiresAt > now && current.owner !== owner) {
+    if (current && current.expiresAt > now) {
       return undefined;
     }
     return {owner, expiresAt: now + LOCK_MILLIS};
