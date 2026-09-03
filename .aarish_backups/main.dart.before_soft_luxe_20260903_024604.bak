@@ -3002,9 +3002,9 @@ class _GlassCard extends StatelessWidget {
               Color(0xFFEEF2F6),
             ]
           : <Color>[
-              Color.lerp(Colors.white, tintColor, .040)!,
-              Color.lerp(const Color(0xFFFAFCFE), tintColor, .028)!,
-              Color.lerp(const Color(0xFFEEF2F6), tintColor, .018)!,
+              Color.lerp(Colors.white, tintColor, .026)!,
+              Color.lerp(const Color(0xFFFAFCFE), tintColor, .020)!,
+              Color.lerp(const Color(0xFFEEF2F6), tintColor, .014)!,
             ];
     }
 
@@ -3023,56 +3023,11 @@ class _GlassCard extends StatelessWidget {
       );
     }
 
-    // SOFT_NEUMORPHIC_LUXE_SELECTED_V1
-    final Color? ambient = semantic == null
-        ? null
-        : AppStyles._ambientHue(context, semantic);
-
-    final List<BoxShadow> shadows = <BoxShadow>[
-      if (ambient != null)
-        BoxShadow(
-          color: ambient.withAlpha(
-            AppStyles._perceptualAlpha(
-              ambient,
-              accentColor != null
-                  ? (dark ? 58 : 46)
-                  : tintColor != null
-                  ? (dark ? 64 : 52)
-                  : (dark ? 50 : 40),
-            ),
-          ),
-          blurRadius: accentColor != null
-              ? 25
-              : tintColor != null
-              ? 29
-              : 23,
-          spreadRadius: accentColor != null ? -6 : -5,
-          offset: const Offset(1, 7),
-        ),
-
-      if (ambient != null && tintColor != null)
-        BoxShadow(
-          color: ambient.withAlpha(
-            AppStyles._perceptualAlpha(ambient, dark ? 26 : 21),
-          ),
-          blurRadius: 42,
-          spreadRadius: -13,
-          offset: const Offset(5, 13),
-        ),
-
-      // Neutral physical lift keeps semantic colors premium instead
-      // of making the surface look neon.
-      ...AppStyles.surfaceDepth(context),
-
-      BoxShadow(
-        color: (dark ? Colors.black : const Color(0xFF243247)).withAlpha(
-          dark ? 34 : 9,
-        ),
-        blurRadius: 19,
-        spreadRadius: -9,
-        offset: const Offset(8, 13),
-      ),
-    ];
+    final List<BoxShadow> shadows = semantic == null
+        ? AppStyles.surfaceDepth(context)
+        : accentColor != null
+        ? AppStyles.railDepth(context, semantic)
+        : AppStyles.glow(context, semantic, strong: tintColor != null);
 
     return DecoratedBox(
       decoration: BoxDecoration(borderRadius: radius, boxShadow: shadows),
@@ -3114,10 +3069,10 @@ class _GlassCard extends StatelessWidget {
                           end: Alignment.bottomRight,
                           stops: const <double>[0, .24, .70, 1],
                           colors: <Color>[
-                            Colors.white.withAlpha(dark ? 22 : 148),
+                            Colors.white.withAlpha(dark ? 18 : 112),
                             Colors.transparent,
                             Colors.transparent,
-                            Colors.black.withAlpha(dark ? 30 : 12),
+                            Colors.black.withAlpha(dark ? 26 : 10),
                           ],
                         ),
                       ),
@@ -3134,7 +3089,7 @@ class _GlassCard extends StatelessWidget {
                             center: Alignment.bottomRight,
                             radius: 1.28,
                             colors: <Color>[
-                              semantic.withAlpha(dark ? 22 : 15),
+                              semantic.withAlpha(dark ? 18 : 12),
                               Colors.transparent,
                             ],
                             stops: const <double>[0, .72],
@@ -3208,9 +3163,9 @@ class _CardAccentPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = color.withAlpha(dark ? 70 : 54)
+        ..color = color.withAlpha(dark ? 58 : 45)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = UIConstants.accentStroke + 8
+        ..strokeWidth = UIConstants.accentStroke + 5
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round,
     );
@@ -4099,7 +4054,7 @@ class _ListCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
 
-    final BorderRadius radius = BorderRadius.circular(28);
+    final BorderRadius radius = BorderRadius.circular(26);
 
     Widget buildCard(VoidCallback? action) => _Pressable(
       onTap: action,
@@ -4107,9 +4062,9 @@ class _ListCard extends StatelessWidget {
       feedbackColor: color,
 
       child: _GlassCard(
-        borderRadius: 28,
+        borderRadius: 26,
 
-        padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
 
         accentColor: color,
         tintColor: color,
@@ -4132,15 +4087,15 @@ class _ListCard extends StatelessWidget {
                           Color.lerp(const Color(0xFF0D131C), color, .10)!,
                         ]
                       : <Color>[
-                          Color.lerp(Colors.white, color, .16)!,
-                          Color.lerp(const Color(0xFFF0F4F8), color, .085)!,
+                          Color.lerp(Colors.white, color, .13)!,
+                          Color.lerp(const Color(0xFFF0F4F8), color, .07)!,
                         ],
                 ),
 
                 borderRadius: BorderRadius.circular(18),
 
                 border: Border.all(
-                  color: color.withAlpha(dark ? 102 : 84),
+                  color: color.withAlpha(dark ? 92 : 72),
                   width: UIConstants.borderWidth,
                 ),
 
@@ -4159,7 +4114,7 @@ class _ListCard extends StatelessWidget {
                         avatarText!,
                         style: TextStyle(
                           color: color,
-                          fontSize: 21,
+                          fontSize: 20,
                           fontWeight: FontWeight.w800,
                           shadows: AppStyles.inkGlow(color, strong: true),
                         ),
@@ -4231,7 +4186,7 @@ class _ListCard extends StatelessWidget {
 
                     style: TextStyle(
                       color: color,
-                      fontSize: 19,
+                      fontSize: 18.5,
                       fontWeight: FontWeight.w800,
                       fontFeatures: AppStyles.tabularFigures,
                       letterSpacing: -.35,
@@ -4902,7 +4857,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: const _GlassCard(
                       borderRadius: 28,
                       shadowColor: Color(0xFF9333EA),
-                      tintColor: Color(0xFF9333EA),
                       child: Row(
                         children: <Widget>[
                           _LedgerIcon(
@@ -5021,7 +4975,7 @@ class _MetricCard extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
 
       children: <Widget>[
-        _LedgerIcon(icon: icon, color: color, size: 52),
+        _LedgerIcon(icon: icon, color: color, size: 50),
 
         const Spacer(),
 
@@ -5052,7 +5006,7 @@ class _MetricCard extends StatelessWidget {
 
             style: TextStyle(
               color: color,
-              fontSize: 27,
+              fontSize: 25.5,
               fontWeight: FontWeight.w800,
               fontFeatures: AppStyles.tabularFigures,
               letterSpacing: -.8,
@@ -5094,15 +5048,15 @@ class _LedgerIcon extends StatelessWidget {
                   Color.lerp(const Color(0xFF0D131C), color, .09)!,
                 ]
               : <Color>[
-                  Color.lerp(Colors.white, color, .17)!,
-                  Color.lerp(const Color(0xFFF0F4F8), color, .09)!,
+                  Color.lerp(Colors.white, color, .14)!,
+                  Color.lerp(const Color(0xFFF0F4F8), color, .07)!,
                 ],
         ),
 
         borderRadius: BorderRadius.circular(radius),
 
         border: Border.all(
-          color: color.withAlpha(dark ? 104 : 86),
+          color: color.withAlpha(dark ? 92 : 74),
           width: UIConstants.borderWidth,
         ),
 
@@ -5124,7 +5078,7 @@ class _LedgerIcon extends StatelessWidget {
                 gradient: LinearGradient(
                   colors: <Color>[
                     Colors.transparent,
-                    Colors.white.withAlpha(dark ? 78 : 232),
+                    Colors.white.withAlpha(dark ? 70 : 210),
                     Colors.transparent,
                   ],
                 ),
