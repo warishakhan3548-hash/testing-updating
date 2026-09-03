@@ -4258,7 +4258,6 @@ class _ListCard extends StatelessWidget {
     this.onTap,
     this.destinationBuilder,
     this.trailing,
-    this.trailingLabel,
     this.onDelete,
     this.avatarText,
   }) : assert(
@@ -4273,8 +4272,6 @@ class _ListCard extends StatelessWidget {
   final VoidCallback? onTap;
   final WidgetBuilder? destinationBuilder;
   final String? trailing;
-  final String? trailingLabel;
-  // CREDIT_LIST_STATUS_COLUMN_V2
   final VoidCallback? onDelete;
   final String? avatarText;
 
@@ -4398,68 +4395,30 @@ class _ListCard extends StatelessWidget {
               const SizedBox(width: 10),
 
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 118),
+                constraints: const BoxConstraints(maxWidth: 108),
 
-                child: trailingLabel == null
-                    ? FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          trailing!,
-                          maxLines: 1,
-                          softWrap: false,
-                          style: TextStyle(
-                            color: color,
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                            fontFeatures: AppStyles.tabularFigures,
-                            letterSpacing: -.35,
-                            shadows: AppStyles.inkGlow(color, strong: true),
-                          ),
-                        ),
-                      )
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: <Widget>[
-                          Text(
-                            trailingLabel!,
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              color: color.withAlpha(dark ? 218 : 198),
-                              fontSize: 10.5,
-                              height: 1,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: .68,
-                              shadows: AppStyles.inkGlow(color),
-                            ),
-                          ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
 
-                          const SizedBox(height: 5),
+                  alignment: Alignment.centerRight,
 
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              trailing!,
-                              maxLines: 1,
-                              softWrap: false,
-                              style: TextStyle(
-                                color: color,
-                                fontSize: 19,
-                                height: 1,
-                                fontWeight: FontWeight.w800,
-                                fontFeatures: AppStyles.tabularFigures,
-                                letterSpacing: -.35,
-                                shadows: AppStyles.inkGlow(color, strong: true),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                  child: Text(
+                    trailing!,
+
+                    maxLines: 1,
+
+                    softWrap: false,
+
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                      fontFeatures: AppStyles.tabularFigures,
+                      letterSpacing: -.35,
+                      shadows: AppStyles.inkGlow(color, strong: true),
+                    ),
+                  ),
+                ),
               ),
             ],
 
@@ -5444,7 +5403,8 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
                         : 'TO PAY';
                     return _ListCard(
                       title: item.name,
-                      subtitle: label,
+                      subtitle:
+                          '$label • Milk ${_signedMoney(item.milk)} • Credit ${_signedMoney(item.credit)}',
                       icon: Icons.person_rounded,
                       color: color,
                       avatarText: item.name.trim().isEmpty
@@ -5630,12 +5590,14 @@ class _MilkScreenState extends State<MilkScreen> {
                 )
               else
                 ...names.map((String name) {
+                  final Map<String, dynamic> profile = _map(database[name]);
                   final MilkTotals totals =
                       projection.milkTotalsByProfile[name]!;
                   final Color color = _tone(totals.netAmount);
                   return _ListCard(
                     title: name,
-                    subtitle: '${totals.netKg.abs().toStringAsFixed(2)} KG',
+                    subtitle:
+                        '${totals.netKg >= 0 ? 'Given' : 'Taken'} ${totals.netKg.abs().toStringAsFixed(2)} KG • ${profile['rate'] ?? LedgerMath.defaultMilkRate}/KG',
                     icon: Icons.water_drop_rounded,
                     color: color,
                     avatarText: name.trim().isEmpty
@@ -7480,21 +7442,19 @@ class _CreditScreenState extends State<CreditScreen> {
               else
                 ...groups.map((CreditPartySummary group) {
                   final Color color = _tone(group.net);
-                  final String statusLabel = group.net > 0
-                      ? 'TO RECEIVE'
-                      : group.net < 0
-                      ? 'TO PAY'
-                      : 'SETTLED';
-
                   return _ListCard(
                     title: group.name,
-                    subtitle: 'Last entry: ${_displayDate(group.lastDate)}',
+                    subtitle:
+                        '${group.net > 0
+                            ? 'To Receive'
+                            : group.net < 0
+                            ? 'To Pay'
+                            : 'Settled'} • Last ${_displayDate(group.lastDate)}',
                     icon: Icons.person_rounded,
                     color: color,
                     avatarText: group.name.trim().isEmpty
                         ? 'C'
                         : group.name.trim()[0].toUpperCase(),
-                    trailingLabel: statusLabel,
                     trailing: _signedMoney(group.net),
                     destinationBuilder: (_) => CreditDetailScreen(
                       sync: widget.sync,
@@ -7974,8 +7934,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 ...groups.map(
                   (ExpenseCategorySummary group) => _ListCard(
                     title: group.category,
-                    // EXPENSE_LAST_ENTRY_ONLY_V1
-                    subtitle: 'Last entry: ${_displayDate(group.lastDate)}',
+                    subtitle: group.monthTotal > 0
+                        ? 'This month • Last ${_displayDate(group.lastDate)}'
+                        : 'No expense this month • Last ${_displayDate(group.lastDate)}',
                     icon: premiumExpenseIcon,
                     color: semanticRed,
                     trailing: group.monthTotal > 0

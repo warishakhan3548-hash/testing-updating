@@ -7974,8 +7974,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 ...groups.map(
                   (ExpenseCategorySummary group) => _ListCard(
                     title: group.category,
-                    // EXPENSE_LAST_ENTRY_ONLY_V1
-                    subtitle: 'Last entry: ${_displayDate(group.lastDate)}',
+                    subtitle: group.monthTotal > 0
+                        ? 'This month • Last ${_displayDate(group.lastDate)}'
+                        : 'No expense this month • Last ${_displayDate(group.lastDate)}',
                     icon: premiumExpenseIcon,
                     color: semanticRed,
                     trailing: group.monthTotal > 0
