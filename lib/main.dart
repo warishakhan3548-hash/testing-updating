@@ -3283,41 +3283,77 @@ class _CardAccentPainter extends CustomPainter {
   final bool dark;
 
   Path _rail(Size size) {
+    // BALANCED_CORNER_RAIL_V1
+    //
+    // One crisp semantic rail only:
+    // - no halo/shadow stroke
+    // - original medium 4px width preserved
+    // - symmetric top/bottom geometry
+    // - slightly higher corner wrap
+    // - smooth cubic transition into the vertical section
     final double r = math.min(radius, size.height / 2);
 
-    // Keep the whole stroke inside the rounded clip and away from the avatar.
-    // Drawing on x=0 clips half of a stroked path and can make the rail look
-    // broken at the rounded turns on some pixel ratios.
-    final double inset = UIConstants.accentStroke / 2 + 3;
-    final double reach = math.min(6.5, math.max(4.5, r * .28));
+    final double halfStroke = UIConstants.accentStroke / 2;
+
+    // Keep the complete stroke inside the rounded-card clip while allowing
+    // it to sit visually close to the physical outer edge.
+    final double inset = halfStroke + .75;
+
     final double top = inset;
     final double bottom = math.max(top, size.height - inset);
+
+    // Medium corner reach:
+    // noticeably follows the rounded corner without becoming a thick band
+    // or travelling too far across the top/bottom edge.
+    final double reach = math.min(14.0, math.max(10.0, r * .46));
+
     final double upperTurn = math.min(bottom, math.max(top, r));
+
     final double lowerTurn = math.max(
       upperTurn,
       math.min(bottom, size.height - r),
     );
 
+    // Cubic controls create a cleaner quarter-curve than the previous
+    // quadratic bend. Both ends use identical geometry for perfect balance.
+    final double horizontalControl = reach * .44;
+    final double verticalControl = reach * .60;
+
     return Path()
       ..moveTo(inset + reach, top)
-      ..quadraticBezierTo(inset, top, inset, upperTurn)
+      ..cubicTo(
+        inset + horizontalControl,
+        top,
+        inset,
+        math.max(top, upperTurn - verticalControl),
+        inset,
+        upperTurn,
+      )
       ..lineTo(inset, lowerTurn)
-      ..quadraticBezierTo(inset, bottom, inset + reach, bottom);
+      ..cubicTo(
+        inset,
+        math.min(bottom, lowerTurn + verticalControl),
+        inset + horizontalControl,
+        bottom,
+        inset + reach,
+        bottom,
+      );
   }
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
+
     final Path path = _rail(size);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color.withAlpha(dark ? 70 : 54)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = UIConstants.accentStroke + 8
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
+
+    // IMPORTANT:
+    // Draw exactly ONE solid rail.
+    //
+    // The previous implementation painted an additional
+    // accentStroke + 8 translucent stroke underneath this one.
+    // That was the source of the faded/halo appearance.
+    //
+    // No shadow, no glow, no translucent outer rail.
     canvas.drawPath(
       path,
       Paint()
@@ -3325,7 +3361,8 @@ class _CardAccentPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = UIConstants.accentStroke
         ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
+        ..strokeJoin = StrokeJoin.round
+        ..isAntiAlias = true,
     );
   }
 
