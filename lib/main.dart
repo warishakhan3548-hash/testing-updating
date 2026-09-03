@@ -3885,6 +3885,16 @@ class _SearchBoxState extends State<_SearchBox>
   Timer? _debounce;
   late final FocusNode _focusNode;
 
+  // SEARCH_THEME_FLASH_FIX_V1
+  //
+  // The SearchBox is kept alive between PageView tabs.
+  // Therefore its AnimatedContainer can still own a decoration
+  // from the previous light/dark theme.
+  //
+  // Track the last rendered brightness so a THEME change snaps
+  // immediately, while normal focus changes remain animated.
+  Brightness? _lastSearchThemeBrightness;
+
   @override
   bool get wantKeepAlive => true;
 
@@ -3933,7 +3943,20 @@ class _SearchBoxState extends State<_SearchBox>
   Widget build(BuildContext context) {
     super.build(context);
 
-    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final Brightness brightness = Theme.of(context).brightness;
+
+    final bool dark = brightness == Brightness.dark;
+
+    // A kept-alive off-screen SearchBox may still contain the previous
+    // theme's AnimatedContainer decoration.
+    //
+    // Do NOT interpolate between opposite themes when it becomes visible.
+    // Theme changes are a hard visual boundary; focus changes are not.
+    final bool themeBrightnessChanged =
+        _lastSearchThemeBrightness != null &&
+        _lastSearchThemeBrightness != brightness;
+
+    _lastSearchThemeBrightness = brightness;
 
     final bool focused = _focusNode.hasFocus;
 
@@ -3947,7 +3970,8 @@ class _SearchBoxState extends State<_SearchBox>
           );
 
     return AnimatedContainer(
-      duration: AppMotion.reduce(context)
+      duration:
+          AppMotion.reduce(context) || themeBrightnessChanged
           ? Duration.zero
           : const Duration(milliseconds: 180),
 
