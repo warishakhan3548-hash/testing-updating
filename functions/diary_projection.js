@@ -88,13 +88,17 @@ function forceProjectedEntry(storedValue, sourceValue, entryId) {
   const source = normalizeSourceEntry(sourceValue, entryId);
   const nextHash = sourceHash(source);
   const stored = isPlainObject(storedValue) ? storedValue : {};
+  // Missing source hashes come from legacy/incomplete projection rows. Treat
+  // them as unknown rather than as the hash of a deleted source. Otherwise a
+  // source deletion can look idempotent and leave the stale projected row
+  // alive forever until a full rebuild happens.
   const currentHash = typeof stored._sourceHash === 'string'
     ? stored._sourceHash
-    : sourceHash(null);
+    : null;
   const currentVersion = Number.isSafeInteger(stored._version)
     ? stored._version
     : 0;
-  if (currentHash === nextHash) return stored;
+  if (currentHash !== null && currentHash === nextHash) return stored;
   const version = currentVersion + 1;
   if (source === null) {
     return {
