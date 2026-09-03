@@ -2344,6 +2344,50 @@ class LedgerSyncService extends ChangeNotifier {
     'projectDB',
   };
 
+  static bool _deepCollectionEquals(
+    dynamic left,
+    dynamic right,
+  ) {
+    if (identical(left, right)) {
+      return true;
+    }
+
+    if (left is Map && right is Map) {
+      if (left.length != right.length) {
+        return false;
+      }
+
+      for (final dynamic key in left.keys) {
+        if (!right.containsKey(key)) {
+          return false;
+        }
+
+        if (!_deepCollectionEquals(left[key], right[key])) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    if (left is List && right is List) {
+      if (left.length != right.length) {
+        return false;
+      }
+
+      for (int index = 0; index < left.length; index++) {
+        if (!_deepCollectionEquals(left[index], right[index])) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    return left == right;
+  }
+
+
   Map<String, dynamic>? _groupedProfileDiff(
     String path,
     dynamic incoming,
@@ -2393,7 +2437,7 @@ class LedgerSyncService extends ChangeNotifier {
       final dynamic newValue = next[field];
 
       if (field != 'records') {
-        if (!deepCollectionEquals(oldValue, newValue)) {
+        if (!_deepCollectionEquals(oldValue, newValue)) {
           result['$path/$field'] = newValue;
         }
 
@@ -2453,7 +2497,7 @@ class LedgerSyncService extends ChangeNotifier {
         final dynamic oldRecord = oldById[id];
         final dynamic newRecord = newById[id];
 
-        if (!deepCollectionEquals(oldRecord, newRecord)) {
+        if (!_deepCollectionEquals(oldRecord, newRecord)) {
           result['$path/records/$id'] = newRecord;
         }
       }

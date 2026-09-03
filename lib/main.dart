@@ -430,7 +430,7 @@ class _AarishDiaryAppState extends State<AarishDiaryApp>
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    navigatorKey: ValueKey<String>(
+    key: ValueKey<String>(
       _userId == null ? 'auth:signed-out' : 'auth:${_userId!}',
     ),
     debugShowCheckedModeBanner: false,
