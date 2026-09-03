@@ -76,7 +76,7 @@ abstract final class UIConstants {
   // BOUNCE_SURFACE_V1
   // Allow the pressed surface to visibly release before navigation.
   // Reduced Motion bypasses this delay completely.
-  static const Duration routePressHandoff = Duration(milliseconds: 56);
+  static const Duration routePressHandoff = Duration(milliseconds: 72);
   static const Duration motion = Duration(milliseconds: 260);
   static const Duration navMotion = Duration(milliseconds: 220);
   static const Duration routeIn = Duration(milliseconds: 280);
@@ -1163,13 +1163,6 @@ class _FastRouteLauncherState extends State<_FastRouteLauncher> {
       _launchTimer = null;
       if (!mounted) return;
 
-      // The handoff is intentionally delayed for tactile release. If another
-      // route won during that small window, never let this stale tap push over it.
-      if (ModalRoute.of(context)?.isCurrent != true) {
-        _routeOpen = false;
-        return;
-      }
-
       final NavigatorState navigator = Navigator.of(context);
       final PageRoute<Object?> route = _directRoute<Object?>(
         destinationBuilder: widget.destinationBuilder,
@@ -1836,10 +1829,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _programmaticPageTarget == null;
     if (alreadySettled || _programmaticPageTarget == index) return;
 
-    // A text field on the outgoing kept-alive page must not own the keyboard
-    // or focus after the user deliberately changes modules.
-    FocusManager.instance.primaryFocus?.unfocus();
-
     final bool reduceMotion = AppMotion.reduce(context);
     final int generation = ++_pageMotionGeneration;
     _userPageDragActive = false;
@@ -1914,9 +1903,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
     if (notification is ScrollStartNotification &&
         notification.dragDetails != null) {
-      // Horizontal module navigation is a clear intent to leave the focused
-      // field; dismiss it before the next page becomes visible.
-      FocusManager.instance.primaryFocus?.unfocus();
       _userPageDragActive = true;
       _dragHapticPages
         ..clear()
@@ -2032,11 +2018,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       }
 
       final double page = _pageController.page ?? _settledPageIndex.toDouble();
-      final double rawDelta = page - index;
-      // Kept-alive pages more than one viewport away are invisible. Do not
-      // allocate transform/compositing work for them on every pager tick.
-      if (rawDelta.abs() > 1.05) return pageChild;
-      final double delta = rawDelta.clamp(-1.0, 1.0).toDouble();
+      final double delta = (page - index).clamp(-1.0, 1.0).toDouble();
       final double depth = delta.abs();
       if (depth <= .0001) return pageChild;
 
@@ -2242,12 +2224,12 @@ class _ActiveSyncViewState extends State<_ActiveSyncView> {
 
     if (_active) widget.sync.removeListener(_handleSyncChange);
     _active = nextActive;
-    if (_active) widget.sync.addListener(_handleSyncChange);
-
-    // Pages are intentionally kept alive. Rebuild on both ownership edges so
-    // hidden tickers/focus are disabled immediately, and the newly active page
-    // renders the latest sync state exactly once.
-    if (mounted) setState(() {});
+    if (_active) {
+      widget.sync.addListener(_handleSyncChange);
+      // This page ignored sync notifications while offscreen. Rebuild exactly
+      // once on activation so the first visible frame uses the latest state.
+      if (mounted) setState(() {});
+    }
   }
 
   void _handleSyncChange() {
@@ -2262,13 +2244,8 @@ class _ActiveSyncViewState extends State<_ActiveSyncView> {
   }
 
   @override
-  Widget build(BuildContext context) => TickerMode(
-    enabled: _active,
-    child: ExcludeFocus(
-      excluding: !_active,
-      child: RepaintBoundary(child: widget.builder(context)),
-    ),
-  );
+  Widget build(BuildContext context) =>
+      RepaintBoundary(child: widget.builder(context));
 }
 
 class _OfflineBanner extends StatelessWidget {
@@ -2968,12 +2945,9 @@ class _PressableState extends State<_Pressable>
         animation: _pressRepaint,
         child: widget.child,
         builder: (BuildContext context, Widget? child) {
-          final double feedback = _pressController.value;
-          // Zero is the overwhelmingly common list state. Skip identity
-          // transforms, transparent glow layers and matrix work entirely.
-          if (feedback.abs() <= .0001) return child!;
           final bool dark = Theme.of(context).brightness == Brightness.dark;
           final bool reduceMotion = AppMotion.reduce(context);
+          final double feedback = _pressController.value;
           final double pressed = feedback.clamp(0.0, 1.0).toDouble();
           final double motion = reduceMotion ? 0 : feedback;
           final double cardTilt = reduceMotion || widget.feedbackColor == null

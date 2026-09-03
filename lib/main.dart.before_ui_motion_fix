@@ -6,7 +6,7 @@ import 'dart:ui' as ui;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart' show TapMoveDetails, kPrimaryButton, kTouchSlop;
+import 'package:flutter/gestures.dart' show TapMoveDetails, kPrimaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -76,7 +76,8 @@ abstract final class UIConstants {
   // BOUNCE_SURFACE_V1
   // Allow the pressed surface to visibly release before navigation.
   // Reduced Motion bypasses this delay completely.
-  static const Duration routePressHandoff = Duration(milliseconds: 56);
+  static const Duration routePressHandoff = Duration(milliseconds: 72);
+  static const Duration globalRippleIntentDelay = Duration(milliseconds: 48);
   static const Duration motion = Duration(milliseconds: 260);
   static const Duration navMotion = Duration(milliseconds: 220);
   static const Duration routeIn = Duration(milliseconds: 280);
@@ -629,12 +630,29 @@ class _RipplePulse {
   final Offset downPosition;
   final VoidCallback _onTick;
   final AnimationController controller;
+  Timer? _startTimer;
   bool _started = false;
   bool cancelled = false;
   bool disposed = false;
 
+  bool get started => _started;
+
+  void scheduleStart(Duration delay, VoidCallback onDue) {
+    if (disposed || cancelled || _started) return;
+    _startTimer?.cancel();
+
+    if (delay.inMicroseconds <= 0) {
+      onDue();
+      return;
+    }
+
+    _startTimer = Timer(delay, onDue);
+  }
+
   bool prepareStart() {
     if (disposed || cancelled || _started) return false;
+    _startTimer?.cancel();
+    _startTimer = null;
     _started = true;
     return true;
   }
@@ -647,6 +665,8 @@ class _RipplePulse {
   bool cancel() {
     if (cancelled || disposed) return false;
     cancelled = true;
+    _startTimer?.cancel();
+    _startTimer = null;
 
     if (!_started) return false;
 
@@ -661,6 +681,8 @@ class _RipplePulse {
   void dispose() {
     if (disposed) return;
     disposed = true;
+    _startTimer?.cancel();
+    _startTimer = null;
     controller.removeListener(_onTick);
     controller.dispose();
   }
@@ -668,7 +690,7 @@ class _RipplePulse {
 
 class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
     with TickerProviderStateMixin {
-  static const double _scrollThreshold = kTouchSlop;
+  static const double _scrollThreshold = 8;
   static const int _maxActivePulses = 2;
 
   // Pointer intent, visible pulses, and paint invalidation are deliberately
@@ -731,9 +753,10 @@ class _GlobalTapRippleLayerState extends State<_GlobalTapRippleLayer>
     _livePulses.add(pulse);
     _pointerPulses[event.pointer] = pulse;
 
-    // Immediate finger-down depth is owned by _Pressable.
-    // The global ripple is committed only on pointer-up, so a drag/scroll
-    // never launches a full-screen paint animation that is cancelled later.
+    pulse.scheduleStart(
+      UIConstants.globalRippleIntentDelay,
+      () => _startPulse(pulse),
+    );
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
@@ -1022,44 +1045,21 @@ class _OpaqueContentTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    // Keep the route canvas fully opaque so transparent Scaffolds never blend
-    // two pages. Motion is compositor-only; resting visuals remain unchanged.
-    if (AppMotion.reduce(context)) {
-      return _AmbientBackground(child: child);
-    }
-
-    final Animation<double> contentMotion = CurvedAnimation(
-      parent: animation,
-      curve: UIConstants.motionOut,
-      reverseCurve: UIConstants.motionIn,
-    );
-
-    final Animation<double> contentOpacity = Tween<double>(
-      begin: .96,
-      end: 1,
-    ).animate(contentMotion);
-
-    final Animation<Offset> contentOffset = Tween<Offset>(
-      begin: const Offset(0, .012),
-      end: Offset.zero,
-    ).animate(contentMotion);
-
-    final Animation<double> contentScale = Tween<double>(
-      begin: .992,
-      end: 1,
-    ).animate(contentMotion);
-
-    return _AmbientBackground(
-      child: FadeTransition(
-        opacity: contentOpacity,
-        child: SlideTransition(
-          position: contentOffset,
-          child: ScaleTransition(
-            scale: contentScale,
-            child: child,
+    // A route-local canvas stays fully opaque for the whole transition. Only
+    // the incoming content gets a near-instant opacity settle, so transparent
+    // Scaffolds can never blend two pages' text together.
+    final Widget surface = _AmbientBackground(child: child);
+    if (AppMotion.reduce(context)) return surface;
+    final Animation<double> contentOpacity = Tween<double>(begin: .96, end: 1)
+        .animate(
+          CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
           ),
-        ),
-      ),
+        );
+    return _AmbientBackground(
+      child: FadeTransition(opacity: contentOpacity, child: child),
     );
   }
 }
@@ -1098,40 +1098,20 @@ class _DirectRouteTransition extends StatelessWidget {
     if (AppMotion.reduce(context)) {
       return _AmbientBackground(child: child);
     }
-
-    final Animation<double> contentMotion = CurvedAnimation(
-      parent: animation,
-      curve: UIConstants.motionOut,
-      reverseCurve: UIConstants.motionIn,
-    );
-
-    final Animation<double> contentOpacity = Tween<double>(
-      begin: .96,
-      end: 1,
-    ).animate(contentMotion);
-
-    final Animation<Offset> contentOffset = Tween<Offset>(
-      begin: const Offset(0, .012),
-      end: Offset.zero,
-    ).animate(contentMotion);
-
-    final Animation<double> contentScale = Tween<double>(
-      begin: .992,
-      end: 1,
-    ).animate(contentMotion);
-
+    final Animation<double> contentOpacity = Tween<double>(begin: .96, end: 1)
+        .animate(
+          CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          ),
+        );
     return IgnorePointer(
       ignoring: animation.status != AnimationStatus.completed,
       child: _AmbientBackground(
         child: FadeTransition(
           opacity: contentOpacity,
-          child: SlideTransition(
-            position: contentOffset,
-            child: ScaleTransition(
-              scale: contentScale,
-              child: RepaintBoundary(child: child),
-            ),
-          ),
+          child: RepaintBoundary(child: child),
         ),
       ),
     );
@@ -1162,13 +1142,6 @@ class _FastRouteLauncherState extends State<_FastRouteLauncher> {
     void launchRoute() {
       _launchTimer = null;
       if (!mounted) return;
-
-      // The handoff is intentionally delayed for tactile release. If another
-      // route won during that small window, never let this stale tap push over it.
-      if (ModalRoute.of(context)?.isCurrent != true) {
-        _routeOpen = false;
-        return;
-      }
 
       final NavigatorState navigator = Navigator.of(context);
       final PageRoute<Object?> route = _directRoute<Object?>(
@@ -1668,7 +1641,6 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   final ValueNotifier<int> _tabSelection = ValueNotifier<int>(0);
   final ValueNotifier<int> _settledPage = ValueNotifier<int>(0);
-  late final ValueNotifier<List<Color>> _tabColors;
   int? _programmaticPageTarget;
   int _pageMotionGeneration = 0;
   bool _userPageDragActive = false;
@@ -1682,38 +1654,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int get _tab => _tabSelection.value;
   int get _settledPageIndex => _settledPage.value;
 
-  void _handleTabColorSync() {
-    final List<Color> next =
-        _moduleTabColors(widget.sync.currentProjection);
-
-    if (listEquals(_tabColors.value, next)) return;
-
-    _tabColors.value = List<Color>.unmodifiable(next);
-  }
-
   @override
   void initState() {
     super.initState();
-
-    _tabColors = ValueNotifier<List<Color>>(
-      List<Color>.unmodifiable(
-        _moduleTabColors(widget.sync.currentProjection),
-      ),
-    );
-
-    widget.sync.addListener(_handleTabColorSync);
     WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void didUpdateWidget(covariant AppShell oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (oldWidget.sync == widget.sync) return;
-
-    oldWidget.sync.removeListener(_handleTabColorSync);
-    _handleTabColorSync();
-    widget.sync.addListener(_handleTabColorSync);
   }
 
   @override
@@ -1730,8 +1674,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    widget.sync.removeListener(_handleTabColorSync);
-    _tabColors.dispose();
     _tabSelection.dispose();
     _settledPage.dispose();
     _navController.dispose();
@@ -1793,19 +1735,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Duration _adaptivePageDuration(double originPage, int targetPage) {
     final double remainingPages = (targetPage - originPage)
         .abs()
-        .clamp(0.0, (_tabs.length - 1).toDouble())
+        .clamp(0.0, 1.0)
         .toDouble();
     if (remainingPages <= .001) return Duration.zero;
 
-    // Preserve live-finger retarget responsiveness while allowing distant
-    // tab selections to travel continuously instead of teleporting to an
-    // artificial staging page. Square-root timing keeps long travel calm.
+    // Distance-aware timing keeps a mid-swipe retarget responsive while a
+    // complete one-page transition preserves the established motion cadence.
     final double travelFactor = math.sqrt(remainingPages);
     final int micros = (UIConstants.motion.inMicroseconds * travelFactor)
         .round()
         .clamp(
           const Duration(milliseconds: 90).inMicroseconds,
-          const Duration(milliseconds: 420).inMicroseconds,
+          UIConstants.motion.inMicroseconds,
         )
         .toInt();
     return Duration(microseconds: micros);
@@ -1836,10 +1777,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _programmaticPageTarget == null;
     if (alreadySettled || _programmaticPageTarget == index) return;
 
-    // A text field on the outgoing kept-alive page must not own the keyboard
-    // or focus after the user deliberately changes modules.
-    FocusManager.instance.primaryFocus?.unfocus();
-
     final bool reduceMotion = AppMotion.reduce(context);
     final int generation = ++_pageMotionGeneration;
     _userPageDragActive = false;
@@ -1868,7 +1805,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
     final double livePage =
         _pageController.page ?? _settledPageIndex.toDouble();
-    final Duration pageDuration = _adaptivePageDuration(livePage, index);
+    final int currentPage = livePage.round().clamp(0, _tabs.length - 1).toInt();
+    final int pageDistance = (index - currentPage).abs();
+
+    double animationOrigin = livePage;
+    if (pageDistance > 1) {
+      final int stagingPage = index > currentPage ? index - 1 : index + 1;
+      _pageController.jumpToPage(stagingPage);
+      animationOrigin = stagingPage.toDouble();
+    }
+
+    final Duration pageDuration = _adaptivePageDuration(animationOrigin, index);
     if (pageDuration == Duration.zero) {
       _pageController.jumpToPage(index);
       _finishProgrammaticPageMotion(index, generation);
@@ -1914,9 +1861,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
     if (notification is ScrollStartNotification &&
         notification.dragDetails != null) {
-      // Horizontal module navigation is a clear intent to leave the focused
-      // field; dismiss it before the next page becomes visible.
-      FocusManager.instance.primaryFocus?.unfocus();
       _userPageDragActive = true;
       _dragHapticPages
         ..clear()
@@ -2032,11 +1976,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       }
 
       final double page = _pageController.page ?? _settledPageIndex.toDouble();
-      final double rawDelta = page - index;
-      // Kept-alive pages more than one viewport away are invisible. Do not
-      // allocate transform/compositing work for them on every pager tick.
-      if (rawDelta.abs() > 1.05) return pageChild;
-      final double delta = rawDelta.clamp(-1.0, 1.0).toDouble();
+      final double delta = (page - index).clamp(-1.0, 1.0).toDouble();
       final double depth = delta.abs();
       if (depth <= .0001) return pageChild;
 
@@ -2147,20 +2087,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ),
         ],
       ),
-      bottomNavigationBar: ValueListenableBuilder<List<Color>>(
-        valueListenable: _tabColors,
-        builder:
-            (BuildContext context, List<Color> colors, Widget? child) =>
-                ValueListenableBuilder<int>(
-          valueListenable: _tabSelection,
-          builder: (BuildContext context, int selected, Widget? child) =>
-              _BottomLedgerNav(
-            colors: colors,
-            selected: selected,
-            controller: _navController,
-            onSelected: _selectTab,
-          ),
-        ),
+      bottomNavigationBar: ValueListenableBuilder<int>(
+        valueListenable: _tabSelection,
+        builder: (BuildContext context, int selected, Widget? child) =>
+            _BottomLedgerNav(
+              sync: widget.sync,
+              selected: selected,
+              controller: _navController,
+              onSelected: _selectTab,
+            ),
       ),
     );
   }
@@ -2242,12 +2177,12 @@ class _ActiveSyncViewState extends State<_ActiveSyncView> {
 
     if (_active) widget.sync.removeListener(_handleSyncChange);
     _active = nextActive;
-    if (_active) widget.sync.addListener(_handleSyncChange);
-
-    // Pages are intentionally kept alive. Rebuild on both ownership edges so
-    // hidden tickers/focus are disabled immediately, and the newly active page
-    // renders the latest sync state exactly once.
-    if (mounted) setState(() {});
+    if (_active) {
+      widget.sync.addListener(_handleSyncChange);
+      // This page ignored sync notifications while offscreen. Rebuild exactly
+      // once on activation so the first visible frame uses the latest state.
+      if (mounted) setState(() {});
+    }
   }
 
   void _handleSyncChange() {
@@ -2262,13 +2197,8 @@ class _ActiveSyncViewState extends State<_ActiveSyncView> {
   }
 
   @override
-  Widget build(BuildContext context) => TickerMode(
-    enabled: _active,
-    child: ExcludeFocus(
-      excluding: !_active,
-      child: RepaintBoundary(child: widget.builder(context)),
-    ),
-  );
+  Widget build(BuildContext context) =>
+      RepaintBoundary(child: widget.builder(context));
 }
 
 class _OfflineBanner extends StatelessWidget {
@@ -2304,19 +2234,22 @@ class _OfflineBanner extends StatelessWidget {
 
 class _BottomLedgerNav extends StatelessWidget {
   const _BottomLedgerNav({
-    required this.colors,
+    required this.sync,
     required this.selected,
     required this.controller,
     required this.onSelected,
   });
 
-  final List<Color> colors;
+  final LedgerSyncService sync;
   final int selected;
   final ScrollController controller;
   final ValueChanged<int> onSelected;
 
   @override
-  Widget build(BuildContext context) => _buildNavigation(context);
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: sync,
+    builder: (BuildContext context, Widget? child) => _buildNavigation(context),
+  );
 
   Widget _buildNavigation(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
@@ -2324,6 +2257,8 @@ class _BottomLedgerNav extends StatelessWidget {
     final Duration navMotion = AppMotion.reduce(context)
         ? Duration.zero
         : UIConstants.navMotion;
+
+    final List<Color> colors = _moduleTabColors(sync.currentProjection);
 
     final int safeSelected = colors.isEmpty
         ? 0
@@ -2408,10 +2343,6 @@ class _BottomLedgerNav extends StatelessWidget {
                           semanticLabel: '${spec.label} tab',
 
                           selected: active,
-
-                          // Reselecting the active destination changes no state,
-                          // so do not emit a false selection-change haptic.
-                          haptics: !active,
 
                           borderRadius: BorderRadius.circular(
                             UIConstants.actionRadius,
@@ -2569,9 +2500,7 @@ class _PremiumNavIconFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedContainer(
-    duration: AppMotion.reduce(context)
-        ? Duration.zero
-        : UIConstants.navMotion,
+    duration: AppMotion.reduce(context) ? Duration.zero : UIConstants.motion,
 
     curve: UIConstants.motionOut,
 
@@ -2652,7 +2581,6 @@ class _Pressable extends StatefulWidget {
     this.feedbackColor,
     this.semanticLabel,
     this.selected,
-    this.haptics = true,
   });
 
   final Widget child;
@@ -2661,7 +2589,6 @@ class _Pressable extends StatefulWidget {
   final Color? feedbackColor;
   final String? semanticLabel;
   final bool? selected;
-  final bool haptics;
 
   @override
   State<_Pressable> createState() => _PressableState();
@@ -2672,8 +2599,6 @@ class _PressableState extends State<_Pressable>
   static const double _touchAlignmentEpsilonSquared = .0004;
 
   late final AnimationController _pressController;
-  late final ChangeNotifier _spatialRepaint;
-  late final Listenable _pressRepaint;
   late final Stopwatch _gestureClock;
   Alignment _touchAlignment = Alignment.center;
   Alignment? _releaseAlignment;
@@ -2694,13 +2619,6 @@ class _PressableState extends State<_Pressable>
       duration: UIConstants.pressIn,
       reverseDuration: UIConstants.pressOut,
     );
-
-    _spatialRepaint = ChangeNotifier();
-
-    _pressRepaint = Listenable.merge(<Listenable>[
-      _pressController,
-      _spatialRepaint,
-    ]);
   }
 
   @override
@@ -2860,10 +2778,7 @@ class _PressableState extends State<_Pressable>
     _releaseAlignment = null;
     _sampleGestureVelocity(details.localPosition);
     final bool changed = _updateTouchAlignment(details.localPosition);
-
-    if (changed && !_pressController.isAnimating) {
-      _spatialRepaint.notifyListeners();
-    }
+    if (changed && !_pressController.isAnimating && mounted) setState(() {});
   }
 
   void _press([TapDownDetails? details]) {
@@ -2927,22 +2842,17 @@ class _PressableState extends State<_Pressable>
 
   void _activate() {
     if (widget.onTap == null) return;
-
-    if (widget.haptics) {
-      if (widget.feedbackColor == null) {
-        HapticFeedback.selectionClick();
-      } else {
-        HapticFeedback.lightImpact();
-      }
+    if (widget.feedbackColor == null) {
+      HapticFeedback.selectionClick();
+    } else {
+      HapticFeedback.lightImpact();
     }
-
     widget.onTap!();
   }
 
   @override
   void dispose() {
     _gestureClock.stop();
-    _spatialRepaint.dispose();
     _pressController.dispose();
     super.dispose();
   }
@@ -2965,15 +2875,12 @@ class _PressableState extends State<_Pressable>
       onTapUp: widget.onTap == null ? null : (_) => _release(),
       onTap: widget.onTap == null ? null : _activate,
       child: AnimatedBuilder(
-        animation: _pressRepaint,
+        animation: _pressController,
         child: widget.child,
         builder: (BuildContext context, Widget? child) {
-          final double feedback = _pressController.value;
-          // Zero is the overwhelmingly common list state. Skip identity
-          // transforms, transparent glow layers and matrix work entirely.
-          if (feedback.abs() <= .0001) return child!;
           final bool dark = Theme.of(context).brightness == Brightness.dark;
           final bool reduceMotion = AppMotion.reduce(context);
+          final double feedback = _pressController.value;
           final double pressed = feedback.clamp(0.0, 1.0).toDouble();
           final double motion = reduceMotion ? 0 : feedback;
           final double cardTilt = reduceMotion || widget.feedbackColor == null
@@ -3885,13 +3792,9 @@ class _SearchBox extends StatefulWidget {
   State<_SearchBox> createState() => _SearchBoxState();
 }
 
-class _SearchBoxState extends State<_SearchBox>
-    with AutomaticKeepAliveClientMixin<_SearchBox> {
+class _SearchBoxState extends State<_SearchBox> {
   Timer? _debounce;
   late final FocusNode _focusNode;
-
-  @override
-  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -3936,8 +3839,6 @@ class _SearchBoxState extends State<_SearchBox>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
-
     final bool dark = Theme.of(context).brightness == Brightness.dark;
 
     final bool focused = _focusNode.hasFocus;
@@ -4031,47 +3932,6 @@ class _SearchBoxState extends State<_SearchBox>
           focusedBorder: InputBorder.none,
         ),
       ),
-    );
-  }
-}
-
-class _LazyLedgerList extends StatelessWidget {
-  const _LazyLedgerList({
-    required this.storageKey,
-    required this.header,
-    required this.itemCount,
-    required this.itemBuilder,
-    required this.emptyState,
-  });
-
-  final String storageKey;
-  final List<Widget> header;
-  final int itemCount;
-  final IndexedWidgetBuilder itemBuilder;
-  final Widget emptyState;
-
-  @override
-  Widget build(BuildContext context) {
-    final int headerCount = header.length;
-    final int contentCount = itemCount == 0 ? 1 : itemCount;
-
-    return ListView.builder(
-      key: PageStorageKey<String>(storageKey),
-      physics: const BouncingScrollPhysics(),
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: UIConstants.screenPadding,
-      itemCount: headerCount + contentCount,
-      itemBuilder: (BuildContext context, int index) {
-        if (index < headerCount) {
-          return header[index];
-        }
-
-        if (itemCount == 0) {
-          return emptyState;
-        }
-
-        return itemBuilder(context, index - headerCount);
-      },
     );
   }
 }
@@ -5701,6 +5561,7 @@ class _MilkScreenState extends State<MilkScreen> {
                     color: appleGreen,
                     semanticLabel: 'Create seller milk customer',
                     onTap: () {
+                      HapticFeedback.mediumImpact();
                       Navigator.pop(sheetContext, 'lene_wala');
                     },
                   ),
@@ -5713,6 +5574,7 @@ class _MilkScreenState extends State<MilkScreen> {
                     color: appleRed,
                     semanticLabel: 'Create buyer milk customer',
                     onTap: () {
+                      HapticFeedback.mediumImpact();
                       Navigator.pop(sheetContext, 'dene_wala');
                     },
                   ),
@@ -5792,43 +5654,43 @@ class _MilkScreenState extends State<MilkScreen> {
           ],
         ),
         Expanded(
-          child: _LazyLedgerList(
-            storageKey: 'milk-scroll',
-            header: <Widget>[
+          child: ListView(
+            key: const PageStorageKey<String>('milk-scroll'),
+            physics: const BouncingScrollPhysics(),
+            padding: UIConstants.screenPadding,
+            children: <Widget>[
               _SearchBox(
                 hint: 'Search customer…',
                 color: appleBlue,
                 onChanged: (String value) => setState(() => _query = value),
               ),
               const SizedBox(height: 16),
+              if (names.isEmpty)
+                const _EmptyState(
+                  Icons.water_drop_rounded,
+                  'No customers found',
+                  color: appleBlue,
+                  prominent: true,
+                )
+              else
+                ...names.map((String name) {
+                  final MilkTotals totals =
+                      projection.milkTotalsByProfile[name]!;
+                  final Color color = _tone(totals.netAmount);
+                  return _ListCard(
+                    title: name,
+                    subtitle: '${totals.netKg.abs().toStringAsFixed(2)} KG',
+                    icon: Icons.water_drop_rounded,
+                    color: color,
+                    avatarText: name.trim().isEmpty
+                        ? 'M'
+                        : name.trim()[0].toUpperCase(),
+                    trailing: _signedMoney(totals.netAmount),
+                    destinationBuilder: (_) =>
+                        MilkDetailScreen(sync: widget.sync, customerName: name),
+                  );
+                }),
             ],
-            itemCount: names.length,
-            emptyState: const _EmptyState(
-              Icons.water_drop_rounded,
-              'No customers found',
-              color: appleBlue,
-              prominent: true,
-            ),
-            itemBuilder: (BuildContext context, int index) {
-              final String name = names[index];
-              final MilkTotals totals =
-                  projection.milkTotalsByProfile[name]!;
-              final Color color = _tone(totals.netAmount);
-
-              return _ListCard(
-                title: name,
-                subtitle: '${totals.netKg.abs().toStringAsFixed(2)} KG',
-                icon: Icons.water_drop_rounded,
-                color: color,
-                avatarText:
-                    name.trim().isEmpty ? 'M' : name.trim()[0].toUpperCase(),
-                trailing: _signedMoney(totals.netAmount),
-                destinationBuilder: (_) => MilkDetailScreen(
-                  sync: widget.sync,
-                  customerName: name,
-                ),
-              );
-            },
           ),
         ),
       ],
@@ -5858,11 +5720,7 @@ class _TransactionPairButton extends StatelessWidget {
     final bool negative = icon == Icons.remove_rounded;
 
     return _Pressable(
-      onTap: () {
-        HapticFeedback.mediumImpact();
-        onTap();
-      },
-      haptics: false,
+      onTap: onTap,
       semanticLabel: semanticLabel ?? label,
       borderRadius: BorderRadius.circular(UIConstants.actionRadius),
       child: SizedBox(
@@ -6039,6 +5897,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                     color: appleGreen,
                     semanticLabel: 'Save milk as given',
                     onTap: () {
+                      HapticFeedback.mediumImpact();
                       Navigator.pop(sheetContext, 'given');
                     },
                   ),
@@ -6051,6 +5910,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                     color: appleRed,
                     semanticLabel: 'Save milk as taken',
                     onTap: () {
+                      HapticFeedback.mediumImpact();
                       Navigator.pop(sheetContext, 'taken');
                     },
                   ),
@@ -7073,6 +6933,7 @@ class _SalaryScreenState extends State<SalaryScreen> {
                     color: salaryGreen,
                     semanticLabel: 'Create employee who receives salary',
                     onTap: () {
+                      HapticFeedback.mediumImpact();
                       Navigator.pop(sheetContext, 'lene_wala');
                     },
                   ),
@@ -7085,6 +6946,7 @@ class _SalaryScreenState extends State<SalaryScreen> {
                     color: appleRed,
                     semanticLabel: 'Create employee whose salary I pay',
                     onTap: () {
+                      HapticFeedback.mediumImpact();
                       Navigator.pop(sheetContext, 'dene_wala');
                     },
                   ),
@@ -7160,42 +7022,39 @@ class _SalaryScreenState extends State<SalaryScreen> {
           ],
         ),
         Expanded(
-          child: _LazyLedgerList(
-            storageKey: 'salary-scroll',
-            header: <Widget>[
+          child: ListView(
+            key: const PageStorageKey<String>('salary-scroll'),
+            physics: const BouncingScrollPhysics(),
+            padding: UIConstants.screenPadding,
+            children: <Widget>[
               _SearchBox(
                 hint: 'Search name…',
                 color: appleBlue,
                 onChanged: (String value) => setState(() => _query = value),
               ),
               const SizedBox(height: 16),
+              if (names.isEmpty)
+                const _EmptyState(Icons.groups_rounded, 'No employees found')
+              else
+                ...names.map((String name) {
+                  final Map<String, dynamic> profile = _map(database[name]);
+                  final double net = projection.salaryNetByProfile[name]!;
+                  final Color color = _tone(net);
+                  return _ListCard(
+                    title: name,
+                    subtitle:
+                        '${profile['company'] ?? '—'} • ${net >= 0 ? 'To Receive' : 'To Pay'}',
+                    icon: Icons.currency_rupee_rounded,
+                    color: color,
+                    avatarText: name.trim().isEmpty
+                        ? 'S'
+                        : name.trim()[0].toUpperCase(),
+                    trailing: _signedMoney(net),
+                    destinationBuilder: (_) =>
+                        SalaryDetailScreen(sync: widget.sync, personName: name),
+                  );
+                }),
             ],
-            itemCount: names.length,
-            emptyState: const _EmptyState(
-              Icons.groups_rounded,
-              'No employees found',
-            ),
-            itemBuilder: (BuildContext context, int index) {
-              final String name = names[index];
-              final Map<String, dynamic> profile = _map(database[name]);
-              final double net = projection.salaryNetByProfile[name]!;
-              final Color color = _tone(net);
-
-              return _ListCard(
-                title: name,
-                subtitle:
-                    '${profile['company'] ?? '—'} • ${net >= 0 ? 'To Receive' : 'To Pay'}',
-                icon: Icons.currency_rupee_rounded,
-                color: color,
-                avatarText:
-                    name.trim().isEmpty ? 'S' : name.trim()[0].toUpperCase(),
-                trailing: _signedMoney(net),
-                destinationBuilder: (_) => SalaryDetailScreen(
-                  sync: widget.sync,
-                  personName: name,
-                ),
-              );
-            },
           ),
         ),
       ],
@@ -7637,9 +7496,11 @@ class _CreditScreenState extends State<CreditScreen> {
           ],
         ),
         Expanded(
-          child: _LazyLedgerList(
-            storageKey: 'credit-scroll',
-            header: <Widget>[
+          child: ListView(
+            key: const PageStorageKey<String>('credit-scroll'),
+            physics: const BouncingScrollPhysics(),
+            padding: UIConstants.screenPadding,
+            children: <Widget>[
               _AmountHero(
                 label: net > 0
                     ? 'Net Balance / Profit'
@@ -7655,38 +7516,37 @@ class _CreditScreenState extends State<CreditScreen> {
                 onChanged: (String value) => setState(() => _query = value),
               ),
               const SizedBox(height: 16),
+              if (groups.isEmpty)
+                const _EmptyState(
+                  Icons.account_balance_wallet_rounded,
+                  'No credit records found',
+                )
+              else
+                ...groups.map((CreditPartySummary group) {
+                  final Color color = _tone(group.net);
+                  final String statusLabel = group.net > 0
+                      ? 'TO RECEIVE'
+                      : group.net < 0
+                      ? 'TO PAY'
+                      : 'SETTLED';
+
+                  return _ListCard(
+                    title: group.name,
+                    subtitle: 'Last entry: ${_displayDay(group.lastDate)}',
+                    icon: Icons.person_rounded,
+                    color: color,
+                    avatarText: group.name.trim().isEmpty
+                        ? 'C'
+                        : group.name.trim()[0].toUpperCase(),
+                    trailingLabel: statusLabel,
+                    trailing: _signedMoney(group.net),
+                    destinationBuilder: (_) => CreditDetailScreen(
+                      sync: widget.sync,
+                      personName: group.name,
+                    ),
+                  );
+                }),
             ],
-            itemCount: groups.length,
-            emptyState: const _EmptyState(
-              Icons.account_balance_wallet_rounded,
-              'No credit records found',
-            ),
-            itemBuilder: (BuildContext context, int index) {
-              final CreditPartySummary group = groups[index];
-              final Color color = _tone(group.net);
-
-              final String statusLabel = group.net > 0
-                  ? 'TO RECEIVE'
-                  : group.net < 0
-                  ? 'TO PAY'
-                  : 'SETTLED';
-
-              return _ListCard(
-                title: group.name,
-                subtitle: 'Last entry: ${_displayDay(group.lastDate)}',
-                icon: Icons.person_rounded,
-                color: color,
-                avatarText: group.name.trim().isEmpty
-                    ? 'C'
-                    : group.name.trim()[0].toUpperCase(),
-                trailingLabel: statusLabel,
-                trailing: _signedMoney(group.net),
-                destinationBuilder: (_) => CreditDetailScreen(
-                  sync: widget.sync,
-                  personName: group.name,
-                ),
-              );
-            },
           ),
         ),
       ],
@@ -7747,6 +7607,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
                     color: appleGreen,
                     semanticLabel: 'Save credit as given',
                     onTap: () {
+                      HapticFeedback.mediumImpact();
                       Navigator.pop(sheetContext, 'credit');
                     },
                   ),
@@ -7759,6 +7620,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
                     color: appleRed,
                     semanticLabel: 'Save credit as taken',
                     onTap: () {
+                      HapticFeedback.mediumImpact();
                       Navigator.pop(sheetContext, 'debit');
                     },
                   ),
@@ -8138,41 +8000,38 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           ],
         ),
         Expanded(
-          child: _LazyLedgerList(
-            storageKey: 'expense-scroll',
-            header: <Widget>[
+          child: ListView(
+            key: const PageStorageKey<String>('expense-scroll'),
+            physics: const BouncingScrollPhysics(),
+            padding: UIConstants.screenPadding,
+            children: <Widget>[
               _AmountHero(
                 label: 'Month Expense',
                 value: _money(total),
                 color: moduleColor,
               ),
               const SizedBox(height: 24),
-              const _SectionTitle(
-                'Categories',
-                color: appleBlue,
-              ),
-            ],
-            itemCount: groups.length,
-            emptyState: const _EmptyState(
-              premiumExpenseIcon,
-              'No expenses this month',
-            ),
-            itemBuilder: (BuildContext context, int index) {
-              final ExpenseCategorySummary group = groups[index];
-
-              return _ListCard(
-                title: group.category,
-                subtitle: 'Last entry: ${_displayDay(group.lastDate)}',
-                icon: premiumExpenseIcon,
-                color: semanticRed,
-                trailing:
-                    group.monthTotal > 0 ? '-${_money(group.monthTotal)}' : '—',
-                destinationBuilder: (_) => ExpenseDetailScreen(
-                  sync: widget.sync,
-                  category: group.category,
+              const _SectionTitle('Categories', color: appleBlue),
+              if (groups.isEmpty)
+                const _EmptyState(premiumExpenseIcon, 'No expenses this month')
+              else
+                ...groups.map(
+                  (ExpenseCategorySummary group) => _ListCard(
+                    title: group.category,
+                    // EXPENSE_LAST_ENTRY_ONLY_V1
+                    subtitle: 'Last entry: ${_displayDay(group.lastDate)}',
+                    icon: premiumExpenseIcon,
+                    color: semanticRed,
+                    trailing: group.monthTotal > 0
+                        ? '-${_money(group.monthTotal)}'
+                        : '—',
+                    destinationBuilder: (_) => ExpenseDetailScreen(
+                      sync: widget.sync,
+                      category: group.category,
+                    ),
+                  ),
                 ),
-              );
-            },
+            ],
           ),
         ),
       ],
@@ -9362,36 +9221,37 @@ class _BusinessScreenState extends State<BusinessScreen> {
           ],
         ),
         Expanded(
-          child: _LazyLedgerList(
-            storageKey: 'business-scroll',
-            header: <Widget>[
+          child: ListView(
+            key: const PageStorageKey<String>('business-scroll'),
+            physics: const BouncingScrollPhysics(),
+            padding: UIConstants.screenPadding,
+            children: <Widget>[
               _SearchBox(
                 hint: 'Search account…',
                 onChanged: (String value) => setState(() => _query = value),
               ),
               const SizedBox(height: 16),
+              if (names.isEmpty)
+                const _EmptyState(
+                  Icons.business_center_rounded,
+                  'No business khatas added yet',
+                )
+              else
+                ...names.map((String name) {
+                  final int count = recordCounts[name]!;
+                  return _ListCard(
+                    title: name,
+                    subtitle: '$count Records Logged',
+                    icon: Icons.business_center_rounded,
+                    color: appleBlue,
+                    onDelete: () => unawaited(_deleteProject(name)),
+                    destinationBuilder: (_) => BusinessDetailScreen(
+                      sync: widget.sync,
+                      projectName: name,
+                    ),
+                  );
+                }),
             ],
-            itemCount: names.length,
-            emptyState: const _EmptyState(
-              Icons.business_center_rounded,
-              'No business khatas added yet',
-            ),
-            itemBuilder: (BuildContext context, int index) {
-              final String name = names[index];
-              final int count = recordCounts[name]!;
-
-              return _ListCard(
-                title: name,
-                subtitle: '$count Records Logged',
-                icon: Icons.business_center_rounded,
-                color: appleBlue,
-                onDelete: () => unawaited(_deleteProject(name)),
-                destinationBuilder: (_) => BusinessDetailScreen(
-                  sync: widget.sync,
-                  projectName: name,
-                ),
-              );
-            },
           ),
         ),
       ],
