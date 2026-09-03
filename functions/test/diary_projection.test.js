@@ -84,10 +84,13 @@ test('legacy projected rows without source hashes cannot survive deletion', () =
   });
 });
 
-test('projection strips prototype-pollution field names', () => {
+test('projection strips prototype-pollution field names recursively', () => {
   const malicious = JSON.parse(
     '{"date":"2026-08-31","title":"Safe","__proto__":{"polluted":true},' +
-    '"constructor":{"polluted":true},"prototype":{"polluted":true}}',
+    '"constructor":{"polluted":true},"prototype":{"polluted":true},' +
+    '"meta":{"safe":"kept","nested":{"__proto__":{"polluted":true},' +
+    '"constructor":{"polluted":true},"prototype":{"polluted":true},' +
+    '"value":7}}}',
   );
   const normalized = normalizeSourceEntry(malicious, 'dia_safe');
   assert.equal(normalized.id, 'dia_safe');
@@ -95,6 +98,11 @@ test('projection strips prototype-pollution field names', () => {
   assert.equal(Object.hasOwn(normalized, '__proto__'), false);
   assert.equal(Object.hasOwn(normalized, 'constructor'), false);
   assert.equal(Object.hasOwn(normalized, 'prototype'), false);
+  assert.equal(normalized.meta.safe, 'kept');
+  assert.equal(normalized.meta.nested.value, 7);
+  assert.equal(Object.hasOwn(normalized.meta.nested, '__proto__'), false);
+  assert.equal(Object.hasOwn(normalized.meta.nested, 'constructor'), false);
+  assert.equal(Object.hasOwn(normalized.meta.nested, 'prototype'), false);
   assert.equal({}.polluted, undefined);
 });
 
