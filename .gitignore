@@ -24,3 +24,10 @@ functions/node_modules/
 # Generated Python artifacts from local/CI maintenance scripts.
 __pycache__/
 *.py[cod]
+
+# One-shot Aarish patchers/backups. These must stay local and never be committed.
+/aarish_*autofixer.py
+/aarish_*_fixer.py
+/aarish_*recovery*.py
+/.aarish_autofix_backups/
+/.aarish_backups/
