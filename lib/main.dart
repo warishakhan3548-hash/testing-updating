@@ -1160,6 +1160,11 @@ class _FastRouteLauncherState extends State<_FastRouteLauncher> {
     if (_routeOpen) return;
     _routeOpen = true;
 
+    // Capture tap identity before the tactile handoff delay. A filtered/live
+    // list can rebuild during those few milliseconds and update this State's
+    // widget; the tap must still open the destination that was actually hit.
+    final WidgetBuilder destinationBuilder = widget.destinationBuilder;
+
     void launchRoute() {
       _launchTimer = null;
       if (!mounted) return;
@@ -1173,7 +1178,7 @@ class _FastRouteLauncherState extends State<_FastRouteLauncher> {
 
       final NavigatorState navigator = Navigator.of(context);
       final PageRoute<Object?> route = _directRoute<Object?>(
-        destinationBuilder: widget.destinationBuilder,
+        destinationBuilder: destinationBuilder,
         reduceMotion: AppMotion.reduce(context),
       );
 
@@ -1417,7 +1422,7 @@ class _LoginScreenState extends State<_LoginScreen> {
                       ),
                       const SizedBox(height: 36),
                       _Pressable(
-                        onTap: _signIn,
+                        onTap: _working ? null : _signIn,
                         borderRadius: BorderRadius.circular(17),
                         child: Container(
                           height: 56,
@@ -1485,7 +1490,7 @@ class _LoginScreenState extends State<_LoginScreen> {
                         ),
                       ],
                       const SizedBox(height: 12),
-                      _Pressable(
+                      _BounceTextButton(
                         onTap: () => showAboutDialog(
                           context: context,
                           applicationName: 'Aarish Dairy Pro',
@@ -1497,19 +1502,13 @@ class _LoginScreenState extends State<_LoginScreen> {
                             ),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 7,
-                          ),
-                          child: Text(
-                            'About features',
-                            style: TextStyle(
-                              color: Colors.white.withAlpha(138),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                            ),
+                        semanticLabel: 'About features',
+                        child: Text(
+                          'About features',
+                          style: TextStyle(
+                            color: Colors.white.withAlpha(138),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
@@ -2950,7 +2949,7 @@ class _PressableState extends State<_Pressable>
 
   @override
   Widget build(BuildContext context) => Semantics(
-    button: widget.onTap != null,
+    button: true,
     enabled: widget.onTap != null,
     label: widget.semanticLabel,
     selected: widget.selected,
@@ -3591,7 +3590,7 @@ class _CircleAction extends StatelessWidget {
   });
 
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final Color color;
   final String? semanticLabel;
 
@@ -3662,7 +3661,7 @@ class _DeleteActionButton extends StatelessWidget {
     this.padding = EdgeInsets.zero,
   });
 
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final String semanticLabel;
   final EdgeInsetsGeometry padding;
 
@@ -4124,7 +4123,7 @@ class _DateField extends StatelessWidget {
       helpText: 'SELECT DATE',
     );
     if (picked != null) {
-      controller.text = DateFormat('yyyy-MM-dd').format(picked);
+      controller.text = _isoDateFormat.format(picked);
     }
   }
 
@@ -4207,7 +4206,7 @@ class _PrimaryButton extends StatelessWidget {
   });
 
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final IconData icon;
   final Color color;
   final Color foregroundColor;
@@ -4790,7 +4789,7 @@ class _MonthYearPicker extends StatelessWidget {
                   (int item) => DropdownMenuItem<int>(
                     value: item,
                     child: Text(
-                      DateFormat.MMMM().format(DateTime(2024, item)),
+                      _monthNameFormat.format(DateTime(2024, item)),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -5091,28 +5090,36 @@ Future<void> _setDarkModeSafely(
   }
 }
 
+final DateFormat _isoDateFormat = DateFormat('yyyy-MM-dd');
+final DateFormat _displayDateFormat = DateFormat('dd MMM yyyy');
+final DateFormat _dayFormat = DateFormat('dd');
+final DateFormat _monthAbbrevFormat = DateFormat('MMM');
+final DateFormat _dayMonthFormat = DateFormat('dd MMM');
+final DateFormat _monthNameFormat = DateFormat.MMMM();
+final DateFormat _monthYearFormat = DateFormat('MMMM yyyy');
+final NumberFormat _inrIntegerFormat = NumberFormat('#,##,##0', 'en_IN');
+final NumberFormat _compactQuantityFormat = NumberFormat('0.##');
+
 String _newId(String prefix) =>
     '${prefix}_${DateTime.now().millisecondsSinceEpoch}_${_ids.v4().replaceAll('-', '').substring(0, 8)}';
 
-String _today() => DateFormat('yyyy-MM-dd').format(DateTime.now());
+String _today() => _isoDateFormat.format(DateTime.now());
 
 String _displayDate(dynamic value) {
   final DateTime? date = LedgerMath.date(value);
-  return date == null
-      ? '${value ?? '—'}'
-      : DateFormat('dd MMM yyyy').format(date);
+  return date == null ? '${value ?? '—'}' : _displayDateFormat.format(date);
 }
 
 String _displayDay(dynamic value) {
   final DateTime? date = LedgerMath.date(value);
-  return date == null ? '—' : DateFormat('dd').format(date);
+  return date == null ? '—' : _dayFormat.format(date);
 }
 
 // LAST_ENTRY_DAY_ONLY_V1
 
 String _money(dynamic value) {
   final double number = LedgerMath.number(value).abs();
-  return '₹${NumberFormat('#,##,##0', 'en_IN').format(number.round())}';
+  return '₹${_inrIntegerFormat.format(number.round())}';
 }
 
 String _signedMoney(dynamic value) {
@@ -5172,7 +5179,7 @@ class _AiHubButton extends StatelessWidget {
       borderRadius: radius,
       child: Container(
         width: 60,
-        height: 40,
+        height: UIConstants.minTapTarget,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           gradient: const LinearGradient(
@@ -5668,14 +5675,39 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
   String _query = '';
 
   @override
+  void initState() {
+    super.initState();
+    widget.sync.contentChanges.addListener(_handleContentChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant PartyLedgerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sync == widget.sync) return;
+    oldWidget.sync.contentChanges.removeListener(_handleContentChange);
+    widget.sync.contentChanges.addListener(_handleContentChange);
+  }
+
+  void _handleContentChange() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.sync.contentChanges.removeListener(_handleContentChange);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final String query = _query.trim().toLowerCase();
     final List<PartyBalance> balances = widget
         .sync
         .currentProjection
         .partyBalances
         .where(
           (PartyBalance item) =>
-              item.name.toLowerCase().contains(_query.toLowerCase()),
+              query.isEmpty || item.name.toLowerCase().contains(query),
         )
         .toList();
     return Scaffold(
@@ -5711,38 +5743,35 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
             ],
           ),
           Expanded(
-            child: ListView(
-              physics: const BouncingScrollPhysics(),
-              padding: UIConstants.screenPadding,
-              children: <Widget>[
+            child: _LazyLedgerList(
+              storageKey: 'party-ledger-scroll',
+              header: <Widget>[
                 _SearchBox(
                   hint: 'Search party name…',
                   onChanged: (String value) => setState(() => _query = value),
                 ),
                 const SizedBox(height: 16),
-                if (balances.isEmpty)
-                  const _EmptyState(
-                    Icons.contact_page_rounded,
-                    'No party balances found',
-                  )
-                else
-                  ...balances.map((PartyBalance item) {
-                    final Color color = _tone(item.net);
-                    final String label = item.net >= 0
-                        ? 'TO RECEIVE'
-                        : 'TO PAY';
-                    return _ListCard(
-                      title: item.name,
-                      subtitle: label,
-                      icon: Icons.person_rounded,
-                      color: color,
-                      avatarText: item.name.trim().isEmpty
-                          ? 'P'
-                          : item.name.trim()[0].toUpperCase(),
-                      trailing: _signedMoney(item.net),
-                    );
-                  }),
               ],
+              itemCount: balances.length,
+              emptyState: const _EmptyState(
+                Icons.contact_page_rounded,
+                'No party balances found',
+              ),
+              itemBuilder: (BuildContext context, int index) {
+                final PartyBalance item = balances[index];
+                final Color color = _tone(item.net);
+                final String label = item.net >= 0 ? 'TO RECEIVE' : 'TO PAY';
+                return _ListCard(
+                  title: item.name,
+                  subtitle: label,
+                  icon: Icons.person_rounded,
+                  color: color,
+                  avatarText: item.name.trim().isEmpty
+                      ? 'P'
+                      : item.name.trim()[0].toUpperCase(),
+                  trailing: _signedMoney(item.net),
+                );
+              },
             ),
           ),
         ],
@@ -6445,7 +6474,7 @@ class _SoftShareButton extends StatelessWidget {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     final double viewportWidth = MediaQuery.sizeOf(context).width;
     final bool micro = compact && viewportWidth < 350;
-    final double height = micro ? 46 : (compact ? 48 : 52);
+    final double height = compact ? UIConstants.compactButtonHeight : 52;
     final double width = micro ? 96 : (compact ? 108 : 118);
     final double radius = compact ? 17 : 19;
 
@@ -6516,7 +6545,7 @@ class _MilkRecordsTable extends StatelessWidget {
   String _quantityCell(dynamic value) {
     final double number = LedgerMath.number(value);
     if (number == 0) return '-';
-    return NumberFormat('0.##').format(number);
+    return _compactQuantityFormat.format(number);
   }
 
   @override
@@ -6640,8 +6669,8 @@ class _MilkTableRow extends StatelessWidget {
     final DateTime? parsed = LedgerMath.strictDate('${row['date']}');
     final String day = parsed == null
         ? _displayDate(row['date'])
-        : DateFormat('dd').format(parsed);
-    final String month = parsed == null ? '' : DateFormat('MMM').format(parsed);
+        : _dayFormat.format(parsed);
+    final String month = parsed == null ? '' : _monthAbbrevFormat.format(parsed);
     final String total =
         '${flow == 'taken' ? '-' : '+'}${quantity.toStringAsFixed(2)}';
 
@@ -6992,7 +7021,7 @@ class _LedgerDateCell extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              DateFormat('dd').format(parsed),
+              _dayFormat.format(parsed),
               style: TextStyle(
                 color: color,
                 fontSize: 15,
@@ -7002,7 +7031,7 @@ class _LedgerDateCell extends StatelessWidget {
             ),
             const SizedBox(height: 5),
             Text(
-              DateFormat('MMM').format(parsed),
+              _monthAbbrevFormat.format(parsed),
               style: TextStyle(
                 color: color,
                 fontSize: 12.5,
@@ -7020,7 +7049,7 @@ class _LedgerDateCell extends StatelessWidget {
         fit: BoxFit.scaleDown,
         alignment: Alignment.centerLeft,
         child: Text(
-          DateFormat('dd MMM').format(parsed),
+          _dayMonthFormat.format(parsed),
           maxLines: 1,
           style: TextStyle(
             color: color,
@@ -8129,7 +8158,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         );
     await _sharePdfSafely(
       context,
-      'Monthly Expenses - ${DateFormat('MMMM yyyy').format(now)}',
+      'Monthly Expenses - ${_monthYearFormat.format(now)}',
       <String>['Date', 'Category', 'Amount'],
       records
           .map(
@@ -8742,14 +8771,11 @@ class _DiaryEditorSheetState extends State<_DiaryEditorSheet> {
         ),
       ],
       const SizedBox(height: 20),
-      IgnorePointer(
-        ignoring: _saving,
-        child: _PrimaryButton(
-          label: _saving ? 'Saving…' : 'Save Page',
-          color: diaryOrange,
-          icon: _saving ? Icons.sync_rounded : Icons.save_rounded,
-          onTap: () => unawaited(_submit()),
-        ),
+      _PrimaryButton(
+        label: _saving ? 'Saving…' : 'Save Page',
+        color: diaryOrange,
+        icon: _saving ? Icons.sync_rounded : Icons.save_rounded,
+        onTap: _saving ? null : () => unawaited(_submit()),
       ),
     ],
   );
@@ -9263,18 +9289,24 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
                   icon: Icons.edit_rounded,
                   color: diaryOrange,
                   semanticLabel: 'Edit diary page',
-                  onTap: () => unawaited(_edit(context, current)),
+                  onTap: _actionInFlight
+                      ? null
+                      : () => unawaited(_edit(context, current)),
                 ),
                 _CircleAction(
                   icon: Icons.share_rounded,
                   color: appleBlue,
                   semanticLabel: 'Share diary page',
-                  onTap: () => unawaited(_share(context, current)),
+                  onTap: _actionInFlight
+                      ? null
+                      : () => unawaited(_share(context, current)),
                 ),
                 _DeleteActionButton(
                   padding: const EdgeInsets.only(left: 6),
                   semanticLabel: 'Delete diary page',
-                  onTap: () => unawaited(_delete(context)),
+                  onTap: _actionInFlight
+                      ? null
+                      : () => unawaited(_delete(context)),
                 ),
               ],
             ),
@@ -11482,10 +11514,12 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
                   onTap: _busy || _batchJob != null
                       ? null
                       : () => unawaited(_send()),
-                  borderRadius: BorderRadius.circular(23),
+                  borderRadius: BorderRadius.circular(
+                    UIConstants.minTapTarget / 2,
+                  ),
                   child: Container(
-                    width: 46,
-                    height: 46,
+                    width: UIConstants.minTapTarget,
+                    height: UIConstants.minTapTarget,
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
                         colors: <Color>[Color(0xFF4285F4), Color(0xFF9B72CB)],

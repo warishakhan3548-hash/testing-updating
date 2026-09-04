@@ -1210,6 +1210,9 @@ class LedgerMath {
   LedgerMath._();
 
   static const double defaultMilkRate = 55;
+  static final RegExp _strictDatePattern = RegExp(
+    r'^(\d{4})-(\d{2})-(\d{2})$',
+  );
 
   static double number(dynamic value) {
     if (value is num) return value.isFinite ? value.toDouble() : 0;
@@ -1225,8 +1228,7 @@ class LedgerMath {
 
   static DateTime? strictDate(dynamic value) {
     final String raw = '${value ?? ''}'.trim();
-    final RegExpMatch? match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$')
-        .firstMatch(raw);
+    final RegExpMatch? match = _strictDatePattern.firstMatch(raw);
     if (match == null) return null;
     final int year = int.parse(match.group(1)!);
     final int month = int.parse(match.group(2)!);
