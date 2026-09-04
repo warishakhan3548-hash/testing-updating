@@ -1603,24 +1603,14 @@ class LedgerSyncService extends ChangeNotifier {
   bool get syncing => _syncing;
   bool get darkMode => _darkMode;
   bool get isConnected => SyncConnectionPolicy.canContactServer(_connected);
-  bool get isOffline => _connected == false;
   int get pendingWrites => _outbox.length;
   Object? get lastError => _lastError;
   Map<String, dynamic> get state => _state;
   Map<String, dynamic>? _projectedState;
   LedgerProjection? _projection;
-  final ChangeNotifier _contentChanges = ChangeNotifier();
-
-  Listenable get contentChanges => _contentChanges;
 
   void _notify() {
     if (!_disposed) notifyListeners();
-  }
-
-  void _notifyContent() {
-    if (_disposed) return;
-    _contentChanges.notifyListeners();
-    notifyListeners();
   }
 
   void _invalidateProjectionCache() {
@@ -1757,7 +1747,7 @@ class LedgerSyncService extends ChangeNotifier {
         _ledgerV2Ref = null;
         _connected = null;
         _booting = false;
-        _notifyContent();
+        _notify();
         return;
       }
 
@@ -1775,7 +1765,7 @@ class LedgerSyncService extends ChangeNotifier {
       _readDiaryProjectionCache(nextUid);
       _booting = false;
       _attachUserStreams(nextUid);
-      _notifyContent();
+      _notify();
       shouldReconcile = true;
     });
     if (shouldReconcile && !_disposed) {
@@ -2279,7 +2269,7 @@ class LedgerSyncService extends ChangeNotifier {
           }
           _lastError = null;
           applied = true;
-          _notifyContent();
+          _notify();
         });
         if (applied) return;
       } catch (error) {
@@ -2385,7 +2375,7 @@ class LedgerSyncService extends ChangeNotifier {
         _invalidateProjectionCache();
         _loadedDiaryMonthVersions[period] = source.cacheKey;
         _diaryMonthErrors.remove(period);
-        _notifyContent();
+        _notify();
       });
     } catch (error) {
       if (uid == _activeUid) {
@@ -2627,7 +2617,7 @@ class LedgerSyncService extends ChangeNotifier {
       _invalidateProjectionCache();
       _outbox = nextOutbox;
       _lastError = null;
-      _notifyContent();
+      _notify();
       _scheduleFlush(const Duration(milliseconds: 180));
     });
   }
@@ -3178,7 +3168,7 @@ class LedgerSyncService extends ChangeNotifier {
       _tableClocks = remoteTableClocks;
       _lastFullAuditAt = nextFullAuditAt;
       _lastError = null;
-      _notifyContent();
+      _notify();
       return _flushLocked();
     } catch (error) {
       _lastError = error;
@@ -3233,7 +3223,6 @@ class LedgerSyncService extends ChangeNotifier {
     if (diaryProjectionSubscription != null) {
       unawaited(diaryProjectionSubscription.cancel());
     }
-    _contentChanges.dispose();
     super.dispose();
   }
 }

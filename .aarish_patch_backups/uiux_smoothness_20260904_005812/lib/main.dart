@@ -1699,7 +1699,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       List<Color>.unmodifiable(_moduleTabColors(widget.sync.currentProjection)),
     );
 
-    widget.sync.contentChanges.addListener(_handleTabColorSync);
+    widget.sync.addListener(_handleTabColorSync);
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -1709,9 +1709,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
     if (oldWidget.sync == widget.sync) return;
 
-    oldWidget.sync.contentChanges.removeListener(_handleTabColorSync);
+    oldWidget.sync.removeListener(_handleTabColorSync);
     _handleTabColorSync();
-    widget.sync.contentChanges.addListener(_handleTabColorSync);
+    widget.sync.addListener(_handleTabColorSync);
   }
 
   @override
@@ -1728,7 +1728,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    widget.sync.contentChanges.removeListener(_handleTabColorSync);
+    widget.sync.removeListener(_handleTabColorSync);
     _tabColors.dispose();
     _tabSelection.dispose();
     _settledPage.dispose();
@@ -2103,7 +2103,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           activePage: _settledPage,
           pageIndex: 5,
           builder: (BuildContext context) => DiaryScreen(sync: widget.sync),
-          listenToContentOnly: false,
         ),
       ),
       _KeepAlivePage(
@@ -2121,9 +2120,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           AnimatedBuilder(
             animation: widget.sync,
             builder: (BuildContext context, Widget? child) =>
-                widget.sync.isOffline
-                ? const _OfflineBanner()
-                : const SizedBox.shrink(),
+                widget.sync.isConnected
+                ? const SizedBox.shrink()
+                : const _OfflineBanner(),
           ),
           Expanded(
             child: RepaintBoundary(
@@ -2191,16 +2190,12 @@ class _ActiveSyncView extends StatefulWidget {
     required this.activePage,
     required this.pageIndex,
     required this.builder,
-    this.listenToContentOnly = true,
   });
 
   final LedgerSyncService sync;
   final ValueListenable<int> activePage;
   final int pageIndex;
   final WidgetBuilder builder;
-  final bool listenToContentOnly;
-
-  Listenable get changes => listenToContentOnly ? sync.contentChanges : sync;
 
   @override
   State<_ActiveSyncView> createState() => _ActiveSyncViewState();
@@ -2216,7 +2211,7 @@ class _ActiveSyncViewState extends State<_ActiveSyncView> {
     super.initState();
     _active = _resolveActive();
     widget.activePage.addListener(_handleActivePageChange);
-    if (_active) widget.changes.addListener(_handleSyncChange);
+    if (_active) widget.sync.addListener(_handleSyncChange);
   }
 
   @override
@@ -2224,28 +2219,27 @@ class _ActiveSyncViewState extends State<_ActiveSyncView> {
     super.didUpdateWidget(oldWidget);
     final bool routingIdentityChanged =
         oldWidget.sync != widget.sync ||
-        oldWidget.listenToContentOnly != widget.listenToContentOnly ||
         oldWidget.activePage != widget.activePage ||
         oldWidget.pageIndex != widget.pageIndex;
     if (!routingIdentityChanged) return;
 
-    if (_active) oldWidget.changes.removeListener(_handleSyncChange);
+    if (_active) oldWidget.sync.removeListener(_handleSyncChange);
     if (oldWidget.activePage != widget.activePage) {
       oldWidget.activePage.removeListener(_handleActivePageChange);
       widget.activePage.addListener(_handleActivePageChange);
     }
 
     _active = _resolveActive();
-    if (_active) widget.changes.addListener(_handleSyncChange);
+    if (_active) widget.sync.addListener(_handleSyncChange);
   }
 
   void _handleActivePageChange() {
     final bool nextActive = _resolveActive();
     if (nextActive == _active) return;
 
-    if (_active) widget.changes.removeListener(_handleSyncChange);
+    if (_active) widget.sync.removeListener(_handleSyncChange);
     _active = nextActive;
-    if (_active) widget.changes.addListener(_handleSyncChange);
+    if (_active) widget.sync.addListener(_handleSyncChange);
 
     // Pages are intentionally kept alive. Rebuild on both ownership edges so
     // hidden tickers/focus are disabled immediately, and the newly active page
@@ -2260,7 +2254,7 @@ class _ActiveSyncViewState extends State<_ActiveSyncView> {
   @override
   void dispose() {
     widget.activePage.removeListener(_handleActivePageChange);
-    if (_active) widget.changes.removeListener(_handleSyncChange);
+    if (_active) widget.sync.removeListener(_handleSyncChange);
     super.dispose();
   }
 
@@ -3500,7 +3494,7 @@ class _ScreenHeader extends StatelessWidget {
       ),
       child: ClipRect(
         child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -5306,20 +5300,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
               semanticLabel: 'Export reports',
               onTap: () => unawaited(_showExportCenter(context, sync)),
             ),
-            AnimatedBuilder(
-              animation: sync,
-              builder: (BuildContext context, Widget? child) => _CircleAction(
-                icon: sync.darkMode
-                    ? Icons.light_mode_rounded
-                    : Icons.dark_mode_rounded,
-                color: sync.darkMode ? themeAmber : themeIndigo,
-                semanticLabel: sync.darkMode
-                    ? 'Switch to light theme'
-                    : 'Switch to dark theme',
-                onTap: () => unawaited(
-                  _setDarkModeSafely(context, sync, !sync.darkMode),
-                ),
-              ),
+            _CircleAction(
+              icon: sync.darkMode
+                  ? Icons.light_mode_rounded
+                  : Icons.dark_mode_rounded,
+              color: sync.darkMode ? themeAmber : themeIndigo,
+              semanticLabel: sync.darkMode
+                  ? 'Switch to light theme'
+                  : 'Switch to dark theme',
+              onTap: () =>
+                  unawaited(_setDarkModeSafely(context, sync, !sync.darkMode)),
             ),
             _CircleAction(
               icon: Icons.logout_rounded,
@@ -5354,18 +5344,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               padding: UIConstants.screenPadding,
               children: <Widget>[
-                AnimatedBuilder(
-                  animation: sync,
-                  builder: (BuildContext context, Widget? child) {
-                    if (sync.pendingWrites <= 0 && !sync.syncing) {
-                      return const SizedBox.shrink();
-                    }
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _SyncPill(sync: sync),
-                    );
-                  },
-                ),
+                if (sync.pendingWrites > 0 || sync.syncing)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _SyncPill(sync: sync),
+                  ),
                 GridView.count(
                   crossAxisCount: 2,
                   crossAxisSpacing: 16,
@@ -6266,7 +6249,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: widget.sync.contentChanges,
+    animation: widget.sync,
     builder: (BuildContext context, Widget? child) {
       final Map<String, dynamic> database = _map(widget.sync.state['milkDB']);
       final Map<String, dynamic>? profile = database[widget.customerName] is Map
@@ -7434,7 +7417,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: widget.sync.contentChanges,
+    animation: widget.sync,
     builder: (BuildContext context, Widget? child) {
       final Map<String, dynamic> database = _map(widget.sync.state['salaryDB']);
       if (database[widget.personName] is! Map) {
@@ -7952,7 +7935,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: widget.sync.contentChanges,
+    animation: widget.sync,
     builder: (BuildContext context, Widget? child) {
       final List<Map<String, dynamic>> allRecords =
           _rows(widget.sync.state['udharDB'])
@@ -8422,7 +8405,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: widget.sync.contentChanges,
+    animation: widget.sync,
     builder: (BuildContext context, Widget? child) {
       final List<Map<String, dynamic>> allRecords =
           _rows(widget.sync.state['expenseDB'])
@@ -9229,7 +9212,7 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: widget.sync.contentChanges,
+    animation: widget.sync,
     builder: (BuildContext context, Widget? child) {
       Map<String, dynamic>? entry;
       for (final Map<String, dynamic> row in _rows(
@@ -9698,7 +9681,7 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: sync.contentChanges,
+    animation: sync,
     builder: (BuildContext context, Widget? child) {
       final Map<String, dynamic> database = _map(sync.state['projectDB']);
       if (database[projectName] is! Map) {
