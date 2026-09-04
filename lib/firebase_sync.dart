@@ -1567,6 +1567,7 @@ class LedgerSyncService extends ChangeNotifier {
   int _revision = 0;
   int _lastFullAuditAt = 0;
   int _lastMetadataReadAt = 0;
+  int _sessionGeneration = 0;
   String _writerId = '';
   String? _activeUid;
   DatabaseReference? _appDataRef;
@@ -1608,7 +1609,15 @@ class LedgerSyncService extends ChangeNotifier {
   bool get isOffline => _connected == false;
   int get pendingWrites => _outbox.length;
   Object? get lastError => _lastError;
+  int get sessionGeneration => _sessionGeneration;
   Map<String, dynamic> get state => _state;
+
+  bool isSessionCurrent(String uid, int generation) =>
+      !_disposed &&
+      uid.isNotEmpty &&
+      generation == _sessionGeneration &&
+      uid == _activeUid &&
+      auth.currentUser?.uid == uid;
   Map<String, dynamic>? _projectedState;
   LedgerProjection? _projection;
   final ChangeNotifier _contentChanges = ChangeNotifier();
@@ -1737,6 +1746,9 @@ class LedgerSyncService extends ChangeNotifier {
       _flushTimer?.cancel();
       _reconcileTimer?.cancel();
       _retryTimer?.cancel();
+      // Every real account transition invalidates async work that originated
+      // from the previous authenticated UI tree, even before Flutter disposes it.
+      _sessionGeneration++;
       _activeUid = nextUid;
       _connected = null;
       _lastError = null;
@@ -2561,7 +2573,22 @@ class LedgerSyncService extends ChangeNotifier {
   }) async {
     if (writes.isEmpty) return;
 
+    // Capture mutation ownership before entering the serialization gate. A write
+    // queued by account A must never wake up later and execute as account B.
+    final String? callerUid = _activeUid;
+    final int callerGeneration = _sessionGeneration;
+    if (callerUid == null ||
+        callerUid.isEmpty ||
+        auth.currentUser?.uid != callerUid) {
+      throw const LedgerSyncException('Please sign in before saving data.');
+    }
+
     await _locked<void>(() async {
+      if (!isSessionCurrent(callerUid, callerGeneration)) {
+        throw const LedgerSyncException(
+          'Account changed before this save could start.',
+        );
+      }
       final Map<String, dynamic> expandedWrites = <String, dynamic>{};
 
       for (final MapEntry<String, dynamic> entry in writes.entries) {
@@ -2586,9 +2613,11 @@ class LedgerSyncService extends ChangeNotifier {
       if (_disposed) {
         throw const LedgerSyncException('Sync service is no longer available.');
       }
-      final String? uid = _activeUid;
-      if (uid == null || uid.isEmpty || auth.currentUser?.uid != uid) {
-        throw const LedgerSyncException('Please sign in before saving data.');
+      final String uid = callerUid;
+      if (!isSessionCurrent(uid, callerGeneration)) {
+        throw const LedgerSyncException(
+          'Account changed before this save could be committed.',
+        );
       }
       await _persistPendingServerAckLocked(uid);
       final Map<String, dynamic> nextState = LedgerCodec.normalizeState(_state);
@@ -2622,7 +2651,7 @@ class LedgerSyncService extends ChangeNotifier {
       // State and outbox are written as one Hive value. The UI is notified only
       // after this durable commit, eliminating the crash gap between both.
       await _persistEnvelope(uid, nextEnvelope);
-      if (uid != _activeUid) {
+      if (!isSessionCurrent(uid, callerGeneration)) {
         throw const LedgerSyncException('Account changed while saving.');
       }
       _state = nextState;

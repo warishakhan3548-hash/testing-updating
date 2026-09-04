@@ -442,11 +442,46 @@ class _AarishDiaryAppState extends State<AarishDiaryApp>
         ? Duration.zero
         : const Duration(milliseconds: 300),
     themeAnimationCurve: const Cubic(0.25, 1, 0.5, 1),
-    builder: (BuildContext context, Widget? child) => _GlobalTapRippleLayer(
-      child: _AmbientBackground(child: child ?? const SizedBox.shrink()),
-    ),
+    builder: (BuildContext context, Widget? child) {
+      final Widget content = _GlobalTapRippleLayer(
+        child: _AmbientBackground(child: child ?? const SizedBox.shrink()),
+      );
+      final String? userId = _userId;
+      if (userId == null || userId.isEmpty) return content;
+      return _AccountSessionScope(
+        sync: widget.sync,
+        userId: userId,
+        generation: widget.sync.sessionGeneration,
+        child: content,
+      );
+    },
     home: _RootStage(booting: _booting, userId: _userId, sync: widget.sync),
   );
+}
+
+class _AccountSessionScope extends InheritedWidget {
+  const _AccountSessionScope({
+    required this.sync,
+    required this.userId,
+    required this.generation,
+    required super.child,
+  });
+
+  final LedgerSyncService sync;
+  final String userId;
+  final int generation;
+
+  bool get isCurrent => sync.isSessionCurrent(userId, generation);
+  String get operationKey => '$userId:$generation';
+
+  static _AccountSessionScope? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_AccountSessionScope>();
+
+  @override
+  bool updateShouldNotify(covariant _AccountSessionScope oldWidget) =>
+      oldWidget.sync != sync ||
+      oldWidget.userId != userId ||
+      oldWidget.generation != generation;
 }
 
 class _RootStage extends StatelessWidget {
@@ -5040,14 +5075,24 @@ Future<bool> _runMutation(
   Future<void> Function() mutation,
   String success,
 ) async {
+  final _AccountSessionScope? session = _AccountSessionScope.maybeOf(context);
+  if (session != null && !session.isCurrent) {
+    debugPrint('Ledger mutation rejected: stale authenticated UI session.');
+    return false;
+  }
   try {
     await mutation();
+    // The mutation may already be durable, but stale screens must never emit
+    // success feedback or continue follow-up UI work for a different account.
+    if (session != null && !session.isCurrent) return false;
     HapticFeedback.successNotification();
     if (context.mounted) _toast(context, success);
     return true;
   } catch (error, stackTrace) {
     debugPrint('Ledger mutation failed: $error\n$stackTrace');
-    if (context.mounted) _toast(context, '$error', error: true);
+    if (context.mounted && (session == null || session.isCurrent)) {
+      _toast(context, '$error', error: true);
+    }
     return false;
   }
 }
@@ -5066,7 +5111,13 @@ Future<void> _sharePdfSafely(
   List<List<String>> rows,
 ) async {
   try {
-    await _ExportService.sharePdf(title, headers, rows);
+    final _AccountSessionScope? session = _AccountSessionScope.maybeOf(context);
+    await _ExportService.sharePdf(
+      title,
+      headers,
+      rows,
+      stillCurrent: session == null ? null : () => session.isCurrent,
+    );
   } catch (error, stackTrace) {
     debugPrint('PDF share failed: $error\n$stackTrace');
     if (context.mounted) {
@@ -5248,48 +5299,60 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   LedgerSyncService get sync => widget.sync;
 
+  bool _loggingOut = false;
+
   Future<void> _logout(BuildContext context) async {
-    if (sync.pendingWrites > 0) {
-      final bool continueLogout = await _confirm(
-        context,
-        'Sync before logout',
-        '${sync.pendingWrites} change(s) are waiting for Firebase. The app will try to sync now; logout will be blocked if the connection is unavailable.',
-        dangerous: false,
-      );
-      if (!continueLogout || !context.mounted) return;
-    }
-    final bool safe = await sync.drainBeforeLogout();
-    if (!context.mounted) return;
-    if (!safe) {
-      _toast(
-        context,
-        'Logout blocked: pending changes are still offline. Connect once, then retry.',
-        error: true,
-      );
-      return;
-    }
+    if (_loggingOut) return;
+    final _AccountSessionScope? session = _AccountSessionScope.maybeOf(context);
+    if (session == null || !session.isCurrent) return;
+    _loggingOut = true;
     try {
-      await FirebaseAuth.instance.signOut();
-    } on FirebaseAuthException catch (error) {
-      if (context.mounted) {
+      if (sync.pendingWrites > 0) {
+        final bool continueLogout = await _confirm(
+          context,
+          'Sync before logout',
+          '${sync.pendingWrites} change(s) are waiting for Firebase. The app will try to sync now; logout will be blocked if the connection is unavailable.',
+          dangerous: false,
+        );
+        if (!continueLogout || !context.mounted || !session.isCurrent) return;
+      }
+      final bool safe = await sync.drainBeforeLogout();
+      if (!context.mounted || !session.isCurrent) return;
+      if (!safe) {
         _toast(
           context,
-          error.message ?? 'Firebase logout failed. Please try again.',
+          'Logout blocked: pending changes are still offline. Connect once, then retry.',
           error: true,
         );
+        return;
       }
-      return;
-    } catch (error, stackTrace) {
-      debugPrint('Firebase logout failed: $error\n$stackTrace');
-      if (context.mounted) {
-        _toast(context, 'Logout failed. Please try again.', error: true);
+      try {
+        // Re-check immediately before the destructive auth transition.
+        if (!session.isCurrent) return;
+        await FirebaseAuth.instance.signOut();
+      } on FirebaseAuthException catch (error) {
+        if (context.mounted && session.isCurrent) {
+          _toast(
+            context,
+            error.message ?? 'Firebase logout failed. Please try again.',
+            error: true,
+          );
+        }
+        return;
+      } catch (error, stackTrace) {
+        debugPrint('Firebase logout failed: $error\n$stackTrace');
+        if (context.mounted && session.isCurrent) {
+          _toast(context, 'Logout failed. Please try again.', error: true);
+        }
+        return;
       }
-      return;
-    }
-    try {
-      if (!kIsWeb) await GoogleSignIn().signOut();
-    } catch (error, stackTrace) {
-      debugPrint('Google local sign-out cleanup failed: $error\n$stackTrace');
+      try {
+        if (!kIsWeb) await GoogleSignIn().signOut();
+      } catch (error, stackTrace) {
+        debugPrint('Google local sign-out cleanup failed: $error\n$stackTrace');
+      }
+    } finally {
+      _loggingOut = false;
     }
   }
 
@@ -10329,6 +10392,14 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
 
   String get _currentOwnerUid => widget.sync.user?.uid.trim() ?? '';
 
+  void _requireCurrentAiSession(_AccountSessionScope session) {
+    if (!mounted || !session.isCurrent) {
+      throw const AiBridgeException(
+        'Account changed while this AI operation was running.',
+      );
+    }
+  }
+
   String _scopedSetting(String base, String ownerUid) => '$base.$ownerUid';
 
   String _apiKeyStorageKey(String ownerUid) =>
@@ -10554,7 +10625,11 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       return;
     }
     final String ownerUid = _currentOwnerUid;
-    if (ownerUid.isEmpty) {
+    final _AccountSessionScope? session = _AccountSessionScope.maybeOf(context);
+    if (ownerUid.isEmpty ||
+        session == null ||
+        session.userId != ownerUid ||
+        !session.isCurrent) {
       _toast(
         context,
         'Please sign in before sharing ledger data.',
@@ -10571,19 +10646,22 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       dangerous: false,
     );
     if (!allowed || !mounted) return;
-    if (_currentOwnerUid != ownerUid) {
+    if (!session.isCurrent || _currentOwnerUid != ownerUid) {
       _toast(context, 'Account changed. Open the AI setup again.', error: true);
       return;
     }
     setState(() => _sharingExternal = true);
     try {
       await widget.sync.ensureAllDiaryMonthsLoaded();
+      if (!mounted || !session.isCurrent) return;
       final AiBridgePackage package = AiBridgeProtocol.buildPackage(
         state: widget.sync.state,
         generatedAt: DateTime.now(),
         snapshotId: _newId('aip'),
       );
+      if (!session.isCurrent) return;
       await Clipboard.setData(ClipboardData(text: package.prompt));
+      if (!mounted || !session.isCurrent) return;
       await widget.sync.writeSetting(
         _scopedSetting(_externalSnapshotIdSetting, ownerUid),
         package.snapshotId,
@@ -10592,8 +10670,9 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
         _scopedSetting(_externalFingerprintSetting, ownerUid),
         package.stateFingerprint,
       );
+      if (!mounted || !session.isCurrent) return;
       if (sheetContext.mounted) Navigator.pop(sheetContext);
-      if (!mounted) return;
+      if (!mounted || !session.isCurrent) return;
       setState(() {
         _externalSnapshotId = package.snapshotId;
         _externalStateFingerprint = package.stateFingerprint;
@@ -10609,6 +10688,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       });
       _scrollToEnd();
       await Future<void>.delayed(const Duration(milliseconds: 120));
+      if (!mounted || !session.isCurrent) return;
       await SharePlus.instance.share(
         ShareParams(
           files: <XFile>[
@@ -10622,14 +10702,14 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
           subject: 'Aarish Dairy Pro — Connect with Other AI',
         ),
       );
-      if (mounted) {
+      if (mounted && session.isCurrent) {
         _toast(
           context,
           'TXT ready and AI prompt copied. Choose an AI or Save to Files.',
         );
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && session.isCurrent) {
         _toast(
           context,
           'Could not open the share menu. Tap Connect with Other AI to retry.',
@@ -10767,6 +10847,11 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       );
       return;
     }
+    final _AccountSessionScope? session = _AccountSessionScope.maybeOf(context);
+    if (session == null || !session.isCurrent) {
+      _toast(context, 'Account session changed. Reopen AI and try again.', error: true);
+      return;
+    }
     final bool localEnvelope = AiBridgeProtocol.looksLikeEnvelope(prompt);
     if (!localEnvelope && prompt.length > 12000) {
       _toast(
@@ -10789,23 +10874,44 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
     _scrollToEnd();
     try {
       await widget.sync.ensureAllDiaryMonthsLoaded();
+      _requireCurrentAiSession(session);
+      Map<String, dynamic>? directRequestState;
+      String? directRequestFingerprint;
       final _AiOutcome outcome;
       if (localEnvelope) {
         outcome = _GeminiLedgerClient.parseEnvelope(prompt);
       } else {
+        directRequestState = LedgerCodec.normalizeState(widget.sync.state);
+        directRequestFingerprint = AiBridgeProtocol.stateFingerprint(
+          directRequestState,
+        );
         if (_apiKey.isEmpty) {
           await _configure();
+          _requireCurrentAiSession(session);
           if (_apiKey.isEmpty) {
             throw const LedgerSyncException('Gemini API key is required.');
+          }
+          if (AiBridgeProtocol.stateFingerprint(widget.sync.state) !=
+              directRequestFingerprint) {
+            throw const AiBridgeException(
+              'Ledger changed while AI setup was open. Send the request again.',
+            );
           }
         }
         outcome = await _GeminiLedgerClient.generate(
           apiKey: _apiKey,
           model: _model,
           userText: prompt,
-          state: widget.sync.state,
+          state: directRequestState,
           history: _geminiHistory,
         );
+        _requireCurrentAiSession(session);
+        if (AiBridgeProtocol.stateFingerprint(widget.sync.state) !=
+            directRequestFingerprint) {
+          throw const AiBridgeException(
+            'Ledger changed while Gemini was responding. Send the request again.',
+          );
+        }
       }
       if (localEnvelope && outcome.actions.isNotEmpty) {
         if (_completedFingerprints.contains(outcome.envelopeFingerprint)) {
@@ -10815,10 +10921,14 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
         }
         final bool verified = await _verifyExternalEnvelope(outcome);
         if (!verified) return;
+        _requireCurrentAiSession(session);
       }
+      final Map<String, dynamic> validationState = localEnvelope
+          ? widget.sync.state
+          : directRequestState!;
       final AiActionPlan plan = AiBridgeProtocol.validateAndNormalize(
         rawActions: outcome.actions,
-        state: widget.sync.state,
+        state: validationState,
         newId: _newId,
       );
       if (!localEnvelope) {
@@ -10835,7 +10945,15 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       if (plan.actions.isNotEmpty) {
         if (!mounted) return;
         final bool apply = await _confirmAiActions(plan);
+        _requireCurrentAiSession(session);
         if (apply && mounted) {
+          if (!localEnvelope &&
+              AiBridgeProtocol.stateFingerprint(widget.sync.state) !=
+                  directRequestFingerprint) {
+            throw const AiBridgeException(
+              'Ledger changed during AI review. Send the request again.',
+            );
+          }
           await _startAiBatch(
             plan,
             fingerprint: localEnvelope
@@ -10848,7 +10966,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
           reviewCancelled = true;
         }
       }
-      if (mounted) {
+      if (mounted && session.isCurrent) {
         final String? statusMessage = plan.actions.isEmpty
             ? outcome.reply.isEmpty
                   ? 'Koi change zaroori nahi tha.'
@@ -10864,7 +10982,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
         }
       }
     } catch (error) {
-      if (mounted) {
+      if (mounted && session.isCurrent) {
         setState(() {
           _messages.add(
             _AiMessage(
@@ -10876,7 +10994,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       }
     } finally {
       if (mounted) setState(() => _busy = false);
-      _scrollToEnd();
+      if (mounted && session.isCurrent) _scrollToEnd();
     }
   }
 
@@ -11890,29 +12008,47 @@ class _ExportButtonContent extends StatelessWidget {
   );
 }
 
+final Set<String> _activeExportSessions = <String>{};
+
 Future<void> _showExportCenter(
   BuildContext context,
   LedgerSyncService sync,
 ) async {
+  final _AccountSessionScope? session = _AccountSessionScope.maybeOf(context);
+  if (session == null || !session.isCurrent) return;
   final _ExportChoice? choice = await _openSheet<_ExportChoice>(
     context,
     const _ExportCenterSheet(),
   );
-  if (choice == null || !context.mounted) return;
+  if (choice == null || !context.mounted || !session.isCurrent) return;
+  final String operationKey = session.operationKey;
+  if (!_activeExportSessions.add(operationKey)) {
+    _toast(context, 'An export is already in progress.');
+    return;
+  }
   try {
     if (choice.scope == _ExportScope.all ||
         choice.scope == _ExportScope.diary) {
       await sync.ensureAllDiaryMonthsLoaded();
+      if (!context.mounted || !session.isCurrent) return;
     }
-    await _ExportService.share(sync.state, choice);
+    final Map<String, dynamic> exportState = LedgerCodec.normalizeState(sync.state);
+    if (!session.isCurrent) return;
+    await _ExportService.share(
+      exportState,
+      choice,
+      stillCurrent: () => session.isCurrent,
+    );
   } catch (error, stackTrace) {
     debugPrint('Export failed: $error\n$stackTrace');
-    if (context.mounted) {
+    if (context.mounted && session.isCurrent) {
       final String message = error is LedgerSyncException
           ? error.message
           : 'Export failed. Please try again.';
       _toast(context, message, error: true);
     }
+  } finally {
+    _activeExportSessions.remove(operationKey);
   }
 }
 
@@ -12221,8 +12357,9 @@ class _ExportService {
   static Future<void> sharePdf(
     String title,
     List<String> headers,
-    List<List<String>> rows,
-  ) async {
+    List<List<String>> rows, {
+    bool Function()? stillCurrent,
+  }) async {
     final pw.Font pdfRegular = pw.Font.ttf(
       await rootBundle.load('assets/fonts/NotoSansDevanagari-Regular.ttf'),
     );
@@ -12313,6 +12450,11 @@ class _ExportService {
       ),
     );
     final Uint8List bytes = await document.save();
+    if (stillCurrent != null && !stillCurrent()) {
+      throw const LedgerSyncException(
+        'Account changed before this PDF could be shared.',
+      );
+    }
     await Printing.sharePdf(
       bytes: bytes,
       filename:
@@ -12322,18 +12464,24 @@ class _ExportService {
 
   static Future<void> share(
     Map<String, dynamic> state,
-    _ExportChoice choice,
-  ) async {
+    _ExportChoice choice, {
+    bool Function()? stillCurrent,
+  }) async {
     final _ExportDataset dataset = _buildDataset(state, choice.scope);
     switch (choice.format) {
       case _ExportFormat.pdf:
-        await sharePdf(dataset.title, dataset.headers, dataset.rows);
+        await sharePdf(
+          dataset.title,
+          dataset.headers,
+          dataset.rows,
+          stillCurrent: stillCurrent,
+        );
         return;
       case _ExportFormat.csv:
-        await _shareCsv(dataset);
+        await _shareCsv(dataset, stillCurrent: stillCurrent);
         return;
       case _ExportFormat.aiLedger:
-        await _shareAiLedger(dataset);
+        await _shareAiLedger(dataset, stillCurrent: stillCurrent);
         return;
     }
   }
@@ -12652,7 +12800,10 @@ class _ExportService {
     );
   }
 
-  static Future<void> _shareCsv(_ExportDataset dataset) async {
+  static Future<void> _shareCsv(
+    _ExportDataset dataset, {
+    bool Function()? stillCurrent,
+  }) async {
     final List<List<String>> rows = <List<String>>[
       dataset.headers,
       ...dataset.rows,
@@ -12662,6 +12813,11 @@ class _ExportService {
         .join('\r\n');
     final String filename =
         '${_safeFilename(dataset.title)}_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.csv';
+    if (stillCurrent != null && !stillCurrent()) {
+      throw const LedgerSyncException(
+        'Account changed before this CSV could be shared.',
+      );
+    }
     await SharePlus.instance.share(
       ShareParams(
         files: <XFile>[
@@ -12676,7 +12832,10 @@ class _ExportService {
     );
   }
 
-  static Future<void> _shareAiLedger(_ExportDataset dataset) async {
+  static Future<void> _shareAiLedger(
+    _ExportDataset dataset, {
+    bool Function()? stillCurrent,
+  }) async {
     final StringBuffer output = StringBuffer()
       ..writeln('AARISH DIARY PRO — AI MASTER LEDGER')
       ..writeln('SCOPE :: ${dataset.title}')
@@ -12710,6 +12869,11 @@ class _ExportService {
     }
     final String filename =
         '${_safeFilename(dataset.title)}_AI_Ledger_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.txt';
+    if (stillCurrent != null && !stillCurrent()) {
+      throw const LedgerSyncException(
+        'Account changed before this AI ledger could be shared.',
+      );
+    }
     await SharePlus.instance.share(
       ShareParams(
         files: <XFile>[
