@@ -1710,12 +1710,39 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   bool _navCenterScheduled = false;
   bool? _reduceMotionActive;
   bool _reducedMotionSettleScheduled = false;
+  Timer? _calendarRolloverTimer;
+  late int _calendarMonthKey;
   final Set<int> _dragHapticPages = <int>{};
   final ScrollController _navController = ScrollController();
   final PageController _pageController = PageController();
 
   int get _tab => _tabSelection.value;
   int get _settledPageIndex => _settledPage.value;
+
+  int _currentCalendarMonthKey() {
+    final DateTime now = DateTime.now();
+    return now.year * 100 + now.month;
+  }
+
+  void _armCalendarRollover() {
+    _calendarRolloverTimer?.cancel();
+    final DateTime now = DateTime.now();
+    final DateTime nextMonth = DateTime(now.year, now.month + 1);
+    final Duration delay =
+        nextMonth.difference(now) + const Duration(milliseconds: 50);
+    _calendarRolloverTimer = Timer(delay, _refreshCalendarMonth);
+  }
+
+  void _refreshCalendarMonth() {
+    if (!mounted) return;
+    final int nextKey = _currentCalendarMonthKey();
+    if (nextKey != _calendarMonthKey) {
+      _calendarMonthKey = nextKey;
+      _handleTabColorSync();
+      setState(() {});
+    }
+    _armCalendarRollover();
+  }
 
   void _handleTabColorSync() {
     final List<Color> next = _moduleTabColors(widget.sync.currentProjection);
@@ -1732,6 +1759,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _tabColors = ValueNotifier<List<Color>>(
       List<Color>.unmodifiable(_moduleTabColors(widget.sync.currentProjection)),
     );
+    _calendarMonthKey = _currentCalendarMonthKey();
+    _armCalendarRollover();
 
     widget.sync.contentChanges.addListener(_handleTabColorSync);
     WidgetsBinding.instance.addObserver(this);
@@ -1761,6 +1790,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _calendarRolloverTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     widget.sync.contentChanges.removeListener(_handleTabColorSync);
     _tabColors.dispose();
@@ -1774,6 +1804,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _refreshCalendarMonth();
       unawaited(widget.sync.integrityCheck());
     }
   }
@@ -4158,7 +4189,7 @@ class _DateField extends StatelessWidget {
       lastDate: lastDate,
       helpText: 'SELECT DATE',
     );
-    if (picked != null) {
+    if (picked != null && context.mounted) {
       controller.text = _isoDateFormat.format(picked);
     }
   }
@@ -5129,8 +5160,9 @@ Future<bool> _runMutation(
     // The mutation may already be durable, but stale screens must never emit
     // success feedback or continue follow-up UI work for a different account.
     if (session != null && !session.isCurrent) return false;
+    if (!context.mounted) return true;
     HapticFeedback.successNotification();
-    if (context.mounted) _toast(context, success);
+    _toast(context, success);
     return true;
   } catch (error, stackTrace) {
     debugPrint('Ledger mutation failed: $error\n$stackTrace');
@@ -6673,10 +6705,20 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
       _toast(context, 'Enter a valid date and positive quantity.', error: true);
       return;
     }
-    final bool duplicate = _rows(profile['records']).any(
+    final Map<String, dynamic> currentDatabase = _map(
+      widget.sync.state['milkDB'],
+    );
+    if (currentDatabase[widget.customerName] is! Map) {
+      _toast(context, 'Customer no longer exists.', error: true);
+      return;
+    }
+    final Map<String, dynamic> currentProfile = _map(
+      currentDatabase[widget.customerName],
+    );
+    final bool duplicate = _rows(currentProfile['records']).any(
       (Map<String, dynamic> row) =>
           '${row['date']}' == entryDate &&
-          LedgerMath.milkFlow(row, profile) == flow,
+          LedgerMath.milkFlow(row, currentProfile) == flow,
     );
     if (duplicate) {
       _toast(
@@ -6689,8 +6731,10 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
     final String id = _newId('mlk');
     final bool saved = await _runMutation(
       context,
-      () => widget.sync.write(
-        'milkDB/${widget.customerName}/records/$id',
+      () => widget.sync.writeExistingProfileRecord(
+        'milkDB',
+        widget.customerName,
+        id,
         <String, dynamic>{
           'id': id,
           'date': entryDate,
@@ -7861,7 +7905,17 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
       _toast(context, 'Enter a valid date and positive amount.', error: true);
       return;
     }
-    if (_rows(profile['records'])
+    final Map<String, dynamic> currentDatabase = _map(
+      widget.sync.state['salaryDB'],
+    );
+    if (currentDatabase[widget.personName] is! Map) {
+      _toast(context, 'Profile no longer exists.', error: true);
+      return;
+    }
+    final Map<String, dynamic> currentProfile = _map(
+      currentDatabase[widget.personName],
+    );
+    if (_rows(currentProfile['records'])
         .any((Map<String, dynamic> row) => '${row['date']}' == entryDate)) {
       _toast(context, 'Salary for this date is already added.', error: true);
       return;
@@ -7869,8 +7923,10 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
     final String id = _newId('sal');
     final bool saved = await _runMutation(
       context,
-      () => widget.sync.write(
-        'salaryDB/${widget.personName}/records/$id',
+      () => widget.sync.writeExistingProfileRecord(
+        'salaryDB',
+        widget.personName,
+        id,
         <String, dynamic>{'id': id, 'date': entryDate, 'amount': entryAmount},
         reason: 'salary-entry-save',
       ),
@@ -9123,29 +9179,6 @@ class _DiaryEditorSheetState extends State<_DiaryEditorSheet> {
     super.dispose();
   }
 
-  String? _editConflict() {
-    final Map<String, dynamic>? original = widget.existing;
-    if (original == null) return null;
-    Map<String, dynamic>? current;
-    for (final Map<String, dynamic> row in _rows(
-      widget.sync.state['diaryDB'],
-    )) {
-      if ('${row['id']}' == _entryId) {
-        current = row;
-        break;
-      }
-    }
-    if (current == null) {
-      return 'This page was deleted on another device. Your draft is still here.';
-    }
-    if ('${current['date'] ?? ''}' != '${original['date'] ?? ''}' ||
-        '${current['title'] ?? ''}' != '${original['title'] ?? ''}' ||
-        '${current['content'] ?? ''}' != '${original['content'] ?? ''}') {
-      return 'This page changed on another device. Reopen it before saving; your draft is still here.';
-    }
-    return null;
-  }
-
   Future<void> _submit() async {
     if (_saving) return;
     FocusScope.of(context).unfocus();
@@ -9161,31 +9194,30 @@ class _DiaryEditorSheetState extends State<_DiaryEditorSheet> {
       });
       return;
     }
-    final String? conflict = _editConflict();
-    if (conflict != null) {
-      setState(() => _error = conflict);
-      return;
-    }
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      await widget.sync.write(
-        'diaryDB/$_entryId',
+      await widget.sync.writeBatch(
         <String, dynamic>{
-          'id': _entryId,
-          'date': entryDate,
-          'title': entryTitle.isEmpty ? 'Untitled' : entryTitle,
-          'content': entryContent,
-          'updated': DateTime.now().millisecondsSinceEpoch,
+          'diaryDB/$_entryId': <String, dynamic>{
+            'id': _entryId,
+            'date': entryDate,
+            'title': entryTitle.isEmpty ? 'Untitled' : entryTitle,
+            'content': entryContent,
+            'updated': DateTime.now().millisecondsSinceEpoch,
+          },
         },
         reason: widget.existing == null
             ? 'diary-entry-save'
             : 'diary-entry-update',
+        requiredUnchangedDiaryId: widget.existing == null ? null : _entryId,
+        requiredUnchangedDiary: widget.existing,
       );
+      if (!mounted) return;
       HapticFeedback.successNotification();
-      if (mounted) _popIfCurrent(context, parsedDate);
+      _popIfCurrent(context, parsedDate);
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -9678,7 +9710,10 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
     }
   }
 
-  Future<void> _delete(BuildContext context) async {
+  Future<void> _delete(
+    BuildContext context,
+    Map<String, dynamic> expectedEntry,
+  ) async {
     if (_actionInFlight) return;
     setState(() => _actionInFlight = true);
     try {
@@ -9690,10 +9725,11 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
         return;
       }
       if (!context.mounted) return;
-      await widget.sync.write(
-        'diaryDB/${widget.entryId}',
-        null,
+      await widget.sync.writeBatch(
+        <String, dynamic>{'diaryDB/${widget.entryId}': null},
         reason: 'diary-entry-delete',
+        requiredUnchangedDiaryId: widget.entryId,
+        requiredUnchangedDiary: expectedEntry,
       );
       if (context.mounted) _popIfCurrent(context);
     } catch (error) {
@@ -9773,7 +9809,7 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
                   semanticLabel: 'Delete diary page',
                   onTap: _actionInFlight
                       ? null
-                      : () => unawaited(_delete(context)),
+                      : () => unawaited(_delete(context, current)),
                 ),
               ],
             ),
@@ -10136,16 +10172,27 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
       );
       return;
     }
+    final Map<String, dynamic> currentDatabase = _map(sync.state['projectDB']);
+    if (currentDatabase[projectName] is! Map) {
+      _toast(context, 'Account no longer exists.', error: true);
+      return;
+    }
     final String id = _newId('prj');
     final bool saved = await _runMutation(
       context,
-      () => sync.write('projectDB/$projectName/records/$id', <String, dynamic>{
-        'id': id,
-        'date': entryDate,
-        'title': entryTitle,
-        'amount': entryAmount,
-        'color': tone,
-      }, reason: 'business-entry-save'),
+      () => sync.writeExistingProfileRecord(
+        'projectDB',
+        projectName,
+        id,
+        <String, dynamic>{
+          'id': id,
+          'date': entryDate,
+          'title': entryTitle,
+          'amount': entryAmount,
+          'color': tone,
+        },
+        reason: 'business-entry-save',
+      ),
       'Business entry saved!',
     );
     if (!saved || !mounted) return;
@@ -10246,9 +10293,7 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
         for (final String key in _businessTones.keys) key: 0,
       };
       for (final Map<String, dynamic> row in records) {
-        final String key = _businessTones.containsKey('${row['color']}')
-            ? '${row['color']}'
-            : 'blue';
+        final String key = LedgerMath.businessTone(row['color']);
         totals[key] =
             (totals[key] ?? 0) + LedgerMath.number(row['amount']).abs();
       }
@@ -10356,10 +10401,9 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
                             '$projectName Business Khata',
                             <String>['Date', 'Detail', 'Type', 'Amount'],
                             records.map((Map<String, dynamic> row) {
-                              final String key =
-                                  _businessTones.containsKey('${row['color']}')
-                                  ? '${row['color']}'
-                                  : 'blue';
+                              final String key = LedgerMath.businessTone(
+                                row['color'],
+                              );
                               return <String>[
                                 _displayDate(row['date']),
                                 '${row['title'] ?? 'Record'}',
@@ -10389,10 +10433,7 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
                       headers: const <String>['DATE', 'DETAIL', 'AMOUNT'],
                       flexes: const <int>[24, 36, 28],
                       rows: records.map((Map<String, dynamic> row) {
-                        final String key =
-                            _businessTones.containsKey('${row['color']}')
-                            ? '${row['color']}'
-                            : 'blue';
+                        final String key = LedgerMath.businessTone(row['color']);
                         final _BusinessTone tone = _businessTones[key]!;
                         return _LedgerTableRowData(
                           cells: <Widget>[
@@ -10799,6 +10840,11 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
 
   String get _currentOwnerUid => widget.sync.activeUserId?.trim() ?? '';
 
+  bool _isOwnerSessionCurrent(String ownerUid, int generation) =>
+      mounted &&
+      _currentOwnerUid == ownerUid &&
+      widget.sync.isSessionCurrent(ownerUid, generation);
+
   void _requireCurrentAiSession(_AccountSessionScope session) {
     if (!mounted || !session.isCurrent) {
       throw const AiBridgeException(
@@ -11131,13 +11177,13 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
           'TXT ready and AI prompt copied. Choose an AI or Save to Files.',
         );
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('External AI package share failed: $error\n$stackTrace');
       if (mounted && session.isCurrent) {
-        _toast(
-          context,
-          'Could not open the share menu. Tap Connect with Other AI to retry.',
-          error: true,
-        );
+        final String message = error is LedgerSyncException
+            ? error.message
+            : 'Could not prepare or open the share menu. Tap Connect with Other AI to retry.';
+        _toast(context, message, error: true);
       }
     } finally {
       if (mounted) setState(() => _sharingExternal = false);
@@ -11450,7 +11496,9 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
     required String snapshotId,
   }) async {
     final String ownerUid = _currentOwnerUid;
-    if (ownerUid.isEmpty) {
+    final int ownerGeneration = widget.sync.sessionGeneration;
+    if (ownerUid.isEmpty ||
+        !widget.sync.isSessionCurrent(ownerUid, ownerGeneration)) {
       throw const AiBridgeException(
         'The signed-in account is no longer available.',
       );
@@ -11476,7 +11524,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       snapshotId: snapshotId,
     );
     await _persistBatchJob(job);
-    if (!mounted) return;
+    if (!_isOwnerSessionCurrent(ownerUid, ownerGeneration)) return;
     setState(() => _batchJob = job);
     await _executeNextBatch();
   }
@@ -11522,7 +11570,8 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
         !_appActive) {
       return;
     }
-    if (_currentOwnerUid != current.ownerUid) {
+    final int ownerGeneration = widget.sync.sessionGeneration;
+    if (!_isOwnerSessionCurrent(current.ownerUid, ownerGeneration)) {
       _batchTimer?.cancel();
       _countdownTimer?.cancel();
       if (mounted) {
@@ -11549,6 +11598,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
         lastError: 'Ledger changed after approval. Cancel and review again.',
       );
       await _persistBatchJob(paused);
+      if (!_isOwnerSessionCurrent(current.ownerUid, ownerGeneration)) return;
       _batchJob = paused;
       if (mounted) {
         setState(() {});
@@ -11577,6 +11627,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
     };
     try {
       await widget.sync.writeBatch(writes, reason: 'ai-reviewed-batch');
+      if (!_isOwnerSessionCurrent(current.ownerUid, ownerGeneration)) return;
       final int remaining = current.actions.length - end;
       if (remaining == 0) {
         final List<String> completedFingerprints = <String>[
@@ -11597,10 +11648,12 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
           _scopedSetting(_completedFingerprintSetting, current.ownerUid),
           jsonEncode(completedFingerprints),
         );
+        if (!_isOwnerSessionCurrent(current.ownerUid, ownerGeneration)) return;
 
         _completedFingerprints = completedFingerprints;
 
         await _persistBatchJob(null, ownerUid: current.ownerUid);
+        if (!_isOwnerSessionCurrent(current.ownerUid, ownerGeneration)) return;
 
         _batchJob = null;
         if (mounted) {
@@ -11632,6 +11685,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
           clearError: true,
         );
         await _persistBatchJob(waiting);
+        if (!_isOwnerSessionCurrent(current.ownerUid, ownerGeneration)) return;
         _batchJob = waiting;
         if (mounted) {
           setState(() {});
@@ -11643,6 +11697,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
         _armBatchTimers();
       }
     } catch (error) {
+      if (!_isOwnerSessionCurrent(current.ownerUid, ownerGeneration)) return;
       if (_completedFingerprints.contains(current.fingerprint)) {
         debugPrint(
           'AI batch completion cleanup deferred after durable completion: $error',
@@ -11658,6 +11713,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       );
 
       await _persistBatchJob(paused);
+      if (!_isOwnerSessionCurrent(current.ownerUid, ownerGeneration)) return;
       _batchJob = paused;
 
       if (mounted) {
@@ -11676,7 +11732,8 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
   Future<void> _retryBatch() async {
     final AiBatchJob? job = _batchJob;
     if (job == null || _batchWriting) return;
-    if (_currentOwnerUid != job.ownerUid) {
+    final int ownerGeneration = widget.sync.sessionGeneration;
+    if (!_isOwnerSessionCurrent(job.ownerUid, ownerGeneration)) {
       _toast(
         context,
         'Account changed. This pending batch cannot run here.',
@@ -11690,7 +11747,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       clearError: true,
     );
     await _persistBatchJob(retrying);
-    if (!mounted) return;
+    if (!_isOwnerSessionCurrent(job.ownerUid, ownerGeneration)) return;
     setState(() => _batchJob = retrying);
     await _executeNextBatch();
   }
@@ -11698,17 +11755,21 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
   Future<void> _cancelRemainingBatch() async {
     final AiBatchJob? job = _batchJob;
     if (job == null || _batchWriting) return;
+    final int ownerGeneration = widget.sync.sessionGeneration;
+    if (!_isOwnerSessionCurrent(job.ownerUid, ownerGeneration)) return;
     final bool cancel = await _confirm(
       context,
       'Cancel remaining changes?',
       '${job.completed} change(s) are already saved. The remaining '
           '${job.remaining} change(s) will not run.',
     );
-    if (!cancel) return;
+    if (!cancel || !_isOwnerSessionCurrent(job.ownerUid, ownerGeneration)) {
+      return;
+    }
     _batchTimer?.cancel();
     _countdownTimer?.cancel();
     await _persistBatchJob(null, ownerUid: job.ownerUid);
-    if (!mounted) return;
+    if (!_isOwnerSessionCurrent(job.ownerUid, ownerGeneration)) return;
     setState(() {
       _batchJob = null;
       _messages.add(
@@ -12161,10 +12222,8 @@ class _GeminiLedgerClient {
               },
             ],
             'generationConfig': <String, dynamic>{
-              'temperature': 0.15,
-              'maxOutputTokens': safeModel.startsWith('gemini-2.5')
-                  ? 32768
-                  : 8192,
+              if (safeModel.startsWith('gemini-2.5')) 'temperature': 0.15,
+              'maxOutputTokens': 65536,
               'responseMimeType': 'application/json',
             },
           }),
@@ -12183,7 +12242,11 @@ class _GeminiLedgerClient {
     if (candidates is! List || candidates.isEmpty) {
       throw const LedgerSyncException('Gemini returned no response.');
     }
-    final dynamic candidate = candidates.first;
+    final dynamic rawCandidate = candidates.first;
+    if (rawCandidate is! Map) {
+      throw const LedgerSyncException('Gemini response was malformed.');
+    }
+    final Map<String, dynamic> candidate = _map(rawCandidate);
 
     final String finishReason = '${candidate['finishReason'] ?? ''}'.trim();
 
@@ -12211,7 +12274,24 @@ class _GeminiLedgerClient {
       throw const LedgerSyncException('Gemini response was incomplete.');
     }
 
-    return parseEnvelope('${parts.first['text'] ?? ''}');
+    final StringBuffer answer = StringBuffer();
+    for (final dynamic rawPart in parts) {
+      if (rawPart is! Map) continue;
+      final Map<String, dynamic> part = _map(rawPart);
+      if (part['thought'] == true) continue;
+      final dynamic text = part['text'];
+      if (text is String && text.isNotEmpty) answer.write(text);
+    }
+
+    final String rawAnswer = answer.toString().trim();
+
+    if (rawAnswer.isEmpty) {
+      throw const LedgerSyncException(
+        'Gemini returned no answer text.',
+      );
+    }
+
+    return parseEnvelope(rawAnswer);
   }
 
   static _AiOutcome parseEnvelope(String raw) {
@@ -13057,7 +13137,7 @@ class _ExportService {
     ).entries) {
       final Map<String, dynamic> project = _map(entry.value);
       for (final Map<String, dynamic> row in _rows(project['records'])) {
-        final String color = '${row['color'] ?? 'blue'}'.toLowerCase();
+        final String color = LedgerMath.businessTone(row['color']);
         final double amount = LedgerMath.number(row['amount']).abs();
         final double signed = color == 'green'
             ? amount
@@ -13234,7 +13314,7 @@ class _ExportService {
     ).entries) {
       final Map<String, dynamic> project = _map(entry.value);
       for (final Map<String, dynamic> row in _rows(project['records'])) {
-        final String color = '${row['color'] ?? 'blue'}'.toLowerCase();
+        final String color = LedgerMath.businessTone(row['color']);
         final double amount = LedgerMath.number(row['amount']).abs();
         final double signed = color == 'green'
             ? amount
