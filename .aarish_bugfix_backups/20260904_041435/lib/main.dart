@@ -396,13 +396,13 @@ class _AarishDiaryAppState extends State<AarishDiaryApp>
     _booting = widget.sync.booting;
     _darkMode = widget.sync.darkMode;
     _reduceMotion = WidgetsBinding.instance.disableAnimations;
-    _userId = widget.sync.activeUserId;
+    _userId = widget.sync.user?.uid;
   }
 
   void _handleSyncChange() {
     final bool booting = widget.sync.booting;
     final bool darkMode = widget.sync.darkMode;
-    final String? userId = widget.sync.activeUserId;
+    final String? userId = widget.sync.user?.uid;
     if (booting == _booting && darkMode == _darkMode && userId == _userId) {
       return;
     }
@@ -2813,10 +2813,9 @@ class _PressableState extends State<_Pressable>
     final double samplesPerSecond = 1 / elapsedSeconds;
     Offset sample = (localPosition - previousPosition) * samplesPerSecond;
     const double maxTrackedSpeed = 7000;
-    double sampleSpeed = sample.distance;
+    final double sampleSpeed = sample.distance;
     if (sampleSpeed > maxTrackedSpeed) {
       sample = sample * (maxTrackedSpeed / sampleSpeed);
-      sampleSpeed = maxTrackedSpeed;
     }
 
     // A fixed per-event blend changes its effective response at 60 Hz versus
@@ -4302,17 +4301,15 @@ class _PrimaryButton extends StatelessWidget {
 class _AmountHero extends StatelessWidget {
   const _AmountHero({
     required this.label,
-    required this.amount,
+    required this.value,
     required this.color,
-    this.signed = false,
     this.secondaryLabel,
     this.secondaryValue,
   });
 
   final String label;
-  final double amount;
+  final String value;
   final Color color;
-  final bool signed;
   final String? secondaryLabel;
   final String? secondaryValue;
 
@@ -4352,8 +4349,7 @@ class _AmountHero extends StatelessWidget {
 
     final Widget primary = _HeroValue(
       label: label,
-      amount: amount,
-      signed: signed,
+      value: value,
       color: textColor,
       glow: color,
     );
@@ -4440,15 +4436,13 @@ class _AmountHero extends StatelessWidget {
 class _HeroValue extends StatelessWidget {
   const _HeroValue({
     required this.label,
-    required this.amount,
-    required this.signed,
+    required this.value,
     required this.color,
     required this.glow,
   });
 
   final String label;
-  final double amount;
-  final bool signed;
+  final String value;
   final Color color;
   final Color glow;
 
@@ -4470,10 +4464,10 @@ class _HeroValue extends StatelessWidget {
       FittedBox(
         fit: BoxFit.scaleDown,
         alignment: Alignment.centerLeft,
-        child: _FinancialAmountText(
-          amount: amount,
-          signed: signed,
-          glowColor: glow,
+        child: Text(
+          value,
+          maxLines: 1,
+          softWrap: false,
           style: TextStyle(
             color: color,
             fontSize: 32,
@@ -4990,7 +4984,10 @@ void _popIfCurrent<T>(BuildContext context, [T? result]) {
 }
 
 class _SheetDisposalBarrier extends StatefulWidget {
-  const _SheetDisposalBarrier({required this.child, required this.onDisposed});
+  const _SheetDisposalBarrier({
+    required this.child,
+    required this.onDisposed,
+  });
 
   final Widget child;
   final VoidCallback onDisposed;
@@ -5154,9 +5151,8 @@ Future<void> _sharePdfSafely(
   List<String> headers,
   List<List<String>> rows,
 ) async {
-  final _AccountSessionScope? session = _AccountSessionScope.maybeOf(context);
-  if (session != null && !session.isCurrent) return;
   try {
+    final _AccountSessionScope? session = _AccountSessionScope.maybeOf(context);
     await _ExportService.sharePdf(
       title,
       headers,
@@ -5165,7 +5161,7 @@ Future<void> _sharePdfSafely(
     );
   } catch (error, stackTrace) {
     debugPrint('PDF share failed: $error\n$stackTrace');
-    if (context.mounted && (session == null || session.isCurrent)) {
+    if (context.mounted) {
       _toast(context, 'PDF sharing failed. Please try again.', error: true);
     }
   }
@@ -5193,7 +5189,7 @@ final DateFormat _monthAbbrevFormat = DateFormat('MMM');
 final DateFormat _dayMonthFormat = DateFormat('dd MMM');
 final DateFormat _monthNameFormat = DateFormat.MMMM();
 final DateFormat _monthYearFormat = DateFormat('MMMM yyyy');
-final NumberFormat _inrAmountFormat = NumberFormat('#,##,##0.##', 'en_IN');
+final NumberFormat _inrIntegerFormat = NumberFormat('#,##,##0', 'en_IN');
 final NumberFormat _compactQuantityFormat = NumberFormat('0.##');
 
 String _newId(String prefix) =>
@@ -5215,7 +5211,7 @@ String _displayDay(dynamic value) {
 
 String _money(dynamic value) {
   final double number = LedgerMath.number(value).abs();
-  return '₹${_inrAmountFormat.format(number)}';
+  return '₹${_inrIntegerFormat.format(number.round())}';
 }
 
 String _signedMoney(dynamic value) {
@@ -5223,355 +5219,6 @@ String _signedMoney(dynamic value) {
   if (number > 0) return '+${_money(number)}';
   if (number < 0) return '-${_money(number)}';
   return '₹0';
-}
-
-// FINANCIAL_MOTION_ENGINE_V1
-// Raw ledger numbers remain authoritative. This class animates presentation
-// only: no create/edit/delete inference, no balance mutation, no fake overshoot.
-class _FinancialAmountText extends StatefulWidget {
-  const _FinancialAmountText({
-    required this.amount,
-    required this.style,
-    required this.glowColor,
-    this.signed = false,
-  });
-
-  final double amount;
-  final TextStyle style;
-  final Color glowColor;
-  final bool signed;
-
-  @override
-  State<_FinancialAmountText> createState() => _FinancialAmountTextState();
-}
-
-class _FinancialAmountTextState extends State<_FinancialAmountText>
-    with SingleTickerProviderStateMixin {
-  static const Duration _micro = Duration(milliseconds: 260);
-  static const Duration _small = Duration(milliseconds: 360);
-  static const Duration _normal = Duration(milliseconds: 480);
-  static const Duration _large = Duration(milliseconds: 560);
-
-  static const double _scaleLift = .012;
-  static const double _travel = 1.25;
-
-  late final AnimationController _controller;
-
-  late double _fromMinor;
-  late double _targetMinor;
-
-  late String _reserveFrom;
-  late String _reserveTarget;
-
-  bool _showFraction = false;
-  bool _motionSuppressed = false;
-
-  int _direction = 0;
-
-  static double _minor(double amount) =>
-      amount.isFinite ? (amount * 100).roundToDouble() : 0;
-
-  static int _bucket(double minor) => minor > .5
-      ? 1
-      : minor < -.5
-      ? -1
-      : 0;
-
-  static bool _hasPaise(double minor) => minor.round().abs() % 100 != 0;
-
-  static Duration _duration(double rupees) {
-    final double delta = rupees.abs();
-
-    if (delta < 1) return _micro;
-    if (delta <= 50) return _small;
-    if (delta <= 5000) return _normal;
-
-    return _large;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-
-    _targetMinor = _minor(widget.amount);
-    _fromMinor = _targetMinor;
-    _showFraction = _hasPaise(_targetMinor);
-
-    _controller = AnimationController(vsync: this, duration: _normal, value: 1)
-      ..addStatusListener(_onStatus);
-
-    _reserveFrom = _format(_targetMinor, reserve: true);
-
-    _reserveTarget = _reserveFrom;
-  }
-
-  bool _suppressed() => AppMotion.reduce(context) || !TickerMode.of(context);
-
-  double _visualMinor() {
-    if (_controller.value >= 1 || _fromMinor == _targetMinor) {
-      return _targetMinor;
-    }
-
-    final double t = UIConstants.motionOut.transform(
-      _controller.value.clamp(0.0, 1.0).toDouble(),
-    );
-
-    return ui.lerpDouble(_fromMinor, _targetMinor, t) ?? _targetMinor;
-  }
-
-  double _quantize(double minor) => _showFraction
-      ? minor.roundToDouble()
-      : ((minor / 100).round() * 100).toDouble();
-
-  String _format(double minor, {bool reserve = false}) {
-    final double amount = _quantize(minor) / 100;
-
-    String result = widget.signed ? _signedMoney(amount) : _money(amount);
-
-    if (reserve && _showFraction && !result.contains('.')) {
-      result = '$result.00';
-    }
-
-    return result;
-  }
-
-  void _reserve(double from, double target) {
-    _reserveFrom = _format(from, reserve: true);
-
-    _reserveTarget = _format(target, reserve: true);
-  }
-
-  void _snap() {
-    _controller.stop();
-
-    _fromMinor = _targetMinor;
-    _direction = 0;
-    _showFraction = _hasPaise(_targetMinor);
-
-    _reserve(_targetMinor, _targetMinor);
-
-    if (_controller.value != 1) {
-      _controller.value = 1;
-    }
-  }
-
-  void _onStatus(AnimationStatus status) {
-    if (status != AnimationStatus.completed || !mounted) {
-      return;
-    }
-
-    final bool fraction = _hasPaise(_targetMinor);
-
-    if (_direction == 0 && _showFraction == fraction) {
-      return;
-    }
-
-    setState(() {
-      _fromMinor = _targetMinor;
-      _direction = 0;
-      _showFraction = fraction;
-
-      _reserve(_targetMinor, _targetMinor);
-    });
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    final bool suppressed = _suppressed();
-
-    if (suppressed && !_motionSuppressed) {
-      _snap();
-    }
-
-    _motionSuppressed = suppressed;
-  }
-
-  @override
-  void didUpdateWidget(covariant _FinancialAmountText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    final double next = _minor(widget.amount);
-
-    if ((next - _targetMinor).abs() < .5) {
-      if (oldWidget.signed != widget.signed) {
-        _reserve(_targetMinor, _targetMinor);
-      }
-
-      return;
-    }
-
-    final double oldTarget = _targetMinor;
-
-    // Retarget from exactly what the user can currently see.
-    final double current = _quantize(_visualMinor());
-
-    _targetMinor = next;
-
-    _showFraction = _showFraction || _hasPaise(oldTarget) || _hasPaise(next);
-
-    if (_motionSuppressed) {
-      _snap();
-      return;
-    }
-
-    _direction = next > current
-        ? -1
-        : next < current
-        ? 1
-        : 0;
-
-    // True sign flips such as receive -> pay or
-    // profit -> loss must never spend hundreds
-    // of milliseconds showing an old semantic
-    // sign beneath the new label/color.
-    //
-    // Zero -> value and value -> zero still
-    // animate normally. So the common
-    // ₹0 -> ₹1,000 case receives the full
-    // premium count-up animation.
-    final int oldBucket = _bucket(oldTarget);
-
-    final int nextBucket = _bucket(next);
-
-    if (widget.signed &&
-        oldBucket != 0 &&
-        nextBucket != 0 &&
-        oldBucket != nextBucket) {
-      _fromMinor = next;
-
-      _reserve(next, next);
-
-      _controller.duration = _micro;
-
-      _controller.forward(from: 0);
-
-      return;
-    }
-
-    // Mid-flight changes never restart from
-    // stale old state. They continue from the
-    // current visible number.
-    //
-    // Example:
-    // ₹1,000 -> ₹2,000
-    // animation reaches ₹1,640
-    // then new target becomes ₹2,500
-    //
-    // New motion starts from ₹1,640,
-    // not ₹1,000 or ₹2,000.
-    _fromMinor = current;
-
-    _reserve(_fromMinor, _targetMinor);
-
-    _controller.duration = _duration((_targetMinor - _fromMinor).abs() / 100);
-
-    _controller.forward(from: 0);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final String semanticTarget = _format(_targetMinor);
-
-    // Invisible old/target values reserve the
-    // largest required width. This prevents
-    // ₹999 -> ₹1,000 -> ₹10,000 from making
-    // surrounding content jitter horizontally.
-    final Widget reserve = Stack(
-      alignment: Alignment.centerLeft,
-      children: <Widget>[
-        Opacity(
-          opacity: 0,
-          child: Text(
-            _reserveFrom,
-            maxLines: 1,
-            softWrap: false,
-            style: widget.style,
-          ),
-        ),
-        Opacity(
-          opacity: 0,
-          child: Text(
-            _reserveTarget,
-            maxLines: 1,
-            softWrap: false,
-            style: widget.style,
-          ),
-        ),
-      ],
-    );
-
-    return Semantics(
-      // Accessibility always exposes the final
-      // truthful committed target, never noisy
-      // intermediate animation frames.
-      label: semanticTarget,
-      child: ExcludeSemantics(
-        child: RepaintBoundary(
-          child: AnimatedBuilder(
-            animation: _controller,
-            child: reserve,
-            builder: (BuildContext context, Widget? reserveChild) {
-              final double raw = _controller.value.clamp(0.0, 1.0).toDouble();
-
-              final double pulse = _controller.isAnimating
-                  ? math.sin(math.pi * raw).abs()
-                  : 0;
-
-              final int alpha = (pulse * 26).round().clamp(0, 255).toInt();
-
-              // Preserve the original resting
-              // style exactly. During motion only
-              // a restrained temporary glow is
-              // added.
-              final TextStyle style = widget.style.copyWith(
-                shadows: <Shadow>[
-                  ...?widget.style.shadows,
-                  if (alpha > 0)
-                    Shadow(
-                      color: widget.glowColor.withAlpha(alpha),
-                      blurRadius: 14,
-                    ),
-                ],
-              );
-
-              // Increase = tiny upward physical
-              // motion. Decrease = tiny downward
-              // motion. The financial value itself
-              // remains monotonic and never
-              // overshoots the real target.
-              final Widget visible = Transform.translate(
-                offset: Offset(0, _direction * _travel * pulse),
-                child: Transform.scale(
-                  alignment: Alignment.centerLeft,
-                  scale: 1 + _scaleLift * pulse,
-                  child: Text(
-                    _format(_visualMinor()),
-                    maxLines: 1,
-                    softWrap: false,
-                    style: style,
-                  ),
-                ),
-              );
-
-              return Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.centerLeft,
-                children: <Widget>[reserveChild!, visible],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 String _cleanKey(dynamic value) => LedgerMath.cleanKey(value);
@@ -5710,9 +5357,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
         if (!continueLogout || !context.mounted || !session.isCurrent) return;
       }
-      final bool signedOut;
+      final bool safe = await sync.drainBeforeLogout();
+      if (!context.mounted || !session.isCurrent) return;
+      if (!safe) {
+        _toast(
+          context,
+          'Logout blocked: pending changes are still offline. Connect once, then retry.',
+          error: true,
+        );
+        return;
+      }
       try {
-        signedOut = await sync.signOutAfterDrain();
+        // Re-check immediately before the destructive auth transition.
+        if (!session.isCurrent) return;
+        await FirebaseAuth.instance.signOut();
       } on FirebaseAuthException catch (error) {
         if (context.mounted && session.isCurrent) {
           _toast(
@@ -5726,17 +5384,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         debugPrint('Firebase logout failed: $error\n$stackTrace');
         if (context.mounted && session.isCurrent) {
           _toast(context, 'Logout failed. Please try again.', error: true);
-        }
-        return;
-      }
-
-      if (!signedOut) {
-        if (context.mounted && session.isCurrent) {
-          _toast(
-            context,
-            'Logout blocked: pending changes are still offline. Connect once, then retry.',
-            error: true,
-          );
         }
         return;
       }
@@ -5842,26 +5489,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     _MetricCard(
                       icon: Icons.handshake_rounded,
                       label: 'To Receive (+)',
-                      amount: totals.toReceive,
+                      value: _money(totals.toReceive),
                       color: appleGreen,
                     ),
                     _MetricCard(
                       icon: Icons.request_quote_rounded,
                       label: 'To Pay (-)',
-                      amount: totals.toPay,
+                      value: _money(totals.toPay),
                       color: appleRed,
                     ),
                     _MetricCard(
                       icon: premiumExpenseIcon,
                       label: 'Month Expense',
-                      amount: totals.monthExpense,
+                      value: _money(totals.monthExpense),
                       color: diaryOrange,
                     ),
                     _MetricCard(
                       icon: Icons.trending_up_rounded,
                       label: 'Month Profit',
-                      amount: totals.monthProfit,
-                      signed: true,
+                      value: _signedMoney(totals.monthProfit),
                       color: appleBlue,
                     ),
                   ],
@@ -5970,16 +5616,14 @@ class _MetricCard extends StatelessWidget {
   const _MetricCard({
     required this.icon,
     required this.label,
-    required this.amount,
+    required this.value,
     required this.color,
-    this.signed = false,
   });
 
   final IconData icon;
   final String label;
-  final double amount;
+  final String value;
   final Color color;
-  final bool signed;
 
   @override
   Widget build(BuildContext context) => _GlassCard(
@@ -6023,10 +5667,9 @@ class _MetricCard extends StatelessWidget {
 
           alignment: Alignment.centerLeft,
 
-          child: _FinancialAmountText(
-            amount: amount,
-            signed: signed,
-            glowColor: color,
+          child: Text(
+            value,
+
             style: TextStyle(
               color: color,
               fontSize: 27,
@@ -6836,8 +6479,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
                         : totals.netAmount < 0
                         ? 'To Pay'
                         : 'Net Balance',
-                    amount: totals.netAmount,
-                    signed: true,
+                    value: _signedMoney(totals.netAmount),
                     color: color,
                     secondaryLabel: 'Total Milk',
                     secondaryValue:
@@ -7132,9 +6774,7 @@ class _MilkTableRow extends StatelessWidget {
     final String day = parsed == null
         ? _displayDate(row['date'])
         : _dayFormat.format(parsed);
-    final String month = parsed == null
-        ? ''
-        : _monthAbbrevFormat.format(parsed);
+    final String month = parsed == null ? '' : _monthAbbrevFormat.format(parsed);
     final String total =
         '${flow == 'taken' ? '-' : '+'}${quantity.toStringAsFixed(2)}';
 
@@ -8004,8 +7644,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
                   const SizedBox(height: 16),
                   _AmountHero(
                     label: 'Total Salary (This Month)',
-                    amount: signed,
-                    signed: true,
+                    value: _signedMoney(signed),
                     color: color,
                   ),
                   const SizedBox(height: 24),
@@ -8242,8 +7881,7 @@ class _CreditScreenState extends State<CreditScreen> {
                     : net < 0
                     ? 'Net Balance / Loss'
                     : 'Net Balance',
-                amount: net,
-                signed: true,
+                value: _signedMoney(net),
                 color: balanceColor,
               ),
               const SizedBox(height: 16),
@@ -8522,8 +8160,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen> {
                         : net < 0
                         ? 'To Pay'
                         : 'Net Balance',
-                    amount: net,
-                    signed: true,
+                    value: _signedMoney(net),
                     color: color,
                   ),
                   const SizedBox(height: 24),
@@ -8750,7 +8387,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             header: <Widget>[
               _AmountHero(
                 label: 'Month Expense',
-                amount: total,
+                value: _money(total),
                 color: moduleColor,
               ),
               const SizedBox(height: 24),
@@ -8993,8 +8630,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                   const SizedBox(height: 16),
                   _AmountHero(
                     label: 'Category Total',
-                    amount: -total,
-                    signed: true,
+                    value: '-${_money(total)}',
                     color: detailColor,
                   ),
                   const SizedBox(height: 24),
@@ -9707,14 +9343,21 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
     if (_actionInFlight) return;
     setState(() => _actionInFlight = true);
     try {
-      await _sharePdfSafely(
-        context,
+      await _ExportService.sharePdf(
         '${entry['title'] ?? 'Diary'}',
         <String>['Date', 'Content'],
         <List<String>>[
           <String>[_displayDate(entry['date']), '${entry['content'] ?? ''}'],
         ],
       );
+    } catch (_) {
+      if (context.mounted) {
+        _toast(
+          context,
+          'Diary PDF sharing failed. Please try again.',
+          error: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _actionInFlight = false);
     }
@@ -10323,9 +9966,8 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 5),
-                                  _FinancialAmountText(
-                                    amount: item.value,
-                                    glowColor: tone.color,
+                                  Text(
+                                    _money(item.value),
                                     style: TextStyle(
                                       color: tone.color,
                                       fontSize: 19,
@@ -10797,7 +10439,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
   bool _batchWriting = false;
   bool _appActive = true;
 
-  String get _currentOwnerUid => widget.sync.activeUserId?.trim() ?? '';
+  String get _currentOwnerUid => widget.sync.user?.uid.trim() ?? '';
 
   void _requireCurrentAiSession(_AccountSessionScope session) {
     if (!mounted || !session.isCurrent) {
@@ -10888,7 +10530,9 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
       try {
         await _persistBatchJob(null, ownerUid: ownerUid);
       } catch (error, stackTrace) {
-        debugPrint('Completed AI batch cleanup deferred: $error\n$stackTrace');
+        debugPrint(
+          'Completed AI batch cleanup deferred: $error\n$stackTrace',
+        );
       }
     }
 
@@ -10897,7 +10541,8 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
     setState(() {
       _apiKey = key;
       _model = model;
-      _batchJob = batchAlreadyCompleted || batchJob?.isComplete == true
+      _batchJob =
+          batchAlreadyCompleted || batchJob?.isComplete == true
           ? null
           : batchJob;
       _externalSnapshotId = externalSnapshotId;
@@ -11272,11 +10917,7 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
     }
     final _AccountSessionScope? session = _AccountSessionScope.maybeOf(context);
     if (session == null || !session.isCurrent) {
-      _toast(
-        context,
-        'Account session changed. Reopen AI and try again.',
-        error: true,
-      );
+      _toast(context, 'Account session changed. Reopen AI and try again.', error: true);
       return;
     }
     final bool localEnvelope = AiBridgeProtocol.looksLikeEnvelope(prompt);
@@ -11600,7 +11241,10 @@ class _AiHubScreenState extends State<AiHubScreen> with WidgetsBindingObserver {
 
         _completedFingerprints = completedFingerprints;
 
-        await _persistBatchJob(null, ownerUid: current.ownerUid);
+        await _persistBatchJob(
+          null,
+          ownerUid: current.ownerUid,
+        );
 
         _batchJob = null;
         if (mounted) {
@@ -12185,7 +11829,8 @@ class _GeminiLedgerClient {
     }
     final dynamic candidate = candidates.first;
 
-    final String finishReason = '${candidate['finishReason'] ?? ''}'.trim();
+    final String finishReason =
+        '${candidate['finishReason'] ?? ''}'.trim();
 
     if (finishReason == 'MAX_TOKENS') {
       throw const LedgerSyncException(
@@ -12197,7 +11842,8 @@ class _GeminiLedgerClient {
     if (finishReason.isNotEmpty &&
         finishReason != 'STOP' &&
         finishReason != 'FINISH_REASON_UNSPECIFIED') {
-      final String finishMessage = '${candidate['finishMessage'] ?? ''}'.trim();
+      final String finishMessage =
+          '${candidate['finishMessage'] ?? ''}'.trim();
 
       throw LedgerSyncException(
         'Gemini stopped before completing the response ($finishReason)'
@@ -12208,10 +11854,14 @@ class _GeminiLedgerClient {
     final dynamic parts = candidate['content']?['parts'];
 
     if (parts is! List || parts.isEmpty) {
-      throw const LedgerSyncException('Gemini response was incomplete.');
+      throw const LedgerSyncException(
+        'Gemini response was incomplete.',
+      );
     }
 
-    return parseEnvelope('${parts.first['text'] ?? ''}');
+    return parseEnvelope(
+      '${parts.first['text'] ?? ''}',
+    );
   }
 
   static _AiOutcome parseEnvelope(String raw) {
@@ -12499,9 +12149,7 @@ Future<void> _showExportCenter(
       await sync.ensureAllDiaryMonthsLoaded();
       if (!context.mounted || !session.isCurrent) return;
     }
-    final Map<String, dynamic> exportState = LedgerCodec.normalizeState(
-      sync.state,
-    );
+    final Map<String, dynamic> exportState = LedgerCodec.normalizeState(sync.state);
     if (!session.isCurrent) return;
     await _ExportService.share(
       exportState,

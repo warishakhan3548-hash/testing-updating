@@ -1223,11 +1223,6 @@ class LedgerMath {
   static DateTime? date(dynamic value) {
     final String raw = '${value ?? ''}'.trim();
     if (raw.isEmpty) return null;
-    // DateTime.tryParse normalizes canonical overflow dates (for example,
-    // 2020-01-42). Canonical ledger dates must never silently move to another
-    // accounting day/month; preserve broader legacy timestamp support only for
-    // strings that are not in the app's canonical YYYY-MM-DD shape.
-    if (_strictDatePattern.hasMatch(raw)) return strictDate(raw);
     return DateTime.tryParse(raw);
   }
 
@@ -1606,7 +1601,7 @@ class LedgerSyncService extends ChangeNotifier {
   String? _completeDiarySourceKey;
   int _diaryPeriodVersion = 0;
 
-  String? get activeUserId => _activeUid;
+  User? get user => auth.currentUser;
   bool get booting => _booting;
   bool get syncing => _syncing;
   bool get darkMode => _darkMode;
@@ -3226,39 +3221,14 @@ class LedgerSyncService extends ChangeNotifier {
     }
   }
 
-  Future<bool> signOutAfterDrain() async {
-    final String? callerUid = _activeUid;
-    final int callerGeneration = _sessionGeneration;
-    if (callerUid == null ||
-        callerUid.isEmpty ||
-        !isSessionCurrent(callerUid, callerGeneration)) {
+  Future<bool> drainBeforeLogout() async {
+    if (_outbox.isEmpty && _pendingServerAck == null) return true;
+    try {
+      await flush(throwOnFailure: true);
+    } catch (_) {
       return false;
     }
-
-    return _locked<bool>(() async {
-      if (!isSessionCurrent(callerUid, callerGeneration)) return false;
-
-      if (_outbox.isNotEmpty || _pendingServerAck != null) {
-        try {
-          final bool flushed = await _flushLocked(throwOnFailure: true);
-          if (!flushed ||
-              _outbox.isNotEmpty ||
-              _pendingServerAck != null) {
-            return false;
-          }
-        } catch (_) {
-          return false;
-        }
-      }
-
-      if (!isSessionCurrent(callerUid, callerGeneration)) return false;
-
-      // Final drain and Firebase auth transition share the serialization gate.
-      // Writes queued before logout finish first. Writes queued afterward wake
-      // after auth has changed and fail their captured session fence safely.
-      await auth.signOut();
-      return true;
-    });
+    return _outbox.isEmpty && _pendingServerAck == null;
   }
 
   Future<void> integrityCheck() async {
