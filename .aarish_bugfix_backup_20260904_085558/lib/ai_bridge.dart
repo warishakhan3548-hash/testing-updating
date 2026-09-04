@@ -1720,52 +1720,6 @@ Required new-record fields: credit=date,name,amount,type; expense=date,category,
     };
   }
 
-  static String _newGroupedRecordId({
-    required String root,
-    required Map<String, dynamic> record,
-    required String Function(String prefix) newId,
-  }) {
-    final String date = '${record['date'] ?? ''}'.trim();
-    if (root == 'salaryDB' && LedgerMath.strictDate(date) != null) {
-      return LedgerMath.salaryDailyRecordId(date);
-    }
-    if (root == 'milkDB' && LedgerMath.strictDate(date) != null) {
-      final String flow = '${record['flow'] ?? record['type'] ?? ''}'
-          .trim()
-          .toLowerCase();
-      if (flow == 'given' || flow == 'taken') {
-        return LedgerMath.milkDailyRecordId(date, flow);
-      }
-    }
-    return newId(_prefix(root));
-  }
-
-  static void _assertNoDailyDuplicate({
-    required String root,
-    required Map<String, dynamic> profile,
-    required List<Map<String, dynamic>> records,
-    required Map<String, dynamic> candidate,
-  }) {
-    final String date = '${candidate['date'] ?? ''}';
-    if (root == 'salaryDB') {
-      if (records.any((Map<String, dynamic> row) => '${row['date']}' == date)) {
-        throw const AiBridgeException('Salary for this date already exists.');
-      }
-      return;
-    }
-    if (root != 'milkDB') return;
-    final String flow = LedgerMath.milkFlow(candidate, profile);
-    if (records.any(
-      (Map<String, dynamic> row) =>
-          '${row['date']}' == date &&
-          LedgerMath.milkFlow(row, profile) == flow,
-    )) {
-      throw AiBridgeException(
-        '${flow == 'taken' ? 'Taken' : 'Given'} milk for this date already exists.',
-      );
-    }
-  }
-
   static Map<String, dynamic> _normalizeGroupedAction({
     required String root,
     required List<String> parts,
@@ -1852,11 +1806,7 @@ Required new-record fields: credit=date,name,amount,type; expense=date,category,
             'A new profile record ID must be __NEW__ or NEW.',
           );
         }
-        final String id = _newGroupedRecordId(
-          root: root,
-          record: record,
-          newId: newId,
-        );
+        final String id = newId(_prefix(root));
         _assertAllowedKeys(record, _recordKeys(root));
         normalizedRecords.add(_validateRecord(root, record, id: id));
       }
@@ -1888,6 +1838,7 @@ Required new-record fields: credit=date,name,amount,type; expense=date,category,
       if (value == null) {
         throw const AiBridgeException('A new record cannot be deleted.');
       }
+      id = newId(_prefix(root));
       existing = null;
     }
     if (!creating && existing == null) {
@@ -1903,33 +1854,14 @@ Required new-record fields: credit=date,name,amount,type; expense=date,category,
     }
     final Map<String, dynamic> incoming = LedgerCodec.objectMap(value);
     _assertAllowedKeys(incoming, _recordKeys(root));
-    if (creating) {
-      id = _newGroupedRecordId(root: root, record: incoming, newId: newId);
-    }
     final Map<String, dynamic> merged = <String, dynamic>{
       if (existing != null) ...existing,
       ...incoming,
       'id': id,
     };
-    final Map<String, dynamic> validated = _validateRecord(
-      root,
-      merged,
-      id: id,
-    );
-    if (creating) {
-      if (_findRecord(records, id) != null) {
-        throw AiBridgeException('Record identity $id already exists.');
-      }
-      _assertNoDailyDuplicate(
-        root: root,
-        profile: profile,
-        records: records,
-        candidate: validated,
-      );
-    }
     return <String, dynamic>{
       'path': '$root/$name/records/$id',
-      'data': validated,
+      'data': _validateRecord(root, merged, id: id),
     };
   }
 

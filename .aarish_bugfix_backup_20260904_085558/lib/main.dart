@@ -6728,7 +6728,7 @@ class _MilkDetailScreenState extends State<MilkDetailScreen> {
       );
       return;
     }
-    final String id = LedgerMath.milkDailyRecordId(entryDate, flow);
+    final String id = _newId('mlk');
     final bool saved = await _runMutation(
       context,
       () => widget.sync.writeExistingProfileRecord(
@@ -7920,7 +7920,7 @@ class _SalaryDetailScreenState extends State<SalaryDetailScreen> {
       _toast(context, 'Salary for this date is already added.', error: true);
       return;
     }
-    final String id = LedgerMath.salaryDailyRecordId(entryDate);
+    final String id = _newId('sal');
     final bool saved = await _runMutation(
       context,
       () => widget.sync.writeExistingProfileRecord(

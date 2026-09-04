@@ -892,9 +892,7 @@ class LedgerDeltaPolicy {
   }) {
     if (localToken.isEmpty || predecessorToken != localToken) return false;
     if (!ledgerWriterIdPattern.hasMatch(remoteWriterId)) return false;
-    if (changedRoots.isEmpty ||
-        changedRoots.length != deltaRoots.length ||
-        !changedRoots.every(deltaRoots.contains)) {
+    if (changedRoots.isEmpty || !changedRoots.every(deltaRoots.contains)) {
       return false;
     }
     for (final String root in changedRoots) {
@@ -1391,36 +1389,30 @@ class LedgerMath {
     const List<String> taken = <String>[
       'taken',
       'take',
-      'took',
-      'receive',
-      'received',
-      'bought',
       'minus',
       'debit',
       'pay',
       'paid',
-      'lene_wala',
-      'seller',
-      'supplier',
+      'dene_wala',
+      'buyer',
       'negative',
       'out',
     ];
     const List<String> given = <String>[
       'given',
       'give',
-      'gave',
-      'sold',
       'plus',
       'credit',
-      'dene_wala',
-      'buyer',
-      'customer',
+      'receive',
+      'received',
+      'lene_wala',
+      'seller',
       'positive',
       'in',
     ];
     if (taken.contains(raw)) return 'taken';
     if (given.contains(raw)) return 'given';
-    return profile['type'] == 'lene_wala' ? 'taken' : 'given';
+    return profile['type'] == 'dene_wala' ? 'taken' : 'given';
   }
 
   static double milkQuantity(dynamic record) {
@@ -1497,8 +1489,6 @@ class LedgerMath {
         raw.contains('minus') ||
         raw.contains('negative') ||
         raw.contains('taken') ||
-        raw.contains('took') ||
-        raw.contains('borrowed') ||
         raw == 'out') {
       return -amount;
     }

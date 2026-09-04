@@ -220,56 +220,6 @@ class LedgerCodec {
     return result;
   }
 
-  /// Converts a raw RTDB collection to a child-keyed map. Firebase may decode
-  /// dense numeric child keys as a List; in that representation the list index
-  /// is the authoritative database child key and must not be replaced by an
-  /// embedded legacy `id` field.
-  static Map<String, dynamic> remoteChildMap(dynamic value) {
-    if (value is Map) return objectMap(value);
-    if (value is! List) return <String, dynamic>{};
-    final Map<String, dynamic> result = <String, dynamic>{};
-    for (int index = 0; index < value.length; index++) {
-      final dynamic item = value[index];
-      if (item != null) result['$index'] = item;
-    }
-    return result;
-  }
-
-  static List<Map<String, dynamic>> canonicalRemoteList(dynamic value) {
-    final List<Map<String, dynamic>> result = <Map<String, dynamic>>[];
-    for (final MapEntry<String, dynamic> entry in remoteChildMap(
-      value,
-    ).entries) {
-      if (entry.value is! Map) continue;
-      final Map<String, dynamic> row = objectMap(clone(entry.value));
-      row['id'] = entry.key;
-      row['key'] = entry.key;
-      result.add(row);
-    }
-    return result;
-  }
-
-  static Map<String, dynamic> normalizeRemoteState(dynamic value) {
-    final Map<String, dynamic> source = remoteChildMap(value);
-    final Map<String, dynamic> state = emptyState();
-    for (final String root in _listRoots) {
-      state[root] = canonicalRemoteList(source[root]);
-    }
-    for (final String root in _groupedRoots) {
-      final Map<String, dynamic> profiles = <String, dynamic>{};
-      for (final MapEntry<String, dynamic> entry in remoteChildMap(
-        source[root],
-      ).entries) {
-        if (entry.value is! Map) continue;
-        final Map<String, dynamic> profile = objectMap(clone(entry.value));
-        profile['records'] = canonicalRemoteList(profile['records']);
-        profiles[entry.key] = profile;
-      }
-      state[root] = profiles;
-    }
-    return state;
-  }
-
   static Map<String, dynamic> normalizeState(dynamic value) {
     final Map<String, dynamic> source = objectMap(value);
     final Map<String, dynamic> state = emptyState();
@@ -522,9 +472,7 @@ class DiaryMonthCodec {
   }) {
     final String expectedPeriod = periodKey(year, month);
     final List<Map<String, dynamic>> result = <Map<String, dynamic>>[];
-    for (final Map<String, dynamic> raw in LedgerCodec.canonicalRemoteList(
-      value,
-    )) {
+    for (final Map<String, dynamic> raw in LedgerCodec.canonicalList(value)) {
       if (raw['_deleted'] == true || '${raw['_period']}' != expectedPeriod) {
         continue;
       }
@@ -537,9 +485,7 @@ class DiaryMonthCodec {
 
   static List<Map<String, dynamic>> decodeInvalidEntries(dynamic value) {
     final List<Map<String, dynamic>> result = <Map<String, dynamic>>[];
-    for (final Map<String, dynamic> raw in LedgerCodec.canonicalRemoteList(
-      value,
-    )) {
+    for (final Map<String, dynamic> raw in LedgerCodec.canonicalList(value)) {
       if (raw['_deleted'] == true || '${raw['_period']}' != invalidPeriodKey) {
         continue;
       }
@@ -892,9 +838,7 @@ class LedgerDeltaPolicy {
   }) {
     if (localToken.isEmpty || predecessorToken != localToken) return false;
     if (!ledgerWriterIdPattern.hasMatch(remoteWriterId)) return false;
-    if (changedRoots.isEmpty ||
-        changedRoots.length != deltaRoots.length ||
-        !changedRoots.every(deltaRoots.contains)) {
+    if (changedRoots.isEmpty || !changedRoots.every(deltaRoots.contains)) {
       return false;
     }
     for (final String root in changedRoots) {
@@ -1289,25 +1233,7 @@ class LedgerMath {
 
   static String businessTone(dynamic value) {
     final String tone = '${value ?? ''}'.trim().toLowerCase();
-    return const <String>{'green', 'red', 'orange', 'blue'}.contains(tone)
-        ? tone
-        : 'blue';
-  }
-
-  static String milkDailyRecordId(String date, String flow) {
-    if (strictDate(date) == null || (flow != 'given' && flow != 'taken')) {
-      throw ArgumentError(
-        'Milk daily identity requires a valid date and flow.',
-      );
-    }
-    return 'mlk_${date.replaceAll('-', '')}_$flow';
-  }
-
-  static String salaryDailyRecordId(String date) {
-    if (strictDate(date) == null) {
-      throw ArgumentError('Salary daily identity requires a valid date.');
-    }
-    return 'sal_${date.replaceAll('-', '')}';
+    return tone == 'green' || tone == 'red' || tone == 'blue' ? tone : 'blue';
   }
 
   static DateTime? date(dynamic value) {
@@ -1391,36 +1317,30 @@ class LedgerMath {
     const List<String> taken = <String>[
       'taken',
       'take',
-      'took',
-      'receive',
-      'received',
-      'bought',
       'minus',
       'debit',
       'pay',
       'paid',
-      'lene_wala',
-      'seller',
-      'supplier',
+      'dene_wala',
+      'buyer',
       'negative',
       'out',
     ];
     const List<String> given = <String>[
       'given',
       'give',
-      'gave',
-      'sold',
       'plus',
       'credit',
-      'dene_wala',
-      'buyer',
-      'customer',
+      'receive',
+      'received',
+      'lene_wala',
+      'seller',
       'positive',
       'in',
     ];
     if (taken.contains(raw)) return 'taken';
     if (given.contains(raw)) return 'given';
-    return profile['type'] == 'lene_wala' ? 'taken' : 'given';
+    return profile['type'] == 'dene_wala' ? 'taken' : 'given';
   }
 
   static double milkQuantity(dynamic record) {
@@ -1497,8 +1417,6 @@ class LedgerMath {
         raw.contains('minus') ||
         raw.contains('negative') ||
         raw.contains('taken') ||
-        raw.contains('took') ||
-        raw.contains('borrowed') ||
         raw == 'out') {
       return -amount;
     }
@@ -2089,7 +2007,7 @@ class LedgerSyncService extends ChangeNotifier {
 
       _diaryProjection = confirmed;
       _advertisedDiaryProjection = confirmed;
-      _diaryPeriodsByEntry = LedgerCodec.remoteChildMap(periodsSnapshot.value);
+      _diaryPeriodsByEntry = LedgerCodec.objectMap(periodsSnapshot.value);
       _diaryPeriodVersion++;
       await _persistDiaryProjectionCache(uid);
       return true;
@@ -2313,9 +2231,7 @@ class LedgerSyncService extends ChangeNotifier {
           final Map<String, dynamic> nextState = LedgerCodec.normalizeState(
             _state,
           );
-          nextState['diaryDB'] = LedgerCodec.canonicalRemoteList(
-            diarySnapshot.value,
-          );
+          nextState['diaryDB'] = LedgerCodec.canonicalList(diarySnapshot.value);
           // Writes made while the network snapshot was in flight must remain
           // visible and win over that snapshot, including pending deletes.
           for (final PendingWrite write in _outbox) {
@@ -3237,7 +3153,7 @@ class LedgerSyncService extends ChangeNotifier {
               !SyncConnectionPolicy.canContactServer(_connected)) {
             return false;
           }
-          base = LedgerCodec.normalizeRemoteState(fullSnapshot.value);
+          base = LedgerCodec.normalizeState(fullSnapshot.value);
           _loadedDiaryMonthVersions.clear();
           nextFullAuditAt = now;
         } else {
@@ -3261,10 +3177,9 @@ class LedgerSyncService extends ChangeNotifier {
             return false;
           }
           for (final MapEntry<String, dynamic> entry in values) {
-            final Map<String, dynamic> oneRoot =
-                LedgerCodec.normalizeRemoteState(
-                  <String, dynamic>{entry.key: entry.value},
-                );
+            final Map<String, dynamic> oneRoot = LedgerCodec.normalizeState(
+              <String, dynamic>{entry.key: entry.value},
+            );
             base[entry.key] = oneRoot[entry.key];
           }
         }
