@@ -14,6 +14,7 @@ class VoiceDiceController extends ChangeNotifier {
   static const String modelAsset =
       'assets/models/vosk-model-small-hi-0.22.zip';
   static const int sampleRate = 16000;
+  static const Duration candidateFreshness = Duration(milliseconds: 1400);
 
   static const List<String> commandGrammar = <String>[
     '[unk]',
@@ -58,6 +59,7 @@ class VoiceDiceController extends ChangeNotifier {
   StreamSubscription<String>? _resultSub;
 
   bool _initialized = false;
+  bool _initializing = false;
   bool _available = false;
   bool _enabled = true;
   bool _listening = false;
@@ -68,14 +70,17 @@ class VoiceDiceController extends ChangeNotifier {
   int _listenGeneration = 0;
 
   int? _pendingValue;
+  DateTime? _pendingAt;
   int? _candidateValue;
+  DateTime? _candidateAt;
   int? _lastPartialValue;
   int _partialHits = 0;
-  DateTime? _candidateAt;
   String _lastHeard = '';
+  double? _lastConfidence;
   String? _errorMessage;
 
   bool get initialized => _initialized;
+  bool get initializing => _initializing;
   bool get available => _available;
   bool get enabled => _enabled;
   bool get listening => _listening;
@@ -83,11 +88,13 @@ class VoiceDiceController extends ChangeNotifier {
   String get engineName => 'Offline Vosk Hindi AI';
   int? get pendingValue => _pendingValue;
   String get lastHeard => _lastHeard;
+  double? get lastConfidence => _lastConfidence;
   String? get errorMessage => _errorMessage;
 
   Future<void> initialize() async {
-    if (_initialized || _disposed) return;
+    if (_disposed || _initializing || _available) return;
     _initialized = true;
+    _initializing = true;
     _safeNotify();
 
     try {
@@ -109,11 +116,11 @@ class VoiceDiceController extends ChangeNotifier {
       if (_disposed) return;
 
       _available = true;
-      _enabled = true;
       _errorMessage = null;
       _safeNotify();
 
-      if (!_rollSuspended) {
+      // Respect a user turning voice OFF while the model was still loading.
+      if (_enabled && !_rollSuspended) {
         await _startListening();
       }
     } on MicrophoneAccessDeniedException {
@@ -127,6 +134,9 @@ class VoiceDiceController extends ChangeNotifier {
       _enabled = false;
       _listening = false;
       _errorMessage = _friendlyInitError(error);
+      _safeNotify();
+    } finally {
+      _initializing = false;
       _safeNotify();
     }
   }
@@ -159,7 +169,7 @@ class VoiceDiceController extends ChangeNotifier {
   Future<void> setEnabled(bool value) async {
     if (_disposed) return;
     if (_enabled == value) {
-      if (value && !_available) await retry();
+      if (value && !_available && !_initializing) await retry();
       return;
     }
 
@@ -169,13 +179,18 @@ class VoiceDiceController extends ChangeNotifier {
     if (!value) {
       _listenGeneration += 1;
       _listening = false;
-      _clearCandidate();
+      _clearAllCommands();
       await _releaseSpeechService();
       _safeNotify();
       return;
     }
 
     _safeNotify();
+
+    // If initialization is already in flight, simply preserve the desired ON
+    // state. initialize() will start listening when it finishes.
+    if (_initializing) return;
+
     if (!_initialized) {
       await initialize();
       return;
@@ -208,23 +223,27 @@ class VoiceDiceController extends ChangeNotifier {
   Future<void> retry() async {
     if (_disposed) return;
 
-    if (_available) {
-      if (!_enabled) {
-        await setEnabled(true);
-      } else if (!_rollSuspended) {
-        await _startListening();
-      }
+    _enabled = true;
+
+    // Never tear down resources underneath an in-flight model initialization.
+    // The current initialization will honor the desired enabled state.
+    if (_initializing) {
+      _safeNotify();
       return;
     }
 
-    _enabled = true;
+    if (_available) {
+      if (!_rollSuspended) await _startListening();
+      return;
+    }
+
     _errorMessage = null;
     _listenGeneration += 1;
     _listening = false;
-    _rollSuspended = false;
-    _pendingValue = null;
-    _clearCandidate();
+    _clearAllCommands();
 
+    // IMPORTANT: preserve _rollSuspended. Retrying the microphone while a dice
+    // animation/token choice is active must never reopen listening mid-move.
     await _releaseSpeechService();
     try {
       await _recognizer?.dispose();
@@ -243,21 +262,23 @@ class VoiceDiceController extends ChangeNotifier {
 
   /// Atomically freezes voice input and returns the newest valid command.
   ///
-  /// A very recent partial candidate is accepted even if it has not yet
-  /// reached the normal two-frame stability threshold. This keeps a fast
-  /// "say four → instantly tap roll" interaction deterministic.
+  /// A fresh partial candidate can beat an older stable command. This is what
+  /// makes the user's exact rule deterministic: say "six", then quickly say
+  /// "five" and tap roll -> five wins even before Vosk emits a final result.
   Future<int?> suspendForRoll() async {
     if (_disposed) return null;
 
     final now = DateTime.now();
-    final candidateIsFresh = _candidateValue != null &&
-        _candidateAt != null &&
-        now.difference(_candidateAt!) <= const Duration(milliseconds: 1400);
-    final value = _pendingValue ?? (candidateIsFresh ? _candidateValue : null);
+    final value = resolveNewestDiceCommand(
+      pendingValue: _pendingValue,
+      pendingAt: _pendingAt,
+      candidateValue: _candidateValue,
+      candidateAt: _candidateAt,
+      now: now,
+    );
 
     _rollSuspended = true;
-    _pendingValue = null;
-    _clearCandidate();
+    _clearAllCommands();
     _listenGeneration += 1;
     _listening = false;
 
@@ -293,8 +314,7 @@ class VoiceDiceController extends ChangeNotifier {
   }
 
   void clearPending() {
-    _pendingValue = null;
-    _clearCandidate();
+    _clearAllCommands();
     _safeNotify();
   }
 
@@ -327,16 +347,12 @@ class VoiceDiceController extends ChangeNotifier {
         return;
       }
 
-      final started = await service.start(
-        onRecognitionError: _handleRecognitionError,
-      );
+      await service.start(onRecognitionError: _handleRecognitionError);
       if (_disposed || generation != _listenGeneration) return;
 
-      // Native start returns false when it was already active; either way the
-      // service is available for listening at this point.
       _serviceStarted = true;
       _servicePaused = false;
-      _listening = started != false || _serviceStarted;
+      _listening = true;
       _errorMessage = null;
       _safeNotify();
     } catch (_) {
@@ -361,21 +377,37 @@ class VoiceDiceController extends ChangeNotifier {
   void _handleRawRecognition(String raw, {required bool isFinal}) {
     if (_disposed || !_enabled || _rollSuspended) return;
 
-    final heard = _extractText(raw).trim();
+    final hypothesis = parseRecognitionPayload(raw);
+    final heard = hypothesis.text.trim();
     if (heard.isEmpty || heard == '[unk]') return;
 
     _lastHeard = heard;
+    _lastConfidence = hypothesis.confidence;
     final value = parseLastDiceValue(heard);
     if (value == null) {
       _safeNotify();
       return;
     }
 
+    // Some Vosk outputs expose a normalized 0..1 confidence, while others use
+    // a different score scale. Only reject when it is clearly a normalized and
+    // extremely weak final hypothesis.
+    final confidence = hypothesis.confidence;
+    if (isFinal &&
+        confidence != null &&
+        confidence >= 0 &&
+        confidence <= 1 &&
+        confidence < .18) {
+      _safeNotify();
+      return;
+    }
+
+    final heardAt = DateTime.now();
     _candidateValue = value;
-    _candidateAt = DateTime.now();
+    _candidateAt = heardAt;
 
     if (isFinal) {
-      _commitCandidate(value);
+      _commitCandidate(value, heardAt: heardAt);
       _lastPartialValue = null;
       _partialHits = 0;
       return;
@@ -391,15 +423,16 @@ class VoiceDiceController extends ChangeNotifier {
     // Two matching partial frames reduce noise, while suspendForRoll can still
     // consume one very recent partial candidate for instant-tap responsiveness.
     if (_partialHits >= 2) {
-      _commitCandidate(value);
+      _commitCandidate(value, heardAt: heardAt);
     } else {
       _safeNotify();
     }
   }
 
-  void _commitCandidate(int value) {
+  void _commitCandidate(int value, {required DateTime heardAt}) {
     // No queue: newest command always overwrites the old command.
     _pendingValue = value;
+    _pendingAt = heardAt;
     _errorMessage = null;
     _safeNotify();
   }
@@ -419,17 +452,68 @@ class VoiceDiceController extends ChangeNotifier {
     _partialHits = 0;
   }
 
-  static String _extractText(String raw) {
+  void _clearAllCommands() {
+    _pendingValue = null;
+    _pendingAt = null;
+    _clearCandidate();
+  }
+
+  /// Selects the newest usable command at the instant the user taps ROLL.
+  /// This is public mainly so the arbitration rule can be regression-tested.
+  static int? resolveNewestDiceCommand({
+    required int? pendingValue,
+    required DateTime? pendingAt,
+    required int? candidateValue,
+    required DateTime? candidateAt,
+    required DateTime now,
+  }) {
+    final candidateIsFresh = candidateValue != null &&
+        candidateAt != null &&
+        !candidateAt.isAfter(now) &&
+        now.difference(candidateAt) <= candidateFreshness;
+
+    if (!candidateIsFresh) return pendingValue;
+    if (pendingValue == null || pendingAt == null) return candidateValue;
+
+    return candidateAt.isBefore(pendingAt) ? pendingValue : candidateValue;
+  }
+
+  /// Decodes both standard Vosk payloads (`text` / `partial`) and the
+  /// `alternatives` payload produced when max alternatives is enabled.
+  static ({String text, double? confidence}) parseRecognitionPayload(String raw) {
     final trimmed = raw.trim();
-    if (trimmed.isEmpty) return '';
+    if (trimmed.isEmpty) return (text: '', confidence: null);
 
     try {
       final decoded = jsonDecode(trimmed);
       if (decoded is Map<String, dynamic>) {
-        for (final key in const <String>['partial', 'text']) {
-          final value = decoded[key];
-          if (value is String && value.trim().isNotEmpty) {
-            return value.trim();
+        final partial = decoded['partial'];
+        if (partial is String && partial.trim().isNotEmpty) {
+          return (text: partial.trim(), confidence: null);
+        }
+
+        final text = decoded['text'];
+        if (text is String && text.trim().isNotEmpty) {
+          final rawConfidence = decoded['confidence'];
+          return (
+            text: text.trim(),
+            confidence: rawConfidence is num ? rawConfidence.toDouble() : null,
+          );
+        }
+
+        final alternatives = decoded['alternatives'];
+        if (alternatives is List) {
+          for (final item in alternatives) {
+            if (item is! Map) continue;
+            final alternativeText = item['text'];
+            if (alternativeText is! String || alternativeText.trim().isEmpty) {
+              continue;
+            }
+            final rawConfidence = item['confidence'];
+            return (
+              text: alternativeText.trim(),
+              confidence: rawConfidence is num ? rawConfidence.toDouble() : null,
+            );
           }
         }
       }
@@ -437,7 +521,7 @@ class VoiceDiceController extends ChangeNotifier {
       // Some platform/plugin versions may already return plain recognized text.
     }
 
-    return trimmed;
+    return (text: trimmed, confidence: null);
   }
 
   static int? parseLastDiceValue(String input) {
