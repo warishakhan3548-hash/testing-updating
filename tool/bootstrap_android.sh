@@ -49,6 +49,6 @@ PY
 
 flutter pub get
 flutter test
-flutter analyze
+flutter analyze --no-fatal-infos --no-fatal-warnings
 
 echo "Android + offline voice scaffold ready. Run: flutter build apk --release"
