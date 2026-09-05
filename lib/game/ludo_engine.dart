@@ -135,9 +135,17 @@ class LudoEngine extends ChangeNotifier {
 
     if (movableTokenIds.isEmpty) {
       awaitingMove = false;
-      lastEvent = '${currentColor.label} rolled $value — no legal move.';
       currentRoll = null;
-      _advanceTurn();
+
+      // Fun rule: a six always earns another roll, even if every possible
+      // token is temporarily blocked by the exact-home rule. There is no
+      // three-six penalty and no artificial streak limit.
+      if (value == 6) {
+        lastEvent = '${currentColor.label} rolled 6 — no legal move. 🎲 Roll again!';
+      } else {
+        lastEvent = '${currentColor.label} rolled $value — no legal move.';
+        _advanceTurn();
+      }
       notifyListeners();
       return;
     }
