@@ -123,90 +123,19 @@ class DiceVoiceIntentParser {
   };
 
   static const Set<String> _contextTokens = <String>{
-    'a',
-    'ab',
-    'aa',
-    'aana',
-    'aaye',
-    'aao',
-    'again',
-    'are',
-    'आ',
-    'अब',
-    'आए',
-    'आना',
-    'आओ',
-    'अरे',
-    'bhai',
-    'भाई',
-    'bolo',
-    'बोलो',
-    'bring',
-    'chahiye',
-    'चाहिए',
-    'chalo',
-    'चलो',
-    'de',
-    'दे',
-    'dice',
-    'फिर',
-    'give',
-    'haan',
-    'हाँ',
-    'हां',
-    'हा',
-    'i',
-    'ji',
-    'जी',
-    'lao',
-    'लाओ',
-    'me',
-    'mujhe',
-    'mujhko',
-    'मुझे',
-    'मुझको',
-    'na',
-    'need',
-    'now',
-    'number',
-    'ok',
-    'okay',
-    'ओके',
-    'please',
-    'roll',
-    'set',
-    'should',
-    'the',
-    'to',
-    'want',
-    'yes',
-    'यार',
-    'yaar',
-    'ना',
-    'चाहिये',
-    'कर',
-    'करो',
+    'a', 'ab', 'aa', 'aana', 'aaye', 'aao', 'again', 'are',
+    'आ', 'अब', 'आए', 'आना', 'आओ', 'अरे',
+    'bhai', 'भाई', 'bolo', 'बोलो', 'bring', 'chahiye', 'चाहिए',
+    'chalo', 'चलो', 'de', 'दे', 'dice', 'फिर', 'give', 'haan',
+    'हाँ', 'हां', 'हा', 'i', 'ji', 'जी', 'lao', 'लाओ', 'me',
+    'mujhe', 'mujhko', 'मुझे', 'मुझको', 'na', 'need', 'now',
+    'number', 'ok', 'okay', 'ओके', 'please', 'roll', 'set', 'should',
+    'the', 'to', 'want', 'yes', 'यार', 'yaar', 'ना', 'चाहिये', 'कर', 'करो',
   };
 
   static const Set<String> _strongCommandTokens = <String>{
-    'give',
-    'roll',
-    'dice',
-    'want',
-    'need',
-    'bring',
-    'set',
-    'de',
-    'दे',
-    'chahiye',
-    'चाहिए',
-    'चाहिये',
-    'lao',
-    'लाओ',
-    'aana',
-    'आना',
-    'कर',
-    'करो',
+    'give', 'roll', 'dice', 'want', 'need', 'bring', 'set', 'de', 'दे',
+    'chahiye', 'चाहिए', 'चाहिये', 'lao', 'लाओ', 'aana', 'आना', 'कर', 'करो',
   };
 
   static String _normalize(String input) => input
@@ -242,14 +171,9 @@ class DiceVoiceIntentParser {
       final token = tokens[i];
       final alias = _aliases[token];
       if (alias != null) {
-        // "छक्का दे दो" / "chakka de do": the final "दो/do" is a verb,
-        // not a second dice command.
         final previous = i == 0 ? null : tokens[i - 1];
         if ((token == 'दो' || token == 'do') &&
-            (previous == 'दे' ||
-                previous == 'de' ||
-                previous == 'कर' ||
-                previous == 'करो')) {
+            (previous == 'दे' || previous == 'de' || previous == 'कर' || previous == 'करो')) {
           continue;
         }
         values.add(alias);
@@ -263,16 +187,14 @@ class DiceVoiceIntentParser {
     if (values.isEmpty) return null;
 
     final requestedValue = values.first;
-    if (values.any((value) => value != requestedValue)) {
-      // A tiny command grammar should fail closed when the recognizer returns
-      // multiple different dice values in one utterance.
-      return null;
-    }
+    if (values.any((value) => value != requestedValue)) return null;
 
-    final hasMeasuredConfidence =
-        recognitionConfidence != null && recognitionConfidence >= 0;
-    if (hasMeasuredConfidence &&
-        recognitionConfidence < .30 &&
+    final measuredConfidence =
+        recognitionConfidence != null && recognitionConfidence >= 0
+            ? recognitionConfidence
+            : null;
+    if (measuredConfidence != null &&
+        measuredConfidence < .30 &&
         !_isHighPrecisionDiceOnlyPhrase(tokens)) {
       return null;
     }
@@ -282,9 +204,8 @@ class DiceVoiceIntentParser {
         : strongContext
             ? .98
             : .94;
-    final confidence = hasMeasuredConfidence
-        ? (linguisticConfidence * .72 +
-                recognitionConfidence.clamp(0, 1) * .28)
+    final confidence = measuredConfidence != null
+        ? (linguisticConfidence * .72 + measuredConfidence.clamp(0, 1) * .28)
             .clamp(0.0, 1.0)
             .toDouble()
         : linguisticConfidence;
@@ -297,11 +218,6 @@ class DiceVoiceIntentParser {
   }
 }
 
-/// Match-scoped Android speech controller.
-///
-/// Native speech callbacks submit immutable turn-bound intents only. The
-/// LudoEngine remains the authority for command acceptance, roll reservation,
-/// random fallback and dice commitment.
 class VoiceDiceController extends ChangeNotifier {
   VoiceDiceController({
     LudoEngine? engine,
@@ -362,7 +278,6 @@ class VoiceDiceController extends ChangeNotifier {
   bool get offlineReady => initialized && _available;
   String get engineName => 'Android SpeechRecognizer';
   int? get pendingValue => _engine?.pendingVoiceDiceIntent?.requestedValue;
-
   String get lastHeard => '';
   double? get lastConfidence => _lastConfidence;
 
@@ -396,29 +311,24 @@ class VoiceDiceController extends ChangeNotifier {
 
   Future<void> initialize() async {
     if (_disposed || _initializing || _initialized) return;
-
     final engine = _engine;
     if (engine != null && !engine.gameOver && !_matchSessionExplicitlyEnded) {
       _binding = engine.voiceTurnBinding;
       _lastObservedEngineBinding = _binding;
       _matchSessionActive = true;
     }
-
     _initializing = true;
     _state = VoiceSessionState.starting;
     _safeNotify();
-
     _eventSub ??= _voiceEvents.receiveBroadcastStream().listen(
       _handleNativeEvent,
       onError: _handleEventStreamError,
     );
-
     try {
       _available = await _voiceChannel.invokeMethod<bool>('isAvailable') ?? false;
       _initialized = true;
       _internalErrorMessage = _available ? null : 'Voice recognition is unavailable.';
       _state = _available ? VoiceSessionState.idle : VoiceSessionState.error;
-
       if (_available && _enabled && _matchSessionActive && _lifecycleActive && _binding != null) {
         await _startListening();
       }
@@ -447,7 +357,6 @@ class VoiceDiceController extends ChangeNotifier {
     _binding = binding;
     _lastObservedEngineBinding = binding;
     _rollSuspended = false;
-
     if (!_initialized) await initialize();
     if (_disposed || !_enabled || !_available || !_lifecycleActive) return;
     await _startListening();
@@ -458,7 +367,6 @@ class VoiceDiceController extends ChangeNotifier {
     _binding = binding;
     _lastObservedEngineBinding = binding;
     _safeNotify();
-
     if (!_matchSessionActive || !_initialized || !_available) return;
     try {
       await _voiceChannel.invokeMethod<void>('updateContext', _bindingMap(binding));
@@ -469,13 +377,11 @@ class VoiceDiceController extends ChangeNotifier {
     if (_disposed) return;
     final engine = _engine;
     if (engine == null) return;
-
     if (_matchSessionExplicitlyEnded) {
       _engineWasGameOver = engine.gameOver;
       _lastObservedEngineBinding = engine.voiceTurnBinding;
       return;
     }
-
     final nowGameOver = engine.gameOver;
     if (nowGameOver) {
       _engineWasGameOver = true;
@@ -489,13 +395,11 @@ class VoiceDiceController extends ChangeNotifier {
       }
       return;
     }
-
     final nextBinding = engine.voiceTurnBinding;
     final restartedMatch = _engineWasGameOver ||
         (_lastObservedEngineBinding != null &&
             _lastObservedEngineBinding!.matchId != nextBinding.matchId);
     _engineWasGameOver = false;
-
     if (!_matchSessionActive || restartedMatch) {
       _matchSessionActive = true;
       _binding = nextBinding;
@@ -507,7 +411,6 @@ class VoiceDiceController extends ChangeNotifier {
       _safeNotify();
       return;
     }
-
     if (_binding != nextBinding) {
       _lastObservedEngineBinding = nextBinding;
       unawaited(bindTurn(nextBinding));
@@ -517,7 +420,6 @@ class VoiceDiceController extends ChangeNotifier {
   Future<void> setLifecycleActive(bool active) async {
     if (_disposed || _lifecycleActive == active) return;
     _lifecycleActive = active;
-
     if (!active) {
       _listening = false;
       _state = VoiceSessionState.paused;
@@ -528,7 +430,6 @@ class VoiceDiceController extends ChangeNotifier {
       } catch (_) {}
       return;
     }
-
     if (_matchSessionActive && _enabled && _available && !_rollSuspended) {
       await _startListening();
     } else {
@@ -538,17 +439,14 @@ class VoiceDiceController extends ChangeNotifier {
 
   Future<void> setEnabled(bool value) async {
     if (_disposed) return;
-
     if (_enabled == value) {
       if (value && _matchSessionActive && _available && _lifecycleActive && !_rollSuspended && !_listening) {
         await _startListening();
       }
       return;
     }
-
     _enabled = value;
     _internalErrorMessage = null;
-
     if (!value) {
       _listening = false;
       _rollSuspended = false;
@@ -560,13 +458,11 @@ class VoiceDiceController extends ChangeNotifier {
       } catch (_) {}
       return;
     }
-
     if (!_initialized) await initialize();
     if (!_available) {
       await retry();
       return;
     }
-
     if (_matchSessionActive && _lifecycleActive && !_rollSuspended) {
       await _startListening();
     }
@@ -574,12 +470,10 @@ class VoiceDiceController extends ChangeNotifier {
 
   Future<void> retry() async {
     if (_disposed) return;
-
     _enabled = true;
     _internalErrorMessage = null;
     _state = VoiceSessionState.restarting;
     _safeNotify();
-
     try {
       _available = await _voiceChannel.invokeMethod<bool>('isAvailable') ?? false;
       _initialized = true;
@@ -590,7 +484,6 @@ class VoiceDiceController extends ChangeNotifier {
         _safeNotify();
         return;
       }
-
       if (_matchSessionActive && _lifecycleActive && !_rollSuspended) {
         await _startListening();
       } else {
@@ -612,16 +505,13 @@ class VoiceDiceController extends ChangeNotifier {
 
   Future<int?> suspendForRoll() async {
     if (_disposed) return null;
-
     final engine = _engine;
     final reservation = engine?.reserveDiceRoll(randomDice: _randomDice);
     if (engine != null && reservation == null) return null;
-
     _rollSuspended = true;
     _listening = false;
     _state = VoiceSessionState.paused;
     _safeNotify();
-
     if (_available && _enabled) {
       try {
         await _voiceChannel.invokeMethod<void>('pauseListening');
@@ -632,14 +522,12 @@ class VoiceDiceController extends ChangeNotifier {
 
   Future<void> resumeAfterRoll() async {
     if (_disposed) return;
-
     _rollSuspended = false;
     final engine = _engine;
     if (engine != null && !engine.gameOver) {
       final nextBinding = engine.voiceTurnBinding;
       if (_binding != nextBinding) await bindTurn(nextBinding);
     }
-
     if (_matchSessionActive && _enabled && _available && _lifecycleActive) {
       await _startListening();
     } else {
@@ -676,7 +564,6 @@ class VoiceDiceController extends ChangeNotifier {
     if (_disposed || _starting || !_initialized || !_enabled || !_available || !_matchSessionActive || !_lifecycleActive || _rollSuspended || binding == null) {
       return;
     }
-
     _starting = true;
     _state = VoiceSessionState.starting;
     _safeNotify();
@@ -705,7 +592,6 @@ class VoiceDiceController extends ChangeNotifier {
 
   void _handleNativeEvent(dynamic event) {
     if (_disposed || event is! Map) return;
-
     final type = event['type'];
     switch (type) {
       case 'availability':
@@ -780,9 +666,7 @@ class VoiceDiceController extends ChangeNotifier {
         _safeNotify();
         return;
       case 'speech':
-        if (!_enabled || !_matchSessionActive || !_lifecycleActive || _rollSuspended) {
-          return;
-        }
+        if (!_enabled || !_matchSessionActive || !_lifecycleActive || _rollSuspended) return;
         _handleSpeechAlternatives(event);
         return;
       default:
@@ -793,13 +677,9 @@ class VoiceDiceController extends ChangeNotifier {
   void _handleSpeechAlternatives(Map event) {
     final rawTexts = event['texts'];
     if (rawTexts is! List) return;
-
     final currentBinding = _binding;
     final eventBinding = _bindingFromEvent(event);
-    if (currentBinding == null || eventBinding == null || eventBinding != currentBinding) {
-      return;
-    }
-
+    if (currentBinding == null || eventBinding == null || eventBinding != currentBinding) return;
     final rawSessionEpoch = event['sessionEpoch'];
     final sessionEpoch = rawSessionEpoch is num ? rawSessionEpoch.toInt() : null;
     if (sessionEpoch != null &&
@@ -807,37 +687,27 @@ class VoiceDiceController extends ChangeNotifier {
         _lastAcceptedNativeSessionBinding == eventBinding) {
       return;
     }
-
     final finalResult = event['final'] == true;
     final confidenceValues = event['confidences'];
     DiceVoiceParseResult? parsed;
-
     for (var i = 0; i < rawTexts.length; i++) {
       final item = rawTexts[i];
       if (item is! String) continue;
       final heard = item.trim();
       if (heard.isEmpty) continue;
-
       final candidate = DiceVoiceIntentParser.parse(
         heard,
         recognitionConfidence: _confidenceAt(confidenceValues, i),
       );
       if (candidate == null) continue;
-
-      if (!finalResult &&
-          !candidate.strongContext &&
-          !DiceVoiceIntentParser.isDiceOnlyPhrase(heard)) {
-        continue;
-      }
+      if (!finalResult && !candidate.strongContext && !DiceVoiceIntentParser.isDiceOnlyPhrase(heard)) continue;
       parsed = candidate;
       break;
     }
-
     if (parsed == null) {
       _safeNotify();
       return;
     }
-
     final recognizedAt = _recognizedAt(event);
     final intent = PendingVoiceDiceIntent(
       matchId: eventBinding.matchId,
@@ -847,7 +717,6 @@ class VoiceDiceController extends ChangeNotifier {
       recognizedAt: recognizedAt,
       expiresAt: recognizedAt.add(intentTtl),
     );
-
     if (_submitIntent(intent)) {
       _lastConfidence = parsed.confidence;
       _lastAcceptedValue = parsed.value;
@@ -866,11 +735,7 @@ class VoiceDiceController extends ChangeNotifier {
     final playerId = event['playerId'];
     final turnId = event['turnId'];
     if (matchId is! String || playerId is! String || turnId is! num) return null;
-    return TurnBinding(
-      matchId: matchId,
-      playerId: playerId,
-      turnId: turnId.toInt(),
-    );
+    return TurnBinding(matchId: matchId, playerId: playerId, turnId: turnId.toInt());
   }
 
   DateTime _recognizedAt(Map event) {
@@ -902,8 +767,7 @@ class VoiceDiceController extends ChangeNotifier {
     _safeNotify();
   }
 
-  static int? parseLastDiceValue(String input) =>
-      DiceVoiceIntentParser.parse(input)?.value;
+  static int? parseLastDiceValue(String input) => DiceVoiceIntentParser.parse(input)?.value;
 
   void _safeNotify() {
     if (!_disposed) notifyListeners();
