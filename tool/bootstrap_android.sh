@@ -6,6 +6,15 @@ if ! command -v flutter >/dev/null 2>&1; then
   exit 1
 fi
 
+mkdir -p assets/models
+MODEL="assets/models/vosk-model-small-hi-0.22.zip"
+if [ ! -s "$MODEL" ]; then
+  echo "Downloading offline Hindi Vosk model..."
+  curl --fail --location --retry 4 --retry-delay 2 \
+    --output "$MODEL" \
+    "https://alphacephei.com/vosk/models/vosk-model-small-hi-0.22.zip"
+fi
+
 TMP_DIR="${TMPDIR:-/tmp}/voice_ludo_android_scaffold"
 rm -rf "$TMP_DIR"
 
@@ -22,35 +31,24 @@ from pathlib import Path
 
 manifest = Path('android/app/src/main/AndroidManifest.xml')
 text = manifest.read_text(encoding='utf-8')
-
-permissions = [
-    '<uses-permission android:name="android.permission.RECORD_AUDIO" />',
-    '<uses-permission android:name="android.permission.INTERNET" />',
-]
-
+permission = '<uses-permission android:name="android.permission.RECORD_AUDIO" />'
 marker = '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
 if marker not in text:
     raise SystemExit('Could not locate <manifest> header.')
-
-missing = [p for p in permissions if p not in text]
-if missing:
-    text = text.replace(marker, marker + '\n    ' + '\n    '.join(missing), 1)
-
-queries = '''    <queries>
-        <intent>
-            <action android:name="android.speech.RecognitionService" />
-        </intent>
-    </queries>
-'''
-if 'android.speech.RecognitionService' not in text:
-    app_marker = '    <application'
-    if app_marker not in text:
-        raise SystemExit('Could not locate <application> node.')
-    text = text.replace(app_marker, queries + app_marker, 1)
-
+if permission not in text:
+    text = text.replace(marker, marker + '\n    ' + permission, 1)
 manifest.write_text(text, encoding='utf-8')
+
+proguard = Path('android/app/proguard-rules.pro')
+proguard.write_text(
+    '-keep class com.sun.jna.* { *; }\n'
+    '-keepclassmembers class * extends com.sun.jna.* { public *; }\n',
+    encoding='utf-8',
+)
 PY
 
 flutter pub get
+flutter test
+flutter analyze
 
-echo "Android scaffold ready. Run: flutter build apk --release"
+echo "Android + offline voice scaffold ready. Run: flutter build apk --release"
