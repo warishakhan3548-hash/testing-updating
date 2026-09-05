@@ -62,8 +62,8 @@ void main() {
       expect(mainActivity, contains('EXTRA_PARTIAL_RESULTS'));
       expect(mainActivity, contains('EXTRA_BIASING_STRINGS'));
       expect(mainActivity, contains('DICE_BIASING_STRINGS'));
-      expect(mainActivity, contains('includeConfidences = false'));
-      expect(mainActivity, contains('armReadyWatchdog(recognizerEpoch)'));
+      expect(mainActivity, contains('SpeechRecognizer.CONFIDENCE_SCORES'));
+      expect(mainActivity, contains('armReadyWatchdog(objectEpoch, sessionEpoch, binding)'));
       expect(mainActivity, contains('recycleStuckRecognizer'));
       expect(
         mainActivity,
@@ -84,19 +84,19 @@ void main() {
       expect(mainActivity.indexOf(system), lessThan(mainActivity.indexOf(onDevice)));
       expect(mainActivity, contains('createOnDeviceFallback'));
       expect(mainActivity, contains('pauseCurrentSession(keepWarm = true)'));
-      expect(mainActivity, contains('WARM_STANDBY_DELAY_MS = 25L'));
       expect(mainActivity, contains('MAX_RESULTS = 20'));
       expect(mainActivity, contains('VOICE_LOCALES = listOf("hi-IN", "en-IN", "en-US")'));
       expect(mainActivity, contains('EXTRA_ENABLE_LANGUAGE_SWITCH'));
       expect(mainActivity, contains('EXTRA_ENABLE_LANGUAGE_DETECTION'));
       expect(mainActivity, contains('ON_DEVICE_NO_MATCH_FALLBACK_THRESHOLD = 2'));
-      expect(mainActivity, contains('EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS'));
       expect(
         mainActivity,
-        contains('EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS'),
+        isNot(contains('EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS')),
       );
-      expect(mainActivity, contains('COMPLETE_SILENCE_MS = 430L'));
-      expect(mainActivity, contains('POSSIBLY_COMPLETE_SILENCE_MS = 650L'));
+      expect(
+        mainActivity,
+        isNot(contains('EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS')),
+      );
       expect(mainActivity, contains('"छक्का छक्का"'));
       expect(mainActivity, contains('"पाँच पाँच"'));
       expect(mainActivity, contains('"six six"'));
@@ -146,19 +146,41 @@ void main() {
       expect(bootstrap, isNot(contains('alphacephei.com/vosk')));
     });
 
-    test('turn boundaries invalidate recognizer generations before warm re-arm', () {
+    test('turn boundaries invalidate listening sessions while keeping recognizer warm', () {
       final mainActivity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
       ).readAsStringSync();
 
       expect(mainActivity, contains('private var recognizerEpoch = 0L'));
-      expect(mainActivity, contains('recognizerEpoch += 1L'));
+      expect(mainActivity, contains('private var recognitionSessionEpoch = 0L'));
+      expect(mainActivity, contains('recognitionSessionEpoch += 1L'));
+      expect(mainActivity, contains('recognizer.setRecognitionListener('));
+      expect(
+        mainActivity,
+        contains('createRecognitionListener(objectEpoch, sessionEpoch, binding)'),
+      );
       expect(mainActivity, contains('restartForContextChange()'));
-      expect(mainActivity, contains('destroyRecognizer()'));
-      expect(mainActivity, contains('scheduleWarmStandby()'));
-      expect(mainActivity, contains('if (binding != currentBinding) return'));
-      expect(mainActivity, isNot(contains('fastRebindSession()')));
-      expect(mainActivity, isNot(contains('transitioningSession')));
+      expect(mainActivity, contains('invalidateActiveSession(keepRecognizer = true)'));
+      expect(mainActivity, contains('sessionEpoch == recognitionSessionEpoch'));
+      expect(mainActivity, contains('recognitionBinding == binding'));
+      expect(mainActivity, contains('currentBinding == binding'));
+      expect(mainActivity, contains('"sessionEpoch" to sessionEpoch'));
+      expect(mainActivity, isNot(contains('scheduleWarmStandby()')));
+      expect(mainActivity, isNot(contains('WARM_STANDBY_DELAY_MS')));
+    });
+
+    test('native confidence metadata feeds the bounded Dart confidence fusion', () {
+      final mainActivity = File(
+        'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
+      ).readAsStringSync();
+      final controller =
+          File('lib/services/voice_dice_controller.dart').readAsStringSync();
+
+      expect(mainActivity, contains('SpeechRecognizer.CONFIDENCE_SCORES'));
+      expect(mainActivity, contains('"confidences" to confidences'));
+      expect(controller, contains('_confidenceAt(confidenceValues, i)'));
+      expect(controller, contains('recognitionConfidence'));
+      expect(controller, contains('recognitionConfidence < .30'));
     });
 
     test('premium voice UI hides raw transcripts and gates modal lifecycle', () {
