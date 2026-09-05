@@ -37,13 +37,16 @@ void main() {
       final red = engine.players.first;
       final yellow = engine.players.last;
 
-      red.tokens[0].progress = 25; // red global cell 25
-      yellow.tokens[0].progress = 51; // yellow global cell 25
+      red.tokens[0].progress = 13; // red global cell 13
+      yellow.tokens[0].progress = 40; // yellow global cell 14
 
       engine.beginRolling();
-      engine.commitRoll(1); // red lands on global 26, which is safe -> no capture
-      engine.moveToken(0);
-      expect(yellow.tokens[0].progress, 51);
+      engine.commitRoll(1); // red lands on unsafe global cell 14
+      final outcome = engine.moveToken(0);
+
+      expect(outcome?.captures, 1);
+      expect(yellow.tokens[0].progress, -1);
+      expect(engine.currentColor, LudoColor.red);
     });
 
     test('exact roll is required to finish', () {
