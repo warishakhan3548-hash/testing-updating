@@ -15,6 +15,23 @@ workflows:
           curl --fail --location --retry 4 --retry-delay 2 \
             --output "$MODEL" "$URL"
           test -s "$MODEL"
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile
+
+          model = Path('assets/models/vosk-model-small-hi-0.22.zip')
+          if model.stat().st_size < 10_000_000:
+              raise SystemExit(f'Offline model is unexpectedly small: {model.stat().st_size} bytes')
+
+          with zipfile.ZipFile(model) as archive:
+              bad = archive.testzip()
+              if bad is not None:
+                  raise SystemExit(f'Offline model ZIP is corrupt at: {bad}')
+              names = archive.namelist()
+              if not any(name.endswith('/am/final.mdl') or name.endswith('am/final.mdl') for name in names):
+                  raise SystemExit('Offline model ZIP does not contain the expected acoustic model')
+          print('Offline Vosk model ZIP integrity: OK')
+          PY
           echo "Offline Vosk model bundled: $(du -h "$MODEL" | cut -f1)"
 
       - name: Generate Android scaffold
