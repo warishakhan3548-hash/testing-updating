@@ -9,6 +9,7 @@ void main() {
       expect(VoiceDiceController.parseLastDiceValue('six five two'), 2);
       expect(VoiceDiceController.parseLastDiceValue('6 6 5'), 5);
       expect(VoiceDiceController.parseLastDiceValue('पाँच फिर छक्का'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('चार बोलो फिर दो'), 2);
     });
 
     test('supports Hindi, Hinglish-style outputs, English and digits', () {
@@ -24,10 +25,30 @@ void main() {
     test('unrelated speech does not invent a dice value', () {
       expect(VoiceDiceController.parseLastDiceValue('आज गेम बहुत मजेदार है'), isNull);
       expect(VoiceDiceController.parseLastDiceValue('[unk]'), isNull);
+      expect(VoiceDiceController.parseLastDiceValue('चलो भाई शुरू करो'), isNull);
     });
   });
 
   group('Ludo engine', () {
+    test('two-player game uses opposite red and yellow sides', () {
+      final engine = LudoEngine(playerCount: 2);
+      expect(
+        engine.players.map((player) => player.color).toList(),
+        <LudoColor>[LudoColor.red, LudoColor.yellow],
+      );
+    });
+
+    test('yard token cannot move without a six and turn advances', () {
+      final engine = LudoEngine(playerCount: 2);
+
+      engine.beginRolling();
+      engine.commitRoll(5);
+
+      expect(engine.awaitingMove, isFalse);
+      expect(engine.currentColor, LudoColor.yellow);
+      expect(engine.canRoll, isTrue);
+    });
+
     test('unlimited sixes keep granting turns without a three-six penalty', () {
       final engine = LudoEngine(playerCount: 2);
 
@@ -75,6 +96,23 @@ void main() {
       expect(engine.currentColor, LudoColor.red);
     });
 
+    test('safe-star cells do not capture opponent tokens', () {
+      final engine = LudoEngine(playerCount: 2);
+      final red = engine.players.first;
+      final yellow = engine.players.last;
+
+      red.tokens[0].progress = 7; // next step -> global safe cell 8
+      yellow.tokens[0].progress = 34; // yellow also occupies global cell 8
+
+      engine.beginRolling();
+      engine.commitRoll(1);
+      final outcome = engine.moveToken(0);
+
+      expect(outcome?.captures, 0);
+      expect(yellow.tokens[0].progress, 34);
+      expect(engine.currentColor, LudoColor.yellow);
+    });
+
     test('exact roll is required to finish', () {
       final engine = LudoEngine(playerCount: 2);
       engine.players.first.tokens[0].progress = 55;
@@ -83,6 +121,7 @@ void main() {
       engine.commitRoll(3);
       expect(engine.awaitingMove, isFalse);
       expect(engine.players.first.tokens[0].progress, 55);
+      expect(engine.currentColor, LudoColor.yellow);
     });
 
     test('exact roll reaches home', () {
@@ -94,6 +133,23 @@ void main() {
       expect(engine.awaitingMove, isTrue);
       engine.moveToken(0);
       expect(engine.players.first.tokens[0].finished, isTrue);
+    });
+
+    test('finished player is ranked and skipped on following turns', () {
+      final engine = LudoEngine(playerCount: 3);
+      final red = engine.players.first;
+      for (var i = 0; i < 3; i++) {
+        red.tokens[i].progress = LudoEngine.finishProgress;
+      }
+      red.tokens[3].progress = 55;
+
+      engine.beginRolling();
+      engine.commitRoll(2);
+      engine.moveToken(3);
+
+      expect(red.finished, isTrue);
+      expect(engine.winnerOrder, contains(LudoColor.red));
+      expect(engine.currentColor, LudoColor.green);
     });
   });
 }
