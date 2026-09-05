@@ -60,8 +60,16 @@ class MoveOutcome {
 
 class LudoEngine extends ChangeNotifier {
   LudoEngine({required int playerCount}) {
+    _voiceRuntimeEngine = this;
     reset(playerCount);
   }
+
+  static LudoEngine? _voiceRuntimeEngine;
+
+  /// Compatibility bridge for the existing GameScreen construction order.
+  /// VoiceDiceController captures this engine once at construction; it does not
+  /// keep resolving a mutable global reference during gameplay.
+  static LudoEngine? get voiceRuntimeEngine => _voiceRuntimeEngine;
 
   static const int finishProgress = 57;
   static const Set<int> safeGlobalCells = <int>{
@@ -91,6 +99,7 @@ class LudoEngine extends ChangeNotifier {
   int _turnSequence = 1;
   PendingVoiceDiceIntent? _pendingVoiceDiceIntent;
   PendingVoiceDiceIntent? _lastConsumedVoiceIntent;
+  DiceRollResult? _reservedRollResult;
   DiceRollResult? _activeRollResult;
 
   LudoPlayer get currentPlayer => players[currentPlayerIndex];
@@ -100,6 +109,7 @@ class LudoEngine extends ChangeNotifier {
   int get turnSequence => _turnSequence;
   PendingVoiceDiceIntent? get pendingVoiceDiceIntent => _pendingVoiceDiceIntent;
   PendingVoiceDiceIntent? get lastConsumedVoiceIntent => _lastConsumedVoiceIntent;
+  DiceRollResult? get reservedRollResult => _reservedRollResult;
   DiceRollResult? get activeRollResult => _activeRollResult;
 
   TurnBinding get voiceTurnBinding => TurnBinding(
@@ -115,6 +125,7 @@ class LudoEngine extends ChangeNotifier {
       throw RangeError.range(playerCount, 2, 4, 'playerCount');
     }
 
+    _voiceRuntimeEngine = this;
     final colors = switch (playerCount) {
       2 => <LudoColor>[LudoColor.red, LudoColor.yellow],
       3 => <LudoColor>[LudoColor.red, LudoColor.green, LudoColor.yellow],
@@ -135,6 +146,7 @@ class LudoEngine extends ChangeNotifier {
     _turnSequence = 1;
     _pendingVoiceDiceIntent = null;
     _lastConsumedVoiceIntent = null;
+    _reservedRollResult = null;
     _activeRollResult = null;
     lastEvent = '${currentPlayer.color.label} starts. Say 1–6 and roll!';
     notifyListeners();
@@ -145,7 +157,12 @@ class LudoEngine extends ChangeNotifier {
     DateTime? now,
   }) {
     final clock = now ?? DateTime.now();
-    if (!canRoll || intent.consumed || intent.isExpiredAt(clock)) return false;
+    if (!canRoll ||
+        _reservedRollResult != null ||
+        intent.consumed ||
+        intent.isExpiredAt(clock)) {
+      return false;
+    }
     if (!intent.matches(voiceTurnBinding)) return false;
 
     final current = _pendingVoiceDiceIntent;
@@ -165,17 +182,14 @@ class LudoEngine extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Atomically freezes the logical dice result for the current roll.
-  ///
-  /// This is the only path used by the game UI to decide a roll value. A valid
-  /// voice intent is consumed exactly once only when its match/player/turn binding
-  /// still matches the current roll opportunity. Otherwise the provided random
-  /// source is used.
-  DiceRollResult? resolveDiceRoll({
+  /// Freezes a roll value synchronously while preserving the existing UI's
+  /// beginRolling/animation/commit sequence. Once reserved, new voice callbacks
+  /// are rejected even though the visual dice animation has not started yet.
+  DiceRollResult? reserveDiceRoll({
     required int Function() randomDice,
     DateTime? now,
   }) {
-    if (!canRoll) return null;
+    if (!canRoll || _reservedRollResult != null) return null;
 
     final clock = now ?? DateTime.now();
     final binding = voiceTurnBinding;
@@ -209,28 +223,49 @@ class LudoEngine extends ChangeNotifier {
       turnId: binding.turnId,
       resolvedAt: clock,
     );
-
-    _activeRollResult = result;
-    isRolling = true;
-    lastEvent = '${currentColor.label} is rolling…';
+    _reservedRollResult = result;
     notifyListeners();
     return result;
   }
 
-  /// Legacy entry point retained for existing tests/callers. New UI code must use
-  /// [resolveDiceRoll] so voice/random resolution stays centralized.
+  /// Fully atomic roll entry point for newer callers.
+  DiceRollResult? resolveDiceRoll({
+    required int Function() randomDice,
+    DateTime? now,
+  }) {
+    final result = reserveDiceRoll(randomDice: randomDice, now: now);
+    if (result == null) return null;
+    beginRolling();
+    return _activeRollResult;
+  }
+
   void beginRolling() {
     if (!canRoll) return;
-    _pendingVoiceDiceIntent = null;
-    _activeRollResult = null;
+
+    final reserved = _reservedRollResult;
+    if (reserved != null) {
+      if (reserved.binding != voiceTurnBinding) {
+        _reservedRollResult = null;
+        return;
+      }
+      _activeRollResult = reserved;
+      _reservedRollResult = null;
+    } else {
+      // Legacy non-voice callers are still supported, but any pending voice
+      // command is discarded because they explicitly bypassed reservation.
+      _pendingVoiceDiceIntent = null;
+      _activeRollResult = null;
+    }
+
     isRolling = true;
     lastEvent = '${currentColor.label} is rolling…';
     notifyListeners();
   }
 
   void cancelRolling() {
-    if (!isRolling) return;
+    if (!isRolling && _reservedRollResult == null) return;
     isRolling = false;
+    _reservedRollResult = null;
     _activeRollResult = null;
     notifyListeners();
   }
@@ -238,7 +273,7 @@ class LudoEngine extends ChangeNotifier {
   bool commitResolvedRoll(DiceRollResult result) {
     if (!isRolling || gameOver) return false;
     final active = _activeRollResult;
-    if (active == null || active != result || !result.binding.matches(voiceTurnBinding)) {
+    if (active == null || active != result || result.binding != voiceTurnBinding) {
       return false;
     }
     _commitRollValue(result.value);
@@ -263,6 +298,7 @@ class LudoEngine extends ChangeNotifier {
 
     currentRoll = value;
     isRolling = false;
+    _reservedRollResult = null;
     _activeRollResult = null;
     movableTokenIds = _legalMoves(currentPlayer, value).toSet();
 
@@ -390,6 +426,7 @@ class LudoEngine extends ChangeNotifier {
   void _openNextRollForSamePlayer() {
     _turnSequence += 1;
     _pendingVoiceDiceIntent = null;
+    _reservedRollResult = null;
     _activeRollResult = null;
   }
 
@@ -397,6 +434,7 @@ class LudoEngine extends ChangeNotifier {
     if (gameOver) return;
 
     _pendingVoiceDiceIntent = null;
+    _reservedRollResult = null;
     _activeRollResult = null;
 
     var attempts = 0;
@@ -432,11 +470,19 @@ class LudoEngine extends ChangeNotifier {
     currentRoll = null;
     movableTokenIds = <int>{};
     _pendingVoiceDiceIntent = null;
+    _reservedRollResult = null;
     _activeRollResult = null;
     lastEvent = '🎉 Game finished! ${winnerOrder.first.label} wins!';
   }
-}
 
-extension on TurnBinding {
-  bool matches(TurnBinding other) => this == other;
+  @override
+  void dispose() {
+    if (identical(_voiceRuntimeEngine, this)) {
+      _voiceRuntimeEngine = null;
+    }
+    _pendingVoiceDiceIntent = null;
+    _reservedRollResult = null;
+    _activeRollResult = null;
+    super.dispose();
+  }
 }
