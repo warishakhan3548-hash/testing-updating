@@ -9,10 +9,11 @@ workflows:
         script: |
           set -euo pipefail
           rm -rf /tmp/voice_ludo_android
-          flutter create /tmp/voice_ludo_android \
+          flutter create \
             --platforms=android \
             --project-name voice_ludo_masti \
-            --org com.aaris
+            --org com.aaris \
+            /tmp/voice_ludo_android
           rm -rf android
           cp -R /tmp/voice_ludo_android/android ./android
 
