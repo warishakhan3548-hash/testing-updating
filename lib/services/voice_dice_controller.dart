@@ -105,13 +105,14 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     _safeNotify();
 
     try {
-      final modelPath = await _modelLoader.loadFromAssets(modelAsset);
+      if (_model == null) {
+        final modelPath = await _modelLoader.loadFromAssets(modelAsset);
+        if (_disposed) return;
+        _model = await _vosk.createModel(modelPath);
+      }
       if (_disposed) return;
 
-      _model = await _vosk.createModel(modelPath);
-      if (_disposed) return;
-
-      _recognizer = await _vosk.createRecognizer(
+      _recognizer ??= await _vosk.createRecognizer(
         model: _model!,
         sampleRate: sampleRate,
         grammar: commandGrammar,
@@ -119,8 +120,8 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       await _recognizer!.setMaxAlternatives(1);
       if (_disposed) return;
 
-      // Initial creation also requests microphone permission. It is safe to
-      // complete setup while foregrounded, then later use pause/unpause.
+      // Initial creation also requests microphone permission. If the app moved
+      // to background while the model loaded, defer microphone creation.
       if (!_lifecyclePaused) {
         await _createSpeechService();
         if (_disposed) return;
@@ -130,8 +131,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       _errorMessage = null;
       _safeNotify();
 
-      // Respect a user turning voice OFF while the model was still loading,
-      // and never open the microphone while the app is backgrounded.
       if (_enabled && !_rollSuspended && !_lifecyclePaused) {
         await _startListening();
       }
@@ -139,12 +138,14 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       _available = false;
       _enabled = false;
       _listening = false;
+      await _releaseSpeechService();
       _errorMessage = 'Microphone permission is required for offline voice dice.';
       _safeNotify();
     } catch (error) {
       _available = false;
       _enabled = false;
       _listening = false;
+      await _releaseSpeechService();
       _errorMessage = _friendlyInitError(error);
       _safeNotify();
     } finally {
@@ -199,8 +200,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
 
     _safeNotify();
 
-    // If initialization is already in flight, simply preserve the desired ON
-    // state. initialize() will start listening when it finishes.
     if (_initializing) return;
 
     if (!_initialized) {
@@ -218,22 +217,18 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// Rebuilds the offline voice stack after a permission or native-service
-  /// failure. This lets the user recover without restarting the whole game.
+  /// Reopens the microphone after a permission/native-service failure.
+  ///
+  /// The heavy Vosk model and recognizer are deliberately reused whenever
+  /// possible. On Android the plugin's Model.dispose() does not unload the
+  /// native model, so recreating it on every retry can waste memory.
   Future<void> retry() async {
     if (_disposed) return;
 
     _enabled = true;
 
-    // Never tear down resources underneath an in-flight model initialization.
-    // The current initialization will honor the desired enabled state.
     if (_initializing) {
       _safeNotify();
-      return;
-    }
-
-    if (_available) {
-      if (!_rollSuspended && !_lifecyclePaused) await _startListening();
       return;
     }
 
@@ -241,19 +236,37 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     _listenGeneration += 1;
     _listening = false;
     _clearAllCommands();
-
-    // IMPORTANT: preserve _rollSuspended and _lifecyclePaused. Retrying the
-    // microphone during a move or while backgrounded must never reopen it.
     await _releaseSpeechService();
-    try {
-      await _recognizer?.dispose();
-    } catch (_) {}
-    _recognizer = null;
-    try {
-      _model?.dispose();
-    } catch (_) {}
-    _model = null;
 
+    if (_model != null && _recognizer != null) {
+      try {
+        if (!_lifecyclePaused) {
+          await _createSpeechService();
+        }
+        _available = true;
+        _initialized = true;
+        _safeNotify();
+        if (!_rollSuspended && !_lifecyclePaused) {
+          await _startListening();
+        }
+        return;
+      } on MicrophoneAccessDeniedException {
+        _available = false;
+        _enabled = false;
+        _errorMessage = 'Microphone permission is required for offline voice dice.';
+        _safeNotify();
+        return;
+      } catch (_) {
+        await _releaseSpeechService();
+        _available = false;
+        _enabled = false;
+        _errorMessage = 'Could not reopen the offline microphone.';
+        _safeNotify();
+        return;
+      }
+    }
+
+    // Only recreate model/recognizer when they were never successfully built.
     _available = false;
     _initialized = false;
     _safeNotify();
@@ -282,9 +295,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     _listenGeneration += 1;
     _listening = false;
 
-    // Keep the native AudioRecord/recognizer pipeline warm while discarding
-    // speech during dice animation and token selection. This is much faster
-    // and safer than stop/start on every roll.
     if (_serviceStarted && !_servicePaused) {
       try {
         await _speechService?.setPause(paused: true);
@@ -302,7 +312,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     _clearCandidate();
 
     try {
-      // Clear any pre-roll acoustic state before accepting the next command.
       await _speechService?.reset();
     } catch (_) {}
 
@@ -359,8 +368,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       await service.start(onRecognitionError: _handleRecognitionError);
       if (!identical(service, _speechService) || _disposed) return;
 
-      // Mark native state immediately after start() returns. If the app was
-      // backgrounded during the await, we can now reliably pause the live mic.
       _serviceStarted = true;
       _servicePaused = false;
 
@@ -382,14 +389,14 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       _available = false;
       _enabled = false;
       _listening = false;
+      await _releaseSpeechService();
       _errorMessage = 'Microphone permission is required for offline voice dice.';
       _safeNotify();
     } catch (_) {
       if (_disposed || generation != _listenGeneration) return;
       _listening = false;
-      _serviceStarted = false;
-      _servicePaused = false;
       _enabled = false;
+      await _releaseSpeechService();
       _errorMessage = 'Could not start the offline microphone recognizer.';
       _safeNotify();
     }
@@ -434,10 +441,12 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
 
   void _handleRecognitionError(Object error, [StackTrace? stackTrace]) {
     if (_disposed || _lifecyclePaused || _rollSuspended) return;
+    _listenGeneration += 1;
     _listening = false;
     _enabled = false;
     _errorMessage = 'Offline voice paused. Tap the mic to retry.';
     _safeNotify();
+    unawaited(_releaseSpeechService());
   }
 
   void _handleRawRecognition(String raw, {required bool isFinal}) {
@@ -455,9 +464,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
 
-    // Some Vosk outputs expose a normalized 0..1 confidence, while others use
-    // a different score scale. Only reject when it is clearly a normalized and
-    // extremely weak final hypothesis.
     final confidence = hypothesis.confidence;
     if (isFinal &&
         confidence != null &&
@@ -486,8 +492,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       _partialHits = 1;
     }
 
-    // Two matching partial frames reduce noise, while suspendForRoll can still
-    // consume one very recent partial candidate for instant-tap responsiveness.
     if (_partialHits >= 2) {
       _commitCandidate(value, heardAt: heardAt);
     } else {
@@ -496,7 +500,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _commitCandidate(int value, {required DateTime heardAt}) {
-    // No queue: newest command always overwrites the old command.
     _pendingValue = value;
     _pendingAt = heardAt;
     _errorMessage = null;
@@ -505,10 +508,12 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
 
   void _handleStreamError(Object error, [StackTrace? stackTrace]) {
     if (_disposed || _lifecyclePaused || _rollSuspended) return;
+    _listenGeneration += 1;
     _listening = false;
     _enabled = false;
     _errorMessage = 'Offline voice stream paused. Tap the mic to retry.';
     _safeNotify();
+    unawaited(_releaseSpeechService());
   }
 
   void _clearCandidate() {
