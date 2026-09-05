@@ -16,6 +16,7 @@ void main() {
       expect(VoiceDiceController.parseLastDiceValue('three'), 3);
       expect(VoiceDiceController.parseLastDiceValue('५'), 5);
       expect(VoiceDiceController.parseLastDiceValue('फाइव'), 5);
+      expect(VoiceDiceController.parseLastDiceValue('फाईव'), 5);
       expect(VoiceDiceController.parseLastDiceValue('सिक्स'), 6);
       expect(VoiceDiceController.parseLastDiceValue('चक्का'), 6);
     });
@@ -40,18 +41,20 @@ void main() {
       }
     });
 
-    test('six with no legal move still grants another roll', () {
+    test('one hundred consecutive no-move sixes never force a turn switch', () {
       final engine = LudoEngine(playerCount: 2);
       for (final token in engine.players.first.tokens) {
         token.progress = 56;
       }
 
-      engine.beginRolling();
-      engine.commitRoll(6);
-
-      expect(engine.awaitingMove, isFalse);
-      expect(engine.currentColor, LudoColor.red);
-      expect(engine.canRoll, isTrue);
+      for (var i = 0; i < 100; i++) {
+        engine.beginRolling();
+        engine.commitRoll(6);
+        expect(engine.awaitingMove, isFalse);
+        expect(engine.currentColor, LudoColor.red);
+        expect(engine.canRoll, isTrue);
+        expect(engine.gameOver, isFalse);
+      }
       expect(engine.lastEvent, contains('Roll again'));
     });
 
