@@ -60,6 +60,14 @@ void main() {
       expect(mainActivity, contains('override fun onPause()'));
       expect(mainActivity, contains('EXTRA_PREFER_OFFLINE'));
       expect(mainActivity, contains('EXTRA_PARTIAL_RESULTS'));
+      expect(
+        mainActivity,
+        contains('emitSpeech(partialResults, isFinal = true, epoch = epoch)'),
+      );
+      expect(
+        mainActivity,
+        contains('EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer'),
+      );
     });
 
     test('permission denial remains an optional voice failure, not a game dependency', () {
