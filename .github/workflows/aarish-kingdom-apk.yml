@@ -1,0 +1,122 @@
+name: Aarish Kingdom APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aarish-kingdom-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-release-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply deterministic voice hardening once
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Fqx 'version: 1.4.0+12' pubspec.yaml; then
+            python3 tool/voice_reliability_patch.py
+          else
+            echo 'Voice reliability hardening already applied; continuing with validation/build.'
+          fi
+          git diff --check
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: stable
+          cache: true
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Prepare Android wrapper without replacing project files
+        shell: bash
+        run: |
+          set -euo pipefail
+          FLUTTER_BIN="$(readlink -f "$(command -v flutter)")"
+          FLUTTER_ROOT="$(dirname "$(dirname "$FLUTTER_BIN")")"
+          printf 'flutter.sdk=%s\nsdk.dir=%s\n' "$FLUTTER_ROOT" "$ANDROID_SDK_ROOT" > android/local.properties
+
+          if [[ ! -f android/gradlew || ! -f android/gradle/wrapper/gradle-wrapper.jar ]]; then
+            (
+              cd android
+              gradle wrapper --gradle-version 9.3.1 --distribution-type bin
+            )
+          fi
+          chmod +x android/gradlew
+          ./android/gradlew --version
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Run deterministic game and voice tests
+        run: flutter test
+
+      - name: Analyze source
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s build/app/outputs/flutter-apk/app-release.apk
+          ls -lh build/app/outputs/flutter-apk/app-release.apk
+          sha256sum build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload release APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarish-kingdom-release-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Persist validated hardening and Gradle wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git add \
+            lib/services/voice_dice_controller.dart \
+            lib/ui/game_screen.dart \
+            test/voice_turn_binding_test.dart \
+            pubspec.yaml \
+            android/gradlew \
+            android/gradlew.bat \
+            android/gradle/wrapper/gradle-wrapper.jar \
+            android/gradle/wrapper/gradle-wrapper.properties
+
+          if git diff --cached --quiet; then
+            echo 'No validated source changes need committing.'
+          else
+            git commit -m 'Harden turn-safe voice input and reproducible Android build'
+            git push origin HEAD:main
+          fi
