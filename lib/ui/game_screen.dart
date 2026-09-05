@@ -208,96 +208,94 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    // Engine changes rebuild the board and turn UI. Voice partials are isolated
+    // inside their own AnimatedBuilders below so rapid recognition updates do
+    // not rebuild the expensive board subtree.
     return AnimatedBuilder(
       animation: _engine,
       builder: (context, _) {
-        return AnimatedBuilder(
-          animation: _voice,
-          builder: (context, _) {
-            final activeColor = GamePalette.player(_engine.currentColor);
-            return Scaffold(
-              appBar: AppBar(
-                titleSpacing: 0,
-                title: Row(
-                  children: [
-                    Icon(Icons.casino_rounded, color: activeColor, size: 23),
-                    const SizedBox(width: 8),
-                    const Flexible(
-                      child: Text(
-                        'Voice Ludo Masti',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: GamePalette.textPrimary,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18,
-                        ),
-                      ),
+        final activeColor = GamePalette.player(_engine.currentColor);
+        return Scaffold(
+          appBar: AppBar(
+            titleSpacing: 0,
+            title: Row(
+              children: [
+                Icon(Icons.casino_rounded, color: activeColor, size: 23),
+                const SizedBox(width: 8),
+                const Flexible(
+                  child: Text(
+                    'Voice Ludo Masti',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: GamePalette.textPrimary,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
                     ),
-                  ],
-                ),
-                actions: [
-                  IconButton(
-                    tooltip: 'Restart game',
-                    onPressed: _engine.isRolling || _rollActionBusy
-                        ? null
-                        : () => _confirmRestart(context),
-                    icon: const Icon(Icons.refresh_rounded),
                   ),
-                  const SizedBox(width: 4),
-                ],
-              ),
-              body: DecoratedBox(
-                decoration: const BoxDecoration(gradient: GamePalette.appBackground),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      top: -110,
-                      right: -80,
-                      child: _AmbientOrb(
-                        color: activeColor.withValues(alpha: .10),
-                        size: 290,
-                      ),
-                    ),
-                    const Positioned(
-                      bottom: -100,
-                      left: -90,
-                      child: _AmbientOrb(
-                        color: Color(0x164DD8FF),
-                        size: 280,
-                      ),
-                    ),
-                    SafeArea(
-                      top: false,
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final wide = constraints.maxWidth >= 860;
-                          return SingleChildScrollView(
-                            keyboardDismissBehavior:
-                                ScrollViewKeyboardDismissBehavior.onDrag,
-                            padding: EdgeInsets.fromLTRB(
-                              wide ? 22 : 12,
-                              8,
-                              wide ? 22 : 12,
-                              28,
-                            ),
-                            child: Center(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 1120),
-                                child: wide
-                                    ? _buildWideLayout(context)
-                                    : _buildPhoneLayout(context),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
                 ),
+              ],
+            ),
+            actions: [
+              IconButton(
+                tooltip: 'Restart game',
+                onPressed: _engine.isRolling || _rollActionBusy
+                    ? null
+                    : () => _confirmRestart(context),
+                icon: const Icon(Icons.refresh_rounded),
               ),
-            );
-          },
+              const SizedBox(width: 4),
+            ],
+          ),
+          body: DecoratedBox(
+            decoration: const BoxDecoration(gradient: GamePalette.appBackground),
+            child: Stack(
+              children: [
+                Positioned(
+                  top: -110,
+                  right: -80,
+                  child: _AmbientOrb(
+                    color: activeColor.withValues(alpha: .10),
+                    size: 290,
+                  ),
+                ),
+                const Positioned(
+                  bottom: -100,
+                  left: -90,
+                  child: _AmbientOrb(
+                    color: Color(0x164DD8FF),
+                    size: 280,
+                  ),
+                ),
+                SafeArea(
+                  top: false,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final wide = constraints.maxWidth >= 860;
+                      return SingleChildScrollView(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: EdgeInsets.fromLTRB(
+                          wide ? 22 : 12,
+                          8,
+                          wide ? 22 : 12,
+                          28,
+                        ),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1120),
+                            child: wide
+                                ? _buildWideLayout(context)
+                                : _buildPhoneLayout(context),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -351,30 +349,32 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   Widget _buildBoardCard() {
     final activeColor = GamePalette.player(_engine.currentColor);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-      width: double.infinity,
-      padding: const EdgeInsets.all(7),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: activeColor.withValues(alpha: .72), width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: activeColor.withValues(alpha: .18),
-            blurRadius: 30,
-            spreadRadius: 1,
-            offset: const Offset(0, 14),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .38),
-            blurRadius: 34,
-            offset: const Offset(0, 18),
-          ),
-        ],
+    return RepaintBoundary(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+        width: double.infinity,
+        padding: const EdgeInsets.all(7),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: activeColor.withValues(alpha: .72), width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: activeColor.withValues(alpha: .18),
+              blurRadius: 30,
+              spreadRadius: 1,
+              offset: const Offset(0, 14),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .38),
+              blurRadius: 34,
+              offset: const Offset(0, 18),
+            ),
+          ],
+        ),
+        child: LudoBoard(engine: _engine, onTokenTap: _moveToken),
       ),
-      child: LudoBoard(engine: _engine, onTokenTap: _moveToken),
     );
   }
 
@@ -589,6 +589,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildVoicePanel() {
+    return AnimatedBuilder(
+      animation: _voice,
+      builder: (context, _) => _buildVoicePanelContent(),
+    );
+  }
+
+  Widget _buildVoicePanelContent() {
     final pending = _voice.pendingValue;
     final movePaused = _engine.isRolling || _engine.awaitingMove || _rollActionBusy;
     final listening = _voice.listening && !movePaused;
@@ -776,6 +783,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildDicePanel({bool vertical = false}) {
+    return AnimatedBuilder(
+      animation: _voice,
+      builder: (context, _) => _buildDicePanelContent(vertical: vertical),
+    );
+  }
+
+  Widget _buildDicePanelContent({required bool vertical}) {
     final canRoll = _engine.canRoll && !_rollActionBusy;
     final activeColor = GamePalette.player(_engine.currentColor);
     final pending = _voice.pendingValue;
