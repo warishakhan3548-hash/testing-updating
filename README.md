@@ -47,19 +47,24 @@ tap ROLL
 
 Recognition is reset between resolved rolls to prevent buffered audio from one turn affecting another turn.
 
+## Android build contract
+
+The repository contains a **permanent Android project** with a native MethodChannel that streams the bundled Vosk ZIP to app-private storage. Do not replace the `android/` directory with a freshly generated Flutter scaffold: doing so removes the native `voice_ludo/native_model` bridge and breaks offline voice initialization.
+
+This project currently keeps AGP 9 legacy Kotlin mode (`android.builtInKotlin=false`) for plugin compatibility. Therefore `android/app/build.gradle.kts` must explicitly apply `org.jetbrains.kotlin.android` so `MainActivity.kt` and the native voice bridge are compiled.
+
 ## Codemagic build
 
 Use the `Voice Ludo Offline AI APK` workflow from the root `codemagic.yaml`.
 
 The workflow:
 
-1. Downloads the official Hindi Vosk mobile model into `assets/models/`.
-2. Generates the Android Flutter scaffold.
-3. Adds `RECORD_AUDIO` permission and Vosk/JNA ProGuard rules.
-4. Runs `flutter pub get`.
-5. Runs `flutter test`.
-6. Runs `flutter analyze`.
-7. Builds the release APK.
+1. Verifies the permanent Android project, Kotlin configuration, and native voice bridge.
+2. Downloads and integrity-checks the official Hindi Vosk mobile model into `assets/models/`.
+3. Runs `flutter pub get`.
+4. Runs the logic and Android build-contract tests.
+5. Runs `flutter analyze`.
+6. Builds the release APK.
 
 The built APK is published as a Codemagic artifact.
 
@@ -71,7 +76,9 @@ With Flutter installed, run:
 bash tool/bootstrap_android.sh
 ```
 
-The script downloads the offline model, generates the Android scaffold, applies microphone/Vosk configuration, runs tests and analysis, and leaves the project ready for:
+The script is intentionally **non-destructive**. It validates the permanent Android/Kotlin/native voice integration, downloads and verifies the offline model when necessary, then runs dependencies, tests, and analysis. It never deletes or regenerates the `android/` directory.
+
+After it succeeds, build with:
 
 ```bash
 flutter build apk --release

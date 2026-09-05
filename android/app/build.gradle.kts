@@ -4,6 +4,10 @@ import java.util.zip.ZipFile
 
 plugins {
     id("com.android.application")
+    // The project currently uses Flutter/AGP 9's legacy Kotlin mode
+    // (android.builtInKotlin=false). KGP must therefore be applied explicitly
+    // so MainActivity.kt and the native voice MethodChannel are compiled.
+    id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
