@@ -1,0 +1,275 @@
+import 'package:flutter/foundation.dart';
+
+enum LudoColor { red, green, yellow, blue }
+
+extension LudoColorLogic on LudoColor {
+  String get label => switch (this) {
+        LudoColor.red => 'Red',
+        LudoColor.green => 'Green',
+        LudoColor.yellow => 'Yellow',
+        LudoColor.blue => 'Blue',
+      };
+
+  int get startIndex => switch (this) {
+        LudoColor.red => 0,
+        LudoColor.green => 13,
+        LudoColor.yellow => 26,
+        LudoColor.blue => 39,
+      };
+}
+
+class LudoToken {
+  LudoToken(this.id);
+
+  final int id;
+  int progress = -1;
+
+  bool get inYard => progress < 0;
+  bool get finished => progress == LudoEngine.finishProgress;
+}
+
+class LudoPlayer {
+  LudoPlayer(this.color)
+      : tokens = List<LudoToken>.generate(4, (index) => LudoToken(index));
+
+  final LudoColor color;
+  final List<LudoToken> tokens;
+
+  bool get finished => tokens.every((token) => token.finished);
+}
+
+class MoveOutcome {
+  const MoveOutcome({
+    required this.movedColor,
+    required this.tokenId,
+    required this.roll,
+    required this.captures,
+    required this.extraTurn,
+    required this.finishedToken,
+  });
+
+  final LudoColor movedColor;
+  final int tokenId;
+  final int roll;
+  final int captures;
+  final bool extraTurn;
+  final bool finishedToken;
+}
+
+class LudoEngine extends ChangeNotifier {
+  LudoEngine({required int playerCount}) {
+    reset(playerCount);
+  }
+
+  static const int finishProgress = 57;
+  static const Set<int> safeGlobalCells = <int>{
+    0,
+    8,
+    13,
+    21,
+    26,
+    34,
+    39,
+    47,
+  };
+
+  late List<LudoPlayer> players;
+  int currentPlayerIndex = 0;
+  bool isRolling = false;
+  bool awaitingMove = false;
+  bool gameOver = false;
+  int? currentRoll;
+  Set<int> movableTokenIds = <int>{};
+  final List<LudoColor> winnerOrder = <LudoColor>[];
+  String lastEvent = 'Say a number, then tap the dice.';
+  int turnNumber = 1;
+
+  LudoPlayer get currentPlayer => players[currentPlayerIndex];
+  LudoColor get currentColor => currentPlayer.color;
+
+  bool get canRoll => !gameOver && !isRolling && !awaitingMove;
+
+  void reset(int playerCount) {
+    assert(playerCount >= 2 && playerCount <= 4);
+    final colors = switch (playerCount) {
+      2 => <LudoColor>[LudoColor.red, LudoColor.yellow],
+      3 => <LudoColor>[LudoColor.red, LudoColor.green, LudoColor.yellow],
+      _ => LudoColor.values,
+    };
+
+    players = colors.map(LudoPlayer.new).toList(growable: false);
+    currentPlayerIndex = 0;
+    isRolling = false;
+    awaitingMove = false;
+    gameOver = false;
+    currentRoll = null;
+    movableTokenIds = <int>{};
+    winnerOrder.clear();
+    lastEvent = '${currentPlayer.color.label} starts. Say 1–6 and roll!';
+    turnNumber = 1;
+    notifyListeners();
+  }
+
+  void beginRolling() {
+    if (!canRoll) return;
+    isRolling = true;
+    lastEvent = '${currentColor.label} is rolling…';
+    notifyListeners();
+  }
+
+  void cancelRolling() {
+    if (!isRolling) return;
+    isRolling = false;
+    notifyListeners();
+  }
+
+  void commitRoll(int value) {
+    if (!isRolling || gameOver) return;
+    if (value < 1 || value > 6) {
+      throw ArgumentError.value(value, 'value', 'Dice value must be 1–6');
+    }
+
+    currentRoll = value;
+    isRolling = false;
+    movableTokenIds = _legalMoves(currentPlayer, value).toSet();
+
+    if (movableTokenIds.isEmpty) {
+      awaitingMove = false;
+      lastEvent = '${currentColor.label} rolled $value — no legal move.';
+      currentRoll = null;
+      _advanceTurn();
+      notifyListeners();
+      return;
+    }
+
+    awaitingMove = true;
+    lastEvent = movableTokenIds.length == 1
+        ? '${currentColor.label} rolled $value. Tap the glowing token.'
+        : '${currentColor.label} rolled $value. Choose a glowing token.';
+    notifyListeners();
+  }
+
+  MoveOutcome? moveToken(int tokenId) {
+    if (!awaitingMove || gameOver || currentRoll == null) return null;
+    if (!movableTokenIds.contains(tokenId)) return null;
+
+    final player = currentPlayer;
+    final token = player.tokens[tokenId];
+    final roll = currentRoll!;
+
+    if (token.inYard) {
+      token.progress = 0;
+    } else {
+      token.progress += roll;
+    }
+
+    var captures = 0;
+    final landedGlobalCell = globalCellFor(player.color, token.progress);
+    if (landedGlobalCell != null &&
+        !safeGlobalCells.contains(landedGlobalCell)) {
+      for (final opponent in players) {
+        if (opponent.color == player.color || opponent.finished) continue;
+        for (final opponentToken in opponent.tokens) {
+          final opponentCell =
+              globalCellFor(opponent.color, opponentToken.progress);
+          if (opponentCell == landedGlobalCell) {
+            opponentToken.progress = -1;
+            captures += 1;
+          }
+        }
+      }
+    }
+
+    final finishedToken = token.finished;
+    awaitingMove = false;
+    movableTokenIds = <int>{};
+    currentRoll = null;
+
+    if (player.finished && !winnerOrder.contains(player.color)) {
+      winnerOrder.add(player.color);
+      lastEvent = '🏆 ${player.color.label} finished all four tokens!';
+      _completeRankingIfNeeded();
+    } else if (captures > 0) {
+      lastEvent =
+          '💥 ${player.color.label} captured $captures token${captures == 1 ? '' : 's'}!';
+    } else if (finishedToken) {
+      lastEvent = '🏠 ${player.color.label} brought a token home!';
+    } else {
+      lastEvent = '${player.color.label} moved $roll step${roll == 1 ? '' : 's'}.';
+    }
+
+    final earnedExtraTurn = !gameOver &&
+        !player.finished &&
+        (roll == 6 || captures > 0);
+
+    final outcome = MoveOutcome(
+      movedColor: player.color,
+      tokenId: tokenId,
+      roll: roll,
+      captures: captures,
+      extraTurn: earnedExtraTurn,
+      finishedToken: finishedToken,
+    );
+
+    if (!gameOver) {
+      if (earnedExtraTurn) {
+        lastEvent += roll == 6
+            ? ' 🎲 Six gives another turn.'
+            : ' ⚡ Capture gives another turn.';
+      } else {
+        _advanceTurn();
+      }
+    }
+
+    notifyListeners();
+    return outcome;
+  }
+
+  List<int> _legalMoves(LudoPlayer player, int roll) {
+    final legal = <int>[];
+    for (final token in player.tokens) {
+      if (_canMove(token, roll)) legal.add(token.id);
+    }
+    return legal;
+  }
+
+  bool _canMove(LudoToken token, int roll) {
+    if (token.finished) return false;
+    if (token.inYard) return roll == 6;
+    return token.progress + roll <= finishProgress;
+  }
+
+  int? globalCellFor(LudoColor color, int progress) {
+    if (progress < 0 || progress > 51) return null;
+    return (color.startIndex + progress) % 52;
+  }
+
+  void _advanceTurn() {
+    if (gameOver) return;
+
+    var attempts = 0;
+    do {
+      currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+      attempts += 1;
+    } while (winnerOrder.contains(currentPlayer.color) &&
+        attempts <= players.length);
+
+    turnNumber += 1;
+    lastEvent += ' ${currentColor.label}’s turn.';
+  }
+
+  void _completeRankingIfNeeded() {
+    if (winnerOrder.length < players.length - 1) return;
+
+    for (final player in players) {
+      if (!winnerOrder.contains(player.color)) {
+        winnerOrder.add(player.color);
+      }
+    }
+    gameOver = true;
+    awaitingMove = false;
+    currentRoll = null;
+    movableTokenIds = <int>{};
+    lastEvent = '🎉 Game finished! ${winnerOrder.first.label} wins!';
+  }
+}
