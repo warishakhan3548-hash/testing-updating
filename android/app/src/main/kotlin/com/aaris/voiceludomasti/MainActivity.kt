@@ -50,6 +50,7 @@ class MainActivity : FlutterActivity() {
                 eventSink = events
                 emitAvailability()
                 emitListening(sessionActive)
+                emit(mapOf("type" to "lifecycle", "active" to activityResumed))
             }
 
             override fun onCancel(arguments: Any?) {
@@ -385,10 +386,12 @@ class MainActivity : FlutterActivity() {
     override fun onResume() {
         super.onResume()
         activityResumed = true
+        emit(mapOf("type" to "lifecycle", "active" to true))
         if (shouldListen()) ensurePermissionAndStart()
     }
 
     override fun onPause() {
+        emit(mapOf("type" to "lifecycle", "active" to false))
         activityResumed = false
         pauseCurrentSession()
         super.onPause()
