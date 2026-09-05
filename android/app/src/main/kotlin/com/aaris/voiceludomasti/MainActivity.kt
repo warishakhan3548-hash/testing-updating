@@ -72,10 +72,16 @@ class MainActivity : FlutterActivity() {
                         result.error("invalid_context", "A match/turn voice context is required.", null)
                         return@setMethodCallHandler
                     }
+                    val changedWhileActive = currentBinding != null &&
+                        currentBinding != binding && sessionActive
                     currentBinding = binding
                     voiceEnabled = true
                     pausedByFlutter = false
-                    ensurePermissionAndStart()
+                    if (changedWhileActive && shouldListen()) {
+                        restartForContextChange()
+                    } else {
+                        ensurePermissionAndStart()
+                    }
                     result.success(null)
                 }
                 "updateContext" -> {
