@@ -90,7 +90,10 @@ class LudoEngine extends ChangeNotifier {
   bool get canRoll => !gameOver && !isRolling && !awaitingMove;
 
   void reset(int playerCount) {
-    assert(playerCount >= 2 && playerCount <= 4);
+    if (playerCount < 2 || playerCount > 4) {
+      throw RangeError.range(playerCount, 2, 4, 'playerCount');
+    }
+
     final colors = switch (playerCount) {
       2 => <LudoColor>[LudoColor.red, LudoColor.yellow],
       3 => <LudoColor>[LudoColor.red, LudoColor.green, LudoColor.yellow],
@@ -260,7 +263,14 @@ class LudoEngine extends ChangeNotifier {
       currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
       attempts += 1;
     } while (winnerOrder.contains(currentPlayer.color) &&
-        attempts <= players.length);
+        attempts < players.length);
+
+    // Defensive invariant: if every player were somehow ranked without the
+    // normal completion path, do not leave the engine in an infinite turn loop.
+    if (winnerOrder.contains(currentPlayer.color)) {
+      _completeRankingIfNeeded();
+      return;
+    }
 
     turnNumber += 1;
     lastEvent += ' ${currentColor.label}’s turn.';
