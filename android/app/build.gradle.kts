@@ -4,6 +4,10 @@ import java.util.zip.ZipFile
 
 plugins {
     id("com.android.application")
+    // This project intentionally keeps AGP 9's legacy Kotlin mode enabled
+    // because vosk_flutter_service has not migrated to built-in Kotlin yet.
+    // Applying KGP here is therefore required for MainActivity.kt to compile.
+    id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
