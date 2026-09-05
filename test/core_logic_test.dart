@@ -74,6 +74,11 @@ void main() {
   });
 
   group('Ludo engine', () {
+    test('invalid player counts fail fast in release-safe logic', () {
+      expect(() => LudoEngine(playerCount: 1), throwsRangeError);
+      expect(() => LudoEngine(playerCount: 5), throwsRangeError);
+    });
+
     test('two-player game uses opposite red and yellow sides', () {
       final engine = LudoEngine(playerCount: 2);
       expect(
@@ -128,11 +133,11 @@ void main() {
       final red = engine.players.first;
       final yellow = engine.players.last;
 
-      red.tokens[0].progress = 13; // red global cell 13
-      yellow.tokens[0].progress = 40; // yellow global cell 14
+      red.tokens[0].progress = 13;
+      yellow.tokens[0].progress = 40;
 
       engine.beginRolling();
-      engine.commitRoll(1); // red lands on unsafe global cell 14
+      engine.commitRoll(1);
       final outcome = engine.moveToken(0);
 
       expect(outcome?.captures, 1);
@@ -145,8 +150,8 @@ void main() {
       final red = engine.players.first;
       final yellow = engine.players.last;
 
-      red.tokens[0].progress = 7; // next step -> global safe cell 8
-      yellow.tokens[0].progress = 34; // yellow also occupies global cell 8
+      red.tokens[0].progress = 7;
+      yellow.tokens[0].progress = 34;
 
       engine.beginRolling();
       engine.commitRoll(1);
