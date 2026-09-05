@@ -27,7 +27,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   int _targetDice = 1;
   int _animationSeed = 1;
-  int? _lastVoiceValue;
+  int _handledVoiceIntentSerial = 0;
   bool _rollActionBusy = false;
   bool _winnerDialogShown = false;
 
@@ -35,7 +35,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _engine = LudoEngine(playerCount: widget.playerCount);
-    _voice = VoiceDiceController()..addListener(_handleVoiceFeedback);
+    _voice = VoiceDiceController(engine: _engine)..addListener(_handleVoiceFeedback);
     _diceController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 760),
@@ -52,18 +52,32 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _voice.removeListener(_handleVoiceFeedback);
     _diceController.dispose();
     _celebrationController.dispose();
-    _engine.dispose();
     _voice.dispose();
+    _engine.dispose();
     super.dispose();
   }
 
   void _handleVoiceFeedback() {
-    final value = _voice.pendingValue;
-    if (value != null && value != _lastVoiceValue) {
-      HapticFeedback.selectionClick();
-      SystemSound.play(SystemSoundType.click);
-    }
-    _lastVoiceValue = value;
+    final serial = _voice.acceptedIntentSerial;
+    final value = _voice.lastAcceptedValue;
+    if (serial <= _handledVoiceIntentSerial || value == null) return;
+
+    _handledVoiceIntentSerial = serial;
+    HapticFeedback.selectionClick();
+    SystemSound.play(SystemSoundType.click);
+
+    // Do not roll re-entrantly from inside ChangeNotifier.notifyListeners().
+    // The microtask is effectively immediate, while keeping notifier traversal
+    // clean. The engine's synchronous reservation remains the race authority.
+    scheduleMicrotask(() {
+      if (!mounted ||
+          _rollActionBusy ||
+          !_engine.canRoll ||
+          _voice.pendingValue == null) {
+        return;
+      }
+      unawaited(_rollDice());
+    });
   }
 
   Future<void> _rollDice() async {
@@ -602,17 +616,17 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final accent = pending != null ? GamePalette.violet : GamePalette.green;
 
     final status = _voice.initializing
-        ? 'Loading offline AI…'
+        ? 'Starting voice engine…'
         : !_voice.initialized
-            ? 'Starting offline AI…'
+            ? 'Starting voice engine…'
             : !_voice.available
-                ? 'Offline voice unavailable'
+                ? 'Voice recognition unavailable'
                 : !_voice.enabled
                     ? 'Voice control is off'
                     : movePaused
                         ? 'Voice safely paused for this move'
                         : listening
-                            ? 'Listening locally… बोलो 1 से 6'
+                            ? 'Listening… बोलो 1 से 6'
                             : 'Preparing microphone…';
 
     return AnimatedContainer(
@@ -712,7 +726,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 Text(
                   _voice.errorMessage ??
                       (_voice.lastHeard.isEmpty
-                          ? 'Offline Hindi AI • latest valid number wins'
+                          ? 'Hindi + Hinglish voice • instant dice roll'
                           : 'Heard: “${_voice.lastHeard}”'),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -765,7 +779,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   ),
                   if (pending != null)
                     const Text(
-                      'LOCKED',
+                      'HEARD',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 7.5,
@@ -823,7 +837,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             _engine.awaitingMove
                 ? 'Choose a glowing token'
                 : pending != null
-                    ? 'Voice locked: $pending'
+                    ? 'Voice heard: $pending'
                     : 'Ready to roll',
             key: ValueKey<String>(
               '${_engine.awaitingMove}-$pending-${_engine.isRolling}',
@@ -841,8 +855,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           _engine.awaitingMove
               ? 'Tap the highlighted token on the board.'
               : pending != null
-                  ? 'Tap the dice — $pending will be the result.'
-                  : 'Say 1–6 first, or roll normally at random.',
+                  ? '$pending recognized — rolling automatically…'
+                  : 'Say 1–6 to roll instantly, or tap for a random roll.',
           textAlign: vertical ? TextAlign.center : TextAlign.start,
           style: const TextStyle(
             color: GamePalette.textMuted,

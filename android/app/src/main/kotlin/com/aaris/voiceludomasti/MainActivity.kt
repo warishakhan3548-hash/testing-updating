@@ -188,7 +188,7 @@ class MainActivity : FlutterActivity() {
             SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
 
     private fun isAnyRecognitionAvailable(): Boolean =
-        isOnDeviceRecognitionUsable() || SpeechRecognizer.isRecognitionAvailable(this)
+        SpeechRecognizer.isRecognitionAvailable(this) || isOnDeviceRecognitionUsable()
 
     private fun ensurePermissionAndStart() {
         if (!shouldListen()) return
@@ -253,21 +253,26 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    /**
+     * Accuracy-first hot path: use the phone's default recognizer first because
+     * it generally has the strongest Hindi/Hinglish short-word acoustic model.
+     * If that service cannot be created, fall back to the on-device recognizer.
+     * The recognizer object stays warm between dice/move pauses to avoid cold-start
+     * latency regardless of which backend is active.
+     */
     private fun ensureRecognizer(): SpeechRecognizer? {
         speechRecognizer?.let { return it }
 
         val recognizer =
-            if (isOnDeviceRecognitionUsable()) {
+            if (SpeechRecognizer.isRecognitionAvailable(this)) {
                 try {
-                    usingOnDeviceRecognizer = true
-                    SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
-                } catch (onDeviceError: Throwable) {
-                    onDeviceRejectedForProcess = true
                     usingOnDeviceRecognizer = false
-                    createSystemRecognizer(onDeviceError)
+                    SpeechRecognizer.createSpeechRecognizer(this)
+                } catch (systemError: Throwable) {
+                    createOnDeviceFallback(systemError)
                 }
             } else {
-                createSystemRecognizer(null)
+                createOnDeviceFallback(null)
             } ?: return null
 
         speechRecognizer = recognizer
@@ -277,19 +282,21 @@ class MainActivity : FlutterActivity() {
         return recognizer
     }
 
-    private fun createSystemRecognizer(fallbackCause: Throwable?): SpeechRecognizer? {
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+    private fun createOnDeviceFallback(systemError: Throwable?): SpeechRecognizer? {
+        if (!isOnDeviceRecognitionUsable()) {
             emitRecognizerCreationFailure(
-                fallbackCause ?: IllegalStateException("No Android speech recognizer is available."),
+                systemError ?: IllegalStateException("No Android speech recognizer is available."),
             )
             return null
         }
 
         return try {
+            usingOnDeviceRecognizer = true
+            SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+        } catch (onDeviceError: Throwable) {
+            onDeviceRejectedForProcess = true
             usingOnDeviceRecognizer = false
-            SpeechRecognizer.createSpeechRecognizer(this)
-        } catch (systemError: Throwable) {
-            emitRecognizerCreationFailure(systemError)
+            emitRecognizerCreationFailure(onDeviceError)
             null
         }
     }
@@ -438,7 +445,7 @@ class MainActivity : FlutterActivity() {
                 armSessionWatchdog(epoch, SPEECH_WATCHDOG_MS)
                 emitSpeech(
                     partialResults,
-                    isFinal = true,
+                    isFinal = false,
                     epoch = epoch,
                     includeConfidences = false,
                 )
@@ -896,10 +903,12 @@ class MainActivity : FlutterActivity() {
                 "एक", "इक", "one", "वन", "1", "१",
                 "दो", "two", "टू", "2", "२",
                 "तीन", "three", "थ्री", "3", "३",
-                "चार", "four", "फोर", "4", "४",
+                "चार", "four", "फोर", "फौर", "4", "४",
                 "पाँच", "पांच", "पाच", "पान्च", "five", "फाइव", "फाईव", "5", "५",
-                "छक्का", "छका", "छक्के", "छह", "छः", "छे", "चक्का", "छको",
-                "six", "सिक्स", "सिक्सर", "chakka", "chhakka", "chhakkaa", "6", "६",
+                "छक्का", "छका", "छक्क", "छक", "छक्के", "छह", "छः", "छे",
+                "चक्का", "चका", "चक्क", "शक्का", "छको",
+                "six", "सिक्स", "सिक्सर", "सिक", "chakka", "chaka", "chhakka",
+                "chhaka", "chhakkaa", "shakka", "6", "६",
                 "छक्का छक्का", "छह छह", "six six",
                 "पाँच पाँच", "पांच पांच", "five five",
                 "चार चार", "four four",

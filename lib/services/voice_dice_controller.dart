@@ -34,8 +34,9 @@ class DiceVoiceParseResult {
 
 /// Deterministic Hindi + English + Hinglish parser for dice commands.
 ///
-/// This deliberately rejects phrases containing unrelated vocabulary instead of
-/// treating every occurrence of "six" (or another number) as a game command.
+/// The parser is deliberately tiny and match-specific. It accepts the short
+/// variants Android commonly emits for quiet/fast dice words, while unrelated
+/// vocabulary is still rejected instead of being substring-matched blindly.
 class DiceVoiceIntentParser {
   static const Map<String, int> _aliases = <String, int>{
     '1': 1,
@@ -44,6 +45,7 @@ class DiceVoiceIntentParser {
     'एक': 1,
     'इक': 1,
     'ek': 1,
+    'aik': 1,
     'वन': 1,
     '2': 2,
     '२': 2,
@@ -56,6 +58,7 @@ class DiceVoiceIntentParser {
     'three': 3,
     'तीन': 3,
     'teen': 3,
+    'tin': 3,
     'थ्री': 3,
     '4': 4,
     '४': 4,
@@ -64,6 +67,7 @@ class DiceVoiceIntentParser {
     'char': 4,
     'chaar': 4,
     'फोर': 4,
+    'फौर': 4,
     '5': 5,
     '५': 5,
     'five': 5,
@@ -72,6 +76,7 @@ class DiceVoiceIntentParser {
     'पाच': 5,
     'paanch': 5,
     'panch': 5,
+    'panj': 5,
     'फाइव': 5,
     'फाईव': 5,
     '6': 6,
@@ -82,13 +87,22 @@ class DiceVoiceIntentParser {
     'छे': 6,
     'छक्का': 6,
     'छका': 6,
+    'छक्क': 6,
+    'छक': 6,
     'चक्का': 6,
+    'चका': 6,
+    'चक्क': 6,
+    'शक्का': 6,
     'छक्के': 6,
     'chakka': 6,
+    'chaka': 6,
     'chhakka': 6,
+    'chhaka': 6,
     'chakkaa': 6,
+    'shakka': 6,
     'सिक्स': 6,
     'सिक्सर': 6,
+    'सिक': 6,
     'sixer': 6,
   };
 
@@ -98,11 +112,15 @@ class DiceVoiceIntentParser {
     'aa',
     'aana',
     'aaye',
+    'aao',
     'again',
+    'are',
     'आ',
     'अब',
     'आए',
     'आना',
+    'आओ',
+    'अरे',
     'bhai',
     'भाई',
     'bolo',
@@ -110,21 +128,34 @@ class DiceVoiceIntentParser {
     'bring',
     'chahiye',
     'चाहिए',
+    'chalo',
+    'चलो',
     'de',
     'दे',
     'dice',
     'फिर',
     'give',
+    'haan',
+    'हाँ',
+    'हां',
+    'हा',
     'i',
+    'ji',
+    'जी',
     'lao',
     'लाओ',
     'me',
     'mujhe',
+    'mujhko',
     'मुझे',
+    'मुझको',
     'na',
     'need',
     'now',
     'number',
+    'ok',
+    'okay',
+    'ओके',
     'please',
     'roll',
     'set',
@@ -132,6 +163,7 @@ class DiceVoiceIntentParser {
     'the',
     'to',
     'want',
+    'yes',
     'यार',
     'yaar',
     'ना',
@@ -161,17 +193,29 @@ class DiceVoiceIntentParser {
     'करो',
   };
 
+  static String _normalize(String input) => input
+      .toLowerCase()
+      .replaceAll('\u200c', '')
+      .replaceAll('\u200d', '')
+      .replaceAll('।', ' ')
+      .replaceAll(RegExp(r'[^a-z0-9\u0900-\u097F]+'), ' ')
+      .trim();
+
+  /// True only when the whole hypothesis is made from dice aliases (including
+  /// repeated speech such as "छक्का छक्का" / "six six"). This lets a partial
+  /// callback trigger immediately without accepting an unrelated sentence.
+  static bool isDiceOnlyPhrase(String input) {
+    final normalized = _normalize(input);
+    if (normalized.isEmpty) return false;
+    final tokens = normalized.split(RegExp(r'\s+'));
+    return tokens.every(_aliases.containsKey);
+  }
+
   static DiceVoiceParseResult? parse(
     String input, {
     double? recognitionConfidence,
   }) {
-    final normalized = input
-        .toLowerCase()
-        .replaceAll('\u200c', '')
-        .replaceAll('\u200d', '')
-        .replaceAll('।', ' ')
-        .replaceAll(RegExp(r'[^a-z0-9\u0900-\u097F]+'), ' ')
-        .trim();
+    final normalized = _normalize(input);
     if (normalized.isEmpty) return null;
 
     if (recognitionConfidence != null &&
@@ -230,10 +274,8 @@ class DiceVoiceIntentParser {
 
 /// Match-scoped Android speech controller.
 ///
-/// The existing GameScreen creates LudoEngine immediately before this class, so
-/// the controller captures that engine once as its authoritative match runtime.
-/// Speech callbacks only submit turn-bound intents; the engine owns pending state,
-/// atomic consumption, random fallback and immutable roll resolution.
+/// Speech callbacks only submit turn-bound intents; the engine owns pending
+/// state, atomic consumption, random fallback and immutable roll resolution.
 class VoiceDiceController extends ChangeNotifier {
   VoiceDiceController({
     LudoEngine? engine,
@@ -767,10 +809,14 @@ class VoiceDiceController extends ChangeNotifier {
       );
       if (candidate == null) continue;
 
-      // Bare partial words are intentionally not armed. Waiting for the final
-      // callback prevents unrelated speech such as "six players" from briefly
-      // forcing a six when its first partial result was only "six".
-      if (!finalResult && !candidate.strongContext) continue;
+      // Exact dice-only partials are the latency hot path. Natural command
+      // phrases may also arm from partials when they contain explicit command
+      // context. Unrelated sentence prefixes still wait for/fail final parsing.
+      if (!finalResult &&
+          !candidate.strongContext &&
+          !DiceVoiceIntentParser.isDiceOnlyPhrase(heard)) {
+        continue;
+      }
       parsed = candidate;
       break;
     }

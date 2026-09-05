@@ -14,7 +14,8 @@ void main() {
       expect(activity, contains('SpeechRecognizer.createSpeechRecognizer'));
       expect(activity, contains('destroyRecognizer()'));
       expect(activity, contains('speechRecognizer = null'));
-      expect(activity, contains('scheduleRestart(FAST_RESTART_MS)'));
+      expect(activity, contains('scheduleRestart(resultRestartDelay())'));
+      expect(activity, contains('scheduleRestart(restartDelayFor(error))'));
       expect(activity, contains('mainHandler.removeCallbacks(restartRunnable)'));
       expect(activity, contains('SpeechRecognizer.ERROR_RECOGNIZER_BUSY'));
       expect(activity, contains('override fun onPartialResults'));
@@ -37,9 +38,12 @@ void main() {
       expect(activity, contains('RecognizerIntent.EXTRA_BIASING_STRINGS'));
       expect(activity, contains('DICE_BIASING_STRINGS'));
       expect(activity, contains('"छक्का"'));
+      expect(activity, contains('"छक्क"'));
+      expect(activity, contains('"शक्का"'));
       expect(activity, contains('"पाँच"'));
       expect(activity, contains('"six"'));
       expect(activity, contains('includeConfidences = false'));
+      expect(activity, contains('isFinal = false'));
     });
 
     test('native speech cycles carry exact match/player/turn binding', () {
@@ -82,21 +86,27 @@ void main() {
       ).readAsStringSync();
 
       expect(activity, contains('"pauseListening"'));
-      expect(activity, contains('private fun pauseCurrentSession()'));
+      expect(activity, contains('private fun pauseCurrentSession(keepWarm: Boolean)'));
+      expect(activity, contains('pauseCurrentSession(keepWarm = true)'));
       expect(activity, contains('mainHandler.removeCallbacks(restartRunnable)'));
       expect(activity, contains('destroyRecognizer()'));
       expect(activity, contains('override fun onPause()'));
       expect(activity, contains('override fun onResume()'));
     });
 
-    test('Dart event stream and start calls are duplicate-guarded', () {
+    test('Dart event stream, auto-roll, and start calls are duplicate-guarded', () {
       final controller =
           File('lib/services/voice_dice_controller.dart').readAsStringSync();
+      final gameScreen = File('lib/ui/game_screen.dart').readAsStringSync();
 
       expect(controller, contains('_eventSub ??='));
       expect(controller, contains('_starting ||'));
       expect(controller, contains('reserveDiceRoll'));
       expect(controller, contains('_rollSuspended = true'));
+      expect(gameScreen, contains('_handledVoiceIntentSerial'));
+      expect(gameScreen, contains('_voice.acceptedIntentSerial'));
+      expect(gameScreen, contains('_rollActionBusy'));
+      expect(gameScreen, contains('_voice.pendingValue == null'));
     });
 
     test('microphone permission prompt cannot be requested repeatedly in parallel', () {
