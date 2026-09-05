@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../game/ludo_engine.dart';
 import '../services/voice_dice_controller.dart';
+import 'game_palette.dart';
 import 'ludo_board.dart';
 
 class GameScreen extends StatefulWidget {
@@ -16,35 +17,51 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen>
-    with SingleTickerProviderStateMixin {
+class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   late final LudoEngine _engine;
   late final VoiceDiceController _voice;
   late final AnimationController _diceController;
+  late final AnimationController _celebrationController;
   final math.Random _random = math.Random();
 
   int _targetDice = 1;
   int _animationSeed = 1;
+  int? _lastVoiceValue;
   bool _winnerDialogShown = false;
 
   @override
   void initState() {
     super.initState();
     _engine = LudoEngine(playerCount: widget.playerCount);
-    _voice = VoiceDiceController();
+    _voice = VoiceDiceController()..addListener(_handleVoiceFeedback);
     _diceController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 780),
+      duration: const Duration(milliseconds: 760),
+    );
+    _celebrationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
     );
     _voice.initialize();
   }
 
   @override
   void dispose() {
+    _voice.removeListener(_handleVoiceFeedback);
     _diceController.dispose();
+    _celebrationController.dispose();
     _engine.dispose();
     _voice.dispose();
     super.dispose();
+  }
+
+  void _handleVoiceFeedback() {
+    final value = _voice.pendingValue;
+    if (value != null && value != _lastVoiceValue) {
+      HapticFeedback.selectionClick();
+      SystemSound.play(SystemSoundType.click);
+    }
+    _lastVoiceValue = value;
   }
 
   Future<void> _rollDice() async {
@@ -66,10 +83,12 @@ class _GameScreenState extends State<GameScreen>
       await _diceController.forward(from: 0);
       if (!mounted) return;
       _engine.commitRoll(target);
-      HapticFeedback.mediumImpact();
+      if (target == 6) {
+        HapticFeedback.heavyImpact();
+      } else {
+        HapticFeedback.mediumImpact();
+      }
 
-      // Keep recognition suspended while the current move is unresolved.
-      // Speech during token selection must not leak into the next player's roll.
       if (!_engine.awaitingMove) {
         await _voice.resumeAfterRoll();
       }
@@ -85,11 +104,14 @@ class _GameScreenState extends State<GameScreen>
 
     if (outcome.captures > 0) {
       HapticFeedback.heavyImpact();
+      SystemSound.play(SystemSoundType.click);
+    } else if (outcome.finishedToken) {
+      HapticFeedback.mediumImpact();
     } else {
       HapticFeedback.lightImpact();
     }
 
-    await Future<void>.delayed(const Duration(milliseconds: 180));
+    await Future<void>.delayed(const Duration(milliseconds: 330));
     if (!mounted) return;
 
     if (_engine.gameOver) {
@@ -102,82 +124,74 @@ class _GameScreenState extends State<GameScreen>
   void _showWinnerDialog() {
     if (_winnerDialogShown || !mounted) return;
     _winnerDialogShown = true;
-    final ranking = _engine.winnerOrder;
+    final ranking = List<LudoColor>.unmodifiable(_engine.winnerOrder);
+    _celebrationController.forward(from: 0);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) {
-          return AlertDialog(
-            icon: const Text('🏆', style: TextStyle(fontSize: 54)),
-            title: Text('${ranking.first.label} wins!'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Final ranking',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 12),
-                for (var i = 0; i < ranking.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        Text(i == 0
-                            ? '🥇'
-                            : i == 1
-                                ? '🥈'
-                                : i == 2
-                                    ? '🥉'
-                                    : '🏁'),
-                        const SizedBox(width: 10),
-                        Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: _playerColor(ranking[i]),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          ranking[i].label,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                      ],
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'Game result',
+      barrierColor: Colors.black.withValues(alpha: .78),
+      transitionDuration: const Duration(milliseconds: 320),
+      pageBuilder: (dialogContext, _, __) {
+        return Material(
+          type: MaterialType.transparency,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedBuilder(
+                    animation: _celebrationController,
+                    builder: (context, _) => CustomPaint(
+                      painter: _ConfettiPainter(
+                        progress: _celebrationController.value,
+                      ),
                     ),
                   ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(dialogContext).pop();
-                  Navigator.of(context).pop();
-                },
-                child: const Text('EXIT'),
+                ),
               ),
-              FilledButton(
-                onPressed: () {
-                  Navigator.of(dialogContext).pop();
-                  setState(() {
-                    _winnerDialogShown = false;
-                    _targetDice = 1;
-                  });
-                  _engine.reset(widget.playerCount);
-                  _voice.clearPending();
-                  _voice.resumeAfterRoll();
-                },
-                child: const Text('PLAY AGAIN'),
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: _WinnerCard(
+                    ranking: ranking,
+                    onExit: () {
+                      Navigator.of(dialogContext).pop();
+                      Navigator.of(context).pop();
+                    },
+                    onPlayAgain: () {
+                      Navigator.of(dialogContext).pop();
+                      setState(() {
+                        _winnerDialogShown = false;
+                        _targetDice = 1;
+                      });
+                      _celebrationController.reset();
+                      _engine.reset(widget.playerCount);
+                      _voice.clearPending();
+                      _voice.resumeAfterRoll();
+                    },
+                  ),
+                ),
               ),
             ],
-          );
-        },
-      );
-    });
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutBack,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: .88, end: 1).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -188,13 +202,25 @@ class _GameScreenState extends State<GameScreen>
         return AnimatedBuilder(
           animation: _voice,
           builder: (context, _) {
+            final activeColor = GamePalette.player(_engine.currentColor);
             return Scaffold(
               appBar: AppBar(
-                title: const Text(
-                  'Voice Ludo Masti',
-                  style: TextStyle(fontWeight: FontWeight.w900),
+                titleSpacing: 0,
+                title: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.casino_rounded, color: activeColor, size: 23),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Voice Ludo Masti',
+                      style: TextStyle(
+                        color: GamePalette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ],
                 ),
-                centerTitle: true,
                 actions: [
                   IconButton(
                     tooltip: 'Restart game',
@@ -202,45 +228,54 @@ class _GameScreenState extends State<GameScreen>
                         _engine.isRolling ? null : () => _confirmRestart(context),
                     icon: const Icon(Icons.refresh_rounded),
                   ),
+                  const SizedBox(width: 4),
                 ],
               ),
-              body: SafeArea(
-                top: false,
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final boardSize = math.min(
-                      constraints.maxWidth - 24,
-                      560.0,
-                    );
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 28),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 620),
-                          child: Column(
-                            children: [
-                              _buildTurnHeader(context),
-                              const SizedBox(height: 10),
-                              SizedBox(
-                                width: boardSize,
-                                height: boardSize,
-                                child: LudoBoard(
-                                  engine: _engine,
-                                  onTokenTap: _moveToken,
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              _buildPlayersStrip(context),
-                              const SizedBox(height: 12),
-                              _buildVoicePanel(context),
-                              const SizedBox(height: 12),
-                              _buildDicePanel(context),
-                            ],
-                          ),
-                        ),
+              body: DecoratedBox(
+                decoration: const BoxDecoration(gradient: GamePalette.appBackground),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: -110,
+                      right: -80,
+                      child: _AmbientOrb(
+                        color: activeColor.withValues(alpha: .10),
+                        size: 290,
                       ),
-                    );
-                  },
+                    ),
+                    const Positioned(
+                      bottom: -100,
+                      left: -90,
+                      child: _AmbientOrb(
+                        color: Color(0x164DD8FF),
+                        size: 280,
+                      ),
+                    ),
+                    SafeArea(
+                      top: false,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final wide = constraints.maxWidth >= 860;
+                          return SingleChildScrollView(
+                            padding: EdgeInsets.fromLTRB(
+                              wide ? 22 : 12,
+                              8,
+                              wide ? 22 : 12,
+                              28,
+                            ),
+                            child: Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 1120),
+                                child: wide
+                                    ? _buildWideLayout(context)
+                                    : _buildPhoneLayout(context),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -250,167 +285,364 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
-  Widget _buildTurnHeader(BuildContext context) {
-    final color = _playerColor(_engine.currentColor);
+  Widget _buildPhoneLayout(BuildContext context) {
+    return Column(
+      children: [
+        _buildTurnHeader(context),
+        const SizedBox(height: 11),
+        _buildBoardCard(),
+        const SizedBox(height: 12),
+        _buildPlayersPanel(),
+        const SizedBox(height: 12),
+        _buildVoicePanel(),
+        const SizedBox(height: 12),
+        _buildDicePanel(),
+      ],
+    );
+  }
+
+  Widget _buildWideLayout(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            children: [
+              _buildTurnHeader(context),
+              const SizedBox(height: 13),
+              _buildBoardCard(),
+            ],
+          ),
+        ),
+        const SizedBox(width: 20),
+        SizedBox(
+          width: 350,
+          child: Column(
+            children: [
+              _buildPlayersPanel(),
+              const SizedBox(height: 13),
+              _buildVoicePanel(),
+              const SizedBox(height: 13),
+              _buildDicePanel(vertical: true),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBoardCard() {
+    final activeColor = GamePalette.player(_engine.currentColor);
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+      padding: const EdgeInsets.all(7),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .10),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withValues(alpha: .28)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: activeColor.withValues(alpha: .72), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: activeColor.withValues(alpha: .18),
+            blurRadius: 30,
+            spreadRadius: 1,
+            offset: const Offset(0, 14),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .38),
+            blurRadius: 34,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: LudoBoard(engine: _engine, onTokenTap: _moveToken),
+    );
+  }
+
+  Widget _buildTurnHeader(BuildContext context) {
+    final color = GamePalette.player(_engine.currentColor);
+    final roll = _engine.currentRoll;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+      decoration: BoxDecoration(
+        color: GamePalette.surface.withValues(alpha: .92),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: .38)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: .08),
+            blurRadius: 18,
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Container(
-            width: 14,
-            height: 14,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: .3),
+                  blurRadius: 14,
+                ),
+              ],
+            ),
+            child: Text(
+              _engine.currentColor.label.substring(0, 1),
+              style: TextStyle(
+                color: _onPlayerColor(_engine.currentColor),
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${_engine.currentColor.label} • Turn ${_engine.turnNumber}',
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+                Row(
+                  children: [
+                    Text(
+                      '${_engine.currentColor.label} Turn',
+                      style: const TextStyle(
+                        color: GamePalette.textPrimary,
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .06),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '#${_engine.turnNumber}',
+                        style: const TextStyle(
+                          color: GamePalette.textMuted,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  _engine.lastEvent,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                const SizedBox(height: 3),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, .15),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    ),
+                  ),
+                  child: Text(
+                    _engine.lastEvent,
+                    key: ValueKey<String>(_engine.lastEvent),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: GamePalette.textMuted,
+                      fontSize: 12,
+                      height: 1.25,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          if (_engine.currentRoll != null)
+          if (roll != null) ...[
+            const SizedBox(width: 9),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: color,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(13),
               ),
               child: Text(
-                '${_engine.currentRoll}',
+                '$roll',
                 style: TextStyle(
-                  color: _engine.currentColor == LudoColor.yellow
-                      ? Colors.black87
-                      : Colors.white,
+                  color: _onPlayerColor(_engine.currentColor),
+                  fontSize: 19,
                   fontWeight: FontWeight.w900,
-                  fontSize: 18,
                 ),
               ),
             ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildPlayersStrip(BuildContext context) {
-    return SizedBox(
-      height: 58,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _engine.players.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final player = _engine.players[index];
-          final active = index == _engine.currentPlayerIndex && !_engine.gameOver;
-          final color = _playerColor(player.color);
-          final homeCount = player.tokens.where((t) => t.finished).length;
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: active ? color.withValues(alpha: .13) : Colors.white,
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(
-                color: active ? color : Colors.black.withValues(alpha: .08),
-                width: active ? 1.5 : 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                ),
-                const SizedBox(width: 7),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      player.color.label,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    Text(
-                      '$homeCount/4 home',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
+  Widget _buildPlayersPanel() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: GamePalette.surface.withValues(alpha: .82),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: .055)),
+      ),
+      child: Row(
+        children: [
+          for (var index = 0; index < _engine.players.length; index++) ...[
+            if (index > 0) const SizedBox(width: 7),
+            Expanded(child: _buildPlayerCard(index)),
+          ],
+        ],
       ),
     );
   }
 
-  Widget _buildVoicePanel(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final pending = _voice.pendingValue;
-    final status = !_voice.initialized
-        ? 'Starting voice…'
-        : !_voice.available
-            ? 'Voice unavailable'
-            : !_voice.enabled
-                ? 'Voice off'
-                : _voice.listening
-                    ? 'Listening… बोलो 1 से 6'
-                    : 'Voice restarting…';
+  Widget _buildPlayerCard(int index) {
+    final player = _engine.players[index];
+    final active = index == _engine.currentPlayerIndex && !_engine.gameOver;
+    final color = GamePalette.player(player.color);
+    final homeCount = player.tokens.where((token) => token.finished).length;
+    final inPlayCount = player.tokens.where((token) => !token.inYard && !token.finished).length;
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 9),
+      decoration: BoxDecoration(
+        color: active ? color.withValues(alpha: .14) : GamePalette.surfaceRaised,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: active ? color : Colors.white.withValues(alpha: .04),
+          width: active ? 1.4 : 1,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 13,
+            height: 13,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: active
+                  ? [BoxShadow(color: color.withValues(alpha: .45), blurRadius: 9)]
+                  : null,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            player.color.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: active ? GamePalette.textPrimary : GamePalette.textMuted,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '$homeCount🏠 · $inPlayCount▶',
+            maxLines: 1,
+            style: const TextStyle(
+              color: GamePalette.textMuted,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVoicePanel() {
+    final pending = _voice.pendingValue;
+    final movePaused = _engine.isRolling || _engine.awaitingMove;
+    final listening = _voice.listening && !movePaused;
+    final accent = pending != null ? GamePalette.violet : GamePalette.green;
+
+    final status = !_voice.initialized
+        ? 'Loading offline AI…'
+        : !_voice.available
+            ? 'Offline voice unavailable'
+            : !_voice.enabled
+                ? 'Voice control is off'
+                : movePaused
+                    ? 'Voice safely paused for this move'
+                    : listening
+                        ? 'Listening locally… बोलो 1 से 6'
+                        : 'Preparing microphone…';
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            scheme.primaryContainer.withValues(alpha: .8),
-            scheme.secondaryContainer.withValues(alpha: .45),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
+        color: GamePalette.surface.withValues(alpha: .94),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: accent.withValues(alpha: pending != null ? .55 : .22)),
+        boxShadow: pending == null
+            ? null
+            : [
+                BoxShadow(
+                  color: GamePalette.violet.withValues(alpha: .14),
+                  blurRadius: 20,
+                ),
+              ],
       ),
       child: Row(
         children: [
-          Material(
-            color: _voice.enabled && _voice.available
-                ? scheme.primary
-                : scheme.surfaceContainerHighest,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () => _voice.setEnabled(!_voice.enabled),
-              child: Padding(
-                padding: const EdgeInsets.all(13),
-                child: Icon(
-                  _voice.enabled ? Icons.mic_rounded : Icons.mic_off_rounded,
-                  color: _voice.enabled && _voice.available
-                      ? scheme.onPrimary
-                      : scheme.onSurfaceVariant,
+          Semantics(
+            button: true,
+            label: _voice.enabled ? 'Turn voice control off' : 'Turn voice control on',
+            child: Material(
+              color: _voice.enabled && _voice.available
+                  ? accent.withValues(alpha: .18)
+                  : GamePalette.surfaceRaised,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => _voice.setEnabled(!_voice.enabled),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: _voice.enabled && _voice.available
+                          ? accent.withValues(alpha: .6)
+                          : Colors.white10,
+                    ),
+                    boxShadow: listening
+                        ? [
+                            BoxShadow(
+                              color: GamePalette.green.withValues(alpha: .25),
+                              blurRadius: 14,
+                              spreadRadius: 2,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Icon(
+                    _voice.enabled ? Icons.mic_rounded : Icons.mic_off_rounded,
+                    color: _voice.enabled && _voice.available
+                        ? accent
+                        : GamePalette.textMuted,
+                  ),
                 ),
               ),
             ),
@@ -420,49 +652,99 @@ class _GameScreenState extends State<GameScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(status, style: const TextStyle(fontWeight: FontWeight.w900)),
-                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: listening ? GamePalette.green : GamePalette.textMuted,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        status,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: GamePalette.textPrimary,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
                 Text(
                   _voice.errorMessage ??
                       (_voice.lastHeard.isEmpty
-                          ? 'Hindi/English: एक, दो, तीन… / one, two, three…'
+                          ? 'Offline Hindi AI • latest valid number wins'
                           : 'Heard: “${_voice.lastHeard}”'),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: scheme.onSurfaceVariant,
+                  style: const TextStyle(
+                    color: GamePalette.textMuted,
+                    fontSize: 10.8,
+                    height: 1.25,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          AnimatedContainer(
+          const SizedBox(width: 10),
+          AnimatedSwitcher(
             duration: const Duration(milliseconds: 180),
-            width: 54,
-            height: 54,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: pending == null ? Colors.white70 : scheme.primary,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: pending == null
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: scheme.primary.withValues(alpha: .28),
-                        blurRadius: 12,
-                      ),
-                    ],
+            transitionBuilder: (child, animation) => ScaleTransition(
+              scale: animation,
+              child: FadeTransition(opacity: animation, child: child),
             ),
-            child: Text(
-              pending?.toString() ?? '?',
-              style: TextStyle(
-                fontSize: 25,
-                fontWeight: FontWeight.w900,
-                color: pending == null
-                    ? scheme.onSurfaceVariant
-                    : scheme.onPrimary,
+            child: Container(
+              key: ValueKey<int?>(pending),
+              width: 58,
+              height: 58,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                gradient: pending == null
+                    ? null
+                    : const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [GamePalette.violet, Color(0xFF6548F4)],
+                      ),
+                color: pending == null ? GamePalette.surfaceRaised : null,
+                borderRadius: BorderRadius.circular(17),
+                border: Border.all(
+                  color: pending == null ? Colors.white10 : Colors.white24,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    pending?.toString() ?? '—',
+                    style: TextStyle(
+                      color: pending == null
+                          ? GamePalette.textMuted
+                          : Colors.white,
+                      fontSize: 25,
+                      height: 1,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  if (pending != null)
+                    const Text(
+                      'LOCKED',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 7.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .5,
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -471,87 +753,143 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
-  Widget _buildDicePanel(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+  Widget _buildDicePanel({bool vertical = false}) {
     final canRoll = _engine.canRoll;
+    final activeColor = GamePalette.player(_engine.currentColor);
+    final pending = _voice.pendingValue;
+
+    final dice = AnimatedBuilder(
+      animation: _diceController,
+      builder: (context, child) {
+        final t = _diceController.value;
+        final displayValue = _engine.isRolling && t < .91
+            ? ((_animationSeed + (t * 43).floor()) % 6) + 1
+            : (_engine.currentRoll ?? _targetDice);
+        final angle = _engine.isRolling ? t * math.pi * 5.2 : 0.0;
+        final scale = _engine.isRolling ? 1 + math.sin(t * math.pi) * .08 : 1.0;
+        return Transform.scale(
+          scale: scale,
+          child: Transform.rotate(
+            angle: angle,
+            child: _DiceFace(value: displayValue, color: activeColor),
+          ),
+        );
+      },
+    );
+
+    final info = Column(
+      crossAxisAlignment: vertical ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: Text(
+            _engine.awaitingMove
+                ? 'Choose a glowing token'
+                : pending != null
+                    ? 'Voice locked: $pending'
+                    : 'Ready to roll',
+            key: ValueKey<String>(
+              '${_engine.awaitingMove}-$pending-${_engine.isRolling}',
+            ),
+            textAlign: vertical ? TextAlign.center : TextAlign.start,
+            style: const TextStyle(
+              color: GamePalette.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _engine.awaitingMove
+              ? 'Tap the highlighted token on the board.'
+              : pending != null
+                  ? 'Tap the dice — $pending will be the result.'
+                  : 'Say 1–6 first, or roll normally at random.',
+          textAlign: vertical ? TextAlign.center : TextAlign.start,
+          style: const TextStyle(
+            color: GamePalette.textMuted,
+            fontSize: 11,
+            height: 1.3,
+          ),
+        ),
+      ],
+    );
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.black.withValues(alpha: .06)),
+        color: GamePalette.surface.withValues(alpha: .96),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: activeColor.withValues(alpha: .22)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: .05),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: .24),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          AnimatedBuilder(
-            animation: _diceController,
-            builder: (context, child) {
-              final t = _diceController.value;
-              final displayValue = _engine.isRolling && t < .9
-                  ? ((_animationSeed + (t * 41).floor()) % 6) + 1
-                  : (_engine.currentRoll ?? _targetDice);
-              final angle = _engine.isRolling ? t * math.pi * 5 : 0.0;
-              return Transform.rotate(
-                angle: angle,
-                child: _DiceFace(value: displayValue),
-              );
-            },
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: vertical
+          ? Column(
               children: [
-                Text(
-                  _engine.awaitingMove
-                      ? 'Choose your token'
-                      : _voice.pendingValue != null
-                          ? 'Voice locked: ${_voice.pendingValue}'
-                          : 'Normal random roll',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15,
-                  ),
+                Semantics(
+                  button: true,
+                  enabled: canRoll,
+                  label: 'Roll dice',
+                  child: GestureDetector(onTap: canRoll ? _rollDice : null, child: dice),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  _engine.awaitingMove
-                      ? 'Tap any glowing token on the board.'
-                      : _voice.pendingValue != null
-                          ? 'Tap roll — ${_voice.pendingValue} will come.'
-                          : 'Say a number first if you want to control the dice.',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: scheme.onSurfaceVariant,
-                  ),
+                const SizedBox(height: 13),
+                info,
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: _rollButton(canRoll, activeColor),
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Semantics(
+                  button: true,
+                  enabled: canRoll,
+                  label: 'Roll dice',
+                  child: GestureDetector(onTap: canRoll ? _rollDice : null, child: dice),
+                ),
+                const SizedBox(width: 14),
+                Expanded(child: info),
+                const SizedBox(width: 10),
+                SizedBox(
+                  height: 54,
+                  child: _rollButton(canRoll, activeColor),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 10),
-          SizedBox(
-            height: 52,
-            child: FilledButton.icon(
-              onPressed: canRoll ? _rollDice : null,
-              icon: _engine.isRolling
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2.2),
-                    )
-                  : const Icon(Icons.casino_rounded),
-              label: Text(_engine.isRolling ? 'ROLLING' : 'ROLL'),
-            ),
-          ),
-        ],
+    );
+  }
+
+  Widget _rollButton(bool canRoll, Color color) {
+    return FilledButton.icon(
+      style: FilledButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: _onPlayerColor(_engine.currentColor),
+        disabledBackgroundColor: GamePalette.surfaceRaised,
+        disabledForegroundColor: GamePalette.textMuted,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+      ),
+      onPressed: canRoll ? _rollDice : null,
+      icon: _engine.isRolling
+          ? const SizedBox(
+              width: 17,
+              height: 17,
+              child: CircularProgressIndicator(strokeWidth: 2.1),
+            )
+          : const Icon(Icons.casino_rounded),
+      label: Text(
+        _engine.isRolling ? 'ROLLING' : 'ROLL',
+        style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: .3),
       ),
     );
   }
@@ -560,9 +898,14 @@ class _GameScreenState extends State<GameScreen>
     final restart = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Restart game?'),
+        backgroundColor: GamePalette.surface,
+        title: const Text(
+          'Restart game?',
+          style: TextStyle(color: GamePalette.textPrimary, fontWeight: FontWeight.w900),
+        ),
         content: const Text(
           'All token positions and the current ranking will reset.',
+          style: TextStyle(color: GamePalette.textMuted),
         ),
         actions: [
           TextButton(
@@ -582,18 +925,15 @@ class _GameScreenState extends State<GameScreen>
     await _voice.resumeAfterRoll();
   }
 
-  Color _playerColor(LudoColor color) => switch (color) {
-        LudoColor.red => const Color(0xFFE84343),
-        LudoColor.green => const Color(0xFF2CB76F),
-        LudoColor.yellow => const Color(0xFFF4C542),
-        LudoColor.blue => const Color(0xFF3978E8),
-      };
+  Color _onPlayerColor(LudoColor color) =>
+      color == LudoColor.yellow ? const Color(0xFF332A00) : Colors.white;
 }
 
 class _DiceFace extends StatelessWidget {
-  const _DiceFace({required this.value});
+  const _DiceFace({required this.value, required this.color});
 
   final int value;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -618,38 +958,277 @@ class _DiceFace extends StatelessWidget {
       _ => <int>[0, 2, 3, 5, 6, 8],
     };
 
+    final dark = Color.lerp(color, Colors.black, .18)!;
     return Container(
-      width: 70,
-      height: 70,
+      width: 82,
+      height: 82,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary,
-        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Color.lerp(color, Colors.white, .08)!, dark],
+        ),
+        borderRadius: BorderRadius.circular(23),
+        border: Border.all(color: Colors.white.withValues(alpha: .28), width: 1.4),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context)
-                .colorScheme
-                .primary
-                .withValues(alpha: .28),
-            blurRadius: 16,
-            offset: const Offset(0, 7),
+            color: color.withValues(alpha: .3),
+            blurRadius: 18,
+            offset: const Offset(0, 9),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .26),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Stack(
         children: [
+          Positioned(
+            left: 11,
+            top: 8,
+            right: 11,
+            height: 20,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                gradient: LinearGradient(
+                  colors: [Colors.white.withValues(alpha: .16), Colors.transparent],
+                ),
+              ),
+            ),
+          ),
           for (final index in dots)
             Align(
               alignment: positions[index],
               child: Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
+                width: 10.5,
+                height: 10.5,
+                decoration: BoxDecoration(
+                  color: color == GamePalette.yellow
+                      ? const Color(0xFF392F00)
+                      : Colors.white,
                   shape: BoxShape.circle,
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black26, blurRadius: 2, offset: Offset(0, 1)),
+                  ],
                 ),
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _WinnerCard extends StatelessWidget {
+  const _WinnerCard({
+    required this.ranking,
+    required this.onExit,
+    required this.onPlayAgain,
+  });
+
+  final List<LudoColor> ranking;
+  final VoidCallback onExit;
+  final VoidCallback onPlayAgain;
+
+  @override
+  Widget build(BuildContext context) {
+    final winner = ranking.first;
+    final winnerColor = GamePalette.player(winner);
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
+        decoration: BoxDecoration(
+          color: GamePalette.surface,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: winnerColor.withValues(alpha: .55)),
+          boxShadow: [
+            BoxShadow(
+              color: winnerColor.withValues(alpha: .25),
+              blurRadius: 40,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 84,
+              height: 84,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: winnerColor.withValues(alpha: .16),
+                shape: BoxShape.circle,
+                border: Border.all(color: winnerColor.withValues(alpha: .55)),
+              ),
+              child: const Text('🏆', style: TextStyle(fontSize: 48)),
+            ),
+            const SizedBox(height: 15),
+            Text(
+              '${winner.label} wins!',
+              style: const TextStyle(
+                color: GamePalette.textPrimary,
+                fontSize: 25,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 5),
+            const Text(
+              'Masti champion of this round 🎉',
+              style: TextStyle(color: GamePalette.textMuted, fontSize: 12.5),
+            ),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: GamePalette.surfaceRaised,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                children: [
+                  for (var i = 0; i < ranking.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: Row(
+                        children: [
+                          Text(
+                            i == 0
+                                ? '🥇'
+                                : i == 1
+                                    ? '🥈'
+                                    : i == 2
+                                        ? '🥉'
+                                        : '🏁',
+                            style: const TextStyle(fontSize: 18),
+                          ),
+                          const SizedBox(width: 10),
+                          Container(
+                            width: 13,
+                            height: 13,
+                            decoration: BoxDecoration(
+                              color: GamePalette.player(ranking[i]),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            ranking[i].label,
+                            style: const TextStyle(
+                              color: GamePalette.textPrimary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onExit,
+                    child: const Text('EXIT'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton.icon(
+                    onPressed: onPlayAgain,
+                    icon: const Icon(Icons.replay_rounded),
+                    label: const Text(
+                      'PLAY AGAIN',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConfettiPainter extends CustomPainter {
+  _ConfettiPainter({required this.progress});
+
+  final double progress;
+
+  static const List<Color> _colors = <Color>[
+    GamePalette.red,
+    GamePalette.green,
+    GamePalette.yellow,
+    GamePalette.blue,
+    GamePalette.violet,
+    GamePalette.cyan,
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (var i = 0; i < 58; i++) {
+      final seedX = ((i * 37) % 101) / 101;
+      final seedY = ((i * 61) % 97) / 97;
+      final drift = math.sin(progress * math.pi * 2 + i) * 18;
+      final x = seedX * size.width + drift;
+      final y = ((seedY + progress * (1.05 + (i % 4) * .07)) % 1.16) *
+              (size.height + 80) -
+          40;
+      final color = _colors[i % _colors.length];
+      final angle = progress * math.pi * (3 + i % 5) + i;
+      final width = 5.0 + (i % 4) * 1.4;
+      final height = 9.0 + (i % 3) * 2.0;
+
+      canvas.save();
+      canvas.translate(x, y);
+      canvas.rotate(angle);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset.zero, width: width, height: height),
+          const Radius.circular(2),
+        ),
+        Paint()..color = color.withValues(alpha: .9),
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ConfettiPainter oldDelegate) =>
+      oldDelegate.progress != progress;
+}
+
+class _AmbientOrb extends StatelessWidget {
+  const _AmbientOrb({required this.color, required this.size});
+
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: color,
+              blurRadius: size * .45,
+              spreadRadius: size * .05,
+            ),
+          ],
+        ),
       ),
     );
   }
