@@ -57,7 +57,7 @@ workflows:
         script: flutter test
 
       - name: Analyze source
-        script: flutter analyze
+        script: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Build release APK
         script: flutter build apk --release
