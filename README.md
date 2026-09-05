@@ -1,16 +1,17 @@
 # Voice Ludo Masti 🎲🎤
 
-A local 2/3/4-player Flutter Ludo game where the **latest spoken dice number controls the next roll**.
+A local 2/3/4-player Flutter Ludo game where the **latest spoken dice number controls the next roll**. Voice recognition is designed to run **fully offline on Android** with a bundled Vosk Hindi mobile model.
 
 ## Core behaviour
 
-- Say `एक / one / 1` through `छक्का / six / 6`.
+- Say `एक / वन` through `छक्का / सिक्स` (the parser also understands common English/transliterated variants).
 - The latest valid number replaces any older pending number.
 - Tap **ROLL** and the animated dice resolves to that number.
 - The voice command is consumed for exactly one roll.
 - If no voice number is pending, the dice uses a normal random 1–6 value.
-- Recognition is suspended at the roll boundary and while choosing a token, so late/stale speech callbacks cannot leak into the next player's roll.
+- Recognition is frozen at the roll boundary and while choosing a token, so stale microphone results cannot leak into the next player's roll.
 - There is **no three-sixes penalty**. Six can be intentionally rolled any number of times.
+- A six still earns another roll even when the exact-home rule leaves no legal move.
 
 ## Ludo rules included
 
@@ -23,42 +24,59 @@ A local 2/3/4-player Flutter Ludo game where the **latest spoken dice number con
 - Exact roll is required to reach the final home position.
 - Winner ranking continues until all players are ranked.
 
-## Voice architecture
+## Advanced offline voice architecture
 
-`speech_to_text` is used as a short-command recognizer. The app automatically re-opens listening sessions when the platform closes one. Each listen session has a monotonic generation ID; callbacks from an older generation are ignored. Starting a dice roll increments the generation and stops recognition before consuming the pending value.
+The app uses **Vosk** with `vosk-model-small-hi-0.22`, a lightweight Hindi model intended for mobile/offline use. The APK bundles the model during the Codemagic build, so the installed game does not need internet access for dice recognition.
 
-This makes the important sequence deterministic:
+The recognizer uses a deliberately tiny command grammar containing only dice words plus `[unk]`. This has two advantages:
+
+1. General room conversation can be rejected instead of being forced into a number.
+2. Very short commands such as `छक्का`, `पाँच`, `फाइव`, or `सिक्स` are cheaper and faster to recognize than full dictation.
+
+Partial recognition uses a stability filter. Two matching partial frames normally lock a command, while a very recent candidate is still allowed at the exact roll boundary so a fast `say four → instantly tap roll` interaction remains responsive.
+
+There is no command queue. The newest accepted value overwrites the older one:
 
 ```text
-say: six
-say: five
-say: four
+say: छक्का
+say: पाँच
+say: चार
 tap ROLL
 => 4
 ```
 
-## Run
+Recognition is reset between resolved rolls to prevent buffered audio from one turn affecting another turn.
 
-This repository contains the Flutter app source. If platform scaffolding is not present yet, from the project root run:
+## Codemagic build
+
+Use the `Voice Ludo Offline AI APK` workflow from the root `codemagic.yaml`.
+
+The workflow:
+
+1. Downloads the official Hindi Vosk mobile model into `assets/models/`.
+2. Generates the Android Flutter scaffold.
+3. Adds `RECORD_AUDIO` permission and Vosk/JNA ProGuard rules.
+4. Runs `flutter pub get`.
+5. Runs `flutter test`.
+6. Runs `flutter analyze`.
+7. Builds the release APK.
+
+The built APK is published as a Codemagic artifact.
+
+## Local Android setup
+
+With Flutter installed, run:
 
 ```bash
-flutter create . --platforms=android
-flutter pub get
+bash tool/bootstrap_android.sh
 ```
 
-Then add microphone permission to `android/app/src/main/AndroidManifest.xml` if your generated scaffold does not already contain it:
-
-```xml
-<uses-permission android:name="android.permission.RECORD_AUDIO" />
-<uses-permission android:name="android.permission.INTERNET" />
-```
-
-Run on a physical Android phone for the best speech-recognition experience:
+The script downloads the offline model, generates the Android scaffold, applies microphone/Vosk configuration, runs tests and analysis, and leaves the project ready for:
 
 ```bash
-flutter run
+flutter build apk --release
 ```
 
-## Notes
+## Privacy / network behaviour
 
-Speech recognition depends on the speech service installed on the device and may require network access depending on that service. Hindi is preferred when available, with Indian English/system locale fallback. The parser also accepts common Hindi, English and transliterated number forms.
+Runtime speech recognition is local. The Android app only needs microphone permission for voice dice. The model download occurs at build/setup time, not while playing.
