@@ -29,6 +29,7 @@ jobs:
           set -euo pipefail
           if grep -Fqx 'version: 1.4.0+12' pubspec.yaml; then
             python3 tool/voice_reliability_patch.py
+            python3 tool/voice_contract_patch.py
           else
             echo 'Voice reliability hardening already applied; continuing with validation/build.'
           fi
@@ -72,7 +73,13 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: Run deterministic game and voice tests
+      - name: Test voice parser and turn arbitration
+        run: flutter test test/voice_turn_binding_test.dart
+
+      - name: Test Android voice/build contracts
+        run: flutter test test/android_build_contract_test.dart
+
+      - name: Run complete Flutter test suite
         run: flutter test
 
       - name: Analyze source
@@ -108,6 +115,7 @@ jobs:
             lib/services/voice_dice_controller.dart \
             lib/ui/game_screen.dart \
             test/voice_turn_binding_test.dart \
+            test/android_build_contract_test.dart \
             pubspec.yaml \
             android/gradlew \
             android/gradlew.bat \
