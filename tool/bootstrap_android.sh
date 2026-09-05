@@ -43,8 +43,29 @@ if ! grep -Fq 'voice_ludo/native_model' \
   exit 1
 fi
 
-mkdir -p assets/models
-MODEL="assets/models/vosk-model-small-hi-0.22.zip"
+if grep -Fq 'assets/models/vosk-model-small-hi-0.22.zip' pubspec.yaml; then
+  echo "ERROR: the Vosk ZIP must not be a generated Flutter asset."
+  exit 1
+fi
+
+if ! grep -Fq 'src/main/assets/vosk-model-small-hi-0.22.zip' android/app/build.gradle.kts; then
+  echo "ERROR: Gradle is not targeting the native Android Vosk asset path."
+  exit 1
+fi
+
+if ! grep -Fq 'tasks.named("preBuild")' android/app/build.gradle.kts; then
+  echo "ERROR: native voice model preparation is not attached to Android preBuild."
+  exit 1
+fi
+
+if ! grep -Fq 'assets.open(MODEL_ANDROID_ASSET)' \
+  android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt; then
+  echo "ERROR: MainActivity is not reading the native Android model asset."
+  exit 1
+fi
+
+mkdir -p android/app/src/main/assets
+MODEL="android/app/src/main/assets/vosk-model-small-hi-0.22.zip"
 URL="https://alphacephei.com/vosk/models/vosk-model-small-hi-0.22.zip"
 
 model_is_valid() {
@@ -73,7 +94,7 @@ PY
 }
 
 if ! model_is_valid; then
-  echo "Downloading offline Hindi Vosk model..."
+  echo "Downloading offline Hindi Vosk model into native Android assets..."
   PARTIAL="${MODEL}.part"
   rm -f "$PARTIAL"
   trap 'rm -f "$PARTIAL"' EXIT
@@ -93,7 +114,7 @@ if ! model_is_valid; then
 fi
 
 echo "Permanent Android + native voice bridge: OK"
-echo "Offline Hindi model integrity: OK"
+echo "Native Android Hindi model integrity: OK"
 
 flutter pub get
 flutter test
