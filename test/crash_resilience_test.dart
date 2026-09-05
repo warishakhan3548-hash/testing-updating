@@ -10,7 +10,9 @@ void main() {
       ).readAsStringSync();
 
       expect(
-        RegExp(r'SpeechRecognizer\.createSpeechRecognizer').allMatches(activity).length,
+        RegExp(r'SpeechRecognizer\.createSpeechRecognizer')
+            .allMatches(activity)
+            .length,
         1,
       );
       expect(activity, contains('scheduleRestart(140L)'));
@@ -30,6 +32,7 @@ void main() {
       ).readAsStringSync();
       final controller =
           File('lib/services/voice_dice_controller.dart').readAsStringSync();
+      final engine = File('lib/game/ludo_engine.dart').readAsStringSync();
 
       expect(activity, contains('data class VoiceBinding'));
       expect(activity, contains('recognitionBinding = binding'));
@@ -38,7 +41,7 @@ void main() {
       expect(activity, contains('"turnId" to binding.turnId'));
       expect(activity, contains('"recognizedAtMs" to System.currentTimeMillis()'));
       expect(controller, contains('eventBinding != currentBinding'));
-      expect(controller, contains('current.recognizedAt.isAfter'));
+      expect(engine, contains('current.recognizedAt.isAfter'));
     });
 
     test('Dart event stream and start calls are duplicate-guarded', () {
