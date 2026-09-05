@@ -370,162 +370,19 @@ abstract final class AiBridgeProtocol {
       LedgerCodec.stateFingerprint(state);
 
   static bool looksLikeEnvelope(String raw) {
-    final String text = raw.replaceFirst('\uFEFF', '').trim();
-    if (text.isEmpty || text.length > maxEnvelopeCharacters) return false;
-
-    // Do not classify ordinary JSON/list/code-block prompts as external AI
-    // responses. Routing is allowed only for a parseable, explicit bridge
-    // envelope/action shape.
-    if (!text.startsWith('{') &&
-        !text.startsWith('[') &&
-        !text.startsWith('```')) {
-      return false;
-    }
-
-    try {
-      final dynamic decoded = _decodeFirstJson(text);
-      bool explicitShape = false;
-
-      if (decoded is Map) {
-        final Map<String, dynamic> map = LedgerCodec.objectMap(decoded);
-
-        final bool hasEnvelopeMarker = _containsAlias(
-          map,
-          const <String>[
-            'protocol',
-            'protocolVersion',
-            'schemaVersion',
-            'snapshotId',
-            'snapshot',
-            'stateFingerprint',
-            'stateHash',
-            'fingerprint',
-            'actions',
-            'deltas',
-            'operations',
-            'changes',
-            'commands',
-          ],
-        );
-
-        final bool hasOperationMarker = _containsAlias(
-          map,
-          const <String>[
-            'op',
-            'operation',
-            'action',
-            'method',
-            'command',
-            'create',
-            'add',
-            'insert',
-            'update',
-            'edit',
-            'delete',
-            'remove',
-          ],
-        );
-
-        final bool hasTarget = _containsAlias(
-          map,
-          const <String>[
-            'path',
-            'target',
-            'firebasePath',
-            'location',
-            'ref',
-          ],
-        );
-
-        final bool hasPayload = _containsAlias(
-          map,
-          const <String>[
-            'data',
-            'payload',
-            'value',
-            'record',
-            'fields',
-            'document',
-            'body',
-          ],
-        );
-
-        explicitShape =
-            hasEnvelopeMarker ||
-            hasOperationMarker ||
-            _looksLikePathPatch(map) ||
-            (hasTarget && hasPayload);
-      } else if (decoded is List && decoded.isNotEmpty) {
-        explicitShape = true;
-
-        for (final dynamic item in decoded) {
-          if (item is! Map) {
-            explicitShape = false;
-            break;
-          }
-
-          final Map<String, dynamic> map = LedgerCodec.objectMap(item);
-
-          final bool hasOperationMarker = _containsAlias(
-            map,
-            const <String>[
-              'op',
-              'operation',
-              'action',
-              'method',
-              'command',
-              'create',
-              'add',
-              'insert',
-              'update',
-              'edit',
-              'delete',
-              'remove',
-            ],
-          );
-
-          final bool hasTarget = _containsAlias(
-            map,
-            const <String>[
-              'path',
-              'target',
-              'firebasePath',
-              'location',
-              'ref',
-            ],
-          );
-
-          final bool hasPayload = _containsAlias(
-            map,
-            const <String>[
-              'data',
-              'payload',
-              'value',
-              'record',
-              'fields',
-              'document',
-              'body',
-            ],
-          );
-
-          if (!hasOperationMarker && !(hasTarget && hasPayload)) {
-            explicitShape = false;
-            break;
-          }
-        }
-      }
-
-      if (!explicitShape) return false;
-
-      // Final authority is the real production parser.
-      // Detection must never be more permissive than parsing.
-      parseEnvelope(text);
-      return true;
-    } on AiBridgeException {
-      return false;
-    } catch (_) {
-      return false;
-    }
+    final String text = raw.trimLeft();
+    final String lower = text.toLowerCase();
+    return text.startsWith('{') ||
+        text.startsWith('[') ||
+        text.startsWith('```') ||
+        lower.contains('"actions"') ||
+        lower.contains("'actions'") ||
+        lower.contains('"operations"') ||
+        lower.contains("'operations'") ||
+        lower.contains('"deltas"') ||
+        lower.contains('"changes"') ||
+        (lower.contains('"path"') && lower.contains('"data"')) ||
+        (lower.contains("'path'") && lower.contains("'data'"));
   }
 
   static AiBridgeEnvelope parseEnvelope(String raw) {
@@ -737,24 +594,15 @@ abstract final class AiBridgeProtocol {
     Map<String, dynamic> raw,
   ) {
     final Map<String, dynamic> action = LedgerCodec.objectMap(raw);
-    const List<String> operationKeys = <String>[
-      'op',
-      'operation',
-      'action',
-      'method',
-      'command',
-    ];
-    final bool hasExplicitOperation = _containsAlias(action, operationKeys);
-    final dynamic rawOperation = _pick(action, operationKeys);
-    String operation = _normalizeOperation(rawOperation);
-    if (hasExplicitOperation && operation.isEmpty) {
-      final String shown = '${rawOperation ?? ''}'.trim();
-      throw AiBridgeException(
-        shown.isEmpty
-            ? 'AI operation is empty.'
-            : 'Unsupported AI operation: $shown.',
-      );
-    }
+    String operation = _normalizeOperation(
+      _pick(action, const <String>[
+        'op',
+        'operation',
+        'action',
+        'method',
+        'command',
+      ]),
+    );
     dynamic target = _pick(action, const <String>[
       'path',
       'target',
@@ -858,15 +706,7 @@ abstract final class AiBridgeProtocol {
       }
       if (inline.isNotEmpty) data = inline;
     }
-    if (operation == 'delete') {
-      data = null;
-    } else if ((operation == 'create' || operation == 'update') &&
-        data == null) {
-      throw AiBridgeException(
-        '${operation == 'create' ? 'Create' : 'Update'} action requires '
-        'record data.',
-      );
-    }
+    if (operation == 'delete') data = null;
 
     if (path.isEmpty) {
       path = _structuredActionPath(
@@ -1859,7 +1699,6 @@ Allowed roots: milkDB, udharDB, expenseDB, salaryDB, diaryDB, projectDB.
 Never write an entire root. List records use udharDB/{id}, expenseDB/{id}, diaryDB/{id}.
 Grouped records use milkDB/{exact profile}/records/{id}, salaryDB/{exact profile}/records/{id}, projectDB/{exact profile}/records/{id}.
 For every new record use op:"create" and do not invent an ID; the app creates it. You may provide module:"credit|expense|diary|milk|salary|business" instead of a path. Grouped records also need profile:"exact name". Legacy __NEW__, NEW, AUTO_ID, or an omitted new ID are accepted.
-Existing salary-record date and existing milk-record date/flow are identity fields. Never update those identity fields in place; represent an intentional move as delete old record + create new record.
 For a new grouped profile, set milkDB/{new name}, salaryDB/{new name}, or projectDB/{new name} with profile data and at most one initial record.
 For delete, data is null. Never delete a complete profile unless the user explicitly and unmistakably asks for the whole profile and all its records.
 Never invent an existing ID, profile, name, amount, direction, rate, or date. Ask one focused question with actions:[] when required information is missing or ambiguous.
@@ -2118,33 +1957,6 @@ Required new-record fields: credit=date,name,amount,type; expense=date,category,
       merged,
       id: id,
     );
-    if (!creating && existing != null) {
-      final String previousDate = '${existing['date'] ?? ''}'.trim();
-      final String nextDate = '${validated['date'] ?? ''}'.trim();
-
-      if (root == 'salaryDB' && nextDate != previousDate) {
-        throw const AiBridgeException(
-          'Salary record date cannot be changed in place. Delete the old '
-          'record and create a new one for the new date.',
-        );
-      }
-
-      if (root == 'milkDB') {
-        final String previousFlow =
-            LedgerMath.milkFlow(existing, profile);
-        final String nextFlow =
-            LedgerMath.milkFlow(validated, profile);
-
-        if (nextDate != previousDate ||
-            nextFlow != previousFlow) {
-          throw const AiBridgeException(
-            'Milk record date/flow cannot be changed in place. Delete the old '
-            'record and create a new one for the new date/flow.',
-          );
-        }
-      }
-    }
-
     if (creating) {
       if (_findRecord(records, id) != null) {
         throw AiBridgeException('Record identity $id already exists.');
@@ -2189,12 +2001,6 @@ Required new-record fields: credit=date,name,amount,type; expense=date,category,
       }
       profile['type'] = type;
       profile['company'] = _text(profile['company'], 240);
-    } else if (root == 'projectDB') {
-      // Realtime Database cannot durably represent a Business profile whose
-      // only effective child is an empty records collection. Match manual
-      // Business creation so AI-created khatas survive sync and last-record
-      // deletion.
-      profile.putIfAbsent('safeKeyCore', () => true);
     }
     return profile;
   }
@@ -2224,12 +2030,7 @@ Required new-record fields: credit=date,name,amount,type; expense=date,category,
       row['type'] = type;
       _cleanOptionalTextFields(row, <String>['note', 'description']);
     } else if (root == 'expenseDB') {
-      final String category = _requiredText(
-        row['category'],
-        'Expense category',
-        180,
-      );
-      row['category'] = LedgerMath.expenseCategory(category);
+      row['category'] = _requiredText(row['category'], 'Expense category', 180);
       row['amount'] = _positive(row['amount'], 'Expense amount');
       _cleanOptionalTextFields(row, <String>['note', 'description']);
     } else if (root == 'diaryDB') {

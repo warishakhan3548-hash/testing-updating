@@ -1538,7 +1538,7 @@ class _LoginScreenState extends State<_LoginScreen> {
                         onTap: () => showAboutDialog(
                           context: context,
                           applicationName: 'Aarish Dairy Pro',
-                          applicationVersion: '1.0.15+16',
+                          applicationVersion: '1.0.0',
                           applicationIcon: const _AppMark(size: 48),
                           children: const <Widget>[
                             Text(
@@ -13856,7 +13856,7 @@ class _ExportService {
     bool Function()? stillCurrent,
   }) async {
     final StringBuffer output = StringBuffer()
-      ..writeln('AARISH DAIRY PRO — AI MASTER LEDGER')
+      ..writeln('AARISH DIARY PRO — AI MASTER LEDGER')
       ..writeln('SCOPE :: ${dataset.title}')
       ..writeln(
         'GENERATED_AT :: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())}',

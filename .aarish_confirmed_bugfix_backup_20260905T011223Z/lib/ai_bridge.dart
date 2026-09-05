@@ -370,162 +370,19 @@ abstract final class AiBridgeProtocol {
       LedgerCodec.stateFingerprint(state);
 
   static bool looksLikeEnvelope(String raw) {
-    final String text = raw.replaceFirst('\uFEFF', '').trim();
-    if (text.isEmpty || text.length > maxEnvelopeCharacters) return false;
-
-    // Do not classify ordinary JSON/list/code-block prompts as external AI
-    // responses. Routing is allowed only for a parseable, explicit bridge
-    // envelope/action shape.
-    if (!text.startsWith('{') &&
-        !text.startsWith('[') &&
-        !text.startsWith('```')) {
-      return false;
-    }
-
-    try {
-      final dynamic decoded = _decodeFirstJson(text);
-      bool explicitShape = false;
-
-      if (decoded is Map) {
-        final Map<String, dynamic> map = LedgerCodec.objectMap(decoded);
-
-        final bool hasEnvelopeMarker = _containsAlias(
-          map,
-          const <String>[
-            'protocol',
-            'protocolVersion',
-            'schemaVersion',
-            'snapshotId',
-            'snapshot',
-            'stateFingerprint',
-            'stateHash',
-            'fingerprint',
-            'actions',
-            'deltas',
-            'operations',
-            'changes',
-            'commands',
-          ],
-        );
-
-        final bool hasOperationMarker = _containsAlias(
-          map,
-          const <String>[
-            'op',
-            'operation',
-            'action',
-            'method',
-            'command',
-            'create',
-            'add',
-            'insert',
-            'update',
-            'edit',
-            'delete',
-            'remove',
-          ],
-        );
-
-        final bool hasTarget = _containsAlias(
-          map,
-          const <String>[
-            'path',
-            'target',
-            'firebasePath',
-            'location',
-            'ref',
-          ],
-        );
-
-        final bool hasPayload = _containsAlias(
-          map,
-          const <String>[
-            'data',
-            'payload',
-            'value',
-            'record',
-            'fields',
-            'document',
-            'body',
-          ],
-        );
-
-        explicitShape =
-            hasEnvelopeMarker ||
-            hasOperationMarker ||
-            _looksLikePathPatch(map) ||
-            (hasTarget && hasPayload);
-      } else if (decoded is List && decoded.isNotEmpty) {
-        explicitShape = true;
-
-        for (final dynamic item in decoded) {
-          if (item is! Map) {
-            explicitShape = false;
-            break;
-          }
-
-          final Map<String, dynamic> map = LedgerCodec.objectMap(item);
-
-          final bool hasOperationMarker = _containsAlias(
-            map,
-            const <String>[
-              'op',
-              'operation',
-              'action',
-              'method',
-              'command',
-              'create',
-              'add',
-              'insert',
-              'update',
-              'edit',
-              'delete',
-              'remove',
-            ],
-          );
-
-          final bool hasTarget = _containsAlias(
-            map,
-            const <String>[
-              'path',
-              'target',
-              'firebasePath',
-              'location',
-              'ref',
-            ],
-          );
-
-          final bool hasPayload = _containsAlias(
-            map,
-            const <String>[
-              'data',
-              'payload',
-              'value',
-              'record',
-              'fields',
-              'document',
-              'body',
-            ],
-          );
-
-          if (!hasOperationMarker && !(hasTarget && hasPayload)) {
-            explicitShape = false;
-            break;
-          }
-        }
-      }
-
-      if (!explicitShape) return false;
-
-      // Final authority is the real production parser.
-      // Detection must never be more permissive than parsing.
-      parseEnvelope(text);
-      return true;
-    } on AiBridgeException {
-      return false;
-    } catch (_) {
-      return false;
-    }
+    final String text = raw.trimLeft();
+    final String lower = text.toLowerCase();
+    return text.startsWith('{') ||
+        text.startsWith('[') ||
+        text.startsWith('```') ||
+        lower.contains('"actions"') ||
+        lower.contains("'actions'") ||
+        lower.contains('"operations"') ||
+        lower.contains("'operations'") ||
+        lower.contains('"deltas"') ||
+        lower.contains('"changes"') ||
+        (lower.contains('"path"') && lower.contains('"data"')) ||
+        (lower.contains("'path'") && lower.contains("'data'"));
   }
 
   static AiBridgeEnvelope parseEnvelope(String raw) {

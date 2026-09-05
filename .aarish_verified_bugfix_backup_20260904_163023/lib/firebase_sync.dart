@@ -2554,7 +2554,7 @@ class LedgerSyncService extends ChangeNotifier {
         if (!isSessionCurrent(uid, generation)) return;
         final DiarySourceVersion currentSource = _diarySourceVersion();
         if (!DiaryReadConsistency.canApplyProjectedMonth(
-          projection: confirmed,
+          projection: _diaryProjection,
           requestedSource: source,
           currentSource: currentSource,
         )) {

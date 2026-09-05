@@ -370,162 +370,19 @@ abstract final class AiBridgeProtocol {
       LedgerCodec.stateFingerprint(state);
 
   static bool looksLikeEnvelope(String raw) {
-    final String text = raw.replaceFirst('\uFEFF', '').trim();
-    if (text.isEmpty || text.length > maxEnvelopeCharacters) return false;
-
-    // Do not classify ordinary JSON/list/code-block prompts as external AI
-    // responses. Routing is allowed only for a parseable, explicit bridge
-    // envelope/action shape.
-    if (!text.startsWith('{') &&
-        !text.startsWith('[') &&
-        !text.startsWith('```')) {
-      return false;
-    }
-
-    try {
-      final dynamic decoded = _decodeFirstJson(text);
-      bool explicitShape = false;
-
-      if (decoded is Map) {
-        final Map<String, dynamic> map = LedgerCodec.objectMap(decoded);
-
-        final bool hasEnvelopeMarker = _containsAlias(
-          map,
-          const <String>[
-            'protocol',
-            'protocolVersion',
-            'schemaVersion',
-            'snapshotId',
-            'snapshot',
-            'stateFingerprint',
-            'stateHash',
-            'fingerprint',
-            'actions',
-            'deltas',
-            'operations',
-            'changes',
-            'commands',
-          ],
-        );
-
-        final bool hasOperationMarker = _containsAlias(
-          map,
-          const <String>[
-            'op',
-            'operation',
-            'action',
-            'method',
-            'command',
-            'create',
-            'add',
-            'insert',
-            'update',
-            'edit',
-            'delete',
-            'remove',
-          ],
-        );
-
-        final bool hasTarget = _containsAlias(
-          map,
-          const <String>[
-            'path',
-            'target',
-            'firebasePath',
-            'location',
-            'ref',
-          ],
-        );
-
-        final bool hasPayload = _containsAlias(
-          map,
-          const <String>[
-            'data',
-            'payload',
-            'value',
-            'record',
-            'fields',
-            'document',
-            'body',
-          ],
-        );
-
-        explicitShape =
-            hasEnvelopeMarker ||
-            hasOperationMarker ||
-            _looksLikePathPatch(map) ||
-            (hasTarget && hasPayload);
-      } else if (decoded is List && decoded.isNotEmpty) {
-        explicitShape = true;
-
-        for (final dynamic item in decoded) {
-          if (item is! Map) {
-            explicitShape = false;
-            break;
-          }
-
-          final Map<String, dynamic> map = LedgerCodec.objectMap(item);
-
-          final bool hasOperationMarker = _containsAlias(
-            map,
-            const <String>[
-              'op',
-              'operation',
-              'action',
-              'method',
-              'command',
-              'create',
-              'add',
-              'insert',
-              'update',
-              'edit',
-              'delete',
-              'remove',
-            ],
-          );
-
-          final bool hasTarget = _containsAlias(
-            map,
-            const <String>[
-              'path',
-              'target',
-              'firebasePath',
-              'location',
-              'ref',
-            ],
-          );
-
-          final bool hasPayload = _containsAlias(
-            map,
-            const <String>[
-              'data',
-              'payload',
-              'value',
-              'record',
-              'fields',
-              'document',
-              'body',
-            ],
-          );
-
-          if (!hasOperationMarker && !(hasTarget && hasPayload)) {
-            explicitShape = false;
-            break;
-          }
-        }
-      }
-
-      if (!explicitShape) return false;
-
-      // Final authority is the real production parser.
-      // Detection must never be more permissive than parsing.
-      parseEnvelope(text);
-      return true;
-    } on AiBridgeException {
-      return false;
-    } catch (_) {
-      return false;
-    }
+    final String text = raw.trimLeft();
+    final String lower = text.toLowerCase();
+    return text.startsWith('{') ||
+        text.startsWith('[') ||
+        text.startsWith('```') ||
+        lower.contains('"actions"') ||
+        lower.contains("'actions'") ||
+        lower.contains('"operations"') ||
+        lower.contains("'operations'") ||
+        lower.contains('"deltas"') ||
+        lower.contains('"changes"') ||
+        (lower.contains('"path"') && lower.contains('"data"')) ||
+        (lower.contains("'path'") && lower.contains("'data'"));
   }
 
   static AiBridgeEnvelope parseEnvelope(String raw) {
@@ -737,24 +594,15 @@ abstract final class AiBridgeProtocol {
     Map<String, dynamic> raw,
   ) {
     final Map<String, dynamic> action = LedgerCodec.objectMap(raw);
-    const List<String> operationKeys = <String>[
-      'op',
-      'operation',
-      'action',
-      'method',
-      'command',
-    ];
-    final bool hasExplicitOperation = _containsAlias(action, operationKeys);
-    final dynamic rawOperation = _pick(action, operationKeys);
-    String operation = _normalizeOperation(rawOperation);
-    if (hasExplicitOperation && operation.isEmpty) {
-      final String shown = '${rawOperation ?? ''}'.trim();
-      throw AiBridgeException(
-        shown.isEmpty
-            ? 'AI operation is empty.'
-            : 'Unsupported AI operation: $shown.',
-      );
-    }
+    String operation = _normalizeOperation(
+      _pick(action, const <String>[
+        'op',
+        'operation',
+        'action',
+        'method',
+        'command',
+      ]),
+    );
     dynamic target = _pick(action, const <String>[
       'path',
       'target',
@@ -858,15 +706,7 @@ abstract final class AiBridgeProtocol {
       }
       if (inline.isNotEmpty) data = inline;
     }
-    if (operation == 'delete') {
-      data = null;
-    } else if ((operation == 'create' || operation == 'update') &&
-        data == null) {
-      throw AiBridgeException(
-        '${operation == 'create' ? 'Create' : 'Update'} action requires '
-        'record data.',
-      );
-    }
+    if (operation == 'delete') data = null;
 
     if (path.isEmpty) {
       path = _structuredActionPath(
@@ -2189,12 +2029,6 @@ Required new-record fields: credit=date,name,amount,type; expense=date,category,
       }
       profile['type'] = type;
       profile['company'] = _text(profile['company'], 240);
-    } else if (root == 'projectDB') {
-      // Realtime Database cannot durably represent a Business profile whose
-      // only effective child is an empty records collection. Match manual
-      // Business creation so AI-created khatas survive sync and last-record
-      // deletion.
-      profile.putIfAbsent('safeKeyCore', () => true);
     }
     return profile;
   }
@@ -2224,12 +2058,7 @@ Required new-record fields: credit=date,name,amount,type; expense=date,category,
       row['type'] = type;
       _cleanOptionalTextFields(row, <String>['note', 'description']);
     } else if (root == 'expenseDB') {
-      final String category = _requiredText(
-        row['category'],
-        'Expense category',
-        180,
-      );
-      row['category'] = LedgerMath.expenseCategory(category);
+      row['category'] = _requiredText(row['category'], 'Expense category', 180);
       row['amount'] = _positive(row['amount'], 'Expense amount');
       _cleanOptionalTextFields(row, <String>['note', 'description']);
     } else if (root == 'diaryDB') {

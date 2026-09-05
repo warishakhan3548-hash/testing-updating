@@ -343,23 +343,6 @@ class LedgerCodec {
         .toString();
   }
 
-  static String profileFingerprint(
-    String root,
-    String profileName,
-    dynamic profile,
-  ) {
-    if (!_groupedRoots.contains(root) ||
-        profileName.trim().isEmpty ||
-        profile is! Map) {
-      throw ArgumentError('Invalid grouped profile fingerprint target.');
-    }
-    final Map<String, dynamic> state = emptyState();
-    state[root] = <String, dynamic>{
-      profileName: objectMap(clone(profile)),
-    };
-    return stateFingerprint(state);
-  }
-
   static int _compareFingerprintRecords(
     Map<String, dynamic> left,
     Map<String, dynamic> right,
@@ -1236,7 +1219,10 @@ class LedgerProjection {
     for (final Map<String, dynamic> row in LedgerCodec.canonicalList(
       state['expenseDB'],
     )) {
-      final String category = LedgerMath.expenseCategory(row['category']);
+      final String cleanedCategory = LedgerMath.cleanKey(row['category']);
+      final String category = cleanedCategory.isEmpty
+          ? 'Other'
+          : cleanedCategory;
       final String categoryKey = category.toLowerCase();
       final _ExpenseSummaryBuilder builder = expenseByCategory.putIfAbsent(
         categoryKey,
@@ -1436,9 +1422,6 @@ class LedgerMath {
     final int year = int.parse(match.group(1)!);
     final int month = int.parse(match.group(2)!);
     final int day = int.parse(match.group(3)!);
-
-    if (year < 1) return null;
-
     final DateTime? parsed = DateTime.tryParse(raw);
     if (parsed == null ||
         parsed.year != year ||
@@ -1771,15 +1754,6 @@ class LedgerMath {
       .replaceAll(RegExp(r'[\u0000-\u001F\u007F]'), ' ')
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
-
-  // EXPENSE_CATEGORY_CANONICAL_V1
-  // One domain canonicalizer is shared by summaries, detail filtering,
-  // deletion, exports and AI writes. This keeps legacy blank/dirty category
-  // values in the same logical bucket instead of creating split-brain UI/data.
-  static String expenseCategory(dynamic value) {
-    final String category = cleanKey(value);
-    return category.isEmpty ? 'Other' : category;
-  }
 }
 
 class LedgerSyncService extends ChangeNotifier {
@@ -2357,9 +2331,8 @@ class LedgerSyncService extends ChangeNotifier {
       throw const LedgerSyncException('Sync service is no longer available.');
     }
     final String? uid = _activeUid;
-    final int generation = _sessionGeneration;
     final DatabaseReference? appData = _appDataRef;
-    if (uid == null || appData == null || !isSessionCurrent(uid, generation)) {
+    if (uid == null || appData == null || auth.currentUser?.uid != uid) {
       throw const LedgerSyncException(
         'Please sign in before loading Diary history.',
       );
@@ -2379,7 +2352,7 @@ class LedgerSyncService extends ChangeNotifier {
         final DataSnapshot beforeSnapshot = await appData
             .child('_syncMeta')
             .get();
-        if (!isSessionCurrent(uid, generation)) {
+        if (uid != _activeUid || auth.currentUser?.uid != uid) {
           throw const LedgerSyncException(
             'Account changed while loading Diary history.',
           );
@@ -2407,7 +2380,7 @@ class LedgerSyncService extends ChangeNotifier {
         final DataSnapshot afterSnapshot = await appData
             .child('_syncMeta')
             .get();
-        if (!isSessionCurrent(uid, generation)) {
+        if (uid != _activeUid || auth.currentUser?.uid != uid) {
           throw const LedgerSyncException(
             'Account changed while loading Diary history.',
           );
@@ -2424,7 +2397,9 @@ class LedgerSyncService extends ChangeNotifier {
 
         bool applied = false;
         await _locked<void>(() async {
-          if (!isSessionCurrent(uid, generation) ||
+          if (_disposed ||
+              uid != _activeUid ||
+              auth.currentUser?.uid != uid ||
               !SyncConnectionPolicy.canContactServer(_connected)) {
             return;
           }
@@ -2444,7 +2419,7 @@ class LedgerSyncService extends ChangeNotifier {
           }
           final SyncEnvelope envelope = _currentEnvelope(state: nextState);
           await _persistEnvelope(uid, envelope);
-          if (!isSessionCurrent(uid, generation)) return;
+          if (uid != _activeUid) return;
 
           _state = nextState;
           _invalidateProjectionCache();
@@ -2466,7 +2441,8 @@ class LedgerSyncService extends ChangeNotifier {
         if (applied) return;
       } catch (error) {
         lastFailure = error;
-        if (!isSessionCurrent(uid, generation) ||
+        if (uid != _activeUid ||
+            auth.currentUser?.uid != uid ||
             !SyncConnectionPolicy.canContactServer(_connected)) {
           break;
         }
@@ -2484,12 +2460,9 @@ class LedgerSyncService extends ChangeNotifier {
     required DiarySourceVersion source,
   }) async {
     final String? uid = _activeUid;
-    final int generation = _sessionGeneration;
     final DatabaseReference? projection = _ledgerV2Ref;
     final String period = DiaryMonthCodec.periodKey(year, month);
-    if (uid == null ||
-        projection == null ||
-        !isSessionCurrent(uid, generation)) {
+    if (uid == null || projection == null || auth.currentUser?.uid != uid) {
       return;
     }
     if (!SyncConnectionPolicy.canContactServer(_connected)) {
@@ -2508,11 +2481,6 @@ class LedgerSyncService extends ChangeNotifier {
       // with older projection metadata during a Cloud Function update.
       final DataSnapshot entriesSnapshot = await query.get();
 
-      if (!isSessionCurrent(uid, generation)) {
-        throw const LedgerSyncException(
-          'Account changed while loading this Diary month.',
-        );
-      }
       if (!SyncConnectionPolicy.canContactServer(_connected)) {
         throw const LedgerSyncException(
           'Firebase disconnected while loading this Diary month.',
@@ -2523,11 +2491,6 @@ class LedgerSyncService extends ChangeNotifier {
           .child('meta/diary')
           .get();
 
-      if (!isSessionCurrent(uid, generation)) {
-        throw const LedgerSyncException(
-          'Account changed while loading this Diary month.',
-        );
-      }
       if (!SyncConnectionPolicy.canContactServer(_connected)) {
         throw const LedgerSyncException(
           'Firebase disconnected while validating this Diary month.',
@@ -2551,10 +2514,10 @@ class LedgerSyncService extends ChangeNotifier {
           );
 
       await _locked<void>(() async {
-        if (!isSessionCurrent(uid, generation)) return;
+        if (uid != _activeUid || auth.currentUser?.uid != uid) return;
         final DiarySourceVersion currentSource = _diarySourceVersion();
         if (!DiaryReadConsistency.canApplyProjectedMonth(
-          projection: confirmed,
+          projection: _diaryProjection,
           requestedSource: source,
           currentSource: currentSource,
         )) {
@@ -2576,7 +2539,7 @@ class LedgerSyncService extends ChangeNotifier {
         }
         final SyncEnvelope envelope = _currentEnvelope(state: nextState);
         await _persistEnvelope(uid, envelope);
-        if (!isSessionCurrent(uid, generation)) return;
+        if (uid != _activeUid) return;
         _state = nextState;
         _invalidateProjectionCache();
         _loadedDiaryMonthVersions[period] = source.cacheKey;
@@ -2584,7 +2547,7 @@ class LedgerSyncService extends ChangeNotifier {
         _notifyContent();
       });
     } catch (error) {
-      if (isSessionCurrent(uid, generation)) {
+      if (uid == _activeUid) {
         _diaryMonthErrors[period] = error;
       }
       rethrow;
@@ -2801,7 +2764,6 @@ class LedgerSyncService extends ChangeNotifier {
     String recordId,
     dynamic value, {
     String reason = 'user-profile-record-mutation',
-    String? requiredProfileFingerprint,
   }) {
     if (!_concurrentProfileRoots.contains(root)) {
       throw LedgerSyncException('Unsupported profile root: $root');
@@ -2814,7 +2776,6 @@ class LedgerSyncService extends ChangeNotifier {
       reason: reason,
       requiredProfileRoot: root,
       requiredProfileName: profileName,
-      requiredProfileFingerprint: requiredProfileFingerprint,
     );
   }
 
@@ -2823,24 +2784,11 @@ class LedgerSyncService extends ChangeNotifier {
     String reason = 'user-batch',
     String? requiredProfileRoot,
     String? requiredProfileName,
-    String? requiredProfileFingerprint,
-    String? requiredMissingProfileRoot,
-    String? requiredMissingProfileName,
     String? requiredUnchangedDiaryId,
     Map<String, dynamic>? requiredUnchangedDiary,
     String? requiredStateFingerprint,
   }) async {
-    final bool hasPrecondition =
-        requiredProfileRoot != null ||
-        requiredProfileName != null ||
-        requiredProfileFingerprint != null ||
-        requiredMissingProfileRoot != null ||
-        requiredMissingProfileName != null ||
-        requiredUnchangedDiaryId != null ||
-        requiredUnchangedDiary != null ||
-        requiredStateFingerprint != null;
-
-    if (writes.isEmpty && !hasPrecondition) return;
+    if (writes.isEmpty) return;
 
     // Capture mutation ownership before entering the serialization gate. A write
     // queued by account A must never wake up later and execute as account B.
@@ -2905,127 +2853,28 @@ class LedgerSyncService extends ChangeNotifier {
       if ((requiredProfileRoot == null) != (requiredProfileName == null)) {
         throw const LedgerSyncException('Invalid profile write precondition.');
       }
-      if (requiredProfileFingerprint != null &&
-          (requiredProfileRoot == null || requiredProfileName == null)) {
-        throw const LedgerSyncException(
-          'Profile fingerprint requires a guarded profile.',
-        );
-      }
-
-      if ((requiredMissingProfileRoot == null) !=
-          (requiredMissingProfileName == null)) {
-        throw const LedgerSyncException(
-          'Invalid profile create precondition.',
-        );
-      }
-
-      if (requiredProfileRoot != null &&
-          requiredMissingProfileRoot != null) {
-        throw const LedgerSyncException(
-          'Conflicting profile write preconditions.',
-        );
-      }
-
-      if (requiredProfileRoot != null &&
-          requiredProfileName != null) {
-        final String guardedProfilePath =
-            LedgerFirebasePolicy.validatePath(
+      if (requiredProfileRoot != null && requiredProfileName != null) {
+        final String guardedProfilePath = LedgerFirebasePolicy.validatePath(
           '$requiredProfileRoot/$requiredProfileName',
         );
-
-        final List<String> guardedParts =
-            guardedProfilePath.split('/');
-
+        final List<String> guardedParts = guardedProfilePath.split('/');
         if (guardedParts.length != 2 ||
             !_concurrentProfileRoots.contains(guardedParts.first)) {
           throw LedgerSyncException(
             'Unsupported guarded profile path: $guardedProfilePath',
           );
         }
-
-        final Map<String, dynamic> guardedDatabase =
-            LedgerCodec.objectMap(
+        final Map<String, dynamic> guardedDatabase = LedgerCodec.objectMap(
           _state[guardedParts.first],
         );
-
-        final dynamic guardedProfile = guardedDatabase[guardedParts[1]];
-        if (guardedProfile is! Map) {
+        if (guardedDatabase[guardedParts[1]] is! Map) {
           throw const LedgerSyncException(
             'This profile no longer exists. Reopen it before saving.',
           );
         }
-        if (requiredProfileFingerprint != null) {
-          final String expected = requiredProfileFingerprint.trim();
-          if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(expected)) {
-            throw const LedgerSyncException(
-              'Invalid profile write fingerprint.',
-            );
-          }
-          final String currentFingerprint = LedgerCodec.profileFingerprint(
-            guardedParts.first,
-            guardedParts[1],
-            guardedProfile,
-          );
-          if (currentFingerprint != expected) {
-            throw const LedgerSyncException(
-              'This profile changed before the entry could be saved. Refresh and try again.',
-            );
-          }
-        }
       }
 
-      if (requiredMissingProfileRoot != null &&
-          requiredMissingProfileName != null) {
-        final String guardedProfilePath =
-            LedgerFirebasePolicy.validatePath(
-          '$requiredMissingProfileRoot/$requiredMissingProfileName',
-        );
-
-        final List<String> guardedParts =
-            guardedProfilePath.split('/');
-
-        if (guardedParts.length != 2 ||
-            !_concurrentProfileRoots.contains(guardedParts.first)) {
-          throw LedgerSyncException(
-            'Unsupported profile create path: $guardedProfilePath',
-          );
-        }
-
-        final bool guardedWritePresent = writes.keys.any(
-          (String path) =>
-              LedgerFirebasePolicy.validatePath(path) ==
-              guardedProfilePath,
-        );
-
-        if (!guardedWritePresent) {
-          throw const LedgerSyncException(
-            'Profile create precondition does not match the requested write.',
-          );
-        }
-
-        final Map<String, dynamic> guardedDatabase =
-            LedgerCodec.objectMap(
-          _state[guardedParts.first],
-        );
-
-        final String requestedName =
-            guardedParts[1].toLowerCase();
-
-        final bool alreadyExists =
-            guardedDatabase.keys.any(
-          (String key) =>
-              key.toLowerCase() == requestedName,
-        );
-
-        if (alreadyExists) {
-          throw const LedgerSyncException(
-            'A profile with this name already exists. Refresh and try again.',
-          );
-        }
-      }
-
-      final Map<String, dynamic> expandedWrites =
-          _expandedBatchWrites(writes);
+      final Map<String, dynamic> expandedWrites = _expandedBatchWrites(writes);
 
       if (expandedWrites.isEmpty) return;
 
