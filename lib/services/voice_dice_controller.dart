@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:vosk_flutter_service/vosk_flutter_service.dart';
 
@@ -11,8 +12,8 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
   }
 
-  static const String modelAsset =
-      'assets/models/vosk-model-small-hi-0.22.zip';
+  static const MethodChannel _nativeModelChannel =
+      MethodChannel('voice_ludo/native_model');
   static const int sampleRate = 16000;
   static const Duration candidateFreshness = Duration(milliseconds: 1400);
 
@@ -29,7 +30,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
   ];
 
   final VoskFlutterPlugin _vosk = VoskFlutterPlugin.instance();
-  final ModelLoader _modelLoader = ModelLoader();
 
   Model? _model;
   Recognizer? _recognizer;
@@ -82,8 +82,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       await _ensureRecognizer();
       if (_disposed) return;
 
-      // Loading the model is independent from microphone consent. If the user
-      // turns voice OFF while the model is loading, do not request/open the mic.
       if (_enabled && !_lifecyclePaused) {
         await _ensureSpeechService();
       }
@@ -110,9 +108,22 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  Future<String> _prepareModelPath() async {
+    final path = await _nativeModelChannel.invokeMethod<String>(
+      'prepareOfflineVoskModel',
+    );
+    if (path == null || path.trim().isEmpty) {
+      throw StateError('Android did not return an offline Vosk model path.');
+    }
+    return path;
+  }
+
   Future<void> _ensureRecognizer() async {
     if (_model == null) {
-      final modelPath = await _modelLoader.loadFromAssets(modelAsset);
+      // Do NOT use vosk_flutter_service ModelLoader here. Its asset loader
+      // reads and decodes the whole ZIP in Dart memory. Android streams the ZIP
+      // directly to disk instead, which avoids a large first-play RAM spike.
+      final modelPath = await _prepareModelPath();
       if (_disposed) return;
       _model = await _vosk.createModel(modelPath);
     }
@@ -196,8 +207,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// Reopens only the microphone service when possible. The heavy Vosk model
-  /// is retained to avoid repeated native model allocations on Android.
   Future<void> retry() async {
     if (_disposed) return;
 
@@ -496,7 +505,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     return candidateAt.isBefore(pendingAt) ? pendingValue : candidateValue;
   }
 
-  /// Decodes standard Vosk (`text` / `partial`) and max-alternatives payloads.
   static ({String text, double? confidence}) parseRecognitionPayload(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return (text: '', confidence: null);
@@ -579,8 +587,10 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
 
   String _friendlyInitError(Object error) {
     final lower = error.toString().toLowerCase();
-    if (lower.contains('asset') || lower.contains('model')) {
-      return 'Offline Hindi voice model is missing or could not be loaded.';
+    if (lower.contains('asset') ||
+        lower.contains('model') ||
+        lower.contains('prepare')) {
+      return 'Offline Hindi voice model could not be prepared. Random dice still works.';
     }
     return 'Offline voice setup failed. You can still use random dice.';
   }
