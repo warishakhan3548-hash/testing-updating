@@ -85,12 +85,13 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
   double? _lastConfidence;
   String? _errorMessage;
 
-  bool get initialized => _initialized;
+  /// True only after an initialization attempt has finished.
+  bool get initialized => _initialized && !_initializing;
   bool get initializing => _initializing;
   bool get available => _available;
   bool get enabled => _enabled;
   bool get listening => _listening;
-  bool get offlineReady => _initialized && _available;
+  bool get offlineReady => initialized && _available;
   String get engineName => 'Offline Vosk Hindi AI';
   int? get pendingValue => _pendingValue;
   String get lastHeard => _lastHeard;
@@ -118,8 +119,12 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       await _recognizer!.setMaxAlternatives(1);
       if (_disposed) return;
 
-      await _createSpeechService();
-      if (_disposed) return;
+      // Initial creation also requests microphone permission. It is safe to
+      // complete setup while foregrounded, then later use pause/unpause.
+      if (!_lifecyclePaused) {
+        await _createSpeechService();
+        if (_disposed) return;
+      }
 
       _available = true;
       _errorMessage = null;
@@ -209,19 +214,7 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     if (!_rollSuspended && !_lifecyclePaused) {
-      try {
-        await _createSpeechService();
-        await _startListening();
-      } on MicrophoneAccessDeniedException {
-        _available = false;
-        _enabled = false;
-        _errorMessage = 'Microphone permission is required for offline voice dice.';
-        _safeNotify();
-      } catch (_) {
-        _enabled = false;
-        _errorMessage = 'Could not reopen the offline microphone.';
-        _safeNotify();
-      }
+      await _startListening();
     }
   }
 
@@ -335,17 +328,20 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
 
-    if (_speechService == null) {
-      await _createSpeechService();
-    }
-    final service = _speechService;
-    if (service == null) return;
-
     final generation = ++_listenGeneration;
     try {
+      if (_speechService == null) {
+        await _createSpeechService();
+      }
+      final service = _speechService;
+      if (service == null || _disposed || generation != _listenGeneration) {
+        return;
+      }
+
       if (_serviceStarted) {
         if (_servicePaused) {
           await service.setPause(paused: false);
+          if (!identical(service, _speechService)) return;
           _servicePaused = false;
         }
         if (_disposed ||
@@ -361,17 +357,32 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       }
 
       await service.start(onRecognitionError: _handleRecognitionError);
-      if (_disposed ||
-          generation != _listenGeneration ||
-          _lifecyclePaused ||
-          _rollSuspended) {
+      if (!identical(service, _speechService) || _disposed) return;
+
+      // Mark native state immediately after start() returns. If the app was
+      // backgrounded during the await, we can now reliably pause the live mic.
+      _serviceStarted = true;
+      _servicePaused = false;
+
+      if (generation != _listenGeneration || _lifecyclePaused || _rollSuspended) {
+        if ((_lifecyclePaused || _rollSuspended) && !_servicePaused) {
+          try {
+            await service.setPause(paused: true);
+            if (identical(service, _speechService)) _servicePaused = true;
+          } catch (_) {}
+        }
         return;
       }
 
-      _serviceStarted = true;
-      _servicePaused = false;
       _listening = true;
       _errorMessage = null;
+      _safeNotify();
+    } on MicrophoneAccessDeniedException {
+      if (_disposed || generation != _listenGeneration) return;
+      _available = false;
+      _enabled = false;
+      _listening = false;
+      _errorMessage = 'Microphone permission is required for offline voice dice.';
       _safeNotify();
     } catch (_) {
       if (_disposed || generation != _listenGeneration) return;
@@ -422,7 +433,7 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _handleRecognitionError(Object error, [StackTrace? stackTrace]) {
-    if (_disposed) return;
+    if (_disposed || _lifecyclePaused || _rollSuspended) return;
     _listening = false;
     _enabled = false;
     _errorMessage = 'Offline voice paused. Tap the mic to retry.';
@@ -493,7 +504,7 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _handleStreamError(Object error, [StackTrace? stackTrace]) {
-    if (_disposed) return;
+    if (_disposed || _lifecyclePaused || _rollSuspended) return;
     _listening = false;
     _enabled = false;
     _errorMessage = 'Offline voice stream paused. Tap the mic to retry.';
