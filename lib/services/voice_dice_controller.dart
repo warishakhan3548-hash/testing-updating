@@ -13,6 +13,7 @@ class VoiceDiceController extends ChangeNotifier {
   bool _enabled = true;
   bool _listening = false;
   bool _rollSuspended = false;
+  bool _disposed = false;
   int? _pendingValue;
   String _lastHeard = '';
   String? _errorMessage;
@@ -28,8 +29,13 @@ class VoiceDiceController extends ChangeNotifier {
   String get lastHeard => _lastHeard;
   String? get errorMessage => _errorMessage;
 
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
   Future<void> initialize() async {
-    if (_initialized) return;
+    if (_initialized || _disposed) return;
     _initialized = true;
 
     try {
@@ -39,6 +45,7 @@ class VoiceDiceController extends ChangeNotifier {
         debugLogging: false,
       );
 
+      if (_disposed) return;
       if (_available) {
         await _chooseBestLocale();
         await _startListening();
@@ -46,6 +53,7 @@ class VoiceDiceController extends ChangeNotifier {
         _errorMessage = 'Speech recognition is unavailable on this device.';
       }
     } catch (error) {
+      if (_disposed) return;
       _available = false;
       _errorMessage = 'Voice setup failed: $error';
     }
@@ -53,6 +61,7 @@ class VoiceDiceController extends ChangeNotifier {
   }
 
   Future<void> setEnabled(bool value) async {
+    if (_disposed) return;
     _enabled = value;
     _errorMessage = null;
     notifyListeners();
@@ -63,6 +72,7 @@ class VoiceDiceController extends ChangeNotifier {
       try {
         await _speech.stop();
       } catch (_) {}
+      if (_disposed) return;
       _listening = false;
       notifyListeners();
       return;
@@ -76,6 +86,7 @@ class VoiceDiceController extends ChangeNotifier {
   }
 
   Future<int?> suspendForRoll() async {
+    if (_disposed) return null;
     final value = _pendingValue;
     _pendingValue = null;
     _rollSuspended = true;
@@ -87,26 +98,30 @@ class VoiceDiceController extends ChangeNotifier {
     try {
       if (_speech.isListening) await _speech.stop();
     } catch (_) {}
+    if (_disposed) return value;
     _listening = false;
     notifyListeners();
     return value;
   }
 
   Future<void> resumeAfterRoll() async {
+    if (_disposed) return;
     _rollSuspended = false;
     notifyListeners();
     if (_enabled && _available) await _startListening();
   }
 
   void clearPending() {
+    if (_disposed) return;
     _pendingValue = null;
     notifyListeners();
   }
 
   Future<void> _chooseBestLocale() async {
+    if (_disposed) return;
     try {
       final locales = await _speech.locales();
-      if (locales.isEmpty) return;
+      if (_disposed || locales.isEmpty) return;
 
       stt.LocaleName? hindi;
       stt.LocaleName? englishIndia;
@@ -119,15 +134,20 @@ class VoiceDiceController extends ChangeNotifier {
       }
 
       final systemLocale = await _speech.systemLocale();
+      if (_disposed) return;
       _preferredLocaleId =
           hindi?.localeId ?? englishIndia?.localeId ?? systemLocale?.localeId;
     } catch (_) {
-      _preferredLocaleId = null;
+      if (!_disposed) _preferredLocaleId = null;
     }
   }
 
   Future<void> _startListening() async {
-    if (!_enabled || !_available || _rollSuspended || _speech.isListening) {
+    if (_disposed ||
+        !_enabled ||
+        !_available ||
+        _rollSuspended ||
+        _speech.isListening) {
       return;
     }
 
@@ -137,7 +157,11 @@ class VoiceDiceController extends ChangeNotifier {
     try {
       await _speech.listen(
         onResult: (SpeechRecognitionResult result) {
-          if (generation != _listenGeneration || _rollSuspended) return;
+          if (_disposed ||
+              generation != _listenGeneration ||
+              _rollSuspended) {
+            return;
+          }
           _onSpeechResult(result);
         },
         listenOptions: stt.SpeechListenOptions(
@@ -150,13 +174,14 @@ class VoiceDiceController extends ChangeNotifier {
           enableHapticFeedback: false,
         ),
       );
+      if (_disposed) return;
       if (generation == _listenGeneration) {
         _listening = _speech.isListening;
         _errorMessage = null;
         notifyListeners();
       }
     } catch (_) {
-      if (generation != _listenGeneration) return;
+      if (_disposed || generation != _listenGeneration) return;
       _listening = false;
       _errorMessage = 'Could not start listening.';
       _scheduleRestart();
@@ -165,6 +190,7 @@ class VoiceDiceController extends ChangeNotifier {
   }
 
   void _onSpeechResult(SpeechRecognitionResult result) {
+    if (_disposed) return;
     final words = result.recognizedWords.trim();
     if (words.isEmpty) return;
 
@@ -178,6 +204,7 @@ class VoiceDiceController extends ChangeNotifier {
   }
 
   void _handleStatus(String status) {
+    if (_disposed) return;
     _listening = status == stt.SpeechToText.listeningStatus;
     notifyListeners();
 
@@ -188,6 +215,7 @@ class VoiceDiceController extends ChangeNotifier {
   }
 
   void _handleError(SpeechRecognitionError error) {
+    if (_disposed) return;
     _listening = false;
     final message = error.errorMsg.toLowerCase();
     final permissionProblem = message.contains('permission') ||
@@ -203,10 +231,12 @@ class VoiceDiceController extends ChangeNotifier {
   }
 
   void _scheduleRestart() {
-    if (!_enabled || !_available || _rollSuspended) return;
+    if (_disposed || !_enabled || !_available || _rollSuspended) return;
     _restartTimer?.cancel();
     _restartTimer = Timer(const Duration(milliseconds: 550), () {
-      if (_enabled && _available && !_rollSuspended) _startListening();
+      if (!_disposed && _enabled && _available && !_rollSuspended) {
+        _startListening();
+      }
     });
   }
 
@@ -240,6 +270,8 @@ class VoiceDiceController extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     _restartTimer?.cancel();
     _listenGeneration += 1;
     _speech.cancel();
