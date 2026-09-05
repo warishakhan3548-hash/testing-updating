@@ -71,6 +71,37 @@ void main() {
       );
     });
 
+    test('voice hot path prefers on-device recognition and keeps a warm standby', () {
+      final mainActivity = File(
+        'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
+      ).readAsStringSync();
+
+      const onDevice = 'SpeechRecognizer.createOnDeviceSpeechRecognizer(this)';
+      const system = 'SpeechRecognizer.createSpeechRecognizer(this)';
+
+      expect(mainActivity, contains(onDevice));
+      expect(mainActivity, contains(system));
+      expect(mainActivity.indexOf(onDevice), lessThan(mainActivity.indexOf(system)));
+      expect(mainActivity, contains('pauseCurrentSession(keepWarm = true)'));
+      expect(mainActivity, contains('WARM_STANDBY_DELAY_MS = 35L'));
+      expect(mainActivity, contains('MAX_RESULTS = 12'));
+      expect(mainActivity, contains('"छक्का छक्का"'));
+      expect(mainActivity, contains('"पाँच पाँच"'));
+      expect(mainActivity, contains('"six six"'));
+      expect(
+        mainActivity,
+        isNot(contains('EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS')),
+      );
+      expect(
+        mainActivity,
+        isNot(
+          contains(
+            'EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS',
+          ),
+        ),
+      );
+    });
+
     test('permission denial remains an optional voice failure, not a game dependency', () {
       final mainActivity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
