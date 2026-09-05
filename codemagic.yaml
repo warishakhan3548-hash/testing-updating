@@ -1,10 +1,22 @@
 workflows:
   android-apk:
-    name: Voice Ludo Android APK
+    name: Voice Ludo Offline AI APK
     max_build_duration: 60
     environment:
       flutter: stable
     scripts:
+      - name: Bundle offline Hindi voice model
+        script: |
+          set -euo pipefail
+          mkdir -p assets/models
+          MODEL="assets/models/vosk-model-small-hi-0.22.zip"
+          URL="https://alphacephei.com/vosk/models/vosk-model-small-hi-0.22.zip"
+          rm -f "$MODEL"
+          curl --fail --location --retry 4 --retry-delay 2 \
+            --output "$MODEL" "$URL"
+          test -s "$MODEL"
+          echo "Offline Vosk model bundled: $(du -h "$MODEL" | cut -f1)"
+
       - name: Generate Android scaffold
         script: |
           set -euo pipefail
@@ -22,41 +34,30 @@ workflows:
 
           manifest = Path('android/app/src/main/AndroidManifest.xml')
           text = manifest.read_text(encoding='utf-8')
-
-          permissions = [
-              '<uses-permission android:name="android.permission.RECORD_AUDIO" />',
-              '<uses-permission android:name="android.permission.INTERNET" />',
-          ]
-
+          permission = '<uses-permission android:name="android.permission.RECORD_AUDIO" />'
           marker = '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
           if marker not in text:
               raise SystemExit('Android manifest header not found')
-
-          missing = [p for p in permissions if p not in text]
-          if missing:
-              text = text.replace(
-                  marker,
-                  marker + '\n    ' + '\n    '.join(missing),
-                  1,
-              )
-
-          queries = '''    <queries>
-              <intent>
-                  <action android:name="android.speech.RecognitionService" />
-              </intent>
-          </queries>
-          '''
-          if 'android.speech.RecognitionService' not in text:
-              app_marker = '    <application'
-              if app_marker not in text:
-                  raise SystemExit('Android application node not found')
-              text = text.replace(app_marker, queries + app_marker, 1)
-
+          if permission not in text:
+              text = text.replace(marker, marker + '\n    ' + permission, 1)
           manifest.write_text(text, encoding='utf-8')
+
+          proguard = Path('android/app/proguard-rules.pro')
+          proguard.write_text(
+              '-keep class com.sun.jna.* { *; }\n'
+              '-keepclassmembers class * extends com.sun.jna.* { public *; }\n',
+              encoding='utf-8',
+          )
           PY
 
       - name: Install Flutter dependencies
         script: flutter pub get
+
+      - name: Run logic tests
+        script: flutter test
+
+      - name: Analyze source
+        script: flutter analyze
 
       - name: Build release APK
         script: flutter build apk --release
