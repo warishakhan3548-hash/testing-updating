@@ -7,9 +7,9 @@ import 'package:vosk_flutter_service/vosk_flutter_service.dart';
 /// Offline, command-focused voice recognizer for the Ludo dice.
 ///
 /// The recognizer deliberately uses a tiny grammar instead of general
-/// dictation. That makes short dice commands much faster and less likely to be
-/// confused by surrounding conversation. `[unk]` lets Vosk reject unrelated
-/// speech instead of forcing every sound into one of the six numbers.
+/// dictation. That makes short dice commands fast and reduces false matches
+/// from room conversation. `[unk]` lets Vosk reject unrelated speech instead
+/// of forcing every sound into one of the six numbers.
 class VoiceDiceController extends ChangeNotifier {
   static const String modelAsset =
       'assets/models/vosk-model-small-hi-0.22.zip';
@@ -30,6 +30,7 @@ class VoiceDiceController extends ChangeNotifier {
     'पाँच',
     'पाच',
     'फाइव',
+    'फाईव',
     'छह',
     'छः',
     'छे',
@@ -60,6 +61,8 @@ class VoiceDiceController extends ChangeNotifier {
   bool _available = false;
   bool _enabled = true;
   bool _listening = false;
+  bool _serviceStarted = false;
+  bool _servicePaused = false;
   bool _rollSuspended = false;
   bool _disposed = false;
   int _listenGeneration = 0;
@@ -100,12 +103,11 @@ class VoiceDiceController extends ChangeNotifier {
         grammar: commandGrammar,
       );
       await _recognizer!.setMaxAlternatives(1);
-
-      if (_disposed) return;
-      _speechService = await _vosk.initSpeechService(_recognizer!);
       if (_disposed) return;
 
-      _attachStreams();
+      await _createSpeechService();
+      if (_disposed) return;
+
       _available = true;
       _errorMessage = null;
       _safeNotify();
@@ -125,12 +127,20 @@ class VoiceDiceController extends ChangeNotifier {
     }
   }
 
+  Future<void> _createSpeechService() async {
+    if (_disposed || _recognizer == null || _speechService != null) return;
+    _speechService = await _vosk.initSpeechService(_recognizer!);
+    _serviceStarted = false;
+    _servicePaused = false;
+    _attachStreams();
+  }
+
   void _attachStreams() {
     final service = _speechService;
     if (service == null) return;
 
-    _partialSub?.cancel();
-    _resultSub?.cancel();
+    unawaited(_partialSub?.cancel());
+    unawaited(_resultSub?.cancel());
 
     _partialSub = service.onPartial().listen(
       (raw) => _handleRawRecognition(raw, isFinal: false),
@@ -150,9 +160,8 @@ class VoiceDiceController extends ChangeNotifier {
     if (!value) {
       _listenGeneration += 1;
       _listening = false;
-      try {
-        await _speechService?.stop();
-      } catch (_) {}
+      _clearCandidate();
+      await _releaseSpeechService();
       _safeNotify();
       return;
     }
@@ -160,16 +169,29 @@ class VoiceDiceController extends ChangeNotifier {
     _safeNotify();
     if (!_initialized) {
       await initialize();
-    } else if (_available && !_rollSuspended) {
-      await _startListening();
+      return;
+    }
+
+    if (_available && !_rollSuspended) {
+      try {
+        await _createSpeechService();
+        await _startListening();
+      } on MicrophoneAccessDeniedException {
+        _available = false;
+        _errorMessage = 'Microphone permission is required for offline voice dice.';
+        _safeNotify();
+      } catch (_) {
+        _errorMessage = 'Could not reopen the offline microphone.';
+        _safeNotify();
+      }
     }
   }
 
   /// Atomically freezes voice input and returns the newest valid command.
   ///
   /// A very recent partial candidate is accepted even if it has not yet
-  /// reached the normal two-frame stability threshold. This prevents a fast
-  /// "say four → instantly tap roll" interaction from becoming a random roll.
+  /// reached the normal two-frame stability threshold. This keeps a fast
+  /// "say four → instantly tap roll" interaction deterministic.
   Future<int?> suspendForRoll() async {
     if (_disposed) return null;
 
@@ -185,9 +207,15 @@ class VoiceDiceController extends ChangeNotifier {
     _listenGeneration += 1;
     _listening = false;
 
-    try {
-      await _speechService?.stop();
-    } catch (_) {}
+    // Keep the native AudioRecord/recognizer pipeline warm while discarding
+    // speech during dice animation and token selection. This is much faster
+    // and safer than stop/start on every roll.
+    if (_serviceStarted && !_servicePaused) {
+      try {
+        await _speechService?.setPause(paused: true);
+        _servicePaused = true;
+      } catch (_) {}
+    }
 
     _safeNotify();
     return value;
@@ -199,12 +227,14 @@ class VoiceDiceController extends ChangeNotifier {
     _clearCandidate();
 
     try {
-      await _recognizer?.reset();
+      // Clear any pre-roll acoustic state before accepting the next command.
+      await _speechService?.reset();
     } catch (_) {}
 
-    _safeNotify();
     if (_enabled && _available) {
       await _startListening();
+    } else {
+      _safeNotify();
     }
   }
 
@@ -219,39 +249,64 @@ class VoiceDiceController extends ChangeNotifier {
         !_enabled ||
         !_available ||
         _rollSuspended ||
-        _speechService == null ||
         _listening) {
       return;
     }
 
+    if (_speechService == null) {
+      await _createSpeechService();
+    }
+    final service = _speechService;
+    if (service == null) return;
+
     final generation = ++_listenGeneration;
     try {
-      final started = await _speechService!.start(
-        onRecognitionError: (Object? error) {
-          if (_disposed || generation != _listenGeneration) return;
-          _listening = false;
-          _errorMessage = 'Offline voice paused. Tap the mic to retry.';
-          _safeNotify();
-        },
+      if (_serviceStarted) {
+        if (_servicePaused) {
+          await service.setPause(paused: false);
+          _servicePaused = false;
+        }
+        if (_disposed || generation != _listenGeneration) return;
+        _listening = true;
+        _errorMessage = null;
+        _safeNotify();
+        return;
+      }
+
+      final started = await service.start(
+        onRecognitionError: _handleRecognitionError,
       );
       if (_disposed || generation != _listenGeneration) return;
-      _listening = started != false;
+
+      // Native start returns false when it was already active; either way the
+      // service is available for listening at this point.
+      _serviceStarted = true;
+      _servicePaused = false;
+      _listening = started != false || _serviceStarted;
       _errorMessage = null;
       _safeNotify();
-    } catch (error) {
+    } catch (_) {
       if (_disposed || generation != _listenGeneration) return;
       _listening = false;
+      _serviceStarted = false;
+      _servicePaused = false;
       _errorMessage = 'Could not start the offline microphone recognizer.';
       _safeNotify();
     }
+  }
+
+  void _handleRecognitionError(Object error, [StackTrace? stackTrace]) {
+    if (_disposed) return;
+    _listening = false;
+    _errorMessage = 'Offline voice paused. Tap the mic to retry.';
+    _safeNotify();
   }
 
   void _handleRawRecognition(String raw, {required bool isFinal}) {
     if (_disposed || !_enabled || _rollSuspended) return;
 
     final heard = _extractText(raw).trim();
-    if (heard.isEmpty) return;
-    if (heard == '[unk]') return;
+    if (heard.isEmpty || heard == '[unk]') return;
 
     _lastHeard = heard;
     final value = parseLastDiceValue(heard);
@@ -277,7 +332,8 @@ class VoiceDiceController extends ChangeNotifier {
       _partialHits = 1;
     }
 
-    // Two matching partial frames are enough for a responsive but stable lock.
+    // Two matching partial frames reduce noise, while suspendForRoll can still
+    // consume one very recent partial candidate for instant-tap responsiveness.
     if (_partialHits >= 2) {
       _commitCandidate(value);
     } else {
@@ -286,14 +342,13 @@ class VoiceDiceController extends ChangeNotifier {
   }
 
   void _commitCandidate(int value) {
-    // There is intentionally no queue: the newest command overwrites the old
-    // one. That is the core "last spoken number wins" rule.
+    // No queue: newest command always overwrites the old command.
     _pendingValue = value;
     _errorMessage = null;
     _safeNotify();
   }
 
-  void _handleStreamError(Object error, StackTrace stackTrace) {
+  void _handleStreamError(Object error, [StackTrace? stackTrace]) {
     if (_disposed) return;
     _listening = false;
     _errorMessage = 'Offline voice stream paused. Tap the mic to retry.';
@@ -322,7 +377,7 @@ class VoiceDiceController extends ChangeNotifier {
         }
       }
     } catch (_) {
-      // Some plugin/platform versions may already return plain recognized text.
+      // Some platform/plugin versions may already return plain recognized text.
     }
 
     return trimmed;
@@ -372,6 +427,7 @@ class VoiceDiceController extends ChangeNotifier {
       'paanch': 5,
       'panch': 5,
       'फाइव': 5,
+      'फाईव': 5,
       '6': 6,
       '६': 6,
       'six': 6,
@@ -402,16 +458,34 @@ class VoiceDiceController extends ChangeNotifier {
     return 'Offline voice setup failed. You can still use random dice.';
   }
 
+  Future<void> _releaseSpeechService() async {
+    final service = _speechService;
+    _speechService = null;
+    _serviceStarted = false;
+    _servicePaused = false;
+
+    await _partialSub?.cancel();
+    await _resultSub?.cancel();
+    _partialSub = null;
+    _resultSub = null;
+
+    if (service != null) {
+      try {
+        await service.cancel();
+      } catch (_) {}
+      try {
+        await service.dispose();
+      } catch (_) {}
+    }
+  }
+
   void _safeNotify() {
     if (!_disposed) notifyListeners();
   }
 
   Future<void> _shutdown() async {
     try {
-      await _partialSub?.cancel();
-      await _resultSub?.cancel();
-      await _speechService?.cancel();
-      await _speechService?.dispose();
+      await _releaseSpeechService();
       await _recognizer?.dispose();
       _model?.dispose();
     } catch (_) {}
