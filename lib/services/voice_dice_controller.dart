@@ -84,6 +84,9 @@ class DiceVoiceIntentParser {
     'छह': 6,
     'छः': 6,
     'छे': 6,
+    'छ': 6,
+    'cheh': 6,
+    'chhe': 6,
     'छक्का': 6,
     'छका': 6,
     'छक्क': 6,
@@ -232,7 +235,10 @@ class DiceVoiceIntentParser {
         // not a second dice command.
         final previous = i == 0 ? null : tokens[i - 1];
         if ((token == 'दो' || token == 'do') &&
-            (previous == 'दे' || previous == 'de')) {
+            (previous == 'दे' ||
+                previous == 'de' ||
+                previous == 'कर' ||
+                previous == 'करो')) {
           continue;
         }
         values.add(alias);
@@ -313,13 +319,17 @@ class VoiceDiceController extends ChangeNotifier {
   bool _starting = false;
   bool _available = false;
   bool _enabled = true;
+  bool _permissionDenied = false;
   bool _listening = false;
   bool _rollSuspended = false;
   bool _matchSessionActive = false;
+  bool _matchSessionExplicitlyEnded = false;
   bool _lifecycleActive = true;
   bool _disposed = false;
   int _acceptedIntentSerial = 0;
   int? _lastAcceptedValue;
+  int? _lastAcceptedNativeSessionEpoch;
+  TurnBinding? _lastAcceptedNativeSessionBinding;
 
   VoiceSessionState _state = VoiceSessionState.idle;
   double? _lastConfidence;
@@ -343,7 +353,8 @@ class VoiceDiceController extends ChangeNotifier {
   String? get errorMessage {
     if (_state != VoiceSessionState.error) return null;
     if (!_available) return 'Voice control is unavailable on this device.';
-    if (!_enabled) return 'Microphone access is needed for voice control.';
+    if (_permissionDenied) return 'Microphone access is needed for voice control.';
+    if (!_enabled) return 'Voice control is turned off.';
     return 'Voice control needs attention. Tap the mic to retry.';
   }
 
@@ -371,7 +382,9 @@ class VoiceDiceController extends ChangeNotifier {
     if (_disposed || _initializing || _initialized) return;
 
     final engine = _engine;
-    if (engine != null && !engine.gameOver) {
+    if (engine != null &&
+        !engine.gameOver &&
+        !_matchSessionExplicitlyEnded) {
       _binding = engine.voiceTurnBinding;
       _lastObservedEngineBinding = _binding;
       _matchSessionActive = true;
@@ -420,6 +433,7 @@ class VoiceDiceController extends ChangeNotifier {
 
   Future<void> startMatchSession(TurnBinding binding) async {
     if (_disposed) return;
+    _matchSessionExplicitlyEnded = false;
     _matchSessionActive = true;
     _binding = binding;
     _lastObservedEngineBinding = binding;
@@ -449,6 +463,17 @@ class VoiceDiceController extends ChangeNotifier {
     if (_disposed) return;
     final engine = _engine;
     if (engine == null) return;
+
+    // endMatchSession() is an explicit ownership boundary. Clearing a pending
+    // engine intent emits a synchronous engine notification; without this guard
+    // that notification can accidentally reactivate and rebind voice after the
+    // match has already been stopped. Only startMatchSession() may clear this
+    // terminal match-session latch.
+    if (_matchSessionExplicitlyEnded) {
+      _engineWasGameOver = engine.gameOver;
+      _lastObservedEngineBinding = engine.voiceTurnBinding;
+      return;
+    }
 
     final nowGameOver = engine.gameOver;
     if (nowGameOver) {
@@ -640,6 +665,7 @@ class VoiceDiceController extends ChangeNotifier {
 
   Future<void> endMatchSession() async {
     if (_disposed) return;
+    _matchSessionExplicitlyEnded = true;
     _matchSessionActive = false;
     _rollSuspended = false;
     _listening = false;
@@ -733,6 +759,7 @@ class VoiceDiceController extends ChangeNotifier {
       case 'listening':
         final active = event['active'];
         if (active is bool) {
+          if (active) _permissionDenied = false;
           _listening = active &&
               _enabled &&
               _matchSessionActive &&
@@ -749,13 +776,18 @@ class VoiceDiceController extends ChangeNotifier {
       case 'permission':
         final granted = event['granted'];
         if (granted == false) {
-          _enabled = false;
+          // Permission is an OS capability, not the user's voice preference.
+          // Keeping _enabled true means a later Settings permission restore can
+          // resume automatically on lifecycle/start without requiring a second
+          // in-app enable toggle.
+          _permissionDenied = true;
           _listening = false;
           _state = VoiceSessionState.error;
           _clearPendingIntent();
           _internalErrorMessage = 'Microphone permission denied.';
           _safeNotify();
         } else if (granted == true) {
+          _permissionDenied = false;
           _state = VoiceSessionState.starting;
           _safeNotify();
         }
@@ -800,6 +832,18 @@ class VoiceDiceController extends ChangeNotifier {
     if (currentBinding == null ||
         eventBinding == null ||
         eventBinding != currentBinding) {
+      return;
+    }
+
+    final rawSessionEpoch = event['sessionEpoch'];
+    final sessionEpoch =
+        rawSessionEpoch is num ? rawSessionEpoch.toInt() : null;
+    if (sessionEpoch != null &&
+        _lastAcceptedNativeSessionEpoch == sessionEpoch &&
+        _lastAcceptedNativeSessionBinding == eventBinding) {
+      // One utterance can emit several partials plus a final result. Once one
+      // command from this exact native session is accepted, all later callbacks
+      // from that utterance are feedback duplicates, never new dice intents.
       return;
     }
 
@@ -848,6 +892,10 @@ class VoiceDiceController extends ChangeNotifier {
     if (_submitIntent(intent)) {
       _lastConfidence = parsed.confidence;
       _lastAcceptedValue = parsed.value;
+      if (sessionEpoch != null) {
+        _lastAcceptedNativeSessionEpoch = sessionEpoch;
+        _lastAcceptedNativeSessionBinding = eventBinding;
+      }
       _acceptedIntentSerial += 1;
       _internalErrorMessage = null;
     }

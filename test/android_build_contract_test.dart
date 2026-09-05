@@ -130,7 +130,9 @@ void main() {
 
       expect(mainActivity, contains('SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS'));
       expect(mainActivity, contains('"type" to "permission"'));
-      expect(controller, contains('_enabled = false'));
+      expect(controller, contains('bool _permissionDenied = false;'));
+      expect(controller, contains('_permissionDenied = true;'));
+      expect(controller, isNot(contains('_enabled = false;')));
       expect(controller, contains('_clearPendingIntent()'));
       expect(engine, contains('DiceRollSource.random'));
       expect(engine, contains('randomDice()'));
@@ -196,7 +198,10 @@ void main() {
       expect(gameScreen, contains("'Aarish Kingdom'"));
       expect(gameScreen, isNot(contains('Heard: “')));
       expect(controller, contains("String get lastHeard => '';"));
-      expect(controller, contains('conflicting dice values are rejected'));
+      expect(
+        controller,
+        contains('if (values.any((value) => value != requestedValue))'),
+      );
       expect(setup, contains('MATCH VOICE READY'));
       expect(setup, contains('Dice खुद roll होगा'));
       expect(setup, isNot(contains('OFFLINE VOICE AI')));

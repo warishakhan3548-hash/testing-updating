@@ -37,6 +37,8 @@ void main() {
       expect(VoiceDiceController.parseLastDiceValue('शक्का'), 6);
       expect(VoiceDiceController.parseLastDiceValue('chaka'), 6);
       expect(VoiceDiceController.parseLastDiceValue('chhaka'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('छ'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('chhe'), 6);
       expect(VoiceDiceController.parseLastDiceValue('फौर'), 4);
       expect(VoiceDiceController.parseLastDiceValue('panj'), 5);
     });
@@ -49,6 +51,8 @@ void main() {
       expect(VoiceDiceController.parseLastDiceValue('छक्का दे दो'), 6);
       expect(VoiceDiceController.parseLastDiceValue('हाँ छक्का'), 6);
       expect(VoiceDiceController.parseLastDiceValue('अरे पाँच'), 5);
+      expect(VoiceDiceController.parseLastDiceValue('कर दो'), isNull);
+      expect(VoiceDiceController.parseLastDiceValue('करो दो'), isNull);
       expect(VoiceDiceController.parseLastDiceValue('we have six players'), isNull);
       expect(VoiceDiceController.parseLastDiceValue('six o clock'), isNull);
     });

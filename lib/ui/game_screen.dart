@@ -146,14 +146,15 @@ class _GameScreenState extends State<GameScreen>
       HapticFeedback.lightImpact();
     }
 
-    await Future<void>.delayed(const Duration(milliseconds: 330));
-    if (!mounted) return;
-
     if (_engine.gameOver) {
       _showWinnerDialog();
-    } else {
-      await _voice.resumeAfterRoll();
+      return;
     }
+
+    // The move/turn transition above is already authoritative. Resume the
+    // recognizer immediately instead of creating a 330 ms blind window in
+    // which the next player can speak before Android is listening again.
+    await _voice.resumeAfterRoll();
   }
 
   void _showWinnerDialog() {
