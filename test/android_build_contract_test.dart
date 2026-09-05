@@ -36,6 +36,8 @@ void main() {
       );
       expect(appGradle, contains('tasks.named("preBuild")'));
       expect(appGradle, contains('dependsOn(prepareOfflineVoiceModel)'));
+      expect(appGradle, contains('name.startsWith("merge")'));
+      expect(appGradle, contains('name.endsWith("Assets")'));
       expect(mainActivity, contains('voice_ludo/native_model'));
       expect(mainActivity, contains('prepareOfflineVoskModel'));
       expect(mainActivity, contains('assets.open(MODEL_ANDROID_ASSET)'));

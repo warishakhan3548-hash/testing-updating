@@ -95,10 +95,16 @@ val prepareOfflineVoiceModel by tasks.registering {
 }
 
 // The model is a native Android asset, not a Flutter asset. Preparing it at
-// preBuild guarantees it exists before Android's mergeAssets/package steps,
-// while Flutter asset bundling no longer depends on a generated ZIP file.
+// preBuild keeps the variant lifecycle ordered; explicitly wiring every
+// merge*Assets task removes any dependency on undocumented AGP task ordering.
 tasks.named("preBuild") {
     dependsOn(prepareOfflineVoiceModel)
+}
+
+tasks.configureEach {
+    if (name.startsWith("merge") && name.endsWith("Assets")) {
+        dependsOn(prepareOfflineVoiceModel)
+    }
 }
 
 android {
