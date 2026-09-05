@@ -55,7 +55,7 @@ class VoiceLudoApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Voice Ludo Masti',
+      title: 'Aarish Kingdom',
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: colorScheme,
