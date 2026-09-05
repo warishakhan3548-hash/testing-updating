@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../game/dice_roll_models.dart';
+import '../game/ludo_engine.dart';
 
 enum VoiceSessionState {
   idle,
@@ -101,7 +103,6 @@ class DiceVoiceIntentParser {
     'अब',
     'आए',
     'आना',
-    'आना',
     'bhai',
     'भाई',
     'bolo',
@@ -134,11 +135,9 @@ class DiceVoiceIntentParser {
     'यार',
     'yaar',
     'ना',
-    'फिर',
     'चाहिये',
     'कर',
     'करो',
-    'doit',
   };
 
   static const Set<String> _strongCommandTokens = <String>{
@@ -231,27 +230,41 @@ class DiceVoiceIntentParser {
 
 /// Match-scoped Android speech controller.
 ///
-/// Platform speech callbacks never decide a dice result. They only emit a
-/// turn-bound [PendingVoiceDiceIntent], which the authoritative Ludo engine can
-/// accept or reject. Native callbacks carry the binding captured by the speech
-/// cycle, so stale results cannot silently attach themselves to a newer turn.
+/// The existing GameScreen creates LudoEngine immediately before this class, so
+/// the controller captures that engine once as its authoritative match runtime.
+/// Speech callbacks only submit turn-bound intents; the engine owns pending state,
+/// atomic consumption, random fallback and immutable roll resolution.
 class VoiceDiceController extends ChangeNotifier {
   VoiceDiceController({
-    required bool Function(PendingVoiceDiceIntent intent) onIntent,
+    LudoEngine? engine,
+    bool Function(PendingVoiceDiceIntent intent)? onIntent,
     VoidCallback? onClearPending,
+    int Function()? randomDice,
     this.intentTtl = const Duration(minutes: 2),
-  })  : _onIntent = onIntent,
-        _onClearPending = onClearPending;
+  })  : _engine = engine ?? LudoEngine.voiceRuntimeEngine,
+        _externalOnIntent = onIntent,
+        _externalClearPending = onClearPending {
+    final rng = math.Random();
+    _randomDice = randomDice ?? () => rng.nextInt(6) + 1;
+    _binding = _engine?.voiceTurnBinding;
+    _lastObservedEngineBinding = _binding;
+    _engineWasGameOver = _engine?.gameOver ?? false;
+    _engine?.addListener(_handleEngineStateChanged);
+  }
 
   static const MethodChannel _voiceChannel = MethodChannel('voice_ludo/speech');
   static const EventChannel _voiceEvents = EventChannel('voice_ludo/speech_events');
 
-  final bool Function(PendingVoiceDiceIntent intent) _onIntent;
-  final VoidCallback? _onClearPending;
+  final LudoEngine? _engine;
+  final bool Function(PendingVoiceDiceIntent intent)? _externalOnIntent;
+  final VoidCallback? _externalClearPending;
   final Duration intentTtl;
+  late final int Function() _randomDice;
 
   StreamSubscription<dynamic>? _eventSub;
   TurnBinding? _binding;
+  TurnBinding? _lastObservedEngineBinding;
+  bool _engineWasGameOver = false;
   bool _initialized = false;
   bool _initializing = false;
   bool _starting = false;
@@ -277,6 +290,7 @@ class VoiceDiceController extends ChangeNotifier {
   bool get listening => _listening;
   bool get offlineReady => initialized && _available;
   String get engineName => 'Android SpeechRecognizer';
+  int? get pendingValue => _engine?.pendingVoiceDiceIntent?.requestedValue;
   String get lastHeard => _lastHeard;
   double? get lastConfidence => _lastConfidence;
   String? get errorMessage => _errorMessage;
@@ -285,8 +299,30 @@ class VoiceDiceController extends ChangeNotifier {
   int? get lastAcceptedValue => _lastAcceptedValue;
   TurnBinding? get binding => _binding;
 
+  bool _submitIntent(PendingVoiceDiceIntent intent) {
+    final external = _externalOnIntent;
+    if (external != null) return external(intent);
+    return _engine?.acceptVoiceDiceIntent(intent) ?? false;
+  }
+
+  void _clearPendingIntent() {
+    final external = _externalClearPending;
+    if (external != null) {
+      external();
+    } else {
+      _engine?.clearPendingVoiceIntent();
+    }
+  }
+
   Future<void> initialize() async {
     if (_disposed || _initializing || _initialized) return;
+
+    final engine = _engine;
+    if (engine != null && !engine.gameOver) {
+      _binding = engine.voiceTurnBinding;
+      _lastObservedEngineBinding = _binding;
+      _matchSessionActive = true;
+    }
 
     _initializing = true;
     _state = VoiceSessionState.starting;
@@ -304,6 +340,14 @@ class VoiceDiceController extends ChangeNotifier {
           ? null
           : 'Voice recognition is not available on this device.';
       _state = _available ? VoiceSessionState.idle : VoiceSessionState.error;
+
+      if (_available &&
+          _enabled &&
+          _matchSessionActive &&
+          _lifecycleActive &&
+          _binding != null) {
+        await _startListening();
+      }
     } on PlatformException catch (error) {
       _initialized = true;
       _available = false;
@@ -326,6 +370,7 @@ class VoiceDiceController extends ChangeNotifier {
     if (_disposed) return;
     _matchSessionActive = true;
     _binding = binding;
+    _lastObservedEngineBinding = binding;
     _rollSuspended = false;
 
     if (!_initialized) {
@@ -339,14 +384,57 @@ class VoiceDiceController extends ChangeNotifier {
     if (_disposed) return;
     if (_binding == binding) return;
     _binding = binding;
+    _lastObservedEngineBinding = binding;
     _safeNotify();
 
     if (!_matchSessionActive || !_initialized || !_available) return;
     try {
       await _voiceChannel.invokeMethod<void>('updateContext', _bindingMap(binding));
     } catch (_) {
-      // A failed context push is fail-safe: speech events without the exact new
-      // binding are rejected in Dart, and manual gameplay continues normally.
+      // Fail safe: any event without the exact current binding is rejected below.
+    }
+  }
+
+  void _handleEngineStateChanged() {
+    if (_disposed) return;
+    final engine = _engine;
+    if (engine == null) return;
+
+    final nowGameOver = engine.gameOver;
+    if (nowGameOver) {
+      _engineWasGameOver = true;
+      _lastObservedEngineBinding = engine.voiceTurnBinding;
+      if (_matchSessionActive) {
+        _matchSessionActive = false;
+        _listening = false;
+        _state = VoiceSessionState.stopped;
+        _safeNotify();
+        unawaited(_stopNativeOnly());
+      }
+      return;
+    }
+
+    final nextBinding = engine.voiceTurnBinding;
+    final restartedMatch = _engineWasGameOver ||
+        (_lastObservedEngineBinding != null &&
+            _lastObservedEngineBinding!.matchId != nextBinding.matchId);
+    _engineWasGameOver = false;
+
+    if (!_matchSessionActive || restartedMatch) {
+      _matchSessionActive = true;
+      _binding = nextBinding;
+      _lastObservedEngineBinding = nextBinding;
+      _rollSuspended = false;
+      if (_initialized && _enabled && _available && _lifecycleActive) {
+        unawaited(_startListening());
+      }
+      _safeNotify();
+      return;
+    }
+
+    if (_binding != nextBinding) {
+      _lastObservedEngineBinding = nextBinding;
+      unawaited(bindTurn(nextBinding));
     }
   }
 
@@ -357,7 +445,7 @@ class VoiceDiceController extends ChangeNotifier {
     if (!active) {
       _listening = false;
       _state = VoiceSessionState.paused;
-      _onClearPending?.call();
+      _clearPendingIntent();
       _safeNotify();
       try {
         await _voiceChannel.invokeMethod<void>('pauseListening');
@@ -394,7 +482,7 @@ class VoiceDiceController extends ChangeNotifier {
       _listening = false;
       _rollSuspended = false;
       _state = VoiceSessionState.stopped;
-      _onClearPending?.call();
+      _clearPendingIntent();
       _safeNotify();
       try {
         await _voiceChannel.invokeMethod<void>('stopListening');
@@ -453,8 +541,16 @@ class VoiceDiceController extends ChangeNotifier {
     }
   }
 
-  Future<void> suspendForRoll() async {
-    if (_disposed) return;
+  /// Existing GameScreen calls this before starting the visual dice animation.
+  /// The engine reservation occurs synchronously before the first await, so a
+  /// simultaneous speech callback cannot alter the frozen value.
+  Future<int?> suspendForRoll() async {
+    if (_disposed) return null;
+
+    final engine = _engine;
+    final reservation = engine?.reserveDiceRoll(randomDice: _randomDice);
+    if (engine != null && reservation == null) return null;
+
     _rollSuspended = true;
     _listening = false;
     _state = VoiceSessionState.paused;
@@ -465,17 +561,31 @@ class VoiceDiceController extends ChangeNotifier {
         await _voiceChannel.invokeMethod<void>('pauseListening');
       } catch (_) {}
     }
+    return reservation?.value;
   }
 
   Future<void> resumeAfterRoll() async {
     if (_disposed) return;
 
     _rollSuspended = false;
+    final engine = _engine;
+    if (engine != null && !engine.gameOver) {
+      final nextBinding = engine.voiceTurnBinding;
+      if (_binding != nextBinding) {
+        await bindTurn(nextBinding);
+      }
+    }
+
     if (_matchSessionActive && _enabled && _available && _lifecycleActive) {
       await _startListening();
     } else {
       _safeNotify();
     }
+  }
+
+  void clearPending() {
+    _clearPendingIntent();
+    _safeNotify();
   }
 
   Future<void> endMatchSession() async {
@@ -485,8 +595,12 @@ class VoiceDiceController extends ChangeNotifier {
     _listening = false;
     _binding = null;
     _state = VoiceSessionState.stopped;
-    _onClearPending?.call();
+    _clearPendingIntent();
     _safeNotify();
+    await _stopNativeOnly();
+  }
+
+  Future<void> _stopNativeOnly() async {
     try {
       await _voiceChannel.invokeMethod<void>('stopListening');
     } catch (_) {}
@@ -549,6 +663,20 @@ class VoiceDiceController extends ChangeNotifier {
           _safeNotify();
         }
         return;
+      case 'lifecycle':
+        final active = event['active'];
+        if (active is bool) {
+          _lifecycleActive = active;
+          if (!active) {
+            _listening = false;
+            _state = VoiceSessionState.paused;
+            _clearPendingIntent();
+          } else if (_matchSessionActive && _enabled && _available && !_rollSuspended) {
+            unawaited(_startListening());
+          }
+          _safeNotify();
+        }
+        return;
       case 'listening':
         final active = event['active'];
         if (active is bool) {
@@ -571,7 +699,7 @@ class VoiceDiceController extends ChangeNotifier {
           _enabled = false;
           _listening = false;
           _state = VoiceSessionState.error;
-          _onClearPending?.call();
+          _clearPendingIntent();
           _errorMessage = 'Microphone permission is required for voice dice.';
           _safeNotify();
         } else if (granted == true) {
@@ -583,7 +711,7 @@ class VoiceDiceController extends ChangeNotifier {
         _available = false;
         _listening = false;
         _state = VoiceSessionState.error;
-        _onClearPending?.call();
+        _clearPendingIntent();
         _errorMessage = _eventMessage(event) ??
             'Voice recognition is not available on this device.';
         _safeNotify();
@@ -665,7 +793,7 @@ class VoiceDiceController extends ChangeNotifier {
       expiresAt: recognizedAt.add(intentTtl),
     );
 
-    if (_onIntent(intent)) {
+    if (_submitIntent(intent)) {
       _lastConfidence = parsed.confidence;
       _lastAcceptedValue = parsed.value;
       _acceptedIntentSerial += 1;
@@ -725,6 +853,7 @@ class VoiceDiceController extends ChangeNotifier {
   @override
   void dispose() {
     if (_disposed) return;
+    _engine?.removeListener(_handleEngineStateChanged);
     _disposed = true;
     _matchSessionActive = false;
     _listening = false;
