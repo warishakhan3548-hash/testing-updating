@@ -3,8 +3,17 @@ workflows:
     name: Voice Ludo Offline AI APK
     max_build_duration: 60
     environment:
-      flutter: stable
+      flutter: 3.47.1
     scripts:
+      - name: Verify Android project
+        script: |
+          set -euo pipefail
+          test -d android
+          test -f android/settings.gradle.kts
+          test -f android/app/build.gradle.kts
+          test -f android/app/src/main/AndroidManifest.xml
+          echo "Permanent Android project: OK"
+
       - name: Bundle offline Hindi voice model
         script: |
           set -euo pipefail
@@ -33,39 +42,6 @@ workflows:
           print('Offline Vosk model ZIP integrity: OK')
           PY
           echo "Offline Vosk model bundled: $(du -h "$MODEL" | cut -f1)"
-
-      - name: Generate Android scaffold
-        script: |
-          set -euo pipefail
-          rm -rf /tmp/voice_ludo_android
-          flutter create \
-            --platforms=android \
-            --project-name voice_ludo_masti \
-            --org com.aaris \
-            /tmp/voice_ludo_android
-          rm -rf android
-          cp -R /tmp/voice_ludo_android/android ./android
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          manifest = Path('android/app/src/main/AndroidManifest.xml')
-          text = manifest.read_text(encoding='utf-8')
-          permission = '<uses-permission android:name="android.permission.RECORD_AUDIO" />'
-          marker = '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
-          if marker not in text:
-              raise SystemExit('Android manifest header not found')
-          if permission not in text:
-              text = text.replace(marker, marker + '\n    ' + permission, 1)
-          manifest.write_text(text, encoding='utf-8')
-
-          proguard = Path('android/app/proguard-rules.pro')
-          proguard.write_text(
-              '-keep class com.sun.jna.* { *; }\n'
-              '-keepclassmembers class * extends com.sun.jna.* { public *; }\n',
-              encoding='utf-8',
-          )
-          PY
 
       - name: Install Flutter dependencies
         script: flutter pub get
