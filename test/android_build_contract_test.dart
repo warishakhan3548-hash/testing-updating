@@ -42,7 +42,7 @@ void main() {
       expect(manifest, contains('android.speech.RecognitionService'));
     });
 
-    test('native speech bridge is match-scoped and lifecycle-aware', () {
+    test('native speech bridge is match-scoped, latency-biased, and lifecycle-aware', () {
       final mainActivity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
       ).readAsStringSync();
@@ -60,10 +60,11 @@ void main() {
       expect(mainActivity, contains('override fun onPause()'));
       expect(mainActivity, contains('EXTRA_PREFER_OFFLINE'));
       expect(mainActivity, contains('EXTRA_PARTIAL_RESULTS'));
-      expect(
-        mainActivity,
-        contains('emitSpeech(partialResults, isFinal = true, epoch = epoch)'),
-      );
+      expect(mainActivity, contains('EXTRA_BIASING_STRINGS'));
+      expect(mainActivity, contains('DICE_BIASING_STRINGS'));
+      expect(mainActivity, contains('includeConfidences = false'));
+      expect(mainActivity, contains('armReadyWatchdog(recognizerEpoch)'));
+      expect(mainActivity, contains('recycleStuckRecognizer'));
       expect(
         mainActivity,
         contains('EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer'),
