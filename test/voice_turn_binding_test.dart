@@ -243,5 +243,24 @@ void main() {
       expect(engine.currentColor, LudoColor.yellow);
       expect(engine.canRoll, isTrue);
     });
+
+    test('ending the match voice session clears the pending command', () async {
+      final engine = LudoEngine(playerCount: 2);
+      final controller = VoiceDiceController(engine: engine);
+      final now = DateTime(2026, 9, 5, 12);
+      final binding = engine.voiceTurnBinding;
+
+      expect(engine.acceptVoiceDiceIntent(intentFor(binding, 6, now), now: now), isTrue);
+      expect(engine.pendingVoiceDiceIntent?.requestedValue, 6);
+
+      await controller.endMatchSession();
+
+      expect(engine.pendingVoiceDiceIntent, isNull);
+      expect(controller.listening, isFalse);
+      expect(controller.binding, isNull);
+
+      controller.dispose();
+      engine.dispose();
+    });
   });
 }
