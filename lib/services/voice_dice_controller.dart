@@ -187,6 +187,44 @@ class VoiceDiceController extends ChangeNotifier {
     }
   }
 
+  /// Rebuilds the offline voice stack after a permission or native-service
+  /// failure. This lets the user recover without restarting the whole game.
+  Future<void> retry() async {
+    if (_disposed) return;
+
+    if (_available) {
+      if (!_enabled) {
+        await setEnabled(true);
+      } else if (!_rollSuspended) {
+        await _startListening();
+      }
+      return;
+    }
+
+    _enabled = true;
+    _errorMessage = null;
+    _listenGeneration += 1;
+    _listening = false;
+    _rollSuspended = false;
+    _pendingValue = null;
+    _clearCandidate();
+
+    await _releaseSpeechService();
+    try {
+      await _recognizer?.dispose();
+    } catch (_) {}
+    _recognizer = null;
+    try {
+      _model?.dispose();
+    } catch (_) {}
+    _model = null;
+
+    _available = false;
+    _initialized = false;
+    _safeNotify();
+    await initialize();
+  }
+
   /// Atomically freezes voice input and returns the newest valid command.
   ///
   /// A very recent partial candidate is accepted even if it has not yet
