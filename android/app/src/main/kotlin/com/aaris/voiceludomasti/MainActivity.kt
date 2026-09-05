@@ -339,7 +339,11 @@ class MainActivity : FlutterActivity() {
 
             override fun onPartialResults(partialResults: Bundle?) {
                 if (!isCurrentRecognizerEpoch(epoch)) return
-                emitSpeech(partialResults, isFinal = false, epoch = epoch)
+                // Dice commands are latency-sensitive. Dart still owns the strict
+                // Hindi/English/Hinglish parser and turn binding checks, but a
+                // valid partial transcript must be allowed to lock immediately
+                // instead of waiting for Android's delayed final-result callback.
+                emitSpeech(partialResults, isFinal = true, epoch = epoch)
             }
 
             override fun onEvent(eventType: Int, params: Bundle?) = Unit
@@ -400,7 +404,11 @@ class MainActivity : FlutterActivity() {
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, MAX_RESULTS)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            // Prefer a fully local model only when Android has actually given us
+            // the on-device recognizer. The standard recognizer fallback may use
+            // its higher-quality network path instead of being forced into a weak
+            // or missing offline Hindi model.
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer)
             putExtra(
                 RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
                 450L,
