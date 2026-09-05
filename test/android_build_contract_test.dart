@@ -71,23 +71,26 @@ void main() {
       );
     });
 
-    test('voice hot path prefers on-device recognition and keeps a warm standby', () {
+    test('voice hot path prefers system accuracy and retains on-device fallback', () {
       final mainActivity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
       ).readAsStringSync();
 
-      const onDevice = 'SpeechRecognizer.createOnDeviceSpeechRecognizer(this)';
       const system = 'SpeechRecognizer.createSpeechRecognizer(this)';
+      const onDevice = 'SpeechRecognizer.createOnDeviceSpeechRecognizer(this)';
 
-      expect(mainActivity, contains(onDevice));
       expect(mainActivity, contains(system));
-      expect(mainActivity.indexOf(onDevice), lessThan(mainActivity.indexOf(system)));
+      expect(mainActivity, contains(onDevice));
+      expect(mainActivity.indexOf(system), lessThan(mainActivity.indexOf(onDevice)));
+      expect(mainActivity, contains('createOnDeviceFallback'));
       expect(mainActivity, contains('pauseCurrentSession(keepWarm = true)'));
       expect(mainActivity, contains('WARM_STANDBY_DELAY_MS = 35L'));
       expect(mainActivity, contains('MAX_RESULTS = 12'));
       expect(mainActivity, contains('"छक्का छक्का"'));
       expect(mainActivity, contains('"पाँच पाँच"'));
       expect(mainActivity, contains('"six six"'));
+      expect(mainActivity, contains('"शक्का"'));
+      expect(mainActivity, contains('isFinal = false'));
       expect(
         mainActivity,
         isNot(contains('EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS')),
@@ -100,6 +103,20 @@ void main() {
           ),
         ),
       );
+    });
+
+    test('accepted voice intent auto-rolls through the existing atomic roll path', () {
+      final gameScreen = File('lib/ui/game_screen.dart').readAsStringSync();
+      final controller =
+          File('lib/services/voice_dice_controller.dart').readAsStringSync();
+
+      expect(gameScreen, contains('VoiceDiceController(engine: _engine)'));
+      expect(gameScreen, contains('_voice.acceptedIntentSerial'));
+      expect(gameScreen, contains('scheduleMicrotask(()'));
+      expect(gameScreen, contains('unawaited(_rollDice())'));
+      expect(gameScreen, contains('_voice.pendingValue == null'));
+      expect(controller, contains('DiceVoiceIntentParser.isDiceOnlyPhrase(heard)'));
+      expect(controller, contains('reserveDiceRoll'));
     });
 
     test('permission denial remains an optional voice failure, not a game dependency', () {
