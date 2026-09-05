@@ -193,7 +193,7 @@ class MainActivity : FlutterActivity() {
             SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
 
     private fun isAnyRecognitionAvailable(): Boolean =
-        isOnDeviceRecognitionUsable() || SpeechRecognizer.isRecognitionAvailable(this)
+        SpeechRecognizer.isRecognitionAvailable(this) || isOnDeviceRecognitionUsable()
 
     private fun ensurePermissionAndStart() {
         if (!shouldListen()) return
@@ -261,9 +261,11 @@ class MainActivity : FlutterActivity() {
     /**
      * Creates a recognizer but does not open the microphone.
      *
-     * Low-latency policy:
-     *  1. Prefer Android's on-device recognizer when it exists.
-     *  2. Fall back to the phone's default recognition service.
+     * Accuracy + latency policy:
+     *  1. Prefer the phone's default system recognizer for the strongest Hindi /
+     *     Hinglish short-word decoding available on that device.
+     *  2. Fall back to Android's on-device recognizer when the system service
+     *     cannot be created.
      *  3. Keep the idle recognizer warm while Flutter temporarily pauses voice
      *     during dice animation/token movement.
      */
@@ -271,17 +273,15 @@ class MainActivity : FlutterActivity() {
         speechRecognizer?.let { return it }
 
         val recognizer =
-            if (isOnDeviceRecognitionUsable()) {
+            if (SpeechRecognizer.isRecognitionAvailable(this)) {
                 try {
-                    usingOnDeviceRecognizer = true
-                    SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
-                } catch (onDeviceError: Throwable) {
-                    onDeviceRejectedForProcess = true
                     usingOnDeviceRecognizer = false
-                    createSystemRecognizer(onDeviceError)
+                    SpeechRecognizer.createSpeechRecognizer(this)
+                } catch (systemError: Throwable) {
+                    createOnDeviceFallback(systemError)
                 }
             } else {
-                createSystemRecognizer(null)
+                createOnDeviceFallback(null)
             } ?: return null
 
         speechRecognizer = recognizer
@@ -291,19 +291,21 @@ class MainActivity : FlutterActivity() {
         return recognizer
     }
 
-    private fun createSystemRecognizer(fallbackCause: Throwable?): SpeechRecognizer? {
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+    private fun createOnDeviceFallback(systemError: Throwable?): SpeechRecognizer? {
+        if (!isOnDeviceRecognitionUsable()) {
             emitRecognizerCreationFailure(
-                fallbackCause ?: IllegalStateException("No Android speech recognizer is available."),
+                systemError ?: IllegalStateException("No Android speech recognizer is available."),
             )
             return null
         }
 
         return try {
+            usingOnDeviceRecognizer = true
+            SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+        } catch (onDeviceError: Throwable) {
+            onDeviceRejectedForProcess = true
             usingOnDeviceRecognizer = false
-            SpeechRecognizer.createSpeechRecognizer(this)
-        } catch (systemError: Throwable) {
-            emitRecognizerCreationFailure(systemError)
+            emitRecognizerCreationFailure(onDeviceError)
             null
         }
     }
@@ -433,13 +435,14 @@ class MainActivity : FlutterActivity() {
             override fun onPartialResults(partialResults: Bundle?) {
                 if (!isCurrentRecognizerEpoch(epoch)) return
 
-                // This is the primary low-latency path. A short command such as
-                // "छक्का", "पाँच" or "six" is forwarded immediately instead of
-                // waiting for end-of-speech/final decoding.
+                // Primary low-latency path. Keep this marked as a real partial;
+                // Dart accepts only dice-only hypotheses (or explicit command
+                // phrases) before final decoding, so "छक्का" can react instantly
+                // without pretending every partial sentence is final.
                 armSessionWatchdog(epoch, SPEECH_WATCHDOG_MS)
                 emitSpeech(
                     partialResults,
-                    isFinal = true,
+                    isFinal = false,
                     epoch = epoch,
                     includeConfidences = false,
                 )
@@ -506,10 +509,9 @@ class MainActivity : FlutterActivity() {
                 putExtra(RecognizerIntent.EXTRA_ENABLE_BIASING_DEVICE_CONTEXT, false)
             }
 
-            // Deliberately do NOT override Android's speech endpointer silence
-            // durations. The previous 180/300 ms cutoffs could terminate very short
-            // or softly spoken commands before an OEM recognizer stabilized them.
-            // Instant dice locking comes from onPartialResults instead.
+            // Do not force ultra-short endpointer silence windows. Quiet speech can
+            // need a little more acoustic context; instant reaction comes from the
+            // safe partial-result path instead of prematurely cutting the utterance.
         }
 
     private fun startSession() {
@@ -856,10 +858,11 @@ class MainActivity : FlutterActivity() {
                 "एक", "इक", "one", "वन", "1", "१",
                 "दो", "two", "टू", "2", "२",
                 "तीन", "three", "थ्री", "3", "३",
-                "चार", "four", "फोर", "4", "४",
+                "चार", "four", "फोर", "फौर", "4", "४",
                 "पाँच", "पांच", "पाच", "five", "फाइव", "फाईव", "5", "५",
-                "छक्का", "छका", "छक्के", "छह", "छः", "छे", "चक्का",
-                "six", "सिक्स", "सिक्सर", "chakka", "chhakka", "6", "६",
+                "छक्का", "छका", "छक्क", "छक", "छक्के", "छह", "छः", "छे",
+                "चक्का", "चका", "चक्क", "शक्का", "six", "सिक्स", "सिक्सर", "सिक",
+                "chakka", "chaka", "chhakka", "chhaka", "shakka", "6", "६",
                 "छक्का छक्का", "छह छह", "six six",
                 "पाँच पाँच", "पांच पांच", "five five",
                 "चार चार", "four four",
