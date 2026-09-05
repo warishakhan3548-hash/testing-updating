@@ -1,12 +1,60 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:speech_to_text/speech_recognition_error.dart';
-import 'package:speech_to_text/speech_recognition_result.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:vosk_flutter_service/vosk_flutter_service.dart';
 
+/// Offline, command-focused voice recognizer for the Ludo dice.
+///
+/// The recognizer deliberately uses a tiny grammar instead of general
+/// dictation. That makes short dice commands much faster and less likely to be
+/// confused by surrounding conversation. `[unk]` lets Vosk reject unrelated
+/// speech instead of forcing every sound into one of the six numbers.
 class VoiceDiceController extends ChangeNotifier {
-  final stt.SpeechToText _speech = stt.SpeechToText();
+  static const String modelAsset =
+      'assets/models/vosk-model-small-hi-0.22.zip';
+  static const int sampleRate = 16000;
+
+  static const List<String> commandGrammar = <String>[
+    '[unk]',
+    'एक',
+    'इक',
+    'वन',
+    'दो',
+    'टू',
+    'तीन',
+    'थ्री',
+    'चार',
+    'फोर',
+    'पांच',
+    'पाँच',
+    'पाच',
+    'फाइव',
+    'छह',
+    'छः',
+    'छे',
+    'छक्का',
+    'छका',
+    'चक्का',
+    'सिक्स',
+    'एक नंबर',
+    'दो नंबर',
+    'तीन नंबर',
+    'चार नंबर',
+    'पांच नंबर',
+    'पाँच नंबर',
+    'छह नंबर',
+    'छक्का नंबर',
+  ];
+
+  final VoskFlutterPlugin _vosk = VoskFlutterPlugin.instance();
+  final ModelLoader _modelLoader = ModelLoader();
+
+  Model? _model;
+  Recognizer? _recognizer;
+  SpeechService? _speechService;
+  StreamSubscription<String>? _partialSub;
+  StreamSubscription<String>? _resultSub;
 
   bool _initialized = false;
   bool _available = false;
@@ -14,70 +62,102 @@ class VoiceDiceController extends ChangeNotifier {
   bool _listening = false;
   bool _rollSuspended = false;
   bool _disposed = false;
+  int _listenGeneration = 0;
+
   int? _pendingValue;
+  int? _candidateValue;
+  int? _lastPartialValue;
+  int _partialHits = 0;
+  DateTime? _candidateAt;
   String _lastHeard = '';
   String? _errorMessage;
-  String? _preferredLocaleId;
-  int _listenGeneration = 0;
-  Timer? _restartTimer;
 
   bool get initialized => _initialized;
   bool get available => _available;
   bool get enabled => _enabled;
   bool get listening => _listening;
+  bool get offlineReady => _initialized && _available;
+  String get engineName => 'Offline Vosk Hindi AI';
   int? get pendingValue => _pendingValue;
   String get lastHeard => _lastHeard;
   String? get errorMessage => _errorMessage;
 
-  @override
-  void notifyListeners() {
-    if (!_disposed) super.notifyListeners();
-  }
-
   Future<void> initialize() async {
     if (_initialized || _disposed) return;
     _initialized = true;
+    _safeNotify();
 
     try {
-      _available = await _speech.initialize(
-        onStatus: _handleStatus,
-        onError: _handleError,
-        debugLogging: false,
+      final modelPath = await _modelLoader.loadFromAssets(modelAsset);
+      if (_disposed) return;
+
+      _model = await _vosk.createModel(modelPath);
+      if (_disposed) return;
+
+      _recognizer = await _vosk.createRecognizer(
+        model: _model!,
+        sampleRate: sampleRate,
+        grammar: commandGrammar,
       );
+      await _recognizer!.setMaxAlternatives(1);
 
       if (_disposed) return;
-      if (_available) {
-        await _chooseBestLocale();
-        await _startListening();
-      } else {
-        _errorMessage = 'Speech recognition is unavailable on this device.';
-      }
-    } catch (error) {
+      _speechService = await _vosk.initSpeechService(_recognizer!);
       if (_disposed) return;
+
+      _attachStreams();
+      _available = true;
+      _errorMessage = null;
+      _safeNotify();
+
+      if (_enabled && !_rollSuspended) {
+        await _startListening();
+      }
+    } on MicrophoneAccessDeniedException {
       _available = false;
-      _errorMessage = 'Voice setup failed: $error';
+      _errorMessage = 'Microphone permission is required for offline voice dice.';
+      _safeNotify();
+    } catch (error) {
+      _available = false;
+      _listening = false;
+      _errorMessage = _friendlyInitError(error);
+      _safeNotify();
     }
-    notifyListeners();
+  }
+
+  void _attachStreams() {
+    final service = _speechService;
+    if (service == null) return;
+
+    _partialSub?.cancel();
+    _resultSub?.cancel();
+
+    _partialSub = service.onPartial().listen(
+      (raw) => _handleRawRecognition(raw, isFinal: false),
+      onError: _handleStreamError,
+    );
+    _resultSub = service.onResult().listen(
+      (raw) => _handleRawRecognition(raw, isFinal: true),
+      onError: _handleStreamError,
+    );
   }
 
   Future<void> setEnabled(bool value) async {
-    if (_disposed) return;
+    if (_disposed || _enabled == value) return;
     _enabled = value;
     _errorMessage = null;
-    notifyListeners();
 
     if (!value) {
-      _restartTimer?.cancel();
       _listenGeneration += 1;
-      try {
-        await _speech.stop();
-      } catch (_) {}
-      if (_disposed) return;
       _listening = false;
-      notifyListeners();
+      try {
+        await _speechService?.stop();
+      } catch (_) {}
+      _safeNotify();
       return;
     }
 
+    _safeNotify();
     if (!_initialized) {
       await initialize();
     } else if (_available && !_rollSuspended) {
@@ -85,61 +165,53 @@ class VoiceDiceController extends ChangeNotifier {
     }
   }
 
+  /// Atomically freezes voice input and returns the newest valid command.
+  ///
+  /// A very recent partial candidate is accepted even if it has not yet
+  /// reached the normal two-frame stability threshold. This prevents a fast
+  /// "say four → instantly tap roll" interaction from becoming a random roll.
   Future<int?> suspendForRoll() async {
     if (_disposed) return null;
-    final value = _pendingValue;
-    _pendingValue = null;
-    _rollSuspended = true;
-    _restartTimer?.cancel();
 
-    // Invalidate callbacks from the pre-roll listening session. Late speech
-    // results can never overwrite the next roll's command.
+    final now = DateTime.now();
+    final candidateIsFresh = _candidateValue != null &&
+        _candidateAt != null &&
+        now.difference(_candidateAt!) <= const Duration(milliseconds: 1400);
+    final value = _pendingValue ?? (candidateIsFresh ? _candidateValue : null);
+
+    _rollSuspended = true;
+    _pendingValue = null;
+    _clearCandidate();
     _listenGeneration += 1;
-    try {
-      if (_speech.isListening) await _speech.stop();
-    } catch (_) {}
-    if (_disposed) return value;
     _listening = false;
-    notifyListeners();
+
+    try {
+      await _speechService?.stop();
+    } catch (_) {}
+
+    _safeNotify();
     return value;
   }
 
   Future<void> resumeAfterRoll() async {
     if (_disposed) return;
     _rollSuspended = false;
-    notifyListeners();
-    if (_enabled && _available) await _startListening();
+    _clearCandidate();
+
+    try {
+      await _recognizer?.reset();
+    } catch (_) {}
+
+    _safeNotify();
+    if (_enabled && _available) {
+      await _startListening();
+    }
   }
 
   void clearPending() {
-    if (_disposed) return;
     _pendingValue = null;
-    notifyListeners();
-  }
-
-  Future<void> _chooseBestLocale() async {
-    if (_disposed) return;
-    try {
-      final locales = await _speech.locales();
-      if (_disposed || locales.isEmpty) return;
-
-      stt.LocaleName? hindi;
-      stt.LocaleName? englishIndia;
-      for (final locale in locales) {
-        final id = locale.localeId.toLowerCase().replaceAll('-', '_');
-        if (hindi == null && id.startsWith('hi')) hindi = locale;
-        if (englishIndia == null && id.startsWith('en_in')) {
-          englishIndia = locale;
-        }
-      }
-
-      final systemLocale = await _speech.systemLocale();
-      if (_disposed) return;
-      _preferredLocaleId =
-          hindi?.localeId ?? englishIndia?.localeId ?? systemLocale?.localeId;
-    } catch (_) {
-      if (!_disposed) _preferredLocaleId = null;
-    }
+    _clearCandidate();
+    _safeNotify();
   }
 
   Future<void> _startListening() async {
@@ -147,97 +219,113 @@ class VoiceDiceController extends ChangeNotifier {
         !_enabled ||
         !_available ||
         _rollSuspended ||
-        _speech.isListening) {
+        _speechService == null ||
+        _listening) {
       return;
     }
 
-    _restartTimer?.cancel();
     final generation = ++_listenGeneration;
-
     try {
-      await _speech.listen(
-        onResult: (SpeechRecognitionResult result) {
-          if (_disposed ||
-              generation != _listenGeneration ||
-              _rollSuspended) {
-            return;
-          }
-          _onSpeechResult(result);
+      final started = await _speechService!.start(
+        onRecognitionError: (Object? error) {
+          if (_disposed || generation != _listenGeneration) return;
+          _listening = false;
+          _errorMessage = 'Offline voice paused. Tap the mic to retry.';
+          _safeNotify();
         },
-        listenOptions: stt.SpeechListenOptions(
-          partialResults: true,
-          cancelOnError: false,
-          listenMode: stt.ListenMode.confirmation,
-          pauseFor: const Duration(seconds: 2),
-          listenFor: const Duration(seconds: 30),
-          localeId: _preferredLocaleId,
-          enableHapticFeedback: false,
-        ),
       );
-      if (_disposed) return;
-      if (generation == _listenGeneration) {
-        _listening = _speech.isListening;
-        _errorMessage = null;
-        notifyListeners();
-      }
-    } catch (_) {
+      if (_disposed || generation != _listenGeneration) return;
+      _listening = started != false;
+      _errorMessage = null;
+      _safeNotify();
+    } catch (error) {
       if (_disposed || generation != _listenGeneration) return;
       _listening = false;
-      _errorMessage = 'Could not start listening.';
-      _scheduleRestart();
-      notifyListeners();
+      _errorMessage = 'Could not start the offline microphone recognizer.';
+      _safeNotify();
     }
   }
 
-  void _onSpeechResult(SpeechRecognitionResult result) {
-    if (_disposed) return;
-    final words = result.recognizedWords.trim();
-    if (words.isEmpty) return;
+  void _handleRawRecognition(String raw, {required bool isFinal}) {
+    if (_disposed || !_enabled || _rollSuspended) return;
 
-    _lastHeard = words;
-    final parsed = parseLastDiceValue(words);
-    if (parsed != null) {
-      _pendingValue = parsed;
-      _errorMessage = null;
+    final heard = _extractText(raw).trim();
+    if (heard.isEmpty) return;
+    if (heard == '[unk]') return;
+
+    _lastHeard = heard;
+    final value = parseLastDiceValue(heard);
+    if (value == null) {
+      _safeNotify();
+      return;
     }
-    notifyListeners();
+
+    _candidateValue = value;
+    _candidateAt = DateTime.now();
+
+    if (isFinal) {
+      _commitCandidate(value);
+      _lastPartialValue = null;
+      _partialHits = 0;
+      return;
+    }
+
+    if (_lastPartialValue == value) {
+      _partialHits += 1;
+    } else {
+      _lastPartialValue = value;
+      _partialHits = 1;
+    }
+
+    // Two matching partial frames are enough for a responsive but stable lock.
+    if (_partialHits >= 2) {
+      _commitCandidate(value);
+    } else {
+      _safeNotify();
+    }
   }
 
-  void _handleStatus(String status) {
-    if (_disposed) return;
-    _listening = status == stt.SpeechToText.listeningStatus;
-    notifyListeners();
-
-    if (status == stt.SpeechToText.notListeningStatus ||
-        status == stt.SpeechToText.doneStatus) {
-      _scheduleRestart();
-    }
+  void _commitCandidate(int value) {
+    // There is intentionally no queue: the newest command overwrites the old
+    // one. That is the core "last spoken number wins" rule.
+    _pendingValue = value;
+    _errorMessage = null;
+    _safeNotify();
   }
 
-  void _handleError(SpeechRecognitionError error) {
+  void _handleStreamError(Object error, StackTrace stackTrace) {
     if (_disposed) return;
     _listening = false;
-    final message = error.errorMsg.toLowerCase();
-    final permissionProblem = message.contains('permission') ||
-        message.contains('not_allowed') ||
-        message.contains('denied');
-
-    _errorMessage = permissionProblem
-        ? 'Microphone permission is required for voice dice.'
-        : 'Voice paused. Tap the mic if it does not restart.';
-
-    if (!permissionProblem) _scheduleRestart();
-    notifyListeners();
+    _errorMessage = 'Offline voice stream paused. Tap the mic to retry.';
+    _safeNotify();
   }
 
-  void _scheduleRestart() {
-    if (_disposed || !_enabled || !_available || _rollSuspended) return;
-    _restartTimer?.cancel();
-    _restartTimer = Timer(const Duration(milliseconds: 550), () {
-      if (!_disposed && _enabled && _available && !_rollSuspended) {
-        _startListening();
+  void _clearCandidate() {
+    _candidateValue = null;
+    _candidateAt = null;
+    _lastPartialValue = null;
+    _partialHits = 0;
+  }
+
+  static String _extractText(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return '';
+
+    try {
+      final decoded = jsonDecode(trimmed);
+      if (decoded is Map<String, dynamic>) {
+        for (final key in const <String>['partial', 'text']) {
+          final value = decoded[key];
+          if (value is String && value.trim().isNotEmpty) {
+            return value.trim();
+          }
+        }
       }
-    });
+    } catch (_) {
+      // Some plugin/platform versions may already return plain recognized text.
+    }
+
+    return trimmed;
   }
 
   static int? parseLastDiceValue(String input) {
@@ -249,15 +337,53 @@ class VoiceDiceController extends ChangeNotifier {
     if (normalized.isEmpty) return null;
 
     const aliases = <String, int>{
-      '1': 1, '१': 1, 'one': 1, 'एक': 1, 'ek': 1, 'वन': 1,
-      '2': 2, '२': 2, 'two': 2, 'दो': 2, 'do': 2, 'टू': 2,
-      '3': 3, '३': 3, 'three': 3, 'तीन': 3, 'teen': 3, 'थ्री': 3,
-      '4': 4, '४': 4, 'four': 4, 'चार': 4, 'char': 4, 'chaar': 4,
+      '1': 1,
+      '१': 1,
+      'one': 1,
+      'एक': 1,
+      'इक': 1,
+      'ek': 1,
+      'वन': 1,
+      '2': 2,
+      '२': 2,
+      'two': 2,
+      'दो': 2,
+      'do': 2,
+      'टू': 2,
+      '3': 3,
+      '३': 3,
+      'three': 3,
+      'तीन': 3,
+      'teen': 3,
+      'थ्री': 3,
+      '4': 4,
+      '४': 4,
+      'four': 4,
+      'चार': 4,
+      'char': 4,
+      'chaar': 4,
       'फोर': 4,
-      '5': 5, '५': 5, 'five': 5, 'पांच': 5, 'पाँच': 5, 'paanch': 5,
-      'panch': 5, 'फाइव': 5,
-      '6': 6, '६': 6, 'six': 6, 'छह': 6, 'छक्का': 6, 'छक्क': 6,
-      'chakka': 6, 'chhakka': 6, 'सिक्स': 6,
+      '5': 5,
+      '५': 5,
+      'five': 5,
+      'पांच': 5,
+      'पाँच': 5,
+      'पाच': 5,
+      'paanch': 5,
+      'panch': 5,
+      'फाइव': 5,
+      '6': 6,
+      '६': 6,
+      'six': 6,
+      'छह': 6,
+      'छः': 6,
+      'छे': 6,
+      'छक्का': 6,
+      'छका': 6,
+      'चक्का': 6,
+      'chakka': 6,
+      'chhakka': 6,
+      'सिक्स': 6,
     };
 
     int? latest;
@@ -268,13 +394,35 @@ class VoiceDiceController extends ChangeNotifier {
     return latest;
   }
 
+  String _friendlyInitError(Object error) {
+    final lower = error.toString().toLowerCase();
+    if (lower.contains('asset') || lower.contains('model')) {
+      return 'Offline Hindi voice model is missing or could not be loaded.';
+    }
+    return 'Offline voice setup failed. You can still use random dice.';
+  }
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> _shutdown() async {
+    try {
+      await _partialSub?.cancel();
+      await _resultSub?.cancel();
+      await _speechService?.cancel();
+      await _speechService?.dispose();
+      await _recognizer?.dispose();
+      _model?.dispose();
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    _restartTimer?.cancel();
     _listenGeneration += 1;
-    _speech.cancel();
+    unawaited(_shutdown());
     super.dispose();
   }
 }
