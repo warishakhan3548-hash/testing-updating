@@ -9,10 +9,10 @@ void main() {
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
       ).readAsStringSync();
 
-      expect(activity, contains('if (speechRecognizer != null) return'));
+      expect(activity, contains('speechRecognizer?.let { return it }'));
       expect(activity, contains('SpeechRecognizer.createOnDeviceSpeechRecognizer'));
       expect(activity, contains('SpeechRecognizer.createSpeechRecognizer'));
-      expect(activity, contains('speechRecognizer?.destroy()'));
+      expect(activity, contains('destroyRecognizer()'));
       expect(activity, contains('speechRecognizer = null'));
       expect(activity, contains('scheduleRestart(140L)'));
       expect(activity, contains('mainHandler.removeCallbacks(restartRunnable)'));
@@ -35,12 +35,41 @@ void main() {
 
       expect(activity, contains('data class VoiceBinding'));
       expect(activity, contains('recognitionBinding = binding'));
+      expect(activity, contains('if (binding != currentBinding) return'));
       expect(activity, contains('"matchId" to binding.matchId'));
       expect(activity, contains('"playerId" to binding.playerId'));
       expect(activity, contains('"turnId" to binding.turnId'));
       expect(activity, contains('"recognizedAtMs" to System.currentTimeMillis()'));
       expect(controller, contains('eventBinding != currentBinding'));
       expect(engine, contains('current.recognizedAt.isAfter'));
+    });
+
+    test('stale callbacks are invalidated before a new turn can listen', () {
+      final activity = File(
+        'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
+      ).readAsStringSync();
+
+      expect(activity, contains('private var recognizerEpoch = 0L'));
+      expect(activity, contains('val epoch = recognizerEpoch'));
+      expect(activity, contains('isCurrentRecognizerEpoch(epoch)'));
+      expect(activity, contains('recognizerEpoch += 1L'));
+      expect(activity, contains('restartForContextChange()'));
+      expect(activity, contains('destroyRecognizer()'));
+      expect(activity, contains('if (!isCurrentRecognizerEpoch(epoch) || !shouldListen()) return'));
+      expect(activity, contains('"recognizerEpoch" to epoch'));
+    });
+
+    test('roll/app pause destroys the native cycle before resume', () {
+      final activity = File(
+        'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
+      ).readAsStringSync();
+
+      expect(activity, contains('"pauseListening"'));
+      expect(activity, contains('private fun pauseCurrentSession()'));
+      expect(activity, contains('mainHandler.removeCallbacks(restartRunnable)'));
+      expect(activity, contains('destroyRecognizer()'));
+      expect(activity, contains('override fun onPause()'));
+      expect(activity, contains('override fun onResume()'));
     });
 
     test('Dart event stream and start calls are duplicate-guarded', () {
@@ -53,15 +82,15 @@ void main() {
       expect(controller, contains('_rollSuspended = true'));
     });
 
-    test('active match restart cancels the stale native recognition cycle', () {
+    test('microphone permission prompt cannot be requested repeatedly in parallel', () {
       final activity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
       ).readAsStringSync();
 
-      expect(activity, contains('changedWhileActive'));
-      expect(activity, contains('currentBinding != binding && sessionActive'));
-      expect(activity, contains('restartForContextChange()'));
-      expect(activity, contains('speechRecognizer?.cancel()'));
+      expect(activity, contains('permissionRequestInFlight'));
+      expect(activity, contains('!permissionRequestInFlight'));
+      expect(activity, contains('permissionRequestInFlight = true'));
+      expect(activity, contains('permissionRequestInFlight = false'));
     });
 
     test('on-device language failure falls back once instead of restart-looping', () {
