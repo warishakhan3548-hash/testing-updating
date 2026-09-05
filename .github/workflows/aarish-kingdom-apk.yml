@@ -80,6 +80,15 @@ jobs:
       - name: Test Android voice/build contracts
         run: flutter test test/android_build_contract_test.dart
 
+      - name: Test core game logic
+        run: flutter test test/core_logic_test.dart
+
+      - name: Test crash resilience
+        run: flutter test test/crash_resilience_test.dart
+
+      - name: Test Ludo engine invariants
+        run: flutter test test/ludo_engine_invariants_test.dart
+
       - name: Run complete Flutter test suite
         run: flutter test
 
