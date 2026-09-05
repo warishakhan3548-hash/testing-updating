@@ -32,11 +32,10 @@ class DiceVoiceParseResult {
   final bool strongContext;
 }
 
-/// Deterministic Hindi + English + Hinglish parser for dice commands.
-///
-/// The parser is deliberately tiny and match-specific. It accepts the short
-/// variants Android commonly emits for quiet/fast dice words, while unrelated
-/// vocabulary is still rejected instead of being substring-matched blindly.
+/// Deterministic Hindi + English + Hinglish parser for the six supported dice
+/// commands. The grammar is intentionally bounded: repeated versions of the
+/// same value are accepted, while hypotheses containing conflicting dice
+/// values are rejected instead of guessing which number the player intended.
 class DiceVoiceIntentParser {
   static const Map<String, int> _aliases = <String, int>{
     '1': 1,
@@ -201,9 +200,6 @@ class DiceVoiceIntentParser {
       .replaceAll(RegExp(r'[^a-z0-9\u0900-\u097F]+'), ' ')
       .trim();
 
-  /// True only when the whole hypothesis is made from dice aliases (including
-  /// repeated speech such as "छक्का छक्का" / "six six"). This lets a partial
-  /// callback trigger immediately without accepting an unrelated sentence.
   static bool isDiceOnlyPhrase(String input) {
     final normalized = _normalize(input);
     if (normalized.isEmpty) return false;
@@ -233,7 +229,7 @@ class DiceVoiceIntentParser {
       final alias = _aliases[token];
       if (alias != null) {
         // "छक्का दे दो" / "chakka de do": the final "दो/do" is a verb,
-        // not a request to replace six with two.
+        // not a second dice command.
         final previous = i == 0 ? null : tokens[i - 1];
         if ((token == 'दो' || token == 'do') &&
             (previous == 'दे' || previous == 'de')) {
@@ -243,15 +239,18 @@ class DiceVoiceIntentParser {
         continue;
       }
 
-      if (!_contextTokens.contains(token)) {
-        return null;
-      }
-      if (_strongCommandTokens.contains(token)) {
-        strongContext = true;
-      }
+      if (!_contextTokens.contains(token)) return null;
+      if (_strongCommandTokens.contains(token)) strongContext = true;
     }
 
     if (values.isEmpty) return null;
+
+    final requestedValue = values.first;
+    if (values.any((value) => value != requestedValue)) {
+      // A tiny command grammar should fail closed when the recognizer returns
+      // multiple different dice values in one utterance.
+      return null;
+    }
 
     final linguisticConfidence = tokens.length == 1
         ? 1.0
@@ -259,13 +258,14 @@ class DiceVoiceIntentParser {
             ? .98
             : .94;
     final confidence = recognitionConfidence != null && recognitionConfidence >= 0
-        ? (linguisticConfidence * .72 + recognitionConfidence.clamp(0, 1) * .28)
+        ? (linguisticConfidence * .72 +
+                recognitionConfidence.clamp(0, 1) * .28)
             .clamp(0.0, 1.0)
             .toDouble()
         : linguisticConfidence;
 
     return DiceVoiceParseResult(
-      value: values.last,
+      value: requestedValue,
       confidence: confidence,
       strongContext: strongContext,
     );
@@ -274,15 +274,16 @@ class DiceVoiceIntentParser {
 
 /// Match-scoped Android speech controller.
 ///
-/// Speech callbacks only submit turn-bound intents; the engine owns pending
-/// state, atomic consumption, random fallback and immutable roll resolution.
+/// Native speech callbacks submit immutable turn-bound intents only. The
+/// LudoEngine remains the authority for command acceptance, roll reservation,
+/// random fallback and dice commitment.
 class VoiceDiceController extends ChangeNotifier {
   VoiceDiceController({
     LudoEngine? engine,
     bool Function(PendingVoiceDiceIntent intent)? onIntent,
     VoidCallback? onClearPending,
     int Function()? randomDice,
-    this.intentTtl = const Duration(minutes: 2),
+    this.intentTtl = const Duration(seconds: 3),
   })  : _engine = engine ?? LudoEngine.voiceRuntimeEngine,
         _externalOnIntent = onIntent,
         _externalClearPending = onClearPending {
@@ -321,9 +322,8 @@ class VoiceDiceController extends ChangeNotifier {
   int? _lastAcceptedValue;
 
   VoiceSessionState _state = VoiceSessionState.idle;
-  String _lastHeard = '';
   double? _lastConfidence;
-  String? _errorMessage;
+  String? _internalErrorMessage;
 
   bool get initialized => _initialized && !_initializing;
   bool get initializing => _initializing;
@@ -333,9 +333,20 @@ class VoiceDiceController extends ChangeNotifier {
   bool get offlineReady => initialized && _available;
   String get engineName => 'Android SpeechRecognizer';
   int? get pendingValue => _engine?.pendingVoiceDiceIntent?.requestedValue;
-  String get lastHeard => _lastHeard;
+
+  // Raw recognition text is intentionally not exposed to game UI.
+  String get lastHeard => '';
   double? get lastConfidence => _lastConfidence;
-  String? get errorMessage => _errorMessage;
+
+  // Keep native/service diagnostics private. The game surface only receives a
+  // concise actionable state message.
+  String? get errorMessage {
+    if (_state != VoiceSessionState.error) return null;
+    if (!_available) return 'Voice control is unavailable on this device.';
+    if (!_enabled) return 'Microphone access is needed for voice control.';
+    return 'Voice control needs attention. Tap the mic to retry.';
+  }
+
   VoiceSessionState get state => _state;
   int get acceptedIntentSerial => _acceptedIntentSerial;
   int? get lastAcceptedValue => _lastAcceptedValue;
@@ -378,9 +389,8 @@ class VoiceDiceController extends ChangeNotifier {
     try {
       _available = await _voiceChannel.invokeMethod<bool>('isAvailable') ?? false;
       _initialized = true;
-      _errorMessage = _available
-          ? null
-          : 'Voice recognition is not available on this device.';
+      _internalErrorMessage =
+          _available ? null : 'Voice recognition is unavailable.';
       _state = _available ? VoiceSessionState.idle : VoiceSessionState.error;
 
       if (_available &&
@@ -395,13 +405,13 @@ class VoiceDiceController extends ChangeNotifier {
       _available = false;
       _listening = false;
       _state = VoiceSessionState.error;
-      _errorMessage = error.message ?? 'Could not initialize voice recognition.';
+      _internalErrorMessage = error.message;
     } catch (_) {
       _initialized = true;
       _available = false;
       _listening = false;
       _state = VoiceSessionState.error;
-      _errorMessage = 'Could not initialize voice recognition.';
+      _internalErrorMessage = 'Voice initialization failed.';
     } finally {
       _initializing = false;
       _safeNotify();
@@ -415,16 +425,13 @@ class VoiceDiceController extends ChangeNotifier {
     _lastObservedEngineBinding = binding;
     _rollSuspended = false;
 
-    if (!_initialized) {
-      await initialize();
-    }
+    if (!_initialized) await initialize();
     if (_disposed || !_enabled || !_available || !_lifecycleActive) return;
     await _startListening();
   }
 
   Future<void> bindTurn(TurnBinding binding) async {
-    if (_disposed) return;
-    if (_binding == binding) return;
+    if (_disposed || _binding == binding) return;
     _binding = binding;
     _lastObservedEngineBinding = binding;
     _safeNotify();
@@ -433,7 +440,8 @@ class VoiceDiceController extends ChangeNotifier {
     try {
       await _voiceChannel.invokeMethod<void>('updateContext', _bindingMap(binding));
     } catch (_) {
-      // Fail safe: any event without the exact current binding is rejected below.
+      // Native and Dart both reject events that do not carry the exact current
+      // turn binding, so a context-update transport failure fails closed.
     }
   }
 
@@ -467,7 +475,11 @@ class VoiceDiceController extends ChangeNotifier {
       _binding = nextBinding;
       _lastObservedEngineBinding = nextBinding;
       _rollSuspended = false;
-      if (_initialized && _enabled && _available && _lifecycleActive) {
+      if (_initialized &&
+          _enabled &&
+          _available &&
+          _lifecycleActive &&
+          !_rollSuspended) {
         unawaited(_startListening());
       }
       _safeNotify();
@@ -518,7 +530,7 @@ class VoiceDiceController extends ChangeNotifier {
     }
 
     _enabled = value;
-    _errorMessage = null;
+    _internalErrorMessage = null;
 
     if (!value) {
       _listening = false;
@@ -532,9 +544,7 @@ class VoiceDiceController extends ChangeNotifier {
       return;
     }
 
-    if (!_initialized) {
-      await initialize();
-    }
+    if (!_initialized) await initialize();
     if (!_available) {
       await retry();
       return;
@@ -549,7 +559,7 @@ class VoiceDiceController extends ChangeNotifier {
     if (_disposed) return;
 
     _enabled = true;
-    _errorMessage = null;
+    _internalErrorMessage = null;
     _state = VoiceSessionState.restarting;
     _safeNotify();
 
@@ -559,7 +569,7 @@ class VoiceDiceController extends ChangeNotifier {
       if (!_available) {
         _listening = false;
         _state = VoiceSessionState.error;
-        _errorMessage = 'Voice recognition is not available on this device.';
+        _internalErrorMessage = 'Voice recognition is unavailable.';
         _safeNotify();
         return;
       }
@@ -573,19 +583,19 @@ class VoiceDiceController extends ChangeNotifier {
     } on PlatformException catch (error) {
       _listening = false;
       _state = VoiceSessionState.error;
-      _errorMessage = error.message ?? 'Could not restart voice recognition.';
+      _internalErrorMessage = error.message;
       _safeNotify();
     } catch (_) {
       _listening = false;
       _state = VoiceSessionState.error;
-      _errorMessage = 'Could not restart voice recognition.';
+      _internalErrorMessage = 'Voice restart failed.';
       _safeNotify();
     }
   }
 
-  /// Existing GameScreen calls this before starting the visual dice animation.
-  /// The engine reservation occurs synchronously before the first await, so a
-  /// simultaneous speech callback cannot alter the frozen value.
+  /// Reserves the logical dice result synchronously before the first await.
+  /// This is the touch-vs-voice arbitration boundary: once reserved, a later
+  /// callback cannot change the roll even while native audio is being paused.
   Future<int?> suspendForRoll() async {
     if (_disposed) return null;
 
@@ -613,9 +623,7 @@ class VoiceDiceController extends ChangeNotifier {
     final engine = _engine;
     if (engine != null && !engine.gameOver) {
       final nextBinding = engine.voiceTurnBinding;
-      if (_binding != nextBinding) {
-        await bindTurn(nextBinding);
-      }
+      if (_binding != nextBinding) await bindTurn(nextBinding);
     }
 
     if (_matchSessionActive && _enabled && _available && _lifecycleActive) {
@@ -667,15 +675,15 @@ class VoiceDiceController extends ChangeNotifier {
     _safeNotify();
     try {
       await _voiceChannel.invokeMethod<void>('startListening', _bindingMap(binding));
-      _errorMessage = null;
+      _internalErrorMessage = null;
     } on PlatformException catch (error) {
       _listening = false;
       _state = VoiceSessionState.error;
-      _errorMessage = error.message ?? 'Could not start the microphone.';
+      _internalErrorMessage = error.message;
     } catch (_) {
       _listening = false;
       _state = VoiceSessionState.error;
-      _errorMessage = 'Could not start the microphone.';
+      _internalErrorMessage = 'Microphone start failed.';
     } finally {
       _starting = false;
       _safeNotify();
@@ -700,7 +708,7 @@ class VoiceDiceController extends ChangeNotifier {
           if (!available) {
             _listening = false;
             _state = VoiceSessionState.error;
-            _errorMessage = 'Voice recognition is not available on this device.';
+            _internalErrorMessage = 'Voice recognition is unavailable.';
           }
           _safeNotify();
         }
@@ -713,7 +721,10 @@ class VoiceDiceController extends ChangeNotifier {
             _listening = false;
             _state = VoiceSessionState.paused;
             _clearPendingIntent();
-          } else if (_matchSessionActive && _enabled && _available && !_rollSuspended) {
+          } else if (_matchSessionActive &&
+              _enabled &&
+              _available &&
+              !_rollSuspended) {
             unawaited(_startListening());
           }
           _safeNotify();
@@ -742,7 +753,7 @@ class VoiceDiceController extends ChangeNotifier {
           _listening = false;
           _state = VoiceSessionState.error;
           _clearPendingIntent();
-          _errorMessage = 'Microphone permission is required for voice dice.';
+          _internalErrorMessage = 'Microphone permission denied.';
           _safeNotify();
         } else if (granted == true) {
           _state = VoiceSessionState.starting;
@@ -754,8 +765,7 @@ class VoiceDiceController extends ChangeNotifier {
         _listening = false;
         _state = VoiceSessionState.error;
         _clearPendingIntent();
-        _errorMessage = _eventMessage(event) ??
-            'Voice recognition is not available on this device.';
+        _internalErrorMessage = _eventMessage(event) ?? 'Voice unavailable.';
         _safeNotify();
         return;
       case 'error':
@@ -763,7 +773,7 @@ class VoiceDiceController extends ChangeNotifier {
         final recoverable = event['recoverable'] == true;
         _state = recoverable ? VoiceSessionState.restarting : VoiceSessionState.error;
         if (!recoverable) {
-          _errorMessage = _eventMessage(event) ?? 'Voice recognition failed.';
+          _internalErrorMessage = _eventMessage(event) ?? 'Voice recognition failed.';
         }
         _safeNotify();
         return;
@@ -787,13 +797,14 @@ class VoiceDiceController extends ChangeNotifier {
 
     final currentBinding = _binding;
     final eventBinding = _bindingFromEvent(event);
-    if (currentBinding == null || eventBinding == null || eventBinding != currentBinding) {
+    if (currentBinding == null ||
+        eventBinding == null ||
+        eventBinding != currentBinding) {
       return;
     }
 
     final finalResult = event['final'] == true;
     final confidenceValues = event['confidences'];
-    String? firstHeard;
     DiceVoiceParseResult? parsed;
 
     for (var i = 0; i < rawTexts.length; i++) {
@@ -801,7 +812,6 @@ class VoiceDiceController extends ChangeNotifier {
       if (item is! String) continue;
       final heard = item.trim();
       if (heard.isEmpty) continue;
-      firstHeard ??= heard;
 
       final candidate = DiceVoiceIntentParser.parse(
         heard,
@@ -809,9 +819,8 @@ class VoiceDiceController extends ChangeNotifier {
       );
       if (candidate == null) continue;
 
-      // Exact dice-only partials are the latency hot path. Natural command
-      // phrases may also arm from partials when they contain explicit command
-      // context. Unrelated sentence prefixes still wait for/fail final parsing.
+      // Exact dice-only partials are the latency hot path. A natural phrase can
+      // also commit from a partial when explicit command context is present.
       if (!finalResult &&
           !candidate.strongContext &&
           !DiceVoiceIntentParser.isDiceOnlyPhrase(heard)) {
@@ -821,9 +830,6 @@ class VoiceDiceController extends ChangeNotifier {
       break;
     }
 
-    if (firstHeard != null) {
-      _lastHeard = firstHeard;
-    }
     if (parsed == null) {
       _safeNotify();
       return;
@@ -843,7 +849,7 @@ class VoiceDiceController extends ChangeNotifier {
       _lastConfidence = parsed.confidence;
       _lastAcceptedValue = parsed.value;
       _acceptedIntentSerial += 1;
-      _errorMessage = null;
+      _internalErrorMessage = null;
     }
     _safeNotify();
   }
@@ -885,7 +891,7 @@ class VoiceDiceController extends ChangeNotifier {
     if (_disposed) return;
     _listening = false;
     _state = VoiceSessionState.error;
-    _errorMessage = 'Voice connection was interrupted. Tap the mic to retry.';
+    _internalErrorMessage = 'Voice event stream interrupted.';
     _safeNotify();
   }
 
