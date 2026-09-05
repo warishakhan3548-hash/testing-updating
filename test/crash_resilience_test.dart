@@ -24,9 +24,18 @@ void main() {
       expect(activity, contains('activityResumed'));
       expect(activity, contains('restartDelayFor'));
       expect(activity, contains('coerceAtMost(4_000L)'));
-      expect(activity, contains('armReadyWatchdog(recognizerEpoch)'));
-      expect(activity, contains('armResultWatchdog(epoch)'));
-      expect(activity, contains('recycleStuckRecognizer(epoch)'));
+      expect(
+        activity,
+        contains('armReadyWatchdog(objectEpoch, sessionEpoch, binding)'),
+      );
+      expect(
+        activity,
+        contains('armResultWatchdog(objectEpoch, sessionEpoch, binding)'),
+      );
+      expect(
+        activity,
+        contains('recycleStuckRecognizer(objectEpoch, sessionEpoch, binding)'),
+      );
     });
 
     test('Android 13+ biases recognition toward the tiny dice vocabulary', () {
@@ -57,7 +66,7 @@ void main() {
 
       expect(activity, contains('data class VoiceBinding'));
       expect(activity, contains('recognitionBinding = binding'));
-      expect(activity, contains('if (binding != currentBinding) return'));
+      expect(activity, contains('currentBinding == binding'));
       expect(activity, contains('"matchId" to binding.matchId'));
       expect(activity, contains('"playerId" to binding.playerId'));
       expect(activity, contains('"turnId" to binding.turnId'));
@@ -66,22 +75,29 @@ void main() {
       expect(engine, contains('current.recognizedAt.isAfter'));
     });
 
-    test('stale callbacks are invalidated before a new turn can listen', () {
+    test('stale callbacks are invalidated by object and listening-session generations', () {
       final activity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
       ).readAsStringSync();
 
       expect(activity, contains('private var recognizerEpoch = 0L'));
-      expect(activity, contains('val epoch = recognizerEpoch'));
-      expect(activity, contains('isCurrentRecognizerEpoch(epoch)'));
+      expect(activity, contains('private var recognitionSessionEpoch = 0L'));
+      expect(activity, contains('val objectEpoch = recognizerEpoch'));
+      expect(activity, contains('val sessionEpoch = recognitionSessionEpoch'));
+      expect(activity, contains('isCurrentSession(objectEpoch, sessionEpoch, binding)'));
+      expect(activity, contains('objectEpoch == recognizerEpoch'));
+      expect(activity, contains('sessionEpoch == recognitionSessionEpoch'));
+      expect(activity, contains('recognitionBinding == binding'));
+      expect(activity, contains('currentBinding == binding'));
       expect(activity, contains('recognizerEpoch += 1L'));
+      expect(activity, contains('recognitionSessionEpoch += 1L'));
       expect(activity, contains('restartForContextChange()'));
-      expect(activity, contains('destroyRecognizer()'));
-      expect(activity, contains('if (!isCurrentRecognizerEpoch(epoch) || !shouldListen()) return'));
-      expect(activity, contains('"recognizerEpoch" to epoch'));
+      expect(activity, contains('invalidateActiveSession(keepRecognizer = true)'));
+      expect(activity, contains('"recognizerEpoch" to objectEpoch'));
+      expect(activity, contains('"sessionEpoch" to sessionEpoch'));
     });
 
-    test('roll/app pause destroys the native cycle before resume', () {
+    test('roll pause invalidates the cycle while app pause fully releases native audio', () {
       final activity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
       ).readAsStringSync();
@@ -89,9 +105,11 @@ void main() {
       expect(activity, contains('"pauseListening"'));
       expect(activity, contains('private fun pauseCurrentSession(keepWarm: Boolean)'));
       expect(activity, contains('pauseCurrentSession(keepWarm = true)'));
-      expect(activity, contains('mainHandler.removeCallbacks(restartRunnable)'));
-      expect(activity, contains('destroyRecognizer()'));
+      expect(activity, contains('invalidateActiveSession(keepRecognizer = true)'));
+      expect(activity, contains('recognizer.cancel()'));
       expect(activity, contains('override fun onPause()'));
+      expect(activity, contains('pauseCurrentSession(keepWarm = false)'));
+      expect(activity, contains('destroyRecognizer()'));
       expect(activity, contains('override fun onResume()'));
     });
 
