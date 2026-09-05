@@ -4,12 +4,17 @@ import 'package:voice_ludo_masti/services/voice_dice_controller.dart';
 
 void main() {
   group('Voice dice parser', () {
-    test('latest spoken number wins', () {
-      expect(VoiceDiceController.parseLastDiceValue('छक्का पाँच चार'), 4);
-      expect(VoiceDiceController.parseLastDiceValue('six five two'), 2);
-      expect(VoiceDiceController.parseLastDiceValue('6 6 5'), 5);
-      expect(VoiceDiceController.parseLastDiceValue('पाँच फिर छक्का'), 6);
-      expect(VoiceDiceController.parseLastDiceValue('चार बोलो फिर दो'), 2);
+    test('repeated commands stay stable and conflicting dice values fail closed', () {
+      expect(VoiceDiceController.parseLastDiceValue('छक्का छक्का'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('six six'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('6 6 6'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('पाँच पाँच'), 5);
+
+      expect(VoiceDiceController.parseLastDiceValue('छक्का पाँच चार'), isNull);
+      expect(VoiceDiceController.parseLastDiceValue('six five two'), isNull);
+      expect(VoiceDiceController.parseLastDiceValue('6 6 5'), isNull);
+      expect(VoiceDiceController.parseLastDiceValue('पाँच फिर छक्का'), isNull);
+      expect(VoiceDiceController.parseLastDiceValue('चार बोलो फिर दो'), isNull);
     });
 
     test('supports Hindi, Hinglish-style outputs, English and digits', () {
@@ -30,10 +35,11 @@ void main() {
       expect(VoiceDiceController.parseLastDiceValue('चलो भाई शुरू करो'), isNull);
     });
 
-    test('normal phrases can contain the command naturally', () {
+    test('normal phrases can contain one unambiguous command naturally', () {
       expect(VoiceDiceController.parseLastDiceValue('भाई छक्का दे'), 6);
       expect(VoiceDiceController.parseLastDiceValue('अब चार आए'), 4);
       expect(VoiceDiceController.parseLastDiceValue('roll six please'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('छक्का दे दो'), 6);
     });
   });
 
