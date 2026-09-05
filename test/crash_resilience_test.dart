@@ -14,7 +14,7 @@ void main() {
       expect(activity, contains('SpeechRecognizer.createSpeechRecognizer'));
       expect(activity, contains('destroyRecognizer()'));
       expect(activity, contains('speechRecognizer = null'));
-      expect(activity, contains('scheduleRestart(140L)'));
+      expect(activity, contains('scheduleRestart(FAST_RESTART_MS)'));
       expect(activity, contains('mainHandler.removeCallbacks(restartRunnable)'));
       expect(activity, contains('SpeechRecognizer.ERROR_RECOGNIZER_BUSY'));
       expect(activity, contains('override fun onPartialResults'));
@@ -23,6 +23,23 @@ void main() {
       expect(activity, contains('activityResumed'));
       expect(activity, contains('restartDelayFor'));
       expect(activity, contains('coerceAtMost(4_000L)'));
+      expect(activity, contains('armReadyWatchdog(recognizerEpoch)'));
+      expect(activity, contains('armResultWatchdog(epoch)'));
+      expect(activity, contains('recycleStuckRecognizer(epoch)'));
+    });
+
+    test('Android 13+ biases recognition toward the tiny dice vocabulary', () {
+      final activity = File(
+        'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
+      ).readAsStringSync();
+
+      expect(activity, contains('Build.VERSION_CODES.TIRAMISU'));
+      expect(activity, contains('RecognizerIntent.EXTRA_BIASING_STRINGS'));
+      expect(activity, contains('DICE_BIASING_STRINGS'));
+      expect(activity, contains('"छक्का"'));
+      expect(activity, contains('"पाँच"'));
+      expect(activity, contains('"six"'));
+      expect(activity, contains('includeConfidences = false'));
     });
 
     test('native speech cycles carry exact match/player/turn binding', () {
