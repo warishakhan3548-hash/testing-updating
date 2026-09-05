@@ -8,13 +8,21 @@ void main() {
       expect(VoiceDiceController.parseLastDiceValue('छक्का पाँच चार'), 4);
       expect(VoiceDiceController.parseLastDiceValue('six five two'), 2);
       expect(VoiceDiceController.parseLastDiceValue('6 6 5'), 5);
+      expect(VoiceDiceController.parseLastDiceValue('पाँच फिर छक्का'), 6);
     });
 
-    test('supports Hindi, English and digits', () {
+    test('supports Hindi, Hinglish-style outputs, English and digits', () {
       expect(VoiceDiceController.parseLastDiceValue('एक'), 1);
       expect(VoiceDiceController.parseLastDiceValue('three'), 3);
       expect(VoiceDiceController.parseLastDiceValue('५'), 5);
+      expect(VoiceDiceController.parseLastDiceValue('फाइव'), 5);
       expect(VoiceDiceController.parseLastDiceValue('सिक्स'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('चक्का'), 6);
+    });
+
+    test('unrelated speech does not invent a dice value', () {
+      expect(VoiceDiceController.parseLastDiceValue('आज गेम बहुत मजेदार है'), isNull);
+      expect(VoiceDiceController.parseLastDiceValue('[unk]'), isNull);
     });
   });
 
@@ -22,7 +30,7 @@ void main() {
     test('unlimited sixes keep granting turns without a three-six penalty', () {
       final engine = LudoEngine(playerCount: 2);
 
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < 8; i++) {
         engine.beginRolling();
         engine.commitRoll(6);
         expect(engine.awaitingMove, isTrue);
@@ -30,6 +38,21 @@ void main() {
         expect(engine.currentColor, LudoColor.red);
         expect(engine.gameOver, isFalse);
       }
+    });
+
+    test('six with no legal move still grants another roll', () {
+      final engine = LudoEngine(playerCount: 2);
+      for (final token in engine.players.first.tokens) {
+        token.progress = 56;
+      }
+
+      engine.beginRolling();
+      engine.commitRoll(6);
+
+      expect(engine.awaitingMove, isFalse);
+      expect(engine.currentColor, LudoColor.red);
+      expect(engine.canRoll, isTrue);
+      expect(engine.lastEvent, contains('Roll again'));
     });
 
     test('capture sends opponent token back to yard and gives extra turn', () {
@@ -57,6 +80,17 @@ void main() {
       engine.commitRoll(3);
       expect(engine.awaitingMove, isFalse);
       expect(engine.players.first.tokens[0].progress, 55);
+    });
+
+    test('exact roll reaches home', () {
+      final engine = LudoEngine(playerCount: 2);
+      engine.players.first.tokens[0].progress = 55;
+
+      engine.beginRolling();
+      engine.commitRoll(2);
+      expect(engine.awaitingMove, isTrue);
+      engine.moveToken(0);
+      expect(engine.players.first.tokens[0].finished, isTrue);
     });
   });
 }
