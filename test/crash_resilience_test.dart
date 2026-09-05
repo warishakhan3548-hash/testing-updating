@@ -4,17 +4,16 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Voice reliability', () {
-    test('native recognizer is single-instance and continuously re-arms safely', () {
+    test('native recognizer is single-instance guarded and continuously re-arms safely', () {
       final activity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
       ).readAsStringSync();
 
-      expect(
-        RegExp(r'SpeechRecognizer\.createSpeechRecognizer')
-            .allMatches(activity)
-            .length,
-        1,
-      );
+      expect(activity, contains('if (speechRecognizer != null) return'));
+      expect(activity, contains('SpeechRecognizer.createOnDeviceSpeechRecognizer'));
+      expect(activity, contains('SpeechRecognizer.createSpeechRecognizer'));
+      expect(activity, contains('speechRecognizer?.destroy()'));
+      expect(activity, contains('speechRecognizer = null'));
       expect(activity, contains('scheduleRestart(140L)'));
       expect(activity, contains('mainHandler.removeCallbacks(restartRunnable)'));
       expect(activity, contains('SpeechRecognizer.ERROR_RECOGNIZER_BUSY'));
@@ -52,6 +51,17 @@ void main() {
       expect(controller, contains('_starting ||'));
       expect(controller, contains('reserveDiceRoll'));
       expect(controller, contains('_rollSuspended = true'));
+    });
+
+    test('on-device language failure falls back once instead of restart-looping', () {
+      final activity = File(
+        'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
+      ).readAsStringSync();
+
+      expect(activity, contains('onDeviceRejectedForProcess'));
+      expect(activity, contains('isLanguageAvailabilityError(error) && usingOnDeviceRecognizer'));
+      expect(activity, contains('fallBackFromOnDeviceRecognizer()'));
+      expect(activity, contains('"recoverable" to false'));
     });
 
     test('the old model extraction crash path is completely removed', () {
