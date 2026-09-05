@@ -117,6 +117,7 @@ void main() {
       expect(gameScreen, contains('_voice.pendingValue == null'));
       expect(controller, contains('DiceVoiceIntentParser.isDiceOnlyPhrase(heard)'));
       expect(controller, contains('reserveDiceRoll'));
+      expect(controller, contains('Duration(seconds: 3)'));
     });
 
     test('permission denial remains an optional voice failure, not a game dependency', () {
@@ -143,6 +144,42 @@ void main() {
       expect(bootstrap, contains('voice_ludo/speech'));
       expect(bootstrap, contains('SpeechRecognizer.createSpeechRecognizer'));
       expect(bootstrap, isNot(contains('alphacephei.com/vosk')));
+    });
+
+    test('turn boundaries invalidate recognizer generations before warm re-arm', () {
+      final mainActivity = File(
+        'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
+      ).readAsStringSync();
+
+      expect(mainActivity, contains('private var recognizerEpoch = 0L'));
+      expect(mainActivity, contains('recognizerEpoch += 1L'));
+      expect(mainActivity, contains('restartForContextChange()'));
+      expect(mainActivity, contains('destroyRecognizer()'));
+      expect(mainActivity, contains('scheduleWarmStandby()'));
+      expect(mainActivity, contains('if (binding != currentBinding) return'));
+      expect(mainActivity, isNot(contains('fastRebindSession()')));
+      expect(mainActivity, isNot(contains('transitioningSession')));
+    });
+
+    test('premium voice UI hides raw transcripts and gates modal lifecycle', () {
+      final gameScreen = File('lib/ui/game_screen.dart').readAsStringSync();
+      final controller =
+          File('lib/services/voice_dice_controller.dart').readAsStringSync();
+      final setup = File('lib/ui/setup_screen.dart').readAsStringSync();
+      final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+
+      expect(gameScreen, contains('WidgetsBindingObserver'));
+      expect(gameScreen, contains('_modalVoicePause'));
+      expect(gameScreen, contains('setLifecycleActive(false)'));
+      expect(gameScreen, contains("'Aarish Kingdom'"));
+      expect(gameScreen, isNot(contains('Heard: “')));
+      expect(controller, contains("String get lastHeard => '';"));
+      expect(controller, contains('conflicting dice values are rejected'));
+      expect(setup, contains('MATCH VOICE READY'));
+      expect(setup, contains('Dice खुद roll होगा'));
+      expect(setup, isNot(contains('OFFLINE VOICE AI')));
+      expect(setup, isNot(contains('No internet needed while playing')));
+      expect(manifest, contains('android:label="Aarish Kingdom"'));
     });
   });
 }
