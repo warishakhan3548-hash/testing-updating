@@ -60,6 +60,9 @@ void main() {
       expect(activity, contains('MAX_EXTRACTED_MODEL_BYTES'));
       expect(activity, contains('MIN_VOSK_HEADROOM_MB'));
       expect(activity, contains('memoryInfo.lowMemory'));
+      expect(activity, contains('MODEL_MARKER_FILE'));
+      expect(activity, contains('MODEL_INSTALL_SCHEMA'));
+      expect(activity, contains('hasCompleteModelStructure'));
     });
 
     test('voice controller reuses one Android Vosk model across game entries', () {
@@ -70,7 +73,17 @@ void main() {
       expect(controller, contains('static Future<Model>? _sharedModelFuture;'));
       expect(controller, contains('_obtainSharedModel'));
       expect(controller, contains('static Future<void> _globalServiceRelease'));
-      expect(controller, isNot(contains('await _recognizer?.dispose();\n    } catch (_) {}\n    try {\n      _model?.dispose();')));
+      expect(
+        controller,
+        isNot(
+          contains(
+            'await _recognizer?.dispose();\n'
+            '    } catch (_) {}\n'
+            '    try {\n'
+            '      _model?.dispose();',
+          ),
+        ),
+      );
     });
   });
 }
