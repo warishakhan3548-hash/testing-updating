@@ -82,7 +82,9 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       await _ensureRecognizer();
       if (_disposed) return;
 
-      if (!_lifecyclePaused) {
+      // Loading the model is independent from microphone consent. If the user
+      // turns voice OFF while the model is loading, do not request/open the mic.
+      if (_enabled && !_lifecyclePaused) {
         await _ensureSpeechService();
       }
 
