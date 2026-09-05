@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -27,6 +28,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   int _targetDice = 1;
   int _animationSeed = 1;
   int? _lastVoiceValue;
+  bool _rollActionBusy = false;
   bool _winnerDialogShown = false;
 
   @override
@@ -42,7 +44,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 2400),
     );
-    _voice.initialize();
+    unawaited(_voice.initialize());
   }
 
   @override
@@ -65,36 +67,42 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _rollDice() async {
-    if (!_engine.canRoll) return;
-
-    final forcedValue = await _voice.suspendForRoll();
-    if (!mounted || !_engine.canRoll) {
-      await _voice.resumeAfterRoll();
-      return;
-    }
-
-    final target = forcedValue ?? (_random.nextInt(6) + 1);
-    _targetDice = target;
-    _animationSeed = _random.nextInt(5000);
-    _engine.beginRolling();
-    HapticFeedback.selectionClick();
+    if (_rollActionBusy || !_engine.canRoll) return;
+    _rollActionBusy = true;
 
     try {
-      await _diceController.forward(from: 0);
-      if (!mounted) return;
-      _engine.commitRoll(target);
-      if (target == 6) {
-        HapticFeedback.heavyImpact();
-      } else {
-        HapticFeedback.mediumImpact();
+      final forcedValue = await _voice.suspendForRoll();
+      if (!mounted || !_engine.canRoll) {
+        await _voice.resumeAfterRoll();
+        return;
       }
 
-      if (!_engine.awaitingMove) {
+      final target = forcedValue ?? (_random.nextInt(6) + 1);
+      _targetDice = target;
+      _animationSeed = _random.nextInt(5000);
+      _engine.beginRolling();
+      HapticFeedback.selectionClick();
+
+      try {
+        await _diceController.forward(from: 0);
+        if (!mounted) return;
+
+        _engine.commitRoll(target);
+        if (target == 6) {
+          HapticFeedback.heavyImpact();
+        } else {
+          HapticFeedback.mediumImpact();
+        }
+
+        if (!_engine.awaitingMove) {
+          await _voice.resumeAfterRoll();
+        }
+      } catch (_) {
+        _engine.cancelRolling();
         await _voice.resumeAfterRoll();
       }
-    } catch (_) {
-      _engine.cancelRolling();
-      await _voice.resumeAfterRoll();
+    } finally {
+      _rollActionBusy = false;
     }
   }
 
@@ -122,10 +130,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _showWinnerDialog() {
-    if (_winnerDialogShown || !mounted) return;
+    if (_winnerDialogShown || !mounted || _engine.winnerOrder.isEmpty) return;
     _winnerDialogShown = true;
     final ranking = List<LudoColor>.unmodifiable(_engine.winnerOrder);
-    _celebrationController.forward(from: 0);
+    unawaited(_celebrationController.forward(from: 0));
 
     showGeneralDialog<void>(
       context: context,
@@ -150,26 +158,30 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   ),
                 ),
               ),
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(22),
-                  child: _WinnerCard(
-                    ranking: ranking,
-                    onExit: () {
-                      Navigator.of(dialogContext).pop();
-                      Navigator.of(context).pop();
-                    },
-                    onPlayAgain: () {
-                      Navigator.of(dialogContext).pop();
-                      setState(() {
-                        _winnerDialogShown = false;
-                        _targetDice = 1;
-                      });
-                      _celebrationController.reset();
-                      _engine.reset(widget.playerCount);
-                      _voice.clearPending();
-                      _voice.resumeAfterRoll();
-                    },
+              Positioned.fill(
+                child: SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(22),
+                    child: Center(
+                      child: _WinnerCard(
+                        ranking: ranking,
+                        onExit: () {
+                          Navigator.of(dialogContext).pop();
+                          Navigator.of(context).pop();
+                        },
+                        onPlayAgain: () {
+                          Navigator.of(dialogContext).pop();
+                          setState(() {
+                            _winnerDialogShown = false;
+                            _targetDice = 1;
+                          });
+                          _celebrationController.reset();
+                          _engine.reset(widget.playerCount);
+                          _voice.clearPending();
+                          unawaited(_voice.resumeAfterRoll());
+                        },
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -207,16 +219,19 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               appBar: AppBar(
                 titleSpacing: 0,
                 title: Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.casino_rounded, color: activeColor, size: 23),
                     const SizedBox(width: 8),
-                    const Text(
-                      'Voice Ludo Masti',
-                      style: TextStyle(
-                        color: GamePalette.textPrimary,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
+                    const Flexible(
+                      child: Text(
+                        'Voice Ludo Masti',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: GamePalette.textPrimary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 18,
+                        ),
                       ),
                     ),
                   ],
@@ -224,8 +239,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 actions: [
                   IconButton(
                     tooltip: 'Restart game',
-                    onPressed:
-                        _engine.isRolling ? null : () => _confirmRestart(context),
+                    onPressed: _engine.isRolling || _rollActionBusy
+                        ? null
+                        : () => _confirmRestart(context),
                     icon: const Icon(Icons.refresh_rounded),
                   ),
                   const SizedBox(width: 4),
@@ -257,6 +273,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                         builder: (context, constraints) {
                           final wide = constraints.maxWidth >= 860;
                           return SingleChildScrollView(
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
                             padding: EdgeInsets.fromLTRB(
                               wide ? 22 : 12,
                               8,
@@ -292,11 +310,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         const SizedBox(height: 11),
         _buildBoardCard(),
         const SizedBox(height: 12),
-        _buildPlayersPanel(),
-        const SizedBox(height: 12),
         _buildVoicePanel(),
         const SizedBox(height: 12),
         _buildDicePanel(),
+        const SizedBox(height: 12),
+        _buildPlayersPanel(),
       ],
     );
   }
@@ -319,11 +337,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           width: 350,
           child: Column(
             children: [
-              _buildPlayersPanel(),
-              const SizedBox(height: 13),
               _buildVoicePanel(),
               const SizedBox(height: 13),
               _buildDicePanel(vertical: true),
+              const SizedBox(height: 13),
+              _buildPlayersPanel(),
             ],
           ),
         ),
@@ -372,10 +390,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: .38)),
         boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: .08),
-            blurRadius: 18,
-          ),
+          BoxShadow(color: color.withValues(alpha: .08), blurRadius: 18),
         ],
       ),
       child: Row(
@@ -389,10 +404,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               color: color,
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: .3),
-                  blurRadius: 14,
-                ),
+                BoxShadow(color: color.withValues(alpha: .3), blurRadius: 14),
               ],
             ),
             child: Text(
@@ -411,12 +423,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               children: [
                 Row(
                   children: [
-                    Text(
-                      '${_engine.currentColor.label} Turn',
-                      style: const TextStyle(
-                        color: GamePalette.textPrimary,
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w900,
+                    Flexible(
+                      child: Text(
+                        '${_engine.currentColor.label} Turn',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: GamePalette.textPrimary,
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 7),
@@ -515,11 +531,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final active = index == _engine.currentPlayerIndex && !_engine.gameOver;
     final color = GamePalette.player(player.color);
     final homeCount = player.tokens.where((token) => token.finished).length;
-    final inPlayCount = player.tokens.where((token) => !token.inYard && !token.finished).length;
+    final inPlayCount =
+        player.tokens.where((token) => !token.inYard && !token.finished).length;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
       decoration: BoxDecoration(
         color: active ? color.withValues(alpha: .14) : GamePalette.surfaceRaised,
         borderRadius: BorderRadius.circular(14),
@@ -554,13 +571,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            '$homeCount🏠 · $inPlayCount▶',
-            maxLines: 1,
-            style: const TextStyle(
-              color: GamePalette.textMuted,
-              fontSize: 9.5,
-              fontWeight: FontWeight.w600,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '$homeCount🏠 · $inPlayCount▶',
+              maxLines: 1,
+              style: const TextStyle(
+                color: GamePalette.textMuted,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -570,21 +590,23 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   Widget _buildVoicePanel() {
     final pending = _voice.pendingValue;
-    final movePaused = _engine.isRolling || _engine.awaitingMove;
+    final movePaused = _engine.isRolling || _engine.awaitingMove || _rollActionBusy;
     final listening = _voice.listening && !movePaused;
     final accent = pending != null ? GamePalette.violet : GamePalette.green;
 
-    final status = !_voice.initialized
+    final status = _voice.initializing
         ? 'Loading offline AI…'
-        : !_voice.available
-            ? 'Offline voice unavailable'
-            : !_voice.enabled
-                ? 'Voice control is off'
-                : movePaused
-                    ? 'Voice safely paused for this move'
-                    : listening
-                        ? 'Listening locally… बोलो 1 से 6'
-                        : 'Preparing microphone…';
+        : !_voice.initialized
+            ? 'Starting offline AI…'
+            : !_voice.available
+                ? 'Offline voice unavailable'
+                : !_voice.enabled
+                    ? 'Voice control is off'
+                    : movePaused
+                        ? 'Voice safely paused for this move'
+                        : listening
+                            ? 'Listening locally… बोलो 1 से 6'
+                            : 'Preparing microphone…';
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
@@ -593,7 +615,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         color: GamePalette.surface.withValues(alpha: .94),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: accent.withValues(alpha: pending != null ? .55 : .22)),
+        border: Border.all(
+          color: accent.withValues(alpha: pending != null ? .55 : .22),
+        ),
         boxShadow: pending == null
             ? null
             : [
@@ -615,7 +639,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               shape: const CircleBorder(),
               child: InkWell(
                 customBorder: const CircleBorder(),
-                onTap: () => _voice.setEnabled(!_voice.enabled),
+                onTap: () => unawaited(_voice.setEnabled(!_voice.enabled)),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   width: 52,
@@ -726,9 +750,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   Text(
                     pending?.toString() ?? '—',
                     style: TextStyle(
-                      color: pending == null
-                          ? GamePalette.textMuted
-                          : Colors.white,
+                      color: pending == null ? GamePalette.textMuted : Colors.white,
                       fontSize: 25,
                       height: 1,
                       fontWeight: FontWeight.w900,
@@ -754,7 +776,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildDicePanel({bool vertical = false}) {
-    final canRoll = _engine.canRoll;
+    final canRoll = _engine.canRoll && !_rollActionBusy;
     final activeColor = GamePalette.player(_engine.currentColor);
     final pending = _voice.pendingValue;
 
@@ -778,7 +800,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
 
     final info = Column(
-      crossAxisAlignment: vertical ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      crossAxisAlignment:
+          vertical ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       children: [
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
@@ -831,14 +854,21 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           ),
         ],
       ),
-      child: vertical
-          ? Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stackControls = vertical || constraints.maxWidth < 360;
+          if (stackControls) {
+            return Column(
               children: [
                 Semantics(
                   button: true,
                   enabled: canRoll,
                   label: 'Roll dice',
-                  child: GestureDetector(onTap: canRoll ? _rollDice : null, child: dice),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: canRoll ? _rollDice : null,
+                    child: dice,
+                  ),
                 ),
                 const SizedBox(height: 13),
                 info,
@@ -849,24 +879,32 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   child: _rollButton(canRoll, activeColor),
                 ),
               ],
-            )
-          : Row(
-              children: [
-                Semantics(
-                  button: true,
-                  enabled: canRoll,
-                  label: 'Roll dice',
-                  child: GestureDetector(onTap: canRoll ? _rollDice : null, child: dice),
+            );
+          }
+
+          return Row(
+            children: [
+              Semantics(
+                button: true,
+                enabled: canRoll,
+                label: 'Roll dice',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: canRoll ? _rollDice : null,
+                  child: dice,
                 ),
-                const SizedBox(width: 14),
-                Expanded(child: info),
-                const SizedBox(width: 10),
-                SizedBox(
-                  height: 54,
-                  child: _rollButton(canRoll, activeColor),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(child: info),
+              const SizedBox(width: 10),
+              SizedBox(
+                height: 54,
+                child: _rollButton(canRoll, activeColor),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -901,7 +939,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         backgroundColor: GamePalette.surface,
         title: const Text(
           'Restart game?',
-          style: TextStyle(color: GamePalette.textPrimary, fontWeight: FontWeight.w900),
+          style: TextStyle(
+            color: GamePalette.textPrimary,
+            fontWeight: FontWeight.w900,
+          ),
         ),
         content: const Text(
           'All token positions and the current ranking will reset.',
@@ -969,7 +1010,10 @@ class _DiceFace extends StatelessWidget {
           colors: <Color>[Color.lerp(color, Colors.white, .08)!, dark],
         ),
         borderRadius: BorderRadius.circular(23),
-        border: Border.all(color: Colors.white.withValues(alpha: .28), width: 1.4),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: .28),
+          width: 1.4,
+        ),
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: .3),
@@ -994,7 +1038,10 @@ class _DiceFace extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(999),
                 gradient: LinearGradient(
-                  colors: [Colors.white.withValues(alpha: .16), Colors.transparent],
+                  colors: [
+                    Colors.white.withValues(alpha: .16),
+                    Colors.transparent,
+                  ],
                 ),
               ),
             ),
@@ -1011,7 +1058,11 @@ class _DiceFace extends StatelessWidget {
                       : Colors.white,
                   shape: BoxShape.circle,
                   boxShadow: const [
-                    BoxShadow(color: Colors.black26, blurRadius: 2, offset: Offset(0, 1)),
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 2,
+                      offset: Offset(0, 1),
+                    ),
                   ],
                 ),
               ),
@@ -1070,6 +1121,7 @@ class _WinnerCard extends StatelessWidget {
             const SizedBox(height: 15),
             Text(
               '${winner.label} wins!',
+              textAlign: TextAlign.center,
               style: const TextStyle(
                 color: GamePalette.textPrimary,
                 fontSize: 25,
@@ -1079,6 +1131,7 @@ class _WinnerCard extends StatelessWidget {
             const SizedBox(height: 5),
             const Text(
               'Masti champion of this round 🎉',
+              textAlign: TextAlign.center,
               style: TextStyle(color: GamePalette.textMuted, fontSize: 12.5),
             ),
             const SizedBox(height: 18),
@@ -1115,11 +1168,13 @@ class _WinnerCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            ranking[i].label,
-                            style: const TextStyle(
-                              color: GamePalette.textPrimary,
-                              fontWeight: FontWeight.w800,
+                          Expanded(
+                            child: Text(
+                              ranking[i].label,
+                              style: const TextStyle(
+                                color: GamePalette.textPrimary,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
                         ],
@@ -1129,27 +1184,41 @@ class _WinnerCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: onExit,
-                    child: const Text('EXIT'),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final narrow = constraints.maxWidth < 285;
+                final exit = OutlinedButton(
+                  onPressed: onExit,
+                  child: const Text('EXIT'),
+                );
+                final playAgain = FilledButton.icon(
+                  onPressed: onPlayAgain,
+                  icon: const Icon(Icons.replay_rounded),
+                  label: const Text(
+                    'PLAY AGAIN',
+                    style: TextStyle(fontWeight: FontWeight.w900),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 2,
-                  child: FilledButton.icon(
-                    onPressed: onPlayAgain,
-                    icon: const Icon(Icons.replay_rounded),
-                    label: const Text(
-                      'PLAY AGAIN',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                ),
-              ],
+                );
+
+                if (narrow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      playAgain,
+                      const SizedBox(height: 9),
+                      exit,
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: exit),
+                    const SizedBox(width: 10),
+                    Expanded(flex: 2, child: playAgain),
+                  ],
+                );
+              },
             ),
           ],
         ),
