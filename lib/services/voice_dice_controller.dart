@@ -108,6 +108,20 @@ class DiceVoiceIntentParser {
     'sixer': 6,
   };
 
+  // Low ASR confidence is often caused by quiet/fast speech rather than an
+  // incorrect lexical hypothesis. Only these precise, low-collision aliases
+  // are allowed to bypass the generic confidence floor when the entire
+  // hypothesis consists exclusively of one dice value. Short/noisy aliases
+  // such as "छ", "सिक", "tin" or "char" still require normal ASR confidence.
+  static const Set<String> _highPrecisionAliases = <String>{
+    '1', '१', 'one', 'एक', 'ek', 'वन',
+    '2', '२', 'two', 'दो', 'टू',
+    '3', '३', 'three', 'तीन', 'teen', 'थ्री',
+    '4', '४', 'four', 'चार', 'chaar', 'फोर',
+    '5', '५', 'five', 'पांच', 'पाँच', 'paanch', 'panch', 'फाइव',
+    '6', '६', 'six', 'छह', 'छः', 'छक्का', 'chakka', 'chhakka', 'सिक्स',
+  };
+
   static const Set<String> _contextTokens = <String>{
     'a',
     'ab',
@@ -210,18 +224,15 @@ class DiceVoiceIntentParser {
     return tokens.every(_aliases.containsKey);
   }
 
+  static bool _isHighPrecisionDiceOnlyPhrase(List<String> tokens) =>
+      tokens.isNotEmpty && tokens.every(_highPrecisionAliases.contains);
+
   static DiceVoiceParseResult? parse(
     String input, {
     double? recognitionConfidence,
   }) {
     final normalized = _normalize(input);
     if (normalized.isEmpty) return null;
-
-    if (recognitionConfidence != null &&
-        recognitionConfidence >= 0 &&
-        recognitionConfidence < .30) {
-      return null;
-    }
 
     final tokens = normalized.split(RegExp(r'\s+'));
     final values = <int>[];
@@ -258,12 +269,20 @@ class DiceVoiceIntentParser {
       return null;
     }
 
+    final hasMeasuredConfidence =
+        recognitionConfidence != null && recognitionConfidence >= 0;
+    if (hasMeasuredConfidence &&
+        recognitionConfidence < .30 &&
+        !_isHighPrecisionDiceOnlyPhrase(tokens)) {
+      return null;
+    }
+
     final linguisticConfidence = tokens.length == 1
         ? 1.0
         : strongContext
             ? .98
             : .94;
-    final confidence = recognitionConfidence != null && recognitionConfidence >= 0
+    final confidence = hasMeasuredConfidence
         ? (linguisticConfidence * .72 +
                 recognitionConfidence.clamp(0, 1) * .28)
             .clamp(0.0, 1.0)
@@ -344,12 +363,9 @@ class VoiceDiceController extends ChangeNotifier {
   String get engineName => 'Android SpeechRecognizer';
   int? get pendingValue => _engine?.pendingVoiceDiceIntent?.requestedValue;
 
-  // Raw recognition text is intentionally not exposed to game UI.
   String get lastHeard => '';
   double? get lastConfidence => _lastConfidence;
 
-  // Keep native/service diagnostics private. The game surface only receives a
-  // concise actionable state message.
   String? get errorMessage {
     if (_state != VoiceSessionState.error) return null;
     if (!_available) return 'Voice control is unavailable on this device.';
@@ -382,9 +398,7 @@ class VoiceDiceController extends ChangeNotifier {
     if (_disposed || _initializing || _initialized) return;
 
     final engine = _engine;
-    if (engine != null &&
-        !engine.gameOver &&
-        !_matchSessionExplicitlyEnded) {
+    if (engine != null && !engine.gameOver && !_matchSessionExplicitlyEnded) {
       _binding = engine.voiceTurnBinding;
       _lastObservedEngineBinding = _binding;
       _matchSessionActive = true;
@@ -402,15 +416,10 @@ class VoiceDiceController extends ChangeNotifier {
     try {
       _available = await _voiceChannel.invokeMethod<bool>('isAvailable') ?? false;
       _initialized = true;
-      _internalErrorMessage =
-          _available ? null : 'Voice recognition is unavailable.';
+      _internalErrorMessage = _available ? null : 'Voice recognition is unavailable.';
       _state = _available ? VoiceSessionState.idle : VoiceSessionState.error;
 
-      if (_available &&
-          _enabled &&
-          _matchSessionActive &&
-          _lifecycleActive &&
-          _binding != null) {
+      if (_available && _enabled && _matchSessionActive && _lifecycleActive && _binding != null) {
         await _startListening();
       }
     } on PlatformException catch (error) {
@@ -453,10 +462,7 @@ class VoiceDiceController extends ChangeNotifier {
     if (!_matchSessionActive || !_initialized || !_available) return;
     try {
       await _voiceChannel.invokeMethod<void>('updateContext', _bindingMap(binding));
-    } catch (_) {
-      // Native and Dart both reject events that do not carry the exact current
-      // turn binding, so a context-update transport failure fails closed.
-    }
+    } catch (_) {}
   }
 
   void _handleEngineStateChanged() {
@@ -464,11 +470,6 @@ class VoiceDiceController extends ChangeNotifier {
     final engine = _engine;
     if (engine == null) return;
 
-    // endMatchSession() is an explicit ownership boundary. Clearing a pending
-    // engine intent emits a synchronous engine notification; without this guard
-    // that notification can accidentally reactivate and rebind voice after the
-    // match has already been stopped. Only startMatchSession() may clear this
-    // terminal match-session latch.
     if (_matchSessionExplicitlyEnded) {
       _engineWasGameOver = engine.gameOver;
       _lastObservedEngineBinding = engine.voiceTurnBinding;
@@ -500,11 +501,7 @@ class VoiceDiceController extends ChangeNotifier {
       _binding = nextBinding;
       _lastObservedEngineBinding = nextBinding;
       _rollSuspended = false;
-      if (_initialized &&
-          _enabled &&
-          _available &&
-          _lifecycleActive &&
-          !_rollSuspended) {
+      if (_initialized && _enabled && _available && _lifecycleActive && !_rollSuspended) {
         unawaited(_startListening());
       }
       _safeNotify();
@@ -543,12 +540,7 @@ class VoiceDiceController extends ChangeNotifier {
     if (_disposed) return;
 
     if (_enabled == value) {
-      if (value &&
-          _matchSessionActive &&
-          _available &&
-          _lifecycleActive &&
-          !_rollSuspended &&
-          !_listening) {
+      if (value && _matchSessionActive && _available && _lifecycleActive && !_rollSuspended && !_listening) {
         await _startListening();
       }
       return;
@@ -618,9 +610,6 @@ class VoiceDiceController extends ChangeNotifier {
     }
   }
 
-  /// Reserves the logical dice result synchronously before the first await.
-  /// This is the touch-vs-voice arbitration boundary: once reserved, a later
-  /// callback cannot change the roll even while native audio is being paused.
   Future<int?> suspendForRoll() async {
     if (_disposed) return null;
 
@@ -684,15 +673,7 @@ class VoiceDiceController extends ChangeNotifier {
 
   Future<void> _startListening() async {
     final binding = _binding;
-    if (_disposed ||
-        _starting ||
-        !_initialized ||
-        !_enabled ||
-        !_available ||
-        !_matchSessionActive ||
-        !_lifecycleActive ||
-        _rollSuspended ||
-        binding == null) {
+    if (_disposed || _starting || !_initialized || !_enabled || !_available || !_matchSessionActive || !_lifecycleActive || _rollSuspended || binding == null) {
       return;
     }
 
@@ -747,10 +728,7 @@ class VoiceDiceController extends ChangeNotifier {
             _listening = false;
             _state = VoiceSessionState.paused;
             _clearPendingIntent();
-          } else if (_matchSessionActive &&
-              _enabled &&
-              _available &&
-              !_rollSuspended) {
+          } else if (_matchSessionActive && _enabled && _available && !_rollSuspended) {
             unawaited(_startListening());
           }
           _safeNotify();
@@ -760,11 +738,7 @@ class VoiceDiceController extends ChangeNotifier {
         final active = event['active'];
         if (active is bool) {
           if (active) _permissionDenied = false;
-          _listening = active &&
-              _enabled &&
-              _matchSessionActive &&
-              _lifecycleActive &&
-              !_rollSuspended;
+          _listening = active && _enabled && _matchSessionActive && _lifecycleActive && !_rollSuspended;
           _state = _listening
               ? VoiceSessionState.listening
               : (_rollSuspended || !_lifecycleActive
@@ -776,10 +750,6 @@ class VoiceDiceController extends ChangeNotifier {
       case 'permission':
         final granted = event['granted'];
         if (granted == false) {
-          // Permission is an OS capability, not the user's voice preference.
-          // Keeping _enabled true means a later Settings permission restore can
-          // resume automatically on lifecycle/start without requiring a second
-          // in-app enable toggle.
           _permissionDenied = true;
           _listening = false;
           _state = VoiceSessionState.error;
@@ -810,10 +780,7 @@ class VoiceDiceController extends ChangeNotifier {
         _safeNotify();
         return;
       case 'speech':
-        if (!_enabled ||
-            !_matchSessionActive ||
-            !_lifecycleActive ||
-            _rollSuspended) {
+        if (!_enabled || !_matchSessionActive || !_lifecycleActive || _rollSuspended) {
           return;
         }
         _handleSpeechAlternatives(event);
@@ -829,21 +796,15 @@ class VoiceDiceController extends ChangeNotifier {
 
     final currentBinding = _binding;
     final eventBinding = _bindingFromEvent(event);
-    if (currentBinding == null ||
-        eventBinding == null ||
-        eventBinding != currentBinding) {
+    if (currentBinding == null || eventBinding == null || eventBinding != currentBinding) {
       return;
     }
 
     final rawSessionEpoch = event['sessionEpoch'];
-    final sessionEpoch =
-        rawSessionEpoch is num ? rawSessionEpoch.toInt() : null;
+    final sessionEpoch = rawSessionEpoch is num ? rawSessionEpoch.toInt() : null;
     if (sessionEpoch != null &&
         _lastAcceptedNativeSessionEpoch == sessionEpoch &&
         _lastAcceptedNativeSessionBinding == eventBinding) {
-      // One utterance can emit several partials plus a final result. Once one
-      // command from this exact native session is accepted, all later callbacks
-      // from that utterance are feedback duplicates, never new dice intents.
       return;
     }
 
@@ -863,8 +824,6 @@ class VoiceDiceController extends ChangeNotifier {
       );
       if (candidate == null) continue;
 
-      // Exact dice-only partials are the latency hot path. A natural phrase can
-      // also commit from a partial when explicit command context is present.
       if (!finalResult &&
           !candidate.strongContext &&
           !DiceVoiceIntentParser.isDiceOnlyPhrase(heard)) {
