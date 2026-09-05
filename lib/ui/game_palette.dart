@@ -18,20 +18,20 @@ abstract final class GamePalette {
   static const Color yellow = Color(0xFFFFC84A);
   static const Color blue = Color(0xFF4C8DFF);
 
+  static const LinearGradient appBackground = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: <Color>[
+      Color(0xFF0B0D18),
+      Color(0xFF11152A),
+      Color(0xFF151328),
+    ],
+  );
+
   static Color player(LudoColor color) => switch (color) {
         LudoColor.red => red,
         LudoColor.green => green,
         LudoColor.yellow => yellow,
         LudoColor.blue => blue,
       };
-
-  static LinearGradient get appBackground => const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: <Color>[
-          Color(0xFF0B0D18),
-          Color(0xFF11152A),
-          Color(0xFF151328),
-        ],
-      );
 }
