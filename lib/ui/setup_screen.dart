@@ -47,7 +47,7 @@ class _SetupScreenState extends State<SetupScreen> {
                         const _GameLogo(),
                         const SizedBox(height: 22),
                         const Text(
-                          'Voice Ludo Masti',
+                          'Aarish Kingdom',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: GamePalette.textPrimary,
@@ -58,7 +58,7 @@ class _SetupScreenState extends State<SetupScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'बोलो नंबर • Dice दबाओ • वही नंबर पाओ 🎲',
+                          'बोलो 1–6 • Dice खुद roll होगा 🎲',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: GamePalette.textMuted,
@@ -67,7 +67,7 @@ class _SetupScreenState extends State<SetupScreen> {
                           ),
                         ),
                         const SizedBox(height: 14),
-                        const _OfflineBadge(),
+                        const _VoiceBadge(),
                         const SizedBox(height: 28),
                         _buildPlayerSelector(),
                         const SizedBox(height: 18),
@@ -79,8 +79,8 @@ class _SetupScreenState extends State<SetupScreen> {
                           runSpacing: 8,
                           children: [
                             _FeatureChip(
-                              icon: Icons.graphic_eq_rounded,
-                              label: 'Noise filtered',
+                              icon: Icons.translate_rounded,
+                              label: 'Hindi + English',
                             ),
                             _FeatureChip(
                               icon: Icons.all_inclusive_rounded,
@@ -117,7 +117,7 @@ class _SetupScreenState extends State<SetupScreen> {
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          'No internet needed while playing • No voice command = normal random roll',
+                          'Uses your device speech service • Touch dice always stays available',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: GamePalette.textMuted,
@@ -263,8 +263,8 @@ class _GameLogo extends StatelessWidget {
   }
 }
 
-class _OfflineBadge extends StatelessWidget {
-  const _OfflineBadge();
+class _VoiceBadge extends StatelessWidget {
+  const _VoiceBadge();
 
   @override
   Widget build(BuildContext context) {
@@ -278,10 +278,10 @@ class _OfflineBadge extends StatelessWidget {
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.offline_bolt_rounded, size: 17, color: GamePalette.green),
+          Icon(Icons.graphic_eq_rounded, size: 17, color: GamePalette.green),
           SizedBox(width: 6),
           Text(
-            'OFFLINE VOICE AI',
+            'MATCH VOICE READY',
             style: TextStyle(
               color: GamePalette.green,
               fontSize: 11.5,
@@ -425,16 +425,16 @@ class _HowItWorksCard extends StatelessWidget {
               _Arrow(),
               Expanded(
                 child: _Step(
-                  icon: Icons.casino_rounded,
-                  title: '2. Roll',
-                  subtitle: 'Tap dice',
+                  icon: Icons.graphic_eq_rounded,
+                  title: '2. पहचान',
+                  subtitle: 'Hindi + English',
                 ),
               ),
               _Arrow(),
               Expanded(
                 child: _Step(
-                  icon: Icons.auto_awesome_rounded,
-                  title: '3. वही',
+                  icon: Icons.casino_rounded,
+                  title: '3. AUTO ROLL',
                   subtitle: 'Result = 6',
                 ),
               ),
