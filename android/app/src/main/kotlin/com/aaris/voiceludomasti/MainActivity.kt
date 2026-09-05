@@ -34,6 +34,8 @@ class MainActivity : FlutterActivity() {
     private var currentBinding: VoiceBinding? = null
     private var recognitionBinding: VoiceBinding? = null
     private var restartAttempt = 0
+    private var usingOnDeviceRecognizer = false
+    private var onDeviceRejectedForProcess = false
 
     private val restartRunnable = Runnable {
         if (shouldListen()) startSession()
@@ -63,7 +65,7 @@ class MainActivity : FlutterActivity() {
             VOICE_METHOD_CHANNEL,
         ).setMethodCallHandler { call, result ->
             when (call.method) {
-                "isAvailable" -> result.success(SpeechRecognizer.isRecognitionAvailable(this))
+                "isAvailable" -> result.success(isAnyRecognitionAvailable())
                 "startListening" -> {
                     val binding = bindingFrom(call.arguments)
                     if (binding == null) {
@@ -120,10 +122,18 @@ class MainActivity : FlutterActivity() {
     private fun shouldListen(): Boolean =
         voiceEnabled && !pausedByFlutter && activityResumed && currentBinding != null
 
+    private fun isOnDeviceRecognitionUsable(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            !onDeviceRejectedForProcess &&
+            SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+
+    private fun isAnyRecognitionAvailable(): Boolean =
+        isOnDeviceRecognitionUsable() || SpeechRecognizer.isRecognitionAvailable(this)
+
     private fun ensurePermissionAndStart() {
         if (!shouldListen()) return
 
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+        if (!isAnyRecognitionAvailable()) {
             voiceEnabled = false
             emit(
                 mapOf(
@@ -180,7 +190,22 @@ class MainActivity : FlutterActivity() {
     private fun ensureRecognizer() {
         if (speechRecognizer != null) return
 
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).also { recognizer ->
+        val useOnDevice = isOnDeviceRecognitionUsable()
+        speechRecognizer = try {
+            if (useOnDevice) {
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(this).also {
+                    usingOnDeviceRecognizer = true
+                }
+            } else {
+                SpeechRecognizer.createSpeechRecognizer(this).also {
+                    usingOnDeviceRecognizer = false
+                }
+            }
+        } catch (_: UnsupportedOperationException) {
+            onDeviceRejectedForProcess = true
+            usingOnDeviceRecognizer = false
+            SpeechRecognizer.createSpeechRecognizer(this)
+        }.also { recognizer ->
             recognizer.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
                     restartAttempt = 0
@@ -203,6 +228,24 @@ class MainActivity : FlutterActivity() {
                     if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
                         voiceEnabled = false
                         emit(mapOf("type" to "permission", "granted" to false))
+                        return
+                    }
+
+                    if (isLanguageAvailabilityError(error) && usingOnDeviceRecognizer) {
+                        fallBackFromOnDeviceRecognizer()
+                        return
+                    }
+
+                    if (isLanguageAvailabilityError(error)) {
+                        voiceEnabled = false
+                        emit(
+                            mapOf(
+                                "type" to "error",
+                                "code" to error,
+                                "recoverable" to false,
+                                "message" to recognitionErrorMessage(error),
+                            ),
+                        )
                         return
                     }
 
@@ -234,6 +277,43 @@ class MainActivity : FlutterActivity() {
                 override fun onEvent(eventType: Int, params: Bundle?) = Unit
             })
         }
+    }
+
+    private fun isLanguageAvailabilityError(error: Int): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            (error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ||
+                error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)
+
+    private fun fallBackFromOnDeviceRecognizer() {
+        mainHandler.removeCallbacks(restartRunnable)
+        onDeviceRejectedForProcess = true
+        usingOnDeviceRecognizer = false
+        sessionActive = false
+        try {
+            speechRecognizer?.destroy()
+        } catch (_: Throwable) {
+        }
+        speechRecognizer = null
+
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            voiceEnabled = false
+            emit(
+                mapOf(
+                    "type" to "unavailable",
+                    "message" to "Hindi on-device speech is unavailable and no system recognizer fallback exists.",
+                ),
+            )
+            return
+        }
+
+        emit(
+            mapOf(
+                "type" to "error",
+                "recoverable" to true,
+                "message" to "On-device Hindi model unavailable. Using system speech recognition.",
+            ),
+        )
+        scheduleRestart(250L)
     }
 
     private fun startSession() {
@@ -358,7 +438,8 @@ class MainActivity : FlutterActivity() {
         emit(
             mapOf(
                 "type" to "availability",
-                "available" to SpeechRecognizer.isRecognitionAvailable(this),
+                "available" to isAnyRecognitionAvailable(),
+                "onDevice" to isOnDeviceRecognitionUsable(),
             ),
         )
     }
@@ -380,6 +461,8 @@ class MainActivity : FlutterActivity() {
         SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Voice recognizer is busy. Retrying…"
         SpeechRecognizer.ERROR_SERVER -> "Voice service error. Retrying…"
         SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Listening for a dice number…"
+        SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED -> "Hindi speech recognition is not supported on this device."
+        SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "Hindi speech recognition is not currently available on this device."
         else -> "Voice recognizer error $error. Retrying…"
     }
 
