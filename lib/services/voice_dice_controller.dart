@@ -6,11 +6,6 @@ import 'package:flutter/widgets.dart';
 import 'package:vosk_flutter_service/vosk_flutter_service.dart';
 
 /// Offline, command-focused voice recognizer for the Ludo dice.
-///
-/// The recognizer deliberately uses a tiny grammar instead of general
-/// dictation. That makes short dice commands fast and reduces false matches
-/// from room conversation. `[unk]` lets Vosk reject unrelated speech instead
-/// of forcing every sound into one of the six numbers.
 class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
   VoiceDiceController() {
     WidgetsBinding.instance.addObserver(this);
@@ -23,35 +18,14 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
 
   static const List<String> commandGrammar = <String>[
     '[unk]',
-    'एक',
-    'इक',
-    'वन',
-    'दो',
-    'टू',
-    'तीन',
-    'थ्री',
-    'चार',
-    'फोर',
-    'पांच',
-    'पाँच',
-    'पाच',
-    'फाइव',
-    'फाईव',
-    'छह',
-    'छः',
-    'छे',
-    'छक्का',
-    'छका',
-    'चक्का',
-    'सिक्स',
-    'एक नंबर',
-    'दो नंबर',
-    'तीन नंबर',
-    'चार नंबर',
-    'पांच नंबर',
-    'पाँच नंबर',
-    'छह नंबर',
-    'छक्का नंबर',
+    'एक', 'इक', 'वन',
+    'दो', 'टू',
+    'तीन', 'थ्री',
+    'चार', 'फोर',
+    'पांच', 'पाँच', 'पाच', 'फाइव', 'फाईव',
+    'छह', 'छः', 'छे', 'छक्का', 'छका', 'चक्का', 'सिक्स',
+    'एक नंबर', 'दो नंबर', 'तीन नंबर', 'चार नंबर',
+    'पांच नंबर', 'पाँच नंबर', 'छह नंबर', 'छक्का नंबर',
   ];
 
   final VoskFlutterPlugin _vosk = VoskFlutterPlugin.instance();
@@ -73,7 +47,7 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
   bool _rollSuspended = false;
   bool _lifecyclePaused = false;
   bool _disposed = false;
-  int _listenGeneration = 0;
+  int _generation = 0;
 
   int? _pendingValue;
   DateTime? _pendingAt;
@@ -85,7 +59,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
   double? _lastConfidence;
   String? _errorMessage;
 
-  /// True only after an initialization attempt has finished.
   bool get initialized => _initialized && !_initializing;
   bool get initializing => _initializing;
   bool get available => _available;
@@ -100,31 +73,17 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> initialize() async {
     if (_disposed || _initializing || _available) return;
+
     _initialized = true;
     _initializing = true;
     _safeNotify();
 
     try {
-      if (_model == null) {
-        final modelPath = await _modelLoader.loadFromAssets(modelAsset);
-        if (_disposed) return;
-        _model = await _vosk.createModel(modelPath);
-      }
+      await _ensureRecognizer();
       if (_disposed) return;
 
-      _recognizer ??= await _vosk.createRecognizer(
-        model: _model!,
-        sampleRate: sampleRate,
-        grammar: commandGrammar,
-      );
-      await _recognizer!.setMaxAlternatives(1);
-      if (_disposed) return;
-
-      // Initial creation also requests microphone permission. If the app moved
-      // to background while the model loaded, defer microphone creation.
       if (!_lifecyclePaused) {
-        await _createSpeechService();
-        if (_disposed) return;
+        await _ensureSpeechService();
       }
 
       _available = true;
@@ -135,12 +94,7 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
         await _startListening();
       }
     } on MicrophoneAccessDeniedException {
-      _available = false;
-      _enabled = false;
-      _listening = false;
-      await _releaseSpeechService();
-      _errorMessage = 'Microphone permission is required for offline voice dice.';
-      _safeNotify();
+      await _markPermissionFailure();
     } catch (error) {
       _available = false;
       _enabled = false;
@@ -154,18 +108,44 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _createSpeechService() async {
-    if (_disposed || _recognizer == null || _speechService != null) return;
-    _speechService = await _vosk.initSpeechService(_recognizer!);
-    _serviceStarted = false;
-    _servicePaused = false;
-    _attachStreams();
+  Future<void> _ensureRecognizer() async {
+    if (_model == null) {
+      final modelPath = await _modelLoader.loadFromAssets(modelAsset);
+      if (_disposed) return;
+      _model = await _vosk.createModel(modelPath);
+    }
+    if (_disposed || _model == null) return;
+
+    if (_recognizer == null) {
+      _recognizer = await _vosk.createRecognizer(
+        model: _model!,
+        sampleRate: sampleRate,
+        grammar: commandGrammar,
+      );
+      await _recognizer!.setMaxAlternatives(1);
+    }
   }
 
-  void _attachStreams() {
-    final service = _speechService;
-    if (service == null) return;
+  Future<void> _ensureSpeechService() async {
+    if (_disposed || _speechService != null) return;
+    final recognizer = _recognizer;
+    if (recognizer == null) return;
 
+    final service = await _vosk.initSpeechService(recognizer);
+    if (_disposed) {
+      try {
+        await service.dispose();
+      } catch (_) {}
+      return;
+    }
+
+    _speechService = service;
+    _serviceStarted = false;
+    _servicePaused = false;
+    _attachStreams(service);
+  }
+
+  void _attachStreams(SpeechService service) {
     unawaited(_partialSub?.cancel());
     unawaited(_resultSub?.cancel());
 
@@ -181,8 +161,11 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> setEnabled(bool value) async {
     if (_disposed) return;
+
     if (_enabled == value) {
-      if (value && !_available && !_initializing) await retry();
+      if (value && !_available && !_initializing) {
+        await retry();
+      }
       return;
     }
 
@@ -190,7 +173,7 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     _errorMessage = null;
 
     if (!value) {
-      _listenGeneration += 1;
+      _generation += 1;
       _listening = false;
       _clearAllCommands();
       await _releaseSpeechService();
@@ -199,13 +182,7 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     _safeNotify();
-
     if (_initializing) return;
-
-    if (!_initialized) {
-      await initialize();
-      return;
-    }
 
     if (!_available) {
       await retry();
@@ -217,97 +194,78 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// Reopens the microphone after a permission/native-service failure.
-  ///
-  /// The heavy Vosk model and recognizer are deliberately reused whenever
-  /// possible. On Android the plugin's Model.dispose() does not unload the
-  /// native model, so recreating it on every retry can waste memory.
+  /// Reopens only the microphone service when possible. The heavy Vosk model
+  /// is retained to avoid repeated native model allocations on Android.
   Future<void> retry() async {
     if (_disposed) return;
 
     _enabled = true;
+    _errorMessage = null;
+    _generation += 1;
+    _listening = false;
+    _clearAllCommands();
 
     if (_initializing) {
       _safeNotify();
       return;
     }
 
-    _errorMessage = null;
-    _listenGeneration += 1;
-    _listening = false;
-    _clearAllCommands();
     await _releaseSpeechService();
 
-    if (_model != null && _recognizer != null) {
-      try {
-        if (!_lifecyclePaused) {
-          await _createSpeechService();
-        }
-        _available = true;
-        _initialized = true;
-        _safeNotify();
-        if (!_rollSuspended && !_lifecyclePaused) {
-          await _startListening();
-        }
-        return;
-      } on MicrophoneAccessDeniedException {
-        _available = false;
-        _enabled = false;
-        _errorMessage = 'Microphone permission is required for offline voice dice.';
-        _safeNotify();
-        return;
-      } catch (_) {
-        await _releaseSpeechService();
-        _available = false;
-        _enabled = false;
-        _errorMessage = 'Could not reopen the offline microphone.';
-        _safeNotify();
-        return;
-      }
+    if (_model == null || _recognizer == null) {
+      _available = false;
+      _initialized = false;
+      _safeNotify();
+      await initialize();
+      return;
     }
 
-    // Only recreate model/recognizer when they were never successfully built.
-    _available = false;
-    _initialized = false;
-    _safeNotify();
-    await initialize();
+    try {
+      if (!_lifecyclePaused) {
+        await _ensureSpeechService();
+      }
+      _available = true;
+      _initialized = true;
+      _safeNotify();
+
+      if (!_rollSuspended && !_lifecyclePaused) {
+        await _startListening();
+      }
+    } on MicrophoneAccessDeniedException {
+      await _markPermissionFailure();
+    } catch (_) {
+      _available = false;
+      _enabled = false;
+      await _releaseSpeechService();
+      _errorMessage = 'Could not reopen the offline microphone.';
+      _safeNotify();
+    }
   }
 
-  /// Atomically freezes voice input and returns the newest valid command.
-  ///
-  /// A fresh partial candidate can beat an older stable command. This is what
-  /// makes the user's exact rule deterministic: say "six", then quickly say
-  /// "five" and tap roll -> five wins even before Vosk emits a final result.
   Future<int?> suspendForRoll() async {
     if (_disposed) return null;
 
-    final now = DateTime.now();
     final value = resolveNewestDiceCommand(
       pendingValue: _pendingValue,
       pendingAt: _pendingAt,
       candidateValue: _candidateValue,
       candidateAt: _candidateAt,
-      now: now,
+      now: DateTime.now(),
     );
 
     _rollSuspended = true;
-    _clearAllCommands();
-    _listenGeneration += 1;
+    _generation += 1;
     _listening = false;
+    _clearAllCommands();
 
-    if (_serviceStarted && !_servicePaused) {
-      try {
-        await _speechService?.setPause(paused: true);
-        _servicePaused = true;
-      } catch (_) {}
-    }
-
+    await _pauseServiceIfNeeded();
     _safeNotify();
     return value;
   }
 
   Future<void> resumeAfterRoll() async {
     if (_disposed) return;
+
     _rollSuspended = false;
     _clearCandidate();
 
@@ -337,13 +295,16 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
 
-    final generation = ++_listenGeneration;
+    final generation = ++_generation;
+
     try {
-      if (_speechService == null) {
-        await _createSpeechService();
-      }
+      await _ensureSpeechService();
       final service = _speechService;
-      if (service == null || _disposed || generation != _listenGeneration) {
+      if (service == null ||
+          _disposed ||
+          generation != _generation ||
+          _rollSuspended ||
+          _lifecyclePaused) {
         return;
       }
 
@@ -353,31 +314,15 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
           if (!identical(service, _speechService)) return;
           _servicePaused = false;
         }
-        if (_disposed ||
-            generation != _listenGeneration ||
-            _lifecyclePaused ||
-            _rollSuspended) {
-          return;
-        }
-        _listening = true;
-        _errorMessage = null;
-        _safeNotify();
-        return;
+      } else {
+        await service.start(onRecognitionError: _handleRecognitionError);
+        if (!identical(service, _speechService) || _disposed) return;
+        _serviceStarted = true;
+        _servicePaused = false;
       }
 
-      await service.start(onRecognitionError: _handleRecognitionError);
-      if (!identical(service, _speechService) || _disposed) return;
-
-      _serviceStarted = true;
-      _servicePaused = false;
-
-      if (generation != _listenGeneration || _lifecyclePaused || _rollSuspended) {
-        if ((_lifecyclePaused || _rollSuspended) && !_servicePaused) {
-          try {
-            await service.setPause(paused: true);
-            if (identical(service, _speechService)) _servicePaused = true;
-          } catch (_) {}
-        }
+      if (generation != _generation || _rollSuspended || _lifecyclePaused) {
+        await _pauseServiceIfNeeded();
         return;
       }
 
@@ -385,21 +330,28 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       _errorMessage = null;
       _safeNotify();
     } on MicrophoneAccessDeniedException {
-      if (_disposed || generation != _listenGeneration) return;
-      _available = false;
-      _enabled = false;
-      _listening = false;
-      await _releaseSpeechService();
-      _errorMessage = 'Microphone permission is required for offline voice dice.';
-      _safeNotify();
+      if (_disposed || generation != _generation) return;
+      await _markPermissionFailure();
     } catch (_) {
-      if (_disposed || generation != _listenGeneration) return;
-      _listening = false;
+      if (_disposed || generation != _generation) return;
       _enabled = false;
+      _listening = false;
       await _releaseSpeechService();
       _errorMessage = 'Could not start the offline microphone recognizer.';
       _safeNotify();
     }
+  }
+
+  Future<void> _pauseServiceIfNeeded() async {
+    final service = _speechService;
+    if (service == null || !_serviceStarted || _servicePaused) return;
+
+    try {
+      await service.setPause(paused: true);
+      if (identical(service, _speechService)) {
+        _servicePaused = true;
+      }
+    } catch (_) {}
   }
 
   @override
@@ -410,41 +362,42 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _handleLifecycleState(AppLifecycleState state) async {
     if (_disposed) return;
 
-    switch (state) {
-      case AppLifecycleState.resumed:
-        _lifecyclePaused = false;
-        if (_enabled && _available && !_rollSuspended) {
-          try {
-            await _speechService?.reset();
-          } catch (_) {}
-          await _startListening();
-        } else {
-          _safeNotify();
-        }
-      case AppLifecycleState.inactive:
-      case AppLifecycleState.hidden:
-      case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
-        _lifecyclePaused = true;
-        _listenGeneration += 1;
-        _listening = false;
-        _clearAllCommands();
-        if (_serviceStarted && !_servicePaused) {
-          try {
-            await _speechService?.setPause(paused: true);
-            _servicePaused = true;
-          } catch (_) {}
-        }
+    if (state == AppLifecycleState.resumed) {
+      _lifecyclePaused = false;
+      if (_enabled && _available && !_rollSuspended) {
+        try {
+          await _speechService?.reset();
+        } catch (_) {}
+        await _startListening();
+      } else {
         _safeNotify();
+      }
+      return;
     }
+
+    _lifecyclePaused = true;
+    _generation += 1;
+    _listening = false;
+    _clearAllCommands();
+    await _pauseServiceIfNeeded();
+    _safeNotify();
   }
 
   void _handleRecognitionError(Object error, [StackTrace? stackTrace]) {
     if (_disposed || _lifecyclePaused || _rollSuspended) return;
-    _listenGeneration += 1;
+    _runtimeVoiceFailure('Offline voice paused. Tap the mic to retry.');
+  }
+
+  void _handleStreamError(Object error, [StackTrace? stackTrace]) {
+    if (_disposed || _lifecyclePaused || _rollSuspended) return;
+    _runtimeVoiceFailure('Offline voice stream paused. Tap the mic to retry.');
+  }
+
+  void _runtimeVoiceFailure(String message) {
+    _generation += 1;
     _listening = false;
     _enabled = false;
-    _errorMessage = 'Offline voice paused. Tap the mic to retry.';
+    _errorMessage = message;
     _safeNotify();
     unawaited(_releaseSpeechService());
   }
@@ -458,6 +411,7 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
 
     _lastHeard = heard;
     _lastConfidence = hypothesis.confidence;
+
     final value = parseLastDiceValue(heard);
     if (value == null) {
       _safeNotify();
@@ -465,11 +419,12 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     final confidence = hypothesis.confidence;
-    if (isFinal &&
+    final normalizedVeryWeak = isFinal &&
         confidence != null &&
         confidence >= 0 &&
         confidence <= 1 &&
-        confidence < .18) {
+        confidence < .18;
+    if (normalizedVeryWeak) {
       _safeNotify();
       return;
     }
@@ -479,7 +434,7 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     _candidateAt = heardAt;
 
     if (isFinal) {
-      _commitCandidate(value, heardAt: heardAt);
+      _commitCandidate(value, heardAt);
       _lastPartialValue = null;
       _partialHits = 0;
       return;
@@ -493,27 +448,17 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     if (_partialHits >= 2) {
-      _commitCandidate(value, heardAt: heardAt);
+      _commitCandidate(value, heardAt);
     } else {
       _safeNotify();
     }
   }
 
-  void _commitCandidate(int value, {required DateTime heardAt}) {
+  void _commitCandidate(int value, DateTime heardAt) {
     _pendingValue = value;
     _pendingAt = heardAt;
     _errorMessage = null;
     _safeNotify();
-  }
-
-  void _handleStreamError(Object error, [StackTrace? stackTrace]) {
-    if (_disposed || _lifecyclePaused || _rollSuspended) return;
-    _listenGeneration += 1;
-    _listening = false;
-    _enabled = false;
-    _errorMessage = 'Offline voice stream paused. Tap the mic to retry.';
-    _safeNotify();
-    unawaited(_releaseSpeechService());
   }
 
   void _clearCandidate() {
@@ -529,8 +474,6 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     _clearCandidate();
   }
 
-  /// Selects the newest usable command at the instant the user taps ROLL.
-  /// This is public mainly so the arbitration rule can be regression-tested.
   static int? resolveNewestDiceCommand({
     required int? pendingValue,
     required DateTime? pendingAt,
@@ -538,19 +481,20 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     required DateTime? candidateAt,
     required DateTime now,
   }) {
-    final candidateIsFresh = candidateValue != null &&
-        candidateAt != null &&
-        !candidateAt.isAfter(now) &&
-        now.difference(candidateAt) <= candidateFreshness;
+    if (candidateValue == null || candidateAt == null) {
+      return pendingValue;
+    }
+    if (candidateAt.isAfter(now)) return pendingValue;
+    if (now.difference(candidateAt) > candidateFreshness) return pendingValue;
 
-    if (!candidateIsFresh) return pendingValue;
-    if (pendingValue == null || pendingAt == null) return candidateValue;
+    if (pendingValue == null || pendingAt == null) {
+      return candidateValue;
+    }
 
     return candidateAt.isBefore(pendingAt) ? pendingValue : candidateValue;
   }
 
-  /// Decodes both standard Vosk payloads (`text` / `partial`) and the
-  /// `alternatives` payload produced when max alternatives is enabled.
+  /// Decodes standard Vosk (`text` / `partial`) and max-alternatives payloads.
   static ({String text, double? confidence}) parseRecognitionPayload(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return (text: '', confidence: null);
@@ -565,10 +509,10 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
 
         final text = decoded['text'];
         if (text is String && text.trim().isNotEmpty) {
-          final rawConfidence = decoded['confidence'];
+          final score = decoded['confidence'];
           return (
             text: text.trim(),
-            confidence: rawConfidence is num ? rawConfidence.toDouble() : null,
+            confidence: score is num ? score.toDouble() : null,
           );
         }
 
@@ -576,81 +520,41 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
         if (alternatives is List) {
           for (final item in alternatives) {
             if (item is! Map) continue;
-            final alternativeText = item['text'];
-            if (alternativeText is! String || alternativeText.trim().isEmpty) {
-              continue;
-            }
-            final rawConfidence = item['confidence'];
+            final text = item['text'];
+            if (text is! String || text.trim().isEmpty) continue;
+            final score = item['confidence'];
             return (
-              text: alternativeText.trim(),
-              confidence: rawConfidence is num ? rawConfidence.toDouble() : null,
+              text: text.trim(),
+              confidence: score is num ? score.toDouble() : null,
             );
           }
         }
       }
     } catch (_) {
-      // Some platform/plugin versions may already return plain recognized text.
+      // Some platform versions already return plain recognized text.
     }
 
     return (text: trimmed, confidence: null);
   }
 
   static int? parseLastDiceValue(String input) {
-    var normalized = input.toLowerCase();
-    normalized = normalized
+    final normalized = input
+        .toLowerCase()
         .replaceAll('।', ' ')
         .replaceAll(RegExp(r'[^a-z0-9\u0900-\u097F]+'), ' ')
         .trim();
     if (normalized.isEmpty) return null;
 
     const aliases = <String, int>{
-      '1': 1,
-      '१': 1,
-      'one': 1,
-      'एक': 1,
-      'इक': 1,
-      'ek': 1,
-      'वन': 1,
-      '2': 2,
-      '२': 2,
-      'two': 2,
-      'दो': 2,
-      'do': 2,
-      'टू': 2,
-      '3': 3,
-      '३': 3,
-      'three': 3,
-      'तीन': 3,
-      'teen': 3,
-      'थ्री': 3,
-      '4': 4,
-      '४': 4,
-      'four': 4,
-      'चार': 4,
-      'char': 4,
-      'chaar': 4,
+      '1': 1, '१': 1, 'one': 1, 'एक': 1, 'इक': 1, 'ek': 1, 'वन': 1,
+      '2': 2, '२': 2, 'two': 2, 'दो': 2, 'do': 2, 'टू': 2,
+      '3': 3, '३': 3, 'three': 3, 'तीन': 3, 'teen': 3, 'थ्री': 3,
+      '4': 4, '४': 4, 'four': 4, 'चार': 4, 'char': 4, 'chaar': 4,
       'फोर': 4,
-      '5': 5,
-      '५': 5,
-      'five': 5,
-      'पांच': 5,
-      'पाँच': 5,
-      'पाच': 5,
-      'paanch': 5,
-      'panch': 5,
-      'फाइव': 5,
-      'फाईव': 5,
-      '6': 6,
-      '६': 6,
-      'six': 6,
-      'छह': 6,
-      'छः': 6,
-      'छे': 6,
-      'छक्का': 6,
-      'छका': 6,
-      'चक्का': 6,
-      'chakka': 6,
-      'chhakka': 6,
+      '5': 5, '५': 5, 'five': 5, 'पांच': 5, 'पाँच': 5, 'पाच': 5,
+      'paanch': 5, 'panch': 5, 'फाइव': 5, 'फाईव': 5,
+      '6': 6, '६': 6, 'six': 6, 'छह': 6, 'छः': 6, 'छे': 6,
+      'छक्का': 6, 'छका': 6, 'चक्का': 6, 'chakka': 6, 'chhakka': 6,
       'सिक्स': 6,
     };
 
@@ -660,6 +564,15 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
       if (value != null) latest = value;
     }
     return latest;
+  }
+
+  Future<void> _markPermissionFailure() async {
+    _available = false;
+    _enabled = false;
+    _listening = false;
+    await _releaseSpeechService();
+    _errorMessage = 'Microphone permission is required for offline voice dice.';
+    _safeNotify();
   }
 
   String _friendlyInitError(Object error) {
@@ -696,9 +609,11 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _shutdown() async {
+    await _releaseSpeechService();
     try {
-      await _releaseSpeechService();
       await _recognizer?.dispose();
+    } catch (_) {}
+    try {
       _model?.dispose();
     } catch (_) {}
   }
@@ -707,7 +622,7 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    _listenGeneration += 1;
+    _generation += 1;
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_shutdown());
     super.dispose();
