@@ -109,18 +109,22 @@ class VoiceDiceController extends ChangeNotifier {
       if (_disposed) return;
 
       _available = true;
+      _enabled = true;
       _errorMessage = null;
       _safeNotify();
 
-      if (_enabled && !_rollSuspended) {
+      if (!_rollSuspended) {
         await _startListening();
       }
     } on MicrophoneAccessDeniedException {
       _available = false;
+      _enabled = false;
+      _listening = false;
       _errorMessage = 'Microphone permission is required for offline voice dice.';
       _safeNotify();
     } catch (error) {
       _available = false;
+      _enabled = false;
       _listening = false;
       _errorMessage = _friendlyInitError(error);
       _safeNotify();
@@ -153,7 +157,12 @@ class VoiceDiceController extends ChangeNotifier {
   }
 
   Future<void> setEnabled(bool value) async {
-    if (_disposed || _enabled == value) return;
+    if (_disposed) return;
+    if (_enabled == value) {
+      if (value && !_available) await retry();
+      return;
+    }
+
     _enabled = value;
     _errorMessage = null;
 
@@ -172,15 +181,22 @@ class VoiceDiceController extends ChangeNotifier {
       return;
     }
 
-    if (_available && !_rollSuspended) {
+    if (!_available) {
+      await retry();
+      return;
+    }
+
+    if (!_rollSuspended) {
       try {
         await _createSpeechService();
         await _startListening();
       } on MicrophoneAccessDeniedException {
         _available = false;
+        _enabled = false;
         _errorMessage = 'Microphone permission is required for offline voice dice.';
         _safeNotify();
       } catch (_) {
+        _enabled = false;
         _errorMessage = 'Could not reopen the offline microphone.';
         _safeNotify();
       }
@@ -328,6 +344,7 @@ class VoiceDiceController extends ChangeNotifier {
       _listening = false;
       _serviceStarted = false;
       _servicePaused = false;
+      _enabled = false;
       _errorMessage = 'Could not start the offline microphone recognizer.';
       _safeNotify();
     }
@@ -336,6 +353,7 @@ class VoiceDiceController extends ChangeNotifier {
   void _handleRecognitionError(Object error, [StackTrace? stackTrace]) {
     if (_disposed) return;
     _listening = false;
+    _enabled = false;
     _errorMessage = 'Offline voice paused. Tap the mic to retry.';
     _safeNotify();
   }
@@ -389,6 +407,7 @@ class VoiceDiceController extends ChangeNotifier {
   void _handleStreamError(Object error, [StackTrace? stackTrace]) {
     if (_disposed) return;
     _listening = false;
+    _enabled = false;
     _errorMessage = 'Offline voice stream paused. Tap the mic to retry.';
     _safeNotify();
   }
