@@ -1,248 +1,334 @@
 package com.aaris.voiceludomasti
 
-import android.app.ActivityManager
-import android.content.Context
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
-import java.io.File
-import java.io.FileOutputStream
-import java.util.concurrent.Executors
-import java.util.zip.ZipInputStream
 
 class MainActivity : FlutterActivity() {
-    private val modelExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var eventSink: EventChannel.EventSink? = null
+    private var voiceEnabled = false
+    private var pausedByFlutter = false
+    private var activityResumed = false
+    private var sessionActive = false
+    private var pendingStartAfterPermission = false
+
+    private val restartRunnable = Runnable {
+        if (shouldListen()) startSession()
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        EventChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            VOICE_EVENT_CHANNEL,
+        ).setStreamHandler(object : EventChannel.StreamHandler {
+            override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                eventSink = events
+                emitAvailability()
+                emitListening(sessionActive)
+            }
+
+            override fun onCancel(arguments: Any?) {
+                eventSink = null
+            }
+        })
+
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            MODEL_CHANNEL,
+            VOICE_METHOD_CHANNEL,
         ).setMethodCallHandler { call, result ->
             when (call.method) {
-                "prepareOfflineVoskModel" -> {
-                    modelExecutor.execute {
-                        try {
-                            // Vosk's mobile model is small on disk but expands into a much
-                            // larger native-memory working set. A native std::bad_alloc is a
-                            // process-level SIGABRT and cannot be caught by Dart, so reject an
-                            // unsafe load before Vosk receives the model path. The game then
-                            // falls back to normal random dice instead of crashing.
-                            ensureVoiceMemoryHeadroom()
-                            val modelPath = prepareOfflineVoskModel()
-                            mainHandler.post { result.success(modelPath.absolutePath) }
-                        } catch (error: Throwable) {
-                            mainHandler.post {
-                                result.error(
-                                    "MODEL_PREPARE_FAILED",
-                                    error.message ?: "Offline model preparation failed",
-                                    null,
-                                )
-                            }
-                        }
-                    }
+                "isAvailable" -> result.success(SpeechRecognizer.isRecognitionAvailable(this))
+                "startListening" -> {
+                    voiceEnabled = true
+                    pausedByFlutter = false
+                    ensurePermissionAndStart()
+                    result.success(null)
+                }
+                "pauseListening" -> {
+                    pausedByFlutter = true
+                    pauseCurrentSession()
+                    result.success(null)
+                }
+                "stopListening" -> {
+                    voiceEnabled = false
+                    pausedByFlutter = false
+                    pendingStartAfterPermission = false
+                    pauseCurrentSession()
+                    result.success(null)
                 }
                 else -> result.notImplemented()
             }
         }
     }
 
-    private fun ensureVoiceMemoryHeadroom() {
-        val activityManager =
-            getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        val memoryInfo = ActivityManager.MemoryInfo()
-        activityManager.getMemoryInfo(memoryInfo)
+    private fun shouldListen(): Boolean =
+        voiceEnabled && !pausedByFlutter && activityResumed
 
-        val availableMb = memoryInfo.availMem / BYTES_PER_MB
-        val totalMb = memoryInfo.totalMem / BYTES_PER_MB
-        val unsafeReason = when {
-            activityManager.isLowRamDevice ->
-                "Android reports this as a low-RAM device. Offline voice was disabled to protect the game."
-            memoryInfo.lowMemory ->
-                "Android is currently under low-memory pressure. Offline voice was disabled to protect the game."
-            totalMb < MIN_DEVICE_MEMORY_MB ->
-                "This device does not have enough total RAM for the offline Hindi voice model."
-            availableMb < MIN_VOSK_HEADROOM_MB ->
-                "Not enough free RAM to safely load the offline Hindi voice model ($availableMb MB free)."
-            else -> null
+    private fun ensurePermissionAndStart() {
+        if (!shouldListen()) return
+
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            voiceEnabled = false
+            emit(
+                mapOf(
+                    "type" to "unavailable",
+                    "message" to "Android speech recognition service is unavailable on this device.",
+                ),
+            )
+            return
         }
 
-        if (unsafeReason != null) {
-            throw IllegalStateException(unsafeReason)
+        if (hasMicrophonePermission()) {
+            pendingStartAfterPermission = false
+            ensureRecognizer()
+            startSession()
+            return
+        }
+
+        pendingStartAfterPermission = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_AUDIO_PERMISSION)
         }
     }
 
-    private fun prepareOfflineVoskModel(): File {
-        val modelsDir = File(filesDir, "vosk_models")
-        val finalModelDir = File(modelsDir, MODEL_NAME)
-        if (isUsableModel(finalModelDir)) return finalModelDir
+    private fun hasMicrophonePermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+            checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
-        // Any model extracted by the older two-file validator intentionally has
-        // no install-schema marker and is rebuilt once. This makes the crash fix
-        // self-healing after an APK update without asking the user to clear data.
-        if (finalModelDir.exists() && !finalModelDir.deleteRecursively()) {
-            throw IllegalStateException("Could not remove an incomplete or legacy offline voice model")
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_AUDIO_PERMISSION) return
+
+        val granted = grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED
+        emit(mapOf("type" to "permission", "granted" to granted))
+
+        if (!granted) {
+            voiceEnabled = false
+            pendingStartAfterPermission = false
+            emitListening(false)
+            return
         }
 
-        if (!modelsDir.exists() && !modelsDir.mkdirs()) {
-            throw IllegalStateException("Could not create the offline model directory")
+        if (pendingStartAfterPermission && shouldListen()) {
+            pendingStartAfterPermission = false
+            ensureRecognizer()
+            startSession()
         }
-        if (modelsDir.usableSpace < MIN_MODEL_INSTALL_FREE_BYTES) {
-            throw IllegalStateException("Not enough free storage to safely prepare the offline voice model")
+    }
+
+    private fun ensureRecognizer() {
+        if (speechRecognizer != null) return
+
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).also { recognizer ->
+            recognizer.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) {
+                    sessionActive = true
+                    emitListening(true)
+                }
+
+                override fun onBeginningOfSpeech() = Unit
+                override fun onRmsChanged(rmsdB: Float) = Unit
+                override fun onBufferReceived(buffer: ByteArray?) = Unit
+
+                override fun onEndOfSpeech() {
+                    emitListening(false)
+                }
+
+                override fun onError(error: Int) {
+                    sessionActive = false
+                    emitListening(false)
+
+                    if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                        voiceEnabled = false
+                        emit(mapOf("type" to "permission", "granted" to false))
+                        return
+                    }
+
+                    if (!shouldListen()) return
+
+                    val delayMs = when (error) {
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 700L
+                        SpeechRecognizer.ERROR_NETWORK,
+                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
+                        SpeechRecognizer.ERROR_SERVER -> 1000L
+                        else -> 220L
+                    }
+
+                    emit(
+                        mapOf(
+                            "type" to "error",
+                            "code" to error,
+                            "recoverable" to true,
+                            "message" to recognitionErrorMessage(error),
+                        ),
+                    )
+                    scheduleRestart(delayMs)
+                }
+
+                override fun onResults(results: Bundle?) {
+                    emitSpeech(results, isFinal = true)
+                    sessionActive = false
+                    emitListening(false)
+                    scheduleRestart(140L)
+                }
+
+                override fun onPartialResults(partialResults: Bundle?) {
+                    emitSpeech(partialResults, isFinal = false)
+                }
+
+                override fun onEvent(eventType: Int, params: Bundle?) = Unit
+            })
+        }
+    }
+
+    private fun startSession() {
+        if (!shouldListen() || sessionActive) return
+        if (!hasMicrophonePermission()) {
+            ensurePermissionAndStart()
+            return
         }
 
-        val stagingDir = File(modelsDir, ".staging-${System.nanoTime()}")
-        if (stagingDir.exists() && !stagingDir.deleteRecursively()) {
-            throw IllegalStateException("Could not clear a stale offline-model staging directory")
-        }
-        if (!stagingDir.mkdirs()) {
-            throw IllegalStateException("Could not create the offline-model staging directory")
+        ensureRecognizer()
+        val recognizer = speechRecognizer ?: return
+        mainHandler.removeCallbacks(restartRunnable)
+
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, HINDI_LOCALE)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, MAX_RESULTS)
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
         }
 
         try {
-            var extractedBytes = 0L
-            assets.open(MODEL_ANDROID_ASSET).use { assetStream ->
-                ZipInputStream(assetStream.buffered()).use { zip ->
-                    val buffer = ByteArray(64 * 1024)
-                    var entry = zip.nextEntry
-                    while (entry != null) {
-                        val output = safeZipDestination(stagingDir, entry.name)
-                        if (entry.isDirectory) {
-                            if (!output.exists() && !output.mkdirs()) {
-                                throw IllegalStateException("Could not create model directory: ${entry.name}")
-                            }
-                        } else {
-                            val parent = output.parentFile
-                            if (parent != null && !parent.exists() && !parent.mkdirs()) {
-                                throw IllegalStateException("Could not create model parent directory")
-                            }
-                            FileOutputStream(output).buffered().use { fileOut ->
-                                while (true) {
-                                    val count = zip.read(buffer)
-                                    if (count <= 0) break
-                                    extractedBytes += count
-                                    if (extractedBytes > MAX_EXTRACTED_MODEL_BYTES) {
-                                        throw IllegalStateException("Offline model archive expanded beyond its safety limit")
-                                    }
-                                    fileOut.write(buffer, 0, count)
-                                }
-                            }
-                        }
-                        zip.closeEntry()
-                        entry = zip.nextEntry
-                    }
-                }
-            }
-
-            val extractedModel = File(stagingDir, MODEL_NAME)
-            if (!hasCompleteModelStructure(extractedModel)) {
-                throw IllegalStateException("Extracted Vosk model is incomplete or corrupt")
-            }
-
-            // Marker is written only after every critical file and total model
-            // size pass validation. An interrupted extraction can never obtain a
-            // marker and therefore can never be trusted on the next Play.
-            File(extractedModel, MODEL_MARKER_FILE).writeText(MODEL_INSTALL_SCHEMA)
-            if (!isUsableModel(extractedModel)) {
-                throw IllegalStateException("Extracted Vosk model failed install-schema verification")
-            }
-
-            if (finalModelDir.exists() && !finalModelDir.deleteRecursively()) {
-                throw IllegalStateException("Could not replace previous offline model")
-            }
-
-            if (!extractedModel.renameTo(finalModelDir)) {
-                val copied = extractedModel.copyRecursively(finalModelDir, overwrite = true)
-                if (!copied) {
-                    throw IllegalStateException("Could not install extracted offline model")
-                }
-            }
-
-            if (!isUsableModel(finalModelDir)) {
-                finalModelDir.deleteRecursively()
-                throw IllegalStateException("Offline Vosk model failed final verification")
-            }
-            return finalModelDir
-        } finally {
-            stagingDir.deleteRecursively()
+            sessionActive = true
+            recognizer.startListening(intent)
+        } catch (error: Throwable) {
+            sessionActive = false
+            emitListening(false)
+            emit(
+                mapOf(
+                    "type" to "error",
+                    "recoverable" to true,
+                    "message" to (error.message ?: "Could not start Android voice recognition."),
+                ),
+            )
+            scheduleRestart(700L)
         }
     }
 
-    private fun isUsableModel(modelDir: File): Boolean {
-        if (!hasCompleteModelStructure(modelDir)) return false
-        val marker = File(modelDir, MODEL_MARKER_FILE)
-        return marker.isFile && marker.readText().trim() == MODEL_INSTALL_SCHEMA
+    private fun pauseCurrentSession() {
+        mainHandler.removeCallbacks(restartRunnable)
+        sessionActive = false
+        try {
+            speechRecognizer?.cancel()
+        } catch (_: Throwable) {
+        }
+        emitListening(false)
     }
 
-    private fun hasCompleteModelStructure(modelDir: File): Boolean {
-        if (!modelDir.isDirectory) return false
-
-        for (relativePath in REQUIRED_MODEL_FILES) {
-            val file = File(modelDir, relativePath)
-            if (!file.isFile || file.length() <= 0L) return false
-        }
-
-        var totalBytes = 0L
-        modelDir.walkTopDown().forEach { file ->
-            if (file.isFile) totalBytes += file.length()
-        }
-        return totalBytes >= MIN_EXTRACTED_MODEL_BYTES
+    private fun scheduleRestart(delayMs: Long) {
+        if (!shouldListen()) return
+        mainHandler.removeCallbacks(restartRunnable)
+        mainHandler.postDelayed(restartRunnable, delayMs)
     }
 
-    private fun safeZipDestination(root: File, entryName: String): File {
-        if (entryName.isBlank()) {
-            throw SecurityException("Blocked empty ZIP entry")
-        }
-        val destination = File(root, entryName)
-        val rootPath = root.canonicalPath + File.separator
-        val destinationPath = destination.canonicalPath
-        if (!destinationPath.startsWith(rootPath)) {
-            throw SecurityException("Blocked unsafe ZIP entry: $entryName")
-        }
-        return destination
+    private fun emitSpeech(bundle: Bundle?, isFinal: Boolean) {
+        val texts = bundle
+            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
+        if (texts.isEmpty()) return
+
+        emit(
+            mapOf(
+                "type" to "speech",
+                "final" to isFinal,
+                "texts" to texts,
+            ),
+        )
+    }
+
+    private fun emitAvailability() {
+        emit(
+            mapOf(
+                "type" to "availability",
+                "available" to SpeechRecognizer.isRecognitionAvailable(this),
+            ),
+        )
+    }
+
+    private fun emitListening(active: Boolean) {
+        emit(mapOf("type" to "listening", "active" to (active && shouldListen())))
+    }
+
+    private fun emit(event: Map<String, Any?>) {
+        eventSink?.success(event)
+    }
+
+    private fun recognitionErrorMessage(error: Int): String = when (error) {
+        SpeechRecognizer.ERROR_AUDIO -> "Microphone audio error. Retrying…"
+        SpeechRecognizer.ERROR_CLIENT -> "Voice recognizer restarted."
+        SpeechRecognizer.ERROR_NETWORK -> "Voice network error. Retrying…"
+        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Voice network timeout. Retrying…"
+        SpeechRecognizer.ERROR_NO_MATCH -> "Listening for a dice number…"
+        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Voice recognizer is busy. Retrying…"
+        SpeechRecognizer.ERROR_SERVER -> "Voice service error. Retrying…"
+        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Listening for a dice number…"
+        else -> "Voice recognizer error $error. Retrying…"
+    }
+
+    override fun onResume() {
+        super.onResume()
+        activityResumed = true
+        if (shouldListen()) ensurePermissionAndStart()
+    }
+
+    override fun onPause() {
+        activityResumed = false
+        pauseCurrentSession()
+        super.onPause()
     }
 
     override fun onDestroy() {
-        modelExecutor.shutdownNow()
+        voiceEnabled = false
+        pausedByFlutter = true
+        mainHandler.removeCallbacks(restartRunnable)
+        try {
+            speechRecognizer?.destroy()
+        } catch (_: Throwable) {
+        }
+        speechRecognizer = null
+        eventSink = null
         super.onDestroy()
     }
 
     companion object {
-        private const val MODEL_CHANNEL = "voice_ludo/native_model"
-        private const val MODEL_NAME = "vosk-model-small-hi-0.22"
-        private const val MODEL_ANDROID_ASSET = "vosk-model-small-hi-0.22.zip"
-        private const val MODEL_MARKER_FILE = ".aaris-model-schema"
-        private const val MODEL_INSTALL_SCHEMA = "vosk-small-hi-0.22/complete-v2"
-
-        private const val BYTES_PER_MB = 1024L * 1024L
-        private const val MIN_DEVICE_MEMORY_MB = 2048L
-        private const val MIN_VOSK_HEADROOM_MB = 640L
-        private const val MIN_MODEL_INSTALL_FREE_BYTES = 180L * BYTES_PER_MB
-        private const val MIN_EXTRACTED_MODEL_BYTES = 30L * BYTES_PER_MB
-        private const val MAX_EXTRACTED_MODEL_BYTES = 256L * BYTES_PER_MB
-
-        // Exact critical structure for vosk-model-small-hi-0.22. Checking this
-        // whole set prevents an interrupted/legacy partial extraction from being
-        // handed to Kaldi/Vosk, where malformed model data can terminate the
-        // process with SIGABRT rather than a recoverable Java/Dart exception.
-        private val REQUIRED_MODEL_FILES = arrayOf(
-            "am/final.mdl",
-            "conf/mfcc.conf",
-            "conf/model.conf",
-            "graph/Gr.fst",
-            "graph/HCLr.fst",
-            "graph/disambig_tid.int",
-            "graph/phones/word_boundary.int",
-            "ivector/final.dubm",
-            "ivector/final.ie",
-            "ivector/final.mat",
-            "ivector/global_cmvn.stats",
-            "ivector/online_cmvn.conf",
-            "ivector/splice.conf",
-        )
+        private const val VOICE_METHOD_CHANNEL = "voice_ludo/speech"
+        private const val VOICE_EVENT_CHANNEL = "voice_ludo/speech_events"
+        private const val REQUEST_AUDIO_PERMISSION = 7301
+        private const val HINDI_LOCALE = "hi-IN"
+        private const val MAX_RESULTS = 5
     }
 }

@@ -19,56 +19,37 @@ void main() {
       expect(flutterIndex, greaterThan(kotlinIndex));
     });
 
-    test('offline model is a native Android asset, not a generated Flutter asset', () {
+    test('voice uses Android SpeechRecognizer instead of a bundled Vosk model', () {
       final pubspec = File('pubspec.yaml').readAsStringSync();
       final appGradle = File('android/app/build.gradle.kts').readAsStringSync();
+      final manifest = File(
+        'android/app/src/main/AndroidManifest.xml',
+      ).readAsStringSync();
       final mainActivity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
       ).readAsStringSync();
 
-      expect(
-        pubspec,
-        isNot(contains('assets/models/vosk-model-small-hi-0.22.zip')),
-      );
-      expect(
-        appGradle,
-        contains('src/main/assets/vosk-model-small-hi-0.22.zip'),
-      );
-      expect(appGradle, contains('tasks.named("preBuild")'));
-      expect(appGradle, contains('dependsOn(prepareOfflineVoiceModel)'));
-      expect(appGradle, contains('name.startsWith("merge")'));
-      expect(appGradle, contains('name.endsWith("Assets")'));
-      expect(mainActivity, contains('voice_ludo/native_model'));
-      expect(mainActivity, contains('prepareOfflineVoskModel'));
-      expect(mainActivity, contains('assets.open(MODEL_ANDROID_ASSET)'));
-      expect(
-        mainActivity,
-        contains(
-          'private const val MODEL_ANDROID_ASSET = "vosk-model-small-hi-0.22.zip"',
-        ),
-      );
-      expect(mainActivity, isNot(contains('FlutterInjector')));
-      expect(mainActivity, isNot(contains('getLookupKeyForAsset')));
+      expect(pubspec, isNot(contains('vosk_flutter_service')));
+      expect(appGradle, isNot(contains('alphacephei.com/vosk')));
+      expect(appGradle, isNot(contains('prepareOfflineVoiceModel')));
+      expect(mainActivity, contains('SpeechRecognizer.createSpeechRecognizer'));
+      expect(mainActivity, contains('RecognizerIntent.EXTRA_LANGUAGE'));
+      expect(mainActivity, contains('private const val HINDI_LOCALE = "hi-IN"'));
+      expect(mainActivity, contains('voice_ludo/speech'));
+      expect(mainActivity, contains('voice_ludo/speech_events'));
+      expect(mainActivity, contains('pauseListening'));
+      expect(manifest, contains('android.permission.RECORD_AUDIO'));
+      expect(manifest, contains('android.speech.RecognitionService'));
     });
 
-    test('local bootstrap preserves the permanent Android integration', () {
+    test('local bootstrap preserves the permanent Android speech bridge', () {
       final bootstrap = File('tool/bootstrap_android.sh').readAsStringSync();
 
       expect(bootstrap, isNot(contains('rm -rf android')));
       expect(bootstrap, isNot(contains('flutter create')));
-      expect(
-        bootstrap,
-        contains(
-          'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
-        ),
-      );
-      expect(bootstrap, contains('voice_ludo/native_model'));
-      expect(
-        bootstrap,
-        contains(
-          'android/app/src/main/assets/vosk-model-small-hi-0.22.zip',
-        ),
-      );
+      expect(bootstrap, contains('voice_ludo/speech'));
+      expect(bootstrap, contains('SpeechRecognizer.createSpeechRecognizer'));
+      expect(bootstrap, isNot(contains('alphacephei.com/vosk')));
     });
   });
 }

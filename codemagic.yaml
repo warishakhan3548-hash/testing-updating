@@ -1,11 +1,11 @@
 workflows:
   android-apk:
-    name: Voice Ludo Offline AI APK
+    name: Voice Ludo Native Speech APK
     max_build_duration: 60
     environment:
       flutter: 3.47.1
     scripts:
-      - name: Verify Android project and native voice bridge
+      - name: Verify Android project and native speech bridge
         script: |
           set -euo pipefail
           test -d android
@@ -17,45 +17,15 @@ workflows:
           test -f android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt
           grep -Fq 'android.builtInKotlin=false' android/gradle.properties
           grep -Fq 'id("org.jetbrains.kotlin.android")' android/app/build.gradle.kts
-          grep -Fq 'voice_ludo/native_model' android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt
-          grep -Fq 'prepareOfflineVoskModel' android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt
-          grep -Fq 'src/main/assets/vosk-model-small-hi-0.22.zip' android/app/build.gradle.kts
-          grep -Fq 'tasks.named("preBuild")' android/app/build.gradle.kts
-          grep -Fq 'assets.open(MODEL_ANDROID_ASSET)' android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt
-          if grep -Fq 'assets/models/vosk-model-small-hi-0.22.zip' pubspec.yaml; then
-            echo "ERROR: offline model must be packaged as a native Android asset, not a generated Flutter asset."
+          grep -Fq 'voice_ludo/speech' android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt
+          grep -Fq 'voice_ludo/speech_events' android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt
+          grep -Fq 'SpeechRecognizer.createSpeechRecognizer' android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt
+          grep -Fq 'android.speech.RecognitionService' android/app/src/main/AndroidManifest.xml
+          if grep -Fq 'vosk_flutter_service' pubspec.yaml; then
+            echo "ERROR: legacy Vosk dependency must not return."
             exit 1
           fi
-          echo "Permanent Android + native voice asset bridge: OK"
-
-      - name: Bundle offline Hindi voice model
-        script: |
-          set -euo pipefail
-          mkdir -p android/app/src/main/assets
-          MODEL="android/app/src/main/assets/vosk-model-small-hi-0.22.zip"
-          URL="https://alphacephei.com/vosk/models/vosk-model-small-hi-0.22.zip"
-          rm -f "$MODEL"
-          curl --fail --location --retry 4 --retry-delay 2 \
-            --output "$MODEL" "$URL"
-          test -s "$MODEL"
-          python3 - <<'PY'
-          from pathlib import Path
-          import zipfile
-
-          model = Path('android/app/src/main/assets/vosk-model-small-hi-0.22.zip')
-          if model.stat().st_size < 10_000_000:
-              raise SystemExit(f'Offline model is unexpectedly small: {model.stat().st_size} bytes')
-
-          with zipfile.ZipFile(model) as archive:
-              bad = archive.testzip()
-              if bad is not None:
-                  raise SystemExit(f'Offline model ZIP is corrupt at: {bad}')
-              names = archive.namelist()
-              if not any(name.endswith('/am/final.mdl') or name.endswith('am/final.mdl') for name in names):
-                  raise SystemExit('Offline model ZIP does not contain the expected acoustic model')
-          print('Native Android Vosk model ZIP integrity: OK')
-          PY
-          echo "Native Android Vosk model bundled: $(du -h "$MODEL" | cut -f1)"
+          echo "Permanent Android + native system speech bridge: OK"
 
       - name: Install Flutter dependencies
         script: flutter pub get
