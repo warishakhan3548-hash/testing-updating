@@ -40,6 +40,7 @@ class MainActivity : FlutterActivity() {
     private var recognitionBinding: VoiceBinding? = null
 
     private var restartAttempt = 0
+    private var consecutiveNoMatch = 0
     private var usingOnDeviceRecognizer = false
     private var onDeviceRejectedForProcess = false
     private var recognizerEpoch = 0L
@@ -111,9 +112,6 @@ class MainActivity : FlutterActivity() {
                     pausedByFlutter = false
                     cancelWarmStandby()
 
-                    // Only recycle an actively recording recognizer. If Flutter paused
-                    // us for the dice/move, the idle warm recognizer can be rebound
-                    // without paying another cold recognizer creation penalty.
                     if (changedWhileBound && sessionActive) {
                         restartForContextChange()
                     } else {
@@ -136,9 +134,6 @@ class MainActivity : FlutterActivity() {
                     val changed = currentBinding != binding
                     currentBinding = binding
 
-                    // A live capture is bound immutably to recognitionBinding. Recycle
-                    // it when the turn changes so speech from the old player can never
-                    // be relabelled as the new player's command.
                     if (changed && voiceEnabled && !pausedByFlutter && sessionActive) {
                         restartForContextChange()
                     }
@@ -258,15 +253,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    /**
-     * Creates a recognizer but does not open the microphone.
-     *
-     * Low-latency policy:
-     *  1. Prefer Android's on-device recognizer when it exists.
-     *  2. Fall back to the phone's default recognition service.
-     *  3. Keep the idle recognizer warm while Flutter temporarily pauses voice
-     *     during dice animation/token movement.
-     */
     private fun ensureRecognizer(): SpeechRecognizer? {
         speechRecognizer?.let { return it }
 
@@ -387,9 +373,28 @@ class MainActivity : FlutterActivity() {
                     return
                 }
 
-                // Busy/client errors are often a poisoned recognizer instance on
-                // OEM implementations. Recreate only for those failures; ordinary
-                // no-match/timeouts reuse the already-warm engine.
+                if (error == SpeechRecognizer.ERROR_NO_MATCH ||
+                    error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                ) {
+                    consecutiveNoMatch += 1
+                    if (usingOnDeviceRecognizer &&
+                        consecutiveNoMatch >= ON_DEVICE_NO_MATCH_FALLBACK_THRESHOLD &&
+                        SpeechRecognizer.isRecognitionAvailable(this@MainActivity)
+                    ) {
+                        onDeviceRejectedForProcess = true
+                        destroyRecognizer()
+                        emit(
+                            mapOf(
+                                "type" to "error",
+                                "recoverable" to true,
+                                "message" to "Voice accuracy boosted using system speech recognition.",
+                            ),
+                        )
+                        scheduleRestart(SYSTEM_FALLBACK_RESTART_MS)
+                        return
+                    }
+                }
+
                 if (
                     error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
                         error == SpeechRecognizer.ERROR_CLIENT
@@ -411,12 +416,8 @@ class MainActivity : FlutterActivity() {
             override fun onResults(results: Bundle?) {
                 if (!isCurrentRecognizerEpoch(epoch)) return
                 cancelVoiceWatchdogs()
+                consecutiveNoMatch = 0
 
-                // For 1–6, OEM confidence values are less reliable than the text
-                // alternatives themselves. Dart still applies the strict dice-only
-                // parser and exact match/player/turn binding, so accepting a correct
-                // low-confidence short hypothesis is safe and materially improves
-                // quiet/fast speech.
                 emitSpeech(
                     results,
                     isFinal = true,
@@ -433,9 +434,7 @@ class MainActivity : FlutterActivity() {
             override fun onPartialResults(partialResults: Bundle?) {
                 if (!isCurrentRecognizerEpoch(epoch)) return
 
-                // This is the primary low-latency path. A short command such as
-                // "छक्का", "पाँच" or "six" is forwarded immediately instead of
-                // waiting for end-of-speech/final decoding.
+                consecutiveNoMatch = 0
                 armSessionWatchdog(epoch, SPEECH_WATCHDOG_MS)
                 emitSpeech(
                     partialResults,
@@ -462,6 +461,7 @@ class MainActivity : FlutterActivity() {
         mainHandler.removeCallbacks(restartRunnable)
         cancelWarmStandby()
         onDeviceRejectedForProcess = true
+        consecutiveNoMatch = 0
         destroyRecognizer()
 
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
@@ -506,10 +506,45 @@ class MainActivity : FlutterActivity() {
                 putExtra(RecognizerIntent.EXTRA_ENABLE_BIASING_DEVICE_CONTEXT, false)
             }
 
-            // Deliberately do NOT override Android's speech endpointer silence
-            // durations. The previous 180/300 ms cutoffs could terminate very short
-            // or softly spoken commands before an OEM recognizer stabilized them.
-            // Instant dice locking comes from onPartialResults instead.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                putExtra(
+                    RecognizerIntent.EXTRA_ENABLE_LANGUAGE_SWITCH,
+                    RecognizerIntent.LANGUAGE_SWITCH_QUICK_RESPONSE,
+                )
+                putStringArrayListExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_SWITCH_ALLOWED_LANGUAGES,
+                    ArrayList(VOICE_LOCALES),
+                )
+                putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_DETECTION, true)
+                putStringArrayListExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_DETECTION_ALLOWED_LANGUAGES,
+                    ArrayList(VOICE_LOCALES),
+                )
+            }
+
+            if (Build.VERSION.SDK_INT >= 35) {
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_SWITCH_INITIAL_ACTIVE_DURATION_TIME_MILLIS,
+                    LANGUAGE_SWITCH_ACTIVE_MS,
+                )
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_SWITCH_MAX_SWITCHES,
+                    LANGUAGE_SWITCH_MAX_SWITCHES,
+                )
+            }
+
+            // Some OEM recognizers do not produce partial callbacks for one-word
+            // utterances. These balanced endpoint values keep softly spoken commands
+            // alive long enough to stabilize while still committing final results
+            // quickly when the user says only "छक्का", "five" or "six".
+            putExtra(
+                RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
+                COMPLETE_SILENCE_MS,
+            )
+            putExtra(
+                RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
+                POSSIBLY_COMPLETE_SILENCE_MS,
+            )
         }
 
     private fun startSession() {
@@ -526,8 +561,6 @@ class MainActivity : FlutterActivity() {
         cancelWarmStandby()
         cancelVoiceWatchdogs()
 
-        // Immutable for this native recognition session. emitSpeech additionally
-        // requires this to still equal currentBinding before crossing into Dart.
         recognitionBinding = binding
 
         try {
@@ -554,6 +587,7 @@ class MainActivity : FlutterActivity() {
     private fun restartForContextChange() {
         mainHandler.removeCallbacks(restartRunnable)
         cancelWarmStandby()
+        consecutiveNoMatch = 0
         destroyRecognizer()
         emitListening(false)
         scheduleRestart(CONTEXT_RESTART_MS)
@@ -830,26 +864,32 @@ class MainActivity : FlutterActivity() {
         private const val REQUEST_AUDIO_PERMISSION = 7301
 
         private const val HINDI_LOCALE = "hi-IN"
-        private const val MAX_RESULTS = 12
+        private const val MAX_RESULTS = 20
+        private const val ON_DEVICE_NO_MATCH_FALLBACK_THRESHOLD = 2
 
-        // A warm recognizer owns no microphone session; it only removes object-
-        // creation latency when the next player becomes eligible to speak.
-        private const val WARM_STANDBY_DELAY_MS = 35L
+        private const val COMPLETE_SILENCE_MS = 430L
+        private const val POSSIBLY_COMPLETE_SILENCE_MS = 650L
+        private const val LANGUAGE_SWITCH_ACTIVE_MS = 2_500
+        private const val LANGUAGE_SWITCH_MAX_SWITCHES = 2
 
-        private const val ON_DEVICE_RESULT_RESTART_MS = 45L
-        private const val SYSTEM_RESULT_RESTART_MS = 105L
-        private const val ON_DEVICE_NO_MATCH_RESTART_MS = 65L
-        private const val SYSTEM_NO_MATCH_RESTART_MS = 125L
+        private val VOICE_LOCALES = listOf("hi-IN", "en-IN", "en-US")
 
-        private const val CONTEXT_RESTART_MS = 70L
-        private const val SYSTEM_FALLBACK_RESTART_MS = 110L
-        private const val STUCK_RESTART_MS = 90L
-        private const val START_FAILURE_RESTART_MS = 420L
+        private const val WARM_STANDBY_DELAY_MS = 25L
 
-        private const val READY_WATCHDOG_MS = 2_800L
+        private const val ON_DEVICE_RESULT_RESTART_MS = 30L
+        private const val SYSTEM_RESULT_RESTART_MS = 70L
+        private const val ON_DEVICE_NO_MATCH_RESTART_MS = 45L
+        private const val SYSTEM_NO_MATCH_RESTART_MS = 85L
+
+        private const val CONTEXT_RESTART_MS = 45L
+        private const val SYSTEM_FALLBACK_RESTART_MS = 70L
+        private const val STUCK_RESTART_MS = 70L
+        private const val START_FAILURE_RESTART_MS = 320L
+
+        private const val READY_WATCHDOG_MS = 2_500L
         private const val SESSION_IDLE_WATCHDOG_MS = 18_000L
         private const val SPEECH_WATCHDOG_MS = 7_000L
-        private const val RESULT_WATCHDOG_MS = 2_800L
+        private const val RESULT_WATCHDOG_MS = 2_200L
 
         private val DICE_BIASING_STRINGS =
             listOf(
@@ -857,14 +897,18 @@ class MainActivity : FlutterActivity() {
                 "दो", "two", "टू", "2", "२",
                 "तीन", "three", "थ्री", "3", "३",
                 "चार", "four", "फोर", "4", "४",
-                "पाँच", "पांच", "पाच", "five", "फाइव", "फाईव", "5", "५",
-                "छक्का", "छका", "छक्के", "छह", "छः", "छे", "चक्का",
-                "six", "सिक्स", "सिक्सर", "chakka", "chhakka", "6", "६",
+                "पाँच", "पांच", "पाच", "पान्च", "five", "फाइव", "फाईव", "5", "५",
+                "छक्का", "छका", "छक्के", "छह", "छः", "छे", "चक्का", "छको",
+                "six", "सिक्स", "सिक्सर", "chakka", "chhakka", "chhakkaa", "6", "६",
                 "छक्का छक्का", "छह छह", "six six",
                 "पाँच पाँच", "पांच पांच", "five five",
                 "चार चार", "four four",
-                "छक्का दे", "छक्का चाहिए", "पाँच दे", "चार दे",
-                "dice six", "give me six", "roll six",
+                "तीन तीन", "three three",
+                "दो दो", "two two",
+                "एक एक", "one one",
+                "छक्का दे", "छक्का चाहिए", "छक्का लाओ", "पाँच दे", "चार दे",
+                "dice six", "give me six", "roll six", "six please",
+                "five please", "four please", "three please", "two please", "one please",
             )
     }
 }
