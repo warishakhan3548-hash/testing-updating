@@ -53,6 +53,17 @@ void main() {
       expect(controller, contains('_rollSuspended = true'));
     });
 
+    test('active match restart cancels the stale native recognition cycle', () {
+      final activity = File(
+        'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
+      ).readAsStringSync();
+
+      expect(activity, contains('changedWhileActive'));
+      expect(activity, contains('currentBinding != binding && sessionActive'));
+      expect(activity, contains('restartForContextChange()'));
+      expect(activity, contains('speechRecognizer?.cancel()'));
+    });
+
     test('on-device language failure falls back once instead of restart-looping', () {
       final activity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
