@@ -30,14 +30,36 @@ void main() {
       expect(VoiceDiceController.parseLastDiceValue('तीन'), 3);
     });
 
+    test('fast and quiet ASR variants map to the intended dice value', () {
+      expect(VoiceDiceController.parseLastDiceValue('छक्क'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('छक'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('चका'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('शक्का'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('chaka'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('chhaka'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('फौर'), 4);
+      expect(VoiceDiceController.parseLastDiceValue('panj'), 5);
+    });
+
     test('natural command phrases work without blind substring matching', () {
       expect(VoiceDiceController.parseLastDiceValue('छक्का दे'), 6);
       expect(VoiceDiceController.parseLastDiceValue('छक्का चाहिए'), 6);
       expect(VoiceDiceController.parseLastDiceValue('give me six'), 6);
       expect(VoiceDiceController.parseLastDiceValue('चार आना चाहिए'), 4);
       expect(VoiceDiceController.parseLastDiceValue('छक्का दे दो'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('हाँ छक्का'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('अरे पाँच'), 5);
       expect(VoiceDiceController.parseLastDiceValue('we have six players'), isNull);
       expect(VoiceDiceController.parseLastDiceValue('six o clock'), isNull);
+    });
+
+    test('dice-only partial phrases are distinguishable from sentence prefixes', () {
+      expect(DiceVoiceIntentParser.isDiceOnlyPhrase('छक्का'), isTrue);
+      expect(DiceVoiceIntentParser.isDiceOnlyPhrase('छक्का छक्का'), isTrue);
+      expect(DiceVoiceIntentParser.isDiceOnlyPhrase('six six'), isTrue);
+      expect(DiceVoiceIntentParser.isDiceOnlyPhrase('पाँच पाँच'), isTrue);
+      expect(DiceVoiceIntentParser.isDiceOnlyPhrase('six players'), isFalse);
+      expect(DiceVoiceIntentParser.isDiceOnlyPhrase('मुझे छक्का दे'), isFalse);
     });
   });
 
