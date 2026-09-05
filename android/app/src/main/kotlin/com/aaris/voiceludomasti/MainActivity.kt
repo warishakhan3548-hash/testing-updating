@@ -81,12 +81,11 @@ class MainActivity : FlutterActivity() {
         val finalModelDir = File(modelsDir, MODEL_NAME)
         if (isUsableModel(finalModelDir)) return finalModelDir
 
-        // A previous interrupted extraction may have left a directory that has
-        // only final.mdl/model.conf. Vosk can abort the whole Android process on
-        // structurally incomplete Kaldi data, so never reuse a partially valid
-        // folder and never validate by only one or two files.
+        // Any model extracted by the older two-file validator intentionally has
+        // no install-schema marker and is rebuilt once. This makes the crash fix
+        // self-healing after an APK update without asking the user to clear data.
         if (finalModelDir.exists() && !finalModelDir.deleteRecursively()) {
-            throw IllegalStateException("Could not remove an incomplete offline voice model")
+            throw IllegalStateException("Could not remove an incomplete or legacy offline voice model")
         }
 
         if (!modelsDir.exists() && !modelsDir.mkdirs()) {
@@ -140,8 +139,16 @@ class MainActivity : FlutterActivity() {
             }
 
             val extractedModel = File(stagingDir, MODEL_NAME)
-            if (!isUsableModel(extractedModel)) {
+            if (!hasCompleteModelStructure(extractedModel)) {
                 throw IllegalStateException("Extracted Vosk model is incomplete or corrupt")
+            }
+
+            // Marker is written only after every critical file and total model
+            // size pass validation. An interrupted extraction can never obtain a
+            // marker and therefore can never be trusted on the next Play.
+            File(extractedModel, MODEL_MARKER_FILE).writeText(MODEL_INSTALL_SCHEMA)
+            if (!isUsableModel(extractedModel)) {
+                throw IllegalStateException("Extracted Vosk model failed install-schema verification")
             }
 
             if (finalModelDir.exists() && !finalModelDir.deleteRecursively()) {
@@ -166,6 +173,12 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun isUsableModel(modelDir: File): Boolean {
+        if (!hasCompleteModelStructure(modelDir)) return false
+        val marker = File(modelDir, MODEL_MARKER_FILE)
+        return marker.isFile && marker.readText().trim() == MODEL_INSTALL_SCHEMA
+    }
+
+    private fun hasCompleteModelStructure(modelDir: File): Boolean {
         if (!modelDir.isDirectory) return false
 
         for (relativePath in REQUIRED_MODEL_FILES) {
@@ -202,6 +215,8 @@ class MainActivity : FlutterActivity() {
         private const val MODEL_CHANNEL = "voice_ludo/native_model"
         private const val MODEL_NAME = "vosk-model-small-hi-0.22"
         private const val MODEL_ANDROID_ASSET = "vosk-model-small-hi-0.22.zip"
+        private const val MODEL_MARKER_FILE = ".aaris-model-schema"
+        private const val MODEL_INSTALL_SCHEMA = "vosk-small-hi-0.22/complete-v2"
 
         private const val BYTES_PER_MB = 1024L * 1024L
         private const val MIN_DEVICE_MEMORY_MB = 2048L
