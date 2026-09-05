@@ -1,17 +1,48 @@
 # Voice Ludo Masti 🎲🎤
 
-A local 2/3/4-player Flutter Ludo game where the **latest spoken dice number controls the next roll**. Voice recognition is designed to run **fully offline on Android** with a bundled Vosk Hindi mobile model.
+A local 2/3/4-player Flutter Ludo game where the **latest spoken dice number controls the next roll**.
 
-## Core behaviour
+## Exact voice behaviour
 
-- Say `एक / वन` through `छक्का / सिक्स` (the parser also understands common English/transliterated variants).
-- The latest valid number replaces any older pending number.
-- Tap **ROLL** and the animated dice resolves to that number.
-- The voice command is consumed for exactly one roll.
-- If no voice number is pending, the dice uses a normal random 1–6 value.
-- Recognition is frozen at the roll boundary and while choosing a token, so stale microphone results cannot leak into the next player's roll.
-- There is **no three-sixes penalty**. Six can be intentionally rolled any number of times.
-- A six still earns another roll even when the exact-home rule leaves no legal move.
+- Say `एक / वन` through `छक्का / सिक्स` in a normal voice.
+- Recognition runs continuously while the game is ready for a command.
+- As soon as a valid number is heard, that value is **latched with no timeout**.
+- Tap **ROLL** whenever you want; the latched number is consumed and that exact dice value is produced.
+- The command is consumed for exactly one roll, so `छक्का → ROLL` gives 6 once.
+- After the move, saying `छक्का` again arms 6 again for the next roll.
+- If you say a different valid number before rolling, the newest number replaces the older one.
+- If no number is armed, ROLL remains a normal random 1–6 roll.
+
+```text
+say: छक्का
+wait if you want
+tap ROLL
+=> 6
+
+move the token
+say: छक्का
+tap ROLL
+=> 6
+```
+
+There is no three-sixes penalty. Six can intentionally be rolled repeatedly.
+
+## Voice architecture
+
+The old bundled Vosk Hindi-model path has been removed. It could fail during model preparation on real phones and it also expired a spoken command after about 1.4 seconds, which did not match the intended game interaction.
+
+The app now uses Android's native `SpeechRecognizer` service through a small permanent Kotlin bridge in `MainActivity.kt`:
+
+- language: `hi-IN`
+- partial results: enabled for fast command capture
+- normal Android recognition service: no app-bundled speech model
+- recognizer session automatically restarts after silence, final results, or recoverable errors
+- microphone permission is handled by the Android bridge
+- the recognizer pauses only at the roll boundary so buffered speech cannot leak into the same roll
+
+Dart receives speech events through `voice_ludo/speech_events` and controls the native recognizer through `voice_ludo/speech`.
+
+`VoiceDiceLatch` is the single source of truth for the pending dice command. It deliberately has **no freshness timer**. The value only changes when a newer valid command is heard or when ROLL consumes it.
 
 ## Ludo rules included
 
@@ -24,61 +55,15 @@ A local 2/3/4-player Flutter Ludo game where the **latest spoken dice number con
 - Exact roll is required to reach the final home position.
 - Winner ranking continues until all players are ranked.
 
-## Advanced offline voice architecture
-
-The app uses **Vosk** with `vosk-model-small-hi-0.22`, a lightweight Hindi model intended for mobile/offline use. The model ZIP is packaged as a **native Android asset** at:
-
-```text
-android/app/src/main/assets/vosk-model-small-hi-0.22.zip
-```
-
-It is deliberately **not** declared as a generated Flutter asset in `pubspec.yaml`. Gradle prepares the ZIP before Android `preBuild`, so Flutter's own asset-bundle phase never depends on a file that is generated later by Android build logic. This removes a build-order race that could otherwise fail the entire app before the APK is produced.
-
-At runtime, `MainActivity` opens the ZIP directly through Android's `AssetManager`, streams it into app-private storage, validates the extracted model, and then exposes that path to Dart through the `voice_ludo/native_model` MethodChannel. The ZIP is not decoded into Dart memory.
-
-The recognizer uses a deliberately tiny command grammar containing only dice words plus `[unk]`. This has two advantages:
-
-1. General room conversation can be rejected instead of being forced into a number.
-2. Very short commands such as `छक्का`, `पाँच`, `फाइव`, or `सिक्स` are cheaper and faster to recognize than full dictation.
-
-Partial recognition uses a stability filter. Two matching partial frames normally lock a command, while a very recent candidate is still allowed at the exact roll boundary so a fast `say four → instantly tap roll` interaction remains responsive.
-
-There is no command queue. The newest accepted value overwrites the older one:
-
-```text
-say: छक्का
-say: पाँच
-say: चार
-tap ROLL
-=> 4
-```
-
-Recognition is reset between resolved rolls to prevent buffered audio from one turn affecting another turn.
-
 ## Android build contract
 
-The repository contains a **permanent Android project** with a native MethodChannel that streams the bundled Vosk ZIP to app-private storage. Do not replace the `android/` directory with a freshly generated Flutter scaffold: doing so removes the native `voice_ludo/native_model` bridge and breaks offline voice initialization.
+The repository contains a permanent Android project. `MainActivity.kt` owns the `SpeechRecognizer` bridge, so do not replace `android/` with a newly generated Flutter scaffold.
 
-The voice model has one canonical build location: `android/app/src/main/assets/vosk-model-small-hi-0.22.zip`. Both local setup and Codemagic validate that contract. Regression tests also ensure the ZIP cannot accidentally be moved back into Flutter's generated-asset pipeline.
+The manifest includes `RECORD_AUDIO` and the Android 11+ `android.speech.RecognitionService` query. The Flutter dependency on `vosk_flutter_service` is intentionally gone, and the build no longer downloads or packages a Vosk model.
 
-This project currently keeps AGP 9 legacy Kotlin mode (`android.builtInKotlin=false`) for plugin compatibility. Therefore `android/app/build.gradle.kts` explicitly applies `org.jetbrains.kotlin.android` so `MainActivity.kt` and the native voice bridge are compiled.
+The project currently keeps AGP 9 legacy Kotlin mode (`android.builtInKotlin=false`), so `android/app/build.gradle.kts` explicitly applies `org.jetbrains.kotlin.android` before Flutter's Gradle plugin.
 
-## Codemagic build
-
-Use the `Voice Ludo Offline AI APK` workflow from the root `codemagic.yaml`.
-
-The workflow:
-
-1. Verifies the permanent Android project, Kotlin configuration, native voice bridge, and native-asset contract.
-2. Downloads and integrity-checks the official Hindi Vosk mobile model into `android/app/src/main/assets/`.
-3. Runs `flutter pub get`.
-4. Runs the logic and Android build-contract tests.
-5. Runs `flutter analyze`.
-6. Builds the release APK.
-
-The built APK is published as a Codemagic artifact.
-
-## Local Android setup
+## Local verification
 
 With Flutter installed, run:
 
@@ -86,14 +71,14 @@ With Flutter installed, run:
 bash tool/bootstrap_android.sh
 ```
 
-The script is intentionally **non-destructive**. It validates the permanent Android/Kotlin/native voice integration, downloads and verifies the native Android model asset when necessary, then runs dependencies, tests, and analysis. It never deletes or regenerates the `android/` directory.
+The script validates the permanent Android speech bridge, removes any stale Vosk ZIP left by an older local checkout, then runs dependencies, tests, and analysis.
 
-After it succeeds, build with:
+Build with:
 
 ```bash
 flutter build apk --release
 ```
 
-## Privacy / network behaviour
+## Runtime note
 
-Runtime speech recognition is local. The Android app only needs microphone permission for voice dice. The model download occurs at build/setup time, not while playing.
+Android `SpeechRecognizer` uses the speech service installed on the phone. On typical Google-enabled Android phones it can use the device/Google speech service and may use network connectivity depending on the phone's installed language recognition capabilities.
