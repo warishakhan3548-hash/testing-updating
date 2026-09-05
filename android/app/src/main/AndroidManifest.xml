@@ -3,7 +3,7 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <application
-        android:label="Voice Ludo Masti"
+        android:label="Aarish Kingdom"
         android:name="${applicationName}">
         <activity
             android:name=".MainActivity"
