@@ -42,7 +42,8 @@ void main() {
       expect(activity, contains('"शक्का"'));
       expect(activity, contains('"पाँच"'));
       expect(activity, contains('"six"'));
-      expect(activity, contains('includeConfidences = false'));
+      expect(activity, contains('SpeechRecognizer.CONFIDENCE_SCORES'));
+      expect(activity, contains('"confidences" to confidences'));
       expect(activity, contains('isFinal = false'));
     });
 
