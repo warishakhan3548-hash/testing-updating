@@ -7,7 +7,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.SystemClock
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -34,7 +33,6 @@ class MainActivity : FlutterActivity() {
     private var pausedByFlutter = false
     private var activityResumed = false
     private var sessionActive = false
-    private var transitioningSession = false
 
     private var pendingStartAfterPermission = false
     private var permissionRequestInFlight = false
@@ -42,7 +40,17 @@ class MainActivity : FlutterActivity() {
     private var currentBinding: VoiceBinding? = null
     private var recognitionBinding: VoiceBinding? = null
 
+    // Epoch changes whenever the recognizer object is destroyed/recreated. A
+    // turn/context change always rotates the epoch so callbacks from a canceled
+    // old turn cannot ever be emitted under the next turn's binding.
     private var recognizerEpoch = 0L
+
+    // A recognizer object can safely serve several natural same-turn sessions.
+    // Session ids let Dart deduplicate partial/final callbacks from one utterance
+    // without applying a global time debounce that could block the next turn.
+    private var sessionSerial = 0L
+    private var activeSessionId = 0L
+
     private var restartAttempt = 0
     private var consecutiveNoMatch = 0
     private var usingOnDeviceRecognizer = false
@@ -51,7 +59,6 @@ class MainActivity : FlutterActivity() {
     private var readyWatchdog: Runnable? = null
     private var sessionWatchdog: Runnable? = null
     private var resultWatchdog: Runnable? = null
-    private var lastRmsEmitAt = 0L
 
     private val restartRunnable = Runnable {
         if (shouldListen()) startSession()
@@ -85,6 +92,8 @@ class MainActivity : FlutterActivity() {
                     val available = isAnyRecognitionAvailable()
                     result.success(available)
                     if (available && hasMicrophonePermission() && activityResumed) {
+                        // Pre-create the recognizer object so the first playable
+                        // turn does not pay avoidable object-creation latency.
                         mainHandler.post { ensureRecognizer() }
                     }
                 }
@@ -101,8 +110,8 @@ class MainActivity : FlutterActivity() {
                     voiceEnabled = true
                     pausedByFlutter = false
 
-                    if (changed && sessionActive) {
-                        fastRebindSession()
+                    if (changed) {
+                        restartForContextChange()
                     } else {
                         ensurePermissionAndStart()
                     }
@@ -119,14 +128,14 @@ class MainActivity : FlutterActivity() {
                     val changed = currentBinding != binding
                     currentBinding = binding
                     if (changed && voiceEnabled && !pausedByFlutter) {
-                        if (sessionActive) fastRebindSession() else scheduleRestart(CONTEXT_REARM_MS)
+                        restartForContextChange()
                     }
                     result.success(null)
                 }
 
                 "pauseListening" -> {
                     pausedByFlutter = true
-                    pauseCurrentSession(keepRecognizerWarm = true)
+                    pauseCurrentSession()
                     result.success(null)
                 }
 
@@ -135,7 +144,7 @@ class MainActivity : FlutterActivity() {
                     pausedByFlutter = false
                     pendingStartAfterPermission = false
                     currentBinding = null
-                    pauseCurrentSession(keepRecognizerWarm = false)
+                    pauseCurrentSession()
                     result.success(null)
                 }
 
@@ -176,7 +185,7 @@ class MainActivity : FlutterActivity() {
             emit(
                 mapOf(
                     "type" to "unavailable",
-                    "message" to "Android speech recognition service is unavailable on this device.",
+                    "message" to "Android speech recognition is unavailable on this device.",
                 ),
             )
             return
@@ -221,9 +230,10 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * Accuracy-first backend selection. The normal system recognizer is preferred
-     * because Google/OEM speech services commonly have the strongest short Hindi /
-     * Hinglish acoustic model. On-device recognition remains a fallback.
+     * Accuracy-first backend selection. The regular system recognizer is used
+     * first because Google/OEM speech services commonly have the strongest
+     * short Hindi/Hinglish acoustic model. The on-device recognizer is a safe
+     * fallback when the system recognizer cannot be created.
      */
     private fun ensureRecognizer(): SpeechRecognizer? {
         recognizer?.let { return it }
@@ -266,6 +276,8 @@ class MainActivity : FlutterActivity() {
     private fun emitRecognizerCreationFailure(error: Throwable) {
         sessionActive = false
         voiceEnabled = false
+        recognitionBinding = null
+        activeSessionId = 0L
         cancelVoiceWatchdogs()
         emitListening(false)
         emit(
@@ -279,32 +291,28 @@ class MainActivity : FlutterActivity() {
     private fun createRecognitionListener(epoch: Long): RecognitionListener =
         object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
-                if (!isCurrentEpoch(epoch) || transitioningSession) return
+                if (!isCurrentEpoch(epoch) || !sessionActive) return
                 cancelReadyWatchdog()
                 restartAttempt = 0
-                sessionActive = true
                 armSessionWatchdog(epoch, SESSION_IDLE_WATCHDOG_MS)
                 emitListening(true)
             }
 
             override fun onBeginningOfSpeech() {
-                if (!isCurrentEpoch(epoch) || transitioningSession) return
+                if (!isCurrentEpoch(epoch) || !sessionActive) return
                 cancelReadyWatchdog()
                 armSessionWatchdog(epoch, SPEECH_WATCHDOG_MS)
             }
 
-            override fun onRmsChanged(rmsdB: Float) {
-                if (!isCurrentEpoch(epoch) || transitioningSession || !sessionActive) return
-                val now = SystemClock.elapsedRealtime()
-                if (now - lastRmsEmitAt < RMS_EMIT_INTERVAL_MS) return
-                lastRmsEmitAt = now
-                emit(mapOf("type" to "rms", "value" to rmsdB.toDouble()))
-            }
+            // RMS updates are intentionally ignored. They are high-frequency UI
+            // thread callbacks and the Flutter UI does not render an audio meter.
+            // Avoiding channel traffic here keeps board/animation frames isolated.
+            override fun onRmsChanged(rmsdB: Float) = Unit
 
             override fun onBufferReceived(buffer: ByteArray?) = Unit
 
             override fun onEndOfSpeech() {
-                if (!isCurrentEpoch(epoch) || transitioningSession) return
+                if (!isCurrentEpoch(epoch) || !sessionActive) return
                 cancelSessionWatchdog()
                 armResultWatchdog(epoch)
                 emitListening(false)
@@ -314,9 +322,9 @@ class MainActivity : FlutterActivity() {
                 if (!isCurrentEpoch(epoch)) return
                 cancelVoiceWatchdogs()
                 sessionActive = false
+                recognitionBinding = null
+                activeSessionId = 0L
                 emitListening(false)
-
-                if (transitioningSession) return
 
                 if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
                     voiceEnabled = false
@@ -359,7 +367,7 @@ class MainActivity : FlutterActivity() {
                             mapOf(
                                 "type" to "error",
                                 "recoverable" to true,
-                                "message" to "Voice accuracy boosted using system speech recognition.",
+                                "message" to "Switching to system speech recognition.",
                             ),
                         )
                         scheduleRestart(SYSTEM_FALLBACK_RESTART_MS)
@@ -383,7 +391,7 @@ class MainActivity : FlutterActivity() {
             }
 
             override fun onResults(results: Bundle?) {
-                if (!isCurrentEpoch(epoch) || transitioningSession) return
+                if (!isCurrentEpoch(epoch) || !sessionActive) return
                 cancelVoiceWatchdogs()
                 consecutiveNoMatch = 0
 
@@ -391,12 +399,14 @@ class MainActivity : FlutterActivity() {
 
                 restartAttempt = 0
                 sessionActive = false
+                recognitionBinding = null
+                activeSessionId = 0L
                 emitListening(false)
                 scheduleRestart(resultRestartDelay())
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
-                if (!isCurrentEpoch(epoch) || transitioningSession) return
+                if (!isCurrentEpoch(epoch) || !sessionActive) return
                 consecutiveNoMatch = 0
                 armSessionWatchdog(epoch, SPEECH_WATCHDOG_MS)
                 emitSpeech(partialResults, isFinal = false, epoch = epoch)
@@ -423,7 +433,7 @@ class MainActivity : FlutterActivity() {
             emit(
                 mapOf(
                     "type" to "unavailable",
-                    "message" to "On-device Hindi speech is unavailable and no system fallback exists.",
+                    "message" to "Hindi speech recognition is unavailable on this device.",
                 ),
             )
             return
@@ -433,7 +443,7 @@ class MainActivity : FlutterActivity() {
             mapOf(
                 "type" to "error",
                 "recoverable" to true,
-                "message" to "Using stronger system speech recognition.",
+                "message" to "Switching to system speech recognition.",
             ),
         )
         scheduleRestart(SYSTEM_FALLBACK_RESTART_MS)
@@ -483,9 +493,8 @@ class MainActivity : FlutterActivity() {
                 )
             }
 
-            // The "possibly complete" endpoint is intentionally short so a one-word
-            // dice command commits quickly. The complete endpoint remains longer to
-            // avoid clipping softly spoken / trailing syllables such as "छक्का".
+            // These hints are deliberately bounded for a one-word command. OEM
+            // recognizers may ignore them, so correctness never depends on them.
             putExtra(
                 RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
                 POSSIBLY_COMPLETE_SILENCE_MS,
@@ -508,8 +517,9 @@ class MainActivity : FlutterActivity() {
 
         mainHandler.removeCallbacks(restartRunnable)
         cancelVoiceWatchdogs()
-        transitioningSession = false
         recognitionBinding = binding
+        sessionSerial += 1L
+        activeSessionId = sessionSerial
 
         try {
             sessionActive = true
@@ -518,6 +528,7 @@ class MainActivity : FlutterActivity() {
         } catch (error: Throwable) {
             sessionActive = false
             recognitionBinding = null
+            activeSessionId = 0L
             cancelVoiceWatchdogs()
             emitListening(false)
             emit(
@@ -533,45 +544,30 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * Rebinds a turn without destroying the recognizer object. This removes the
-     * cold recognizer creation gap while recognitionBinding still guarantees that
-     * speech from the old turn can never be emitted as the new turn.
+     * A context change means a different roll generation/turn. We deliberately
+     * destroy the recognizer object here instead of merely canceling it. That
+     * rotates recognizerEpoch synchronously, making every old-turn callback
+     * harmless before the new turn can begin listening.
      */
-    private fun fastRebindSession() {
-        if (!shouldListen()) return
-        transitioningSession = true
+    private fun restartForContextChange() {
         mainHandler.removeCallbacks(restartRunnable)
         cancelVoiceWatchdogs()
-        recognitionBinding = null
         sessionActive = false
+        recognitionBinding = null
+        activeSessionId = 0L
         emitListening(false)
-
-        try {
-            recognizer?.cancel()
-        } catch (_: Throwable) {
-            destroyRecognizer()
-        }
-
-        scheduleRestart(CONTEXT_REARM_MS)
+        destroyRecognizer()
+        if (shouldListen()) scheduleRestart(CONTEXT_REARM_MS)
     }
 
-    private fun pauseCurrentSession(keepRecognizerWarm: Boolean) {
+    private fun pauseCurrentSession() {
         mainHandler.removeCallbacks(restartRunnable)
         cancelVoiceWatchdogs()
-        transitioningSession = true
-        recognitionBinding = null
         sessionActive = false
+        recognitionBinding = null
+        activeSessionId = 0L
         emitListening(false)
-
-        try {
-            recognizer?.cancel()
-        } catch (_: Throwable) {
-            destroyRecognizer()
-        }
-
-        if (!keepRecognizerWarm) {
-            destroyRecognizer()
-        }
+        destroyRecognizer()
     }
 
     private fun recycleStuckRecognizer(epoch: Long) {
@@ -641,10 +637,12 @@ class MainActivity : FlutterActivity() {
 
     private fun destroyRecognizer() {
         cancelVoiceWatchdogs()
+        // Invalidate callbacks before cancel/destroy can synchronously or
+        // asynchronously deliver anything from the old recognizer.
         recognizerEpoch += 1L
-        transitioningSession = false
         sessionActive = false
         recognitionBinding = null
+        activeSessionId = 0L
 
         val speech = recognizer
         recognizer = null
@@ -690,10 +688,11 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun emitSpeech(bundle: Bundle?, isFinal: Boolean, epoch: Long) {
-        if (!isCurrentEpoch(epoch) || transitioningSession || !shouldListen()) return
+        if (!isCurrentEpoch(epoch) || !sessionActive || !shouldListen()) return
 
         val binding = recognitionBinding ?: return
-        if (binding != currentBinding) return
+        val sessionId = activeSessionId
+        if (binding != currentBinding || sessionId <= 0L) return
 
         val texts = bundle
             ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
@@ -712,11 +711,13 @@ class MainActivity : FlutterActivity() {
                 "type" to "speech",
                 "final" to isFinal,
                 "texts" to texts,
-                // Deliberately omit confidence gating: short/quiet commands often
-                // receive poor OEM confidence despite a correct lexical hypothesis.
+                // Confidence arrays are deliberately omitted. Short/quiet dice
+                // commands can receive poor OEM confidence despite a correct
+                // lexical hypothesis; the bounded grammar is the primary filter.
                 "confidences" to emptyList<Double>(),
                 "recognizedAtMs" to System.currentTimeMillis(),
                 "recognizerEpoch" to epoch,
+                "sessionId" to sessionId,
                 "matchId" to binding.matchId,
                 "playerId" to binding.playerId,
                 "turnId" to binding.turnId,
@@ -767,7 +768,7 @@ class MainActivity : FlutterActivity() {
     override fun onPause() {
         emit(mapOf("type" to "lifecycle", "active" to false))
         activityResumed = false
-        pauseCurrentSession(keepRecognizerWarm = false)
+        pauseCurrentSession()
         super.onPause()
     }
 
@@ -788,14 +789,13 @@ class MainActivity : FlutterActivity() {
         private const val REQUEST_AUDIO_PERMISSION = 7301
 
         private const val HINDI_LOCALE = "hi-IN"
-        private const val MAX_RESULTS = 25
+        private const val MAX_RESULTS = 16
         private const val ON_DEVICE_NO_MATCH_FALLBACK_THRESHOLD = 2
 
-        private const val POSSIBLY_COMPLETE_SILENCE_MS = 220L
-        private const val COMPLETE_SILENCE_MS = 520L
+        private const val POSSIBLY_COMPLETE_SILENCE_MS = 260L
+        private const val COMPLETE_SILENCE_MS = 650L
         private const val LANGUAGE_SWITCH_ACTIVE_MS = 2_800
         private const val LANGUAGE_SWITCH_MAX_SWITCHES = 3
-        private const val RMS_EMIT_INTERVAL_MS = 90L
 
         private val VOICE_LOCALES = listOf("hi-IN", "en-IN", "en-US")
 
@@ -803,14 +803,14 @@ class MainActivity : FlutterActivity() {
         private const val SYSTEM_RESULT_RESTART_MS = 55L
         private const val ON_DEVICE_NO_MATCH_RESTART_MS = 35L
         private const val SYSTEM_NO_MATCH_RESTART_MS = 65L
-        private const val CONTEXT_REARM_MS = 28L
+        private const val CONTEXT_REARM_MS = 42L
         private const val SYSTEM_FALLBACK_RESTART_MS = 55L
         private const val STUCK_RESTART_MS = 60L
         private const val START_FAILURE_RESTART_MS = 280L
 
         private const val READY_WATCHDOG_MS = 2_300L
-        private const val SESSION_IDLE_WATCHDOG_MS = 20_000L
-        private const val SPEECH_WATCHDOG_MS = 7_500L
+        private const val SESSION_IDLE_WATCHDOG_MS = 24_000L
+        private const val SPEECH_WATCHDOG_MS = 8_000L
         private const val RESULT_WATCHDOG_MS = 2_000L
 
         private val DICE_BIASING_STRINGS = listOf(

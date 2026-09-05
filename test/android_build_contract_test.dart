@@ -19,7 +19,7 @@ void main() {
       expect(flutterIndex, greaterThan(kotlinIndex));
     });
 
-    test('voice uses Android SpeechRecognizer instead of a bundled Vosk model', () {
+    test('voice uses Android SpeechRecognizer instead of a bundled model', () {
       final pubspec = File('pubspec.yaml').readAsStringSync();
       final appGradle = File('android/app/build.gradle.kts').readAsStringSync();
       final manifest = File(
@@ -33,16 +33,16 @@ void main() {
       expect(appGradle, isNot(contains('alphacephei.com/vosk')));
       expect(appGradle, isNot(contains('prepareOfflineVoiceModel')));
       expect(mainActivity, contains('SpeechRecognizer.createSpeechRecognizer'));
+      expect(mainActivity, contains('SpeechRecognizer.createOnDeviceSpeechRecognizer'));
       expect(mainActivity, contains('RecognizerIntent.EXTRA_LANGUAGE'));
       expect(mainActivity, contains('private const val HINDI_LOCALE = "hi-IN"'));
       expect(mainActivity, contains('voice_ludo/speech'));
       expect(mainActivity, contains('voice_ludo/speech_events'));
-      expect(mainActivity, contains('pauseListening'));
       expect(manifest, contains('android.permission.RECORD_AUDIO'));
       expect(manifest, contains('android.speech.RecognitionService'));
     });
 
-    test('native speech bridge is match-scoped, latency-biased, and lifecycle-aware', () {
+    test('native speech bridge is match scoped and partial-result optimized', () {
       final mainActivity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
       ).readAsStringSync();
@@ -55,60 +55,50 @@ void main() {
       expect(mainActivity, contains('"playerId" to binding.playerId'));
       expect(mainActivity, contains('"turnId" to binding.turnId'));
       expect(mainActivity, contains('"recognizedAtMs" to System.currentTimeMillis()'));
-      expect(mainActivity, contains('"type" to "lifecycle"'));
-      expect(mainActivity, contains('override fun onResume()'));
-      expect(mainActivity, contains('override fun onPause()'));
-      expect(mainActivity, contains('EXTRA_PREFER_OFFLINE'));
-      expect(mainActivity, contains('EXTRA_PARTIAL_RESULTS'));
-      expect(mainActivity, contains('EXTRA_BIASING_STRINGS'));
+      expect(mainActivity, contains('RecognizerIntent.EXTRA_PARTIAL_RESULTS'));
+      expect(mainActivity, contains('RecognizerIntent.EXTRA_BIASING_STRINGS'));
       expect(mainActivity, contains('DICE_BIASING_STRINGS'));
-      expect(mainActivity, contains('includeConfidences = false'));
-      expect(mainActivity, contains('armReadyWatchdog(recognizerEpoch)'));
-      expect(mainActivity, contains('recycleStuckRecognizer'));
-      expect(
-        mainActivity,
-        contains('EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer'),
-      );
+      expect(mainActivity, contains('EXTRA_ENABLE_LANGUAGE_SWITCH'));
+      expect(mainActivity, contains('EXTRA_ENABLE_LANGUAGE_DETECTION'));
+      expect(mainActivity, contains('VOICE_LOCALES = listOf("hi-IN", "en-IN", "en-US")'));
+      expect(mainActivity, contains('EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer'));
+      expect(mainActivity, contains('isFinal = false'));
+      expect(mainActivity, contains('"छक्का छक्का"'));
+      expect(mainActivity, contains('"पाँच पाँच"'));
+      expect(mainActivity, contains('"six six"'));
     });
 
-    test('voice hot path is accuracy-first, bilingual, and low-latency', () {
+    test('turn changes hard invalidate stale native callbacks', () {
       final mainActivity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
       ).readAsStringSync();
 
-      const system = 'SpeechRecognizer.createSpeechRecognizer(this)';
-      const onDevice = 'SpeechRecognizer.createOnDeviceSpeechRecognizer(this)';
+      expect(mainActivity, contains('private var recognizerEpoch = 0L'));
+      expect(mainActivity, contains('private var sessionSerial = 0L'));
+      expect(mainActivity, contains('private var activeSessionId = 0L'));
+      expect(mainActivity, contains('restartForContextChange()'));
+      expect(mainActivity, contains('destroyRecognizer()'));
+      expect(mainActivity, contains('recognizerEpoch += 1L'));
+      expect(mainActivity, contains('if (!isCurrentEpoch(epoch) || !sessionActive) return'));
+      expect(mainActivity, contains('if (binding != currentBinding || sessionId <= 0L) return'));
+      expect(mainActivity, contains('"recognizerEpoch" to epoch'));
+      expect(mainActivity, contains('"sessionId" to sessionId'));
+    });
 
-      expect(mainActivity, contains(system));
-      expect(mainActivity, contains(onDevice));
-      expect(mainActivity.indexOf(system), lessThan(mainActivity.indexOf(onDevice)));
-      expect(mainActivity, contains('createOnDeviceFallback'));
-      expect(mainActivity, contains('pauseCurrentSession(keepWarm = true)'));
-      expect(mainActivity, contains('WARM_STANDBY_DELAY_MS = 25L'));
-      expect(mainActivity, contains('MAX_RESULTS = 20'));
-      expect(mainActivity, contains('VOICE_LOCALES = listOf("hi-IN", "en-IN", "en-US")'));
-      expect(mainActivity, contains('EXTRA_ENABLE_LANGUAGE_SWITCH'));
-      expect(mainActivity, contains('EXTRA_ENABLE_LANGUAGE_DETECTION'));
-      expect(mainActivity, contains('ON_DEVICE_NO_MATCH_FALLBACK_THRESHOLD = 2'));
-      expect(mainActivity, contains('EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS'));
-      expect(
-        mainActivity,
-        contains('EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS'),
-      );
-      expect(mainActivity, contains('COMPLETE_SILENCE_MS = 430L'));
-      expect(mainActivity, contains('POSSIBLY_COMPLETE_SILENCE_MS = 650L'));
-      expect(mainActivity, contains('"छक्का छक्का"'));
-      expect(mainActivity, contains('"पाँच पाँच"'));
-      expect(mainActivity, contains('"six six"'));
-      expect(mainActivity, contains('"शक्का"'));
-      expect(mainActivity, contains('"छक्क"'));
-      expect(mainActivity, contains('isFinal = false'));
+    test('high-frequency RMS callbacks never cross into Flutter', () {
+      final mainActivity = File(
+        'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
+      ).readAsStringSync();
+
+      expect(mainActivity, contains('override fun onRmsChanged(rmsdB: Float) = Unit'));
+      expect(mainActivity, isNot(contains('"type" to "rms"')));
     });
 
     test('accepted voice intent auto-rolls through the existing atomic roll path', () {
       final gameScreen = File('lib/ui/game_screen.dart').readAsStringSync();
       final controller =
           File('lib/services/voice_dice_controller.dart').readAsStringSync();
+      final engine = File('lib/game/ludo_engine.dart').readAsStringSync();
 
       expect(gameScreen, contains('VoiceDiceController(engine: _engine)'));
       expect(gameScreen, contains('_voice.acceptedIntentSerial'));
@@ -117,9 +107,33 @@ void main() {
       expect(gameScreen, contains('_voice.pendingValue == null'));
       expect(controller, contains('DiceVoiceIntentParser.isDiceOnlyPhrase(heard)'));
       expect(controller, contains('reserveDiceRoll'));
+      expect(engine, contains('_reservedRollResult'));
+      expect(engine, contains('if (!canRoll || _reservedRollResult != null) return null'));
     });
 
-    test('permission denial remains an optional voice failure, not a game dependency', () {
+    test('voice stays physically warm during roll but Dart gates commands', () {
+      final controller =
+          File('lib/services/voice_dice_controller.dart').readAsStringSync();
+
+      expect(controller, contains('_rollSuspended = true'));
+      expect(controller, contains('VoiceSessionState.processing'));
+      expect(controller, contains("case 'speech':"));
+      expect(controller, contains('_rollSuspended)'));
+      expect(controller, contains('if (_nativeListening)'));
+      expect(controller, contains('The native recognizer stays warm during dice animation/token movement'));
+    });
+
+    test('production UI does not receive raw speech transcript or confidence', () {
+      final controller =
+          File('lib/services/voice_dice_controller.dart').readAsStringSync();
+
+      expect(controller, contains("String get lastHeard => '';"));
+      expect(controller, contains('double? get lastConfidence => null;'));
+      expect(controller, isNot(contains('_lastHeard =')));
+      expect(controller, isNot(contains('_lastConfidence =')));
+    });
+
+    test('permission denial remains optional and random touch roll still works', () {
       final mainActivity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
       ).readAsStringSync();
