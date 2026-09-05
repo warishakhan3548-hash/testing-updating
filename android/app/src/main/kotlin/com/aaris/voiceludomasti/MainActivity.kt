@@ -2,6 +2,7 @@ package com.aaris.voiceludomasti
 
 import android.os.Handler
 import android.os.Looper
+import io.flutter.FlutterInjector
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -53,8 +54,12 @@ class MainActivity : FlutterActivity() {
         if (stagingDir.exists()) stagingDir.deleteRecursively()
         stagingDir.mkdirs()
 
+        val assetKey = FlutterInjector.instance()
+            .flutterLoader()
+            .getLookupKeyForAsset(MODEL_LOGICAL_ASSET)
+
         try {
-            assets.open(MODEL_ASSET_PATH).use { assetStream ->
+            assets.open(assetKey).use { assetStream ->
                 ZipInputStream(assetStream.buffered()).use { zip ->
                     val buffer = ByteArray(64 * 1024)
                     var entry = zip.nextEntry
@@ -122,7 +127,7 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val MODEL_CHANNEL = "voice_ludo/native_model"
         private const val MODEL_NAME = "vosk-model-small-hi-0.22"
-        private const val MODEL_ASSET_PATH =
-            "flutter_assets/assets/models/vosk-model-small-hi-0.22.zip"
+        private const val MODEL_LOGICAL_ASSET =
+            "assets/models/vosk-model-small-hi-0.22.zip"
     }
 }
