@@ -1,7 +1,7 @@
 name: voice_ludo_masti
 description: A polished local multiplayer Ludo game with offline voice-controlled dice.
 publish_to: "none"
-version: 1.2.3+6
+version: 1.2.4+7
 
 environment:
   sdk: ">=3.8.0 <4.0.0"
