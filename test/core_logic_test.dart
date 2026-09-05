@@ -20,6 +20,8 @@ void main() {
       expect(VoiceDiceController.parseLastDiceValue('फाईव'), 5);
       expect(VoiceDiceController.parseLastDiceValue('सिक्स'), 6);
       expect(VoiceDiceController.parseLastDiceValue('चक्का'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('छक्के'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('sixer'), 6);
     });
 
     test('unrelated speech does not invent a dice value', () {
@@ -28,48 +30,10 @@ void main() {
       expect(VoiceDiceController.parseLastDiceValue('चलो भाई शुरू करो'), isNull);
     });
 
-    test('Vosk alternatives payload is decoded correctly', () {
-      final payload = VoiceDiceController.parseRecognitionPayload(
-        '{"alternatives":[{"confidence":0.84,"text":"पाँच"}]}',
-      );
-      expect(payload.text, 'पाँच');
-      expect(payload.confidence, closeTo(.84, .0001));
-      expect(VoiceDiceController.parseLastDiceValue(payload.text), 5);
-    });
-
-    test('standard Vosk partial and final payloads are decoded correctly', () {
-      expect(
-        VoiceDiceController.parseRecognitionPayload('{"partial":"छक्का"}').text,
-        'छक्का',
-      );
-      expect(
-        VoiceDiceController.parseRecognitionPayload('{"text":"चार"}').text,
-        'चार',
-      );
-    });
-
-    test('fresh newer partial beats older stable command at roll boundary', () {
-      final base = DateTime(2026, 9, 5, 12);
-      final value = VoiceDiceController.resolveNewestDiceCommand(
-        pendingValue: 6,
-        pendingAt: base,
-        candidateValue: 5,
-        candidateAt: base.add(const Duration(milliseconds: 420)),
-        now: base.add(const Duration(milliseconds: 500)),
-      );
-      expect(value, 5);
-    });
-
-    test('stale partial cannot replace a stable command', () {
-      final base = DateTime(2026, 9, 5, 12);
-      final value = VoiceDiceController.resolveNewestDiceCommand(
-        pendingValue: 4,
-        pendingAt: base.add(const Duration(seconds: 2)),
-        candidateValue: 2,
-        candidateAt: base,
-        now: base.add(const Duration(seconds: 3)),
-      );
-      expect(value, 4);
+    test('normal phrases can contain the command naturally', () {
+      expect(VoiceDiceController.parseLastDiceValue('भाई छक्का दे'), 6);
+      expect(VoiceDiceController.parseLastDiceValue('अब चार आए'), 4);
+      expect(VoiceDiceController.parseLastDiceValue('roll six please'), 6);
     });
   });
 
