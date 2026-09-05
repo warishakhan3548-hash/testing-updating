@@ -18,7 +18,8 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
+class _GameScreenState extends State<GameScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late final LudoEngine _engine;
   late final VoiceDiceController _voice;
   late final AnimationController _diceController;
@@ -30,15 +31,18 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   int _handledVoiceIntentSerial = 0;
   bool _rollActionBusy = false;
   bool _winnerDialogShown = false;
+  bool _appLifecycleActive = true;
+  bool _modalVoicePause = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _engine = LudoEngine(playerCount: widget.playerCount);
     _voice = VoiceDiceController(engine: _engine)..addListener(_handleVoiceFeedback);
     _diceController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 760),
+      duration: const Duration(milliseconds: 560),
     );
     _celebrationController = AnimationController(
       vsync: this,
@@ -48,7 +52,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appLifecycleActive = state == AppLifecycleState.resumed;
+    unawaited(
+      _voice.setLifecycleActive(_appLifecycleActive && !_modalVoicePause),
+    );
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _voice.removeListener(_handleVoiceFeedback);
     _diceController.dispose();
     _celebrationController.dispose();
@@ -238,7 +251,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 const SizedBox(width: 8),
                 const Flexible(
                   child: Text(
-                    'Voice Ludo Masti',
+                    'Aarish Kingdom',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -629,6 +642,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                             ? 'Listening… बोलो 1 से 6'
                             : 'Preparing microphone…';
 
+    final detail = _voice.errorMessage ??
+        (listening
+            ? 'Hindi + Hinglish + English • say one dice value'
+            : 'Voice automatically re-arms throughout the match');
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       width: double.infinity,
@@ -724,10 +742,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  _voice.errorMessage ??
-                      (_voice.lastHeard.isEmpty
-                          ? 'Hindi + Hinglish voice • instant dice roll'
-                          : 'Heard: “${_voice.lastHeard}”'),
+                  detail,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -779,7 +794,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   ),
                   if (pending != null)
                     const Text(
-                      'HEARD',
+                      'VOICE',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 7.5,
@@ -961,33 +976,46 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _confirmRestart(BuildContext context) async {
-    final restart = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: GamePalette.surface,
-        title: const Text(
-          'Restart game?',
-          style: TextStyle(
-            color: GamePalette.textPrimary,
-            fontWeight: FontWeight.w900,
+    if (_modalVoicePause) return;
+    _modalVoicePause = true;
+    await _voice.setLifecycleActive(false);
+
+    bool? restart;
+    try {
+      restart = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: GamePalette.surface,
+          title: const Text(
+            'Restart game?',
+            style: TextStyle(
+              color: GamePalette.textPrimary,
+              fontWeight: FontWeight.w900,
+            ),
           ),
+          content: const Text(
+            'All token positions and the current ranking will reset.',
+            style: TextStyle(color: GamePalette.textMuted),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('CANCEL'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('RESTART'),
+            ),
+          ],
         ),
-        content: const Text(
-          'All token positions and the current ranking will reset.',
-          style: TextStyle(color: GamePalette.textMuted),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('CANCEL'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('RESTART'),
-          ),
-        ],
-      ),
-    );
+      );
+    } finally {
+      _modalVoicePause = false;
+      if (mounted) {
+        await _voice.setLifecycleActive(_appLifecycleActive);
+      }
+    }
+
     if (restart != true || !mounted) return;
     _engine.reset(widget.playerCount);
     _voice.clearPending();
@@ -1158,7 +1186,7 @@ class _WinnerCard extends StatelessWidget {
             ),
             const SizedBox(height: 5),
             const Text(
-              'Masti champion of this round 🎉',
+              'Aarish Kingdom champion of this round 🎉',
               textAlign: TextAlign.center,
               style: TextStyle(color: GamePalette.textMuted, fontSize: 12.5),
             ),
