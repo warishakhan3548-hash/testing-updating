@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'dice_roll_models.dart';
+
 enum LudoColor { red, green, yellow, blue }
 
 extension LudoColorLogic on LudoColor {
@@ -84,8 +86,27 @@ class LudoEngine extends ChangeNotifier {
   String lastEvent = 'Say a number, then tap the dice.';
   int turnNumber = 1;
 
+  int _matchGeneration = 0;
+  late String _matchId;
+  int _turnSequence = 1;
+  PendingVoiceDiceIntent? _pendingVoiceDiceIntent;
+  PendingVoiceDiceIntent? _lastConsumedVoiceIntent;
+  DiceRollResult? _activeRollResult;
+
   LudoPlayer get currentPlayer => players[currentPlayerIndex];
   LudoColor get currentColor => currentPlayer.color;
+  String get matchId => _matchId;
+  String get currentPlayerId => currentColor.name;
+  int get turnSequence => _turnSequence;
+  PendingVoiceDiceIntent? get pendingVoiceDiceIntent => _pendingVoiceDiceIntent;
+  PendingVoiceDiceIntent? get lastConsumedVoiceIntent => _lastConsumedVoiceIntent;
+  DiceRollResult? get activeRollResult => _activeRollResult;
+
+  TurnBinding get voiceTurnBinding => TurnBinding(
+        matchId: _matchId,
+        playerId: currentPlayerId,
+        turnId: _turnSequence,
+      );
 
   bool get canRoll => !gameOver && !isRolling && !awaitingMove;
 
@@ -108,13 +129,100 @@ class LudoEngine extends ChangeNotifier {
     currentRoll = null;
     movableTokenIds = <int>{};
     winnerOrder.clear();
-    lastEvent = '${currentPlayer.color.label} starts. Say 1–6 and roll!';
     turnNumber = 1;
+    _matchGeneration += 1;
+    _matchId = '${identityHashCode(this)}:$_matchGeneration';
+    _turnSequence = 1;
+    _pendingVoiceDiceIntent = null;
+    _lastConsumedVoiceIntent = null;
+    _activeRollResult = null;
+    lastEvent = '${currentPlayer.color.label} starts. Say 1–6 and roll!';
     notifyListeners();
   }
 
+  bool acceptVoiceDiceIntent(
+    PendingVoiceDiceIntent intent, {
+    DateTime? now,
+  }) {
+    final clock = now ?? DateTime.now();
+    if (!canRoll || intent.consumed || intent.isExpiredAt(clock)) return false;
+    if (!intent.matches(voiceTurnBinding)) return false;
+
+    final current = _pendingVoiceDiceIntent;
+    if (current != null && current.recognizedAt.isAfter(intent.recognizedAt)) {
+      // A delayed callback from the same turn must never replace a newer command.
+      return false;
+    }
+
+    _pendingVoiceDiceIntent = intent;
+    notifyListeners();
+    return true;
+  }
+
+  void clearPendingVoiceIntent() {
+    if (_pendingVoiceDiceIntent == null) return;
+    _pendingVoiceDiceIntent = null;
+    notifyListeners();
+  }
+
+  /// Atomically freezes the logical dice result for the current roll.
+  ///
+  /// This is the only path used by the game UI to decide a roll value. A valid
+  /// voice intent is consumed exactly once only when its match/player/turn binding
+  /// still matches the current roll opportunity. Otherwise the provided random
+  /// source is used.
+  DiceRollResult? resolveDiceRoll({
+    required int Function() randomDice,
+    DateTime? now,
+  }) {
+    if (!canRoll) return null;
+
+    final clock = now ?? DateTime.now();
+    final binding = voiceTurnBinding;
+    final pending = _pendingVoiceDiceIntent;
+
+    late final int value;
+    late final DiceRollSource source;
+
+    if (pending != null &&
+        !pending.consumed &&
+        !pending.isExpiredAt(clock) &&
+        pending.matches(binding)) {
+      value = pending.requestedValue;
+      source = DiceRollSource.voice;
+      _lastConsumedVoiceIntent = pending.markConsumed();
+      _pendingVoiceDiceIntent = null;
+    } else {
+      _pendingVoiceDiceIntent = null;
+      value = randomDice();
+      if (value < 1 || value > 6) {
+        throw StateError('Random dice source returned invalid value $value.');
+      }
+      source = DiceRollSource.random;
+    }
+
+    final result = DiceRollResult(
+      value: value,
+      source: source,
+      matchId: binding.matchId,
+      playerId: binding.playerId,
+      turnId: binding.turnId,
+      resolvedAt: clock,
+    );
+
+    _activeRollResult = result;
+    isRolling = true;
+    lastEvent = '${currentColor.label} is rolling…';
+    notifyListeners();
+    return result;
+  }
+
+  /// Legacy entry point retained for existing tests/callers. New UI code must use
+  /// [resolveDiceRoll] so voice/random resolution stays centralized.
   void beginRolling() {
     if (!canRoll) return;
+    _pendingVoiceDiceIntent = null;
+    _activeRollResult = null;
     isRolling = true;
     lastEvent = '${currentColor.label} is rolling…';
     notifyListeners();
@@ -123,17 +231,39 @@ class LudoEngine extends ChangeNotifier {
   void cancelRolling() {
     if (!isRolling) return;
     isRolling = false;
+    _activeRollResult = null;
     notifyListeners();
+  }
+
+  bool commitResolvedRoll(DiceRollResult result) {
+    if (!isRolling || gameOver) return false;
+    final active = _activeRollResult;
+    if (active == null || active != result || !result.binding.matches(voiceTurnBinding)) {
+      return false;
+    }
+    _commitRollValue(result.value);
+    return true;
   }
 
   void commitRoll(int value) {
     if (!isRolling || gameOver) return;
+    final active = _activeRollResult;
+    if (active != null && active.value != value) {
+      throw StateError(
+        'Logical dice result ${active.value} cannot be committed as $value.',
+      );
+    }
+    _commitRollValue(value);
+  }
+
+  void _commitRollValue(int value) {
     if (value < 1 || value > 6) {
       throw ArgumentError.value(value, 'value', 'Dice value must be 1–6');
     }
 
     currentRoll = value;
     isRolling = false;
+    _activeRollResult = null;
     movableTokenIds = _legalMoves(currentPlayer, value).toSet();
 
     if (movableTokenIds.isEmpty) {
@@ -145,6 +275,7 @@ class LudoEngine extends ChangeNotifier {
       // three-six penalty and no artificial streak limit.
       if (value == 6) {
         lastEvent = '${currentColor.label} rolled 6 — no legal move. 🎲 Roll again!';
+        _openNextRollForSamePlayer();
       } else {
         lastEvent = '${currentColor.label} rolled $value — no legal move.';
         _advanceTurn();
@@ -227,6 +358,7 @@ class LudoEngine extends ChangeNotifier {
         lastEvent += roll == 6
             ? ' 🎲 Six gives another turn.'
             : ' ⚡ Capture gives another turn.';
+        _openNextRollForSamePlayer();
       } else {
         _advanceTurn();
       }
@@ -255,8 +387,17 @@ class LudoEngine extends ChangeNotifier {
     return (color.startIndex + progress) % 52;
   }
 
+  void _openNextRollForSamePlayer() {
+    _turnSequence += 1;
+    _pendingVoiceDiceIntent = null;
+    _activeRollResult = null;
+  }
+
   void _advanceTurn() {
     if (gameOver) return;
+
+    _pendingVoiceDiceIntent = null;
+    _activeRollResult = null;
 
     var attempts = 0;
     do {
@@ -273,6 +414,7 @@ class LudoEngine extends ChangeNotifier {
     }
 
     turnNumber += 1;
+    _turnSequence += 1;
     lastEvent += ' ${currentColor.label}’s turn.';
   }
 
@@ -285,9 +427,16 @@ class LudoEngine extends ChangeNotifier {
       }
     }
     gameOver = true;
+    isRolling = false;
     awaitingMove = false;
     currentRoll = null;
     movableTokenIds = <int>{};
+    _pendingVoiceDiceIntent = null;
+    _activeRollResult = null;
     lastEvent = '🎉 Game finished! ${winnerOrder.first.label} wins!';
   }
+}
+
+extension on TurnBinding {
+  bool matches(TurnBinding other) => this == other;
 }
