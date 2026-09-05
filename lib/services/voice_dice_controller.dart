@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:vosk_flutter_service/vosk_flutter_service.dart';
 
 /// Offline, command-focused voice recognizer for the Ludo dice.
@@ -10,7 +11,11 @@ import 'package:vosk_flutter_service/vosk_flutter_service.dart';
 /// dictation. That makes short dice commands fast and reduces false matches
 /// from room conversation. `[unk]` lets Vosk reject unrelated speech instead
 /// of forcing every sound into one of the six numbers.
-class VoiceDiceController extends ChangeNotifier {
+class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
+  VoiceDiceController() {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
   static const String modelAsset =
       'assets/models/vosk-model-small-hi-0.22.zip';
   static const int sampleRate = 16000;
@@ -66,6 +71,7 @@ class VoiceDiceController extends ChangeNotifier {
   bool _serviceStarted = false;
   bool _servicePaused = false;
   bool _rollSuspended = false;
+  bool _lifecyclePaused = false;
   bool _disposed = false;
   int _listenGeneration = 0;
 
@@ -119,8 +125,9 @@ class VoiceDiceController extends ChangeNotifier {
       _errorMessage = null;
       _safeNotify();
 
-      // Respect a user turning voice OFF while the model was still loading.
-      if (_enabled && !_rollSuspended) {
+      // Respect a user turning voice OFF while the model was still loading,
+      // and never open the microphone while the app is backgrounded.
+      if (_enabled && !_rollSuspended && !_lifecyclePaused) {
         await _startListening();
       }
     } on MicrophoneAccessDeniedException {
@@ -201,7 +208,7 @@ class VoiceDiceController extends ChangeNotifier {
       return;
     }
 
-    if (!_rollSuspended) {
+    if (!_rollSuspended && !_lifecyclePaused) {
       try {
         await _createSpeechService();
         await _startListening();
@@ -233,7 +240,7 @@ class VoiceDiceController extends ChangeNotifier {
     }
 
     if (_available) {
-      if (!_rollSuspended) await _startListening();
+      if (!_rollSuspended && !_lifecyclePaused) await _startListening();
       return;
     }
 
@@ -242,8 +249,8 @@ class VoiceDiceController extends ChangeNotifier {
     _listening = false;
     _clearAllCommands();
 
-    // IMPORTANT: preserve _rollSuspended. Retrying the microphone while a dice
-    // animation/token choice is active must never reopen listening mid-move.
+    // IMPORTANT: preserve _rollSuspended and _lifecyclePaused. Retrying the
+    // microphone during a move or while backgrounded must never reopen it.
     await _releaseSpeechService();
     try {
       await _recognizer?.dispose();
@@ -306,7 +313,7 @@ class VoiceDiceController extends ChangeNotifier {
       await _speechService?.reset();
     } catch (_) {}
 
-    if (_enabled && _available) {
+    if (_enabled && _available && !_lifecyclePaused) {
       await _startListening();
     } else {
       _safeNotify();
@@ -323,6 +330,7 @@ class VoiceDiceController extends ChangeNotifier {
         !_enabled ||
         !_available ||
         _rollSuspended ||
+        _lifecyclePaused ||
         _listening) {
       return;
     }
@@ -340,7 +348,12 @@ class VoiceDiceController extends ChangeNotifier {
           await service.setPause(paused: false);
           _servicePaused = false;
         }
-        if (_disposed || generation != _listenGeneration) return;
+        if (_disposed ||
+            generation != _listenGeneration ||
+            _lifecyclePaused ||
+            _rollSuspended) {
+          return;
+        }
         _listening = true;
         _errorMessage = null;
         _safeNotify();
@@ -348,7 +361,12 @@ class VoiceDiceController extends ChangeNotifier {
       }
 
       await service.start(onRecognitionError: _handleRecognitionError);
-      if (_disposed || generation != _listenGeneration) return;
+      if (_disposed ||
+          generation != _listenGeneration ||
+          _lifecyclePaused ||
+          _rollSuspended) {
+        return;
+      }
 
       _serviceStarted = true;
       _servicePaused = false;
@@ -366,6 +384,43 @@ class VoiceDiceController extends ChangeNotifier {
     }
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    unawaited(_handleLifecycleState(state));
+  }
+
+  Future<void> _handleLifecycleState(AppLifecycleState state) async {
+    if (_disposed) return;
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _lifecyclePaused = false;
+        if (_enabled && _available && !_rollSuspended) {
+          try {
+            await _speechService?.reset();
+          } catch (_) {}
+          await _startListening();
+        } else {
+          _safeNotify();
+        }
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        _lifecyclePaused = true;
+        _listenGeneration += 1;
+        _listening = false;
+        _clearAllCommands();
+        if (_serviceStarted && !_servicePaused) {
+          try {
+            await _speechService?.setPause(paused: true);
+            _servicePaused = true;
+          } catch (_) {}
+        }
+        _safeNotify();
+    }
+  }
+
   void _handleRecognitionError(Object error, [StackTrace? stackTrace]) {
     if (_disposed) return;
     _listening = false;
@@ -375,7 +430,7 @@ class VoiceDiceController extends ChangeNotifier {
   }
 
   void _handleRawRecognition(String raw, {required bool isFinal}) {
-    if (_disposed || !_enabled || _rollSuspended) return;
+    if (_disposed || !_enabled || _rollSuspended || _lifecyclePaused) return;
 
     final hypothesis = parseRecognitionPayload(raw);
     final heard = hypothesis.text.trim();
@@ -637,6 +692,7 @@ class VoiceDiceController extends ChangeNotifier {
     if (_disposed) return;
     _disposed = true;
     _listenGeneration += 1;
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_shutdown());
     super.dispose();
   }
