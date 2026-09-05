@@ -16,6 +16,12 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    private data class VoiceBinding(
+        val matchId: String,
+        val playerId: String,
+        val turnId: Long,
+    )
+
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var speechRecognizer: SpeechRecognizer? = null
@@ -25,6 +31,9 @@ class MainActivity : FlutterActivity() {
     private var activityResumed = false
     private var sessionActive = false
     private var pendingStartAfterPermission = false
+    private var currentBinding: VoiceBinding? = null
+    private var recognitionBinding: VoiceBinding? = null
+    private var restartAttempt = 0
 
     private val restartRunnable = Runnable {
         if (shouldListen()) startSession()
@@ -55,9 +64,28 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "isAvailable" -> result.success(SpeechRecognizer.isRecognitionAvailable(this))
                 "startListening" -> {
+                    val binding = bindingFrom(call.arguments)
+                    if (binding == null) {
+                        result.error("invalid_context", "A match/turn voice context is required.", null)
+                        return@setMethodCallHandler
+                    }
+                    currentBinding = binding
                     voiceEnabled = true
                     pausedByFlutter = false
                     ensurePermissionAndStart()
+                    result.success(null)
+                }
+                "updateContext" -> {
+                    val binding = bindingFrom(call.arguments)
+                    if (binding == null) {
+                        result.error("invalid_context", "A match/turn voice context is required.", null)
+                        return@setMethodCallHandler
+                    }
+                    val changed = currentBinding != binding
+                    currentBinding = binding
+                    if (changed && shouldListen()) {
+                        restartForContextChange()
+                    }
                     result.success(null)
                 }
                 "pauseListening" -> {
@@ -69,7 +97,9 @@ class MainActivity : FlutterActivity() {
                     voiceEnabled = false
                     pausedByFlutter = false
                     pendingStartAfterPermission = false
+                    currentBinding = null
                     pauseCurrentSession()
+                    recognitionBinding = null
                     result.success(null)
                 }
                 else -> result.notImplemented()
@@ -77,8 +107,17 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun bindingFrom(arguments: Any?): VoiceBinding? {
+        val map = arguments as? Map<*, *> ?: return null
+        val matchId = map["matchId"] as? String ?: return null
+        val playerId = map["playerId"] as? String ?: return null
+        val turnId = (map["turnId"] as? Number)?.toLong() ?: return null
+        if (matchId.isBlank() || playerId.isBlank() || turnId <= 0L) return null
+        return VoiceBinding(matchId, playerId, turnId)
+    }
+
     private fun shouldListen(): Boolean =
-        voiceEnabled && !pausedByFlutter && activityResumed
+        voiceEnabled && !pausedByFlutter && activityResumed && currentBinding != null
 
     private fun ensurePermissionAndStart() {
         if (!shouldListen()) return
@@ -143,6 +182,7 @@ class MainActivity : FlutterActivity() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).also { recognizer ->
             recognizer.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
+                    restartAttempt = 0
                     sessionActive = true
                     emitListening(true)
                 }
@@ -167,14 +207,6 @@ class MainActivity : FlutterActivity() {
 
                     if (!shouldListen()) return
 
-                    val delayMs = when (error) {
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 700L
-                        SpeechRecognizer.ERROR_NETWORK,
-                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
-                        SpeechRecognizer.ERROR_SERVER -> 1000L
-                        else -> 220L
-                    }
-
                     emit(
                         mapOf(
                             "type" to "error",
@@ -183,11 +215,12 @@ class MainActivity : FlutterActivity() {
                             "message" to recognitionErrorMessage(error),
                         ),
                     )
-                    scheduleRestart(delayMs)
+                    scheduleRestart(restartDelayFor(error))
                 }
 
                 override fun onResults(results: Bundle?) {
                     emitSpeech(results, isFinal = true)
+                    restartAttempt = 0
                     sessionActive = false
                     emitListening(false)
                     scheduleRestart(140L)
@@ -209,9 +242,11 @@ class MainActivity : FlutterActivity() {
             return
         }
 
+        val binding = currentBinding ?: return
         ensureRecognizer()
         val recognizer = speechRecognizer ?: return
         mainHandler.removeCallbacks(restartRunnable)
+        recognitionBinding = binding
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -219,6 +254,9 @@ class MainActivity : FlutterActivity() {
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, MAX_RESULTS)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 450L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 300L)
         }
 
         try {
@@ -238,6 +276,20 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun restartForContextChange() {
+        mainHandler.removeCallbacks(restartRunnable)
+        sessionActive = false
+        try {
+            speechRecognizer?.cancel()
+        } catch (_: Throwable) {
+        }
+        emitListening(false)
+        // Keep recognitionBinding unchanged until the replacement cycle starts.
+        // Any late callback from the cancelled cycle therefore carries the old
+        // turn binding and is rejected by Dart instead of leaking forward.
+        scheduleRestart(180L)
+    }
+
     private fun pauseCurrentSession() {
         mainHandler.removeCallbacks(restartRunnable)
         sessionActive = false
@@ -248,6 +300,26 @@ class MainActivity : FlutterActivity() {
         emitListening(false)
     }
 
+    private fun restartDelayFor(error: Int): Long {
+        if (error == SpeechRecognizer.ERROR_NO_MATCH ||
+            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+        ) {
+            restartAttempt = 0
+            return 180L
+        }
+
+        val base = when (error) {
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 700L
+            SpeechRecognizer.ERROR_NETWORK,
+            SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
+            SpeechRecognizer.ERROR_SERVER -> 900L
+            else -> 300L
+        }
+        val factor = 1L shl restartAttempt.coerceAtMost(3)
+        restartAttempt = (restartAttempt + 1).coerceAtMost(4)
+        return (base * factor).coerceAtMost(4_000L)
+    }
+
     private fun scheduleRestart(delayMs: Long) {
         if (!shouldListen()) return
         mainHandler.removeCallbacks(restartRunnable)
@@ -255,17 +327,28 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun emitSpeech(bundle: Bundle?, isFinal: Boolean) {
+        val binding = recognitionBinding ?: return
         val texts = bundle
             ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             ?.filter { it.isNotBlank() }
             .orEmpty()
         if (texts.isEmpty()) return
 
+        val confidences = bundle
+            ?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)
+            ?.map { it.toDouble() }
+            .orEmpty()
+
         emit(
             mapOf(
                 "type" to "speech",
                 "final" to isFinal,
                 "texts" to texts,
+                "confidences" to confidences,
+                "recognizedAtMs" to System.currentTimeMillis(),
+                "matchId" to binding.matchId,
+                "playerId" to binding.playerId,
+                "turnId" to binding.turnId,
             ),
         )
     }
@@ -314,6 +397,8 @@ class MainActivity : FlutterActivity() {
     override fun onDestroy() {
         voiceEnabled = false
         pausedByFlutter = true
+        currentBinding = null
+        recognitionBinding = null
         mainHandler.removeCallbacks(restartRunnable)
         try {
             speechRecognizer?.destroy()
