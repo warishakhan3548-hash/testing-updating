@@ -26,7 +26,15 @@ A local 2/3/4-player Flutter Ludo game where the **latest spoken dice number con
 
 ## Advanced offline voice architecture
 
-The app uses **Vosk** with `vosk-model-small-hi-0.22`, a lightweight Hindi model intended for mobile/offline use. The APK bundles the model during the Codemagic build, so the installed game does not need internet access for dice recognition.
+The app uses **Vosk** with `vosk-model-small-hi-0.22`, a lightweight Hindi model intended for mobile/offline use. The model ZIP is packaged as a **native Android asset** at:
+
+```text
+android/app/src/main/assets/vosk-model-small-hi-0.22.zip
+```
+
+It is deliberately **not** declared as a generated Flutter asset in `pubspec.yaml`. Gradle prepares the ZIP before Android `preBuild`, so Flutter's own asset-bundle phase never depends on a file that is generated later by Android build logic. This removes a build-order race that could otherwise fail the entire app before the APK is produced.
+
+At runtime, `MainActivity` opens the ZIP directly through Android's `AssetManager`, streams it into app-private storage, validates the extracted model, and then exposes that path to Dart through the `voice_ludo/native_model` MethodChannel. The ZIP is not decoded into Dart memory.
 
 The recognizer uses a deliberately tiny command grammar containing only dice words plus `[unk]`. This has two advantages:
 
@@ -51,7 +59,9 @@ Recognition is reset between resolved rolls to prevent buffered audio from one t
 
 The repository contains a **permanent Android project** with a native MethodChannel that streams the bundled Vosk ZIP to app-private storage. Do not replace the `android/` directory with a freshly generated Flutter scaffold: doing so removes the native `voice_ludo/native_model` bridge and breaks offline voice initialization.
 
-This project currently keeps AGP 9 legacy Kotlin mode (`android.builtInKotlin=false`) for plugin compatibility. Therefore `android/app/build.gradle.kts` must explicitly apply `org.jetbrains.kotlin.android` so `MainActivity.kt` and the native voice bridge are compiled.
+The voice model has one canonical build location: `android/app/src/main/assets/vosk-model-small-hi-0.22.zip`. Both local setup and Codemagic validate that contract. Regression tests also ensure the ZIP cannot accidentally be moved back into Flutter's generated-asset pipeline.
+
+This project currently keeps AGP 9 legacy Kotlin mode (`android.builtInKotlin=false`) for plugin compatibility. Therefore `android/app/build.gradle.kts` explicitly applies `org.jetbrains.kotlin.android` so `MainActivity.kt` and the native voice bridge are compiled.
 
 ## Codemagic build
 
@@ -59,8 +69,8 @@ Use the `Voice Ludo Offline AI APK` workflow from the root `codemagic.yaml`.
 
 The workflow:
 
-1. Verifies the permanent Android project, Kotlin configuration, and native voice bridge.
-2. Downloads and integrity-checks the official Hindi Vosk mobile model into `assets/models/`.
+1. Verifies the permanent Android project, Kotlin configuration, native voice bridge, and native-asset contract.
+2. Downloads and integrity-checks the official Hindi Vosk mobile model into `android/app/src/main/assets/`.
 3. Runs `flutter pub get`.
 4. Runs the logic and Android build-contract tests.
 5. Runs `flutter analyze`.
@@ -76,7 +86,7 @@ With Flutter installed, run:
 bash tool/bootstrap_android.sh
 ```
 
-The script is intentionally **non-destructive**. It validates the permanent Android/Kotlin/native voice integration, downloads and verifies the offline model when necessary, then runs dependencies, tests, and analysis. It never deletes or regenerates the `android/` directory.
+The script is intentionally **non-destructive**. It validates the permanent Android/Kotlin/native voice integration, downloads and verifies the native Android model asset when necessary, then runs dependencies, tests, and analysis. It never deletes or regenerates the `android/` directory.
 
 After it succeeds, build with:
 

@@ -15,5 +15,5 @@ android/key.properties
 android/app/debug/
 android/app/profile/
 android/app/release/
-assets/models/vosk-model-small-hi-0.22.zip
-assets/models/vosk-model-small-hi-0.22.zip.part
+android/app/src/main/assets/vosk-model-small-hi-0.22.zip
+android/app/src/main/assets/vosk-model-small-hi-0.22.zip.part

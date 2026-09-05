@@ -19,14 +19,34 @@ void main() {
       expect(flutterIndex, greaterThan(kotlinIndex));
     });
 
-    test('native offline-model MethodChannel bridge is present', () {
+    test('offline model is a native Android asset, not a generated Flutter asset', () {
+      final pubspec = File('pubspec.yaml').readAsStringSync();
+      final appGradle = File('android/app/build.gradle.kts').readAsStringSync();
       final mainActivity = File(
         'android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt',
       ).readAsStringSync();
 
+      expect(
+        pubspec,
+        isNot(contains('assets/models/vosk-model-small-hi-0.22.zip')),
+      );
+      expect(
+        appGradle,
+        contains('src/main/assets/vosk-model-small-hi-0.22.zip'),
+      );
+      expect(appGradle, contains('tasks.named("preBuild")'));
+      expect(appGradle, contains('dependsOn(prepareOfflineVoiceModel)'));
       expect(mainActivity, contains('voice_ludo/native_model'));
       expect(mainActivity, contains('prepareOfflineVoskModel'));
-      expect(mainActivity, contains('getLookupKeyForAsset'));
+      expect(mainActivity, contains('assets.open(MODEL_ANDROID_ASSET)'));
+      expect(
+        mainActivity,
+        contains(
+          'private const val MODEL_ANDROID_ASSET = "vosk-model-small-hi-0.22.zip"',
+        ),
+      );
+      expect(mainActivity, isNot(contains('FlutterInjector')));
+      expect(mainActivity, isNot(contains('getLookupKeyForAsset')));
     });
 
     test('local bootstrap preserves the permanent Android integration', () {
@@ -41,6 +61,12 @@ void main() {
         ),
       );
       expect(bootstrap, contains('voice_ludo/native_model'));
+      expect(
+        bootstrap,
+        contains(
+          'android/app/src/main/assets/vosk-model-small-hi-0.22.zip',
+        ),
+      );
     });
   });
 }

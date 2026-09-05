@@ -12,7 +12,7 @@ plugins {
 }
 
 val offlineVoiceModel =
-    rootProject.projectDir.parentFile.resolve("assets/models/vosk-model-small-hi-0.22.zip")
+    projectDir.resolve("src/main/assets/vosk-model-small-hi-0.22.zip")
 val offlineVoiceModelUrl =
     "https://alphacephei.com/vosk/models/vosk-model-small-hi-0.22.zip"
 
@@ -38,7 +38,7 @@ fun isUsableOfflineVoiceModel(file: File): Boolean {
 
 val prepareOfflineVoiceModel by tasks.registering {
     group = "voice ludo"
-    description = "Ensures the bundled offline Hindi Vosk model exists before Flutter assets are compiled."
+    description = "Ensures the native Android Vosk model asset exists before Android assets are merged."
     outputs.file(offlineVoiceModel)
 
     doLast {
@@ -53,7 +53,7 @@ val prepareOfflineVoiceModel by tasks.registering {
         val partial = File(offlineVoiceModel.absolutePath + ".part")
         partial.delete()
 
-        logger.lifecycle("Downloading offline Hindi voice model for APK bundling…")
+        logger.lifecycle("Downloading offline Hindi Vosk model for native APK assets…")
         try {
             val connection = URL(offlineVoiceModelUrl).openConnection().apply {
                 connectTimeout = 30_000
@@ -87,17 +87,18 @@ val prepareOfflineVoiceModel by tasks.registering {
         } catch (error: Exception) {
             partial.delete()
             throw GradleException(
-                "Could not prepare the offline Hindi voice model required by pubspec.yaml.",
+                "Could not prepare the native Android offline Hindi voice model asset.",
                 error,
             )
         }
     }
 }
 
-tasks.configureEach {
-    if (name.startsWith("compileFlutterBuild")) {
-        dependsOn(prepareOfflineVoiceModel)
-    }
+// The model is a native Android asset, not a Flutter asset. Preparing it at
+// preBuild guarantees it exists before Android's mergeAssets/package steps,
+// while Flutter asset bundling no longer depends on a generated ZIP file.
+tasks.named("preBuild") {
+    dependsOn(prepareOfflineVoiceModel)
 }
 
 android {
