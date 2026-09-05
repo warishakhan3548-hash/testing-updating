@@ -1,7 +1,7 @@
 name: voice_ludo_masti
-description: A fun local multiplayer Ludo game with voice-controlled dice.
+description: A fun local multiplayer Ludo game with an offline voice-controlled dice.
 publish_to: "none"
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  speech_to_text: ^7.4.0
+  vosk_flutter_service: ^0.1.2
 
 dev_dependencies:
   flutter_test:
@@ -17,3 +17,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/models/vosk-model-small-hi-0.22.zip
