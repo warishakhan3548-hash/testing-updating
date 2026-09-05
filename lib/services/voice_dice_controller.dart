@@ -29,6 +29,20 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     'पांच नंबर', 'पाँच नंबर', 'छह नंबर', 'छक्का नंबर',
   ];
 
+  // vosk_flutter_service keeps Android Model objects in a plugin-level map and
+  // Model.dispose() does not release that Android object. Creating a fresh
+  // Model every time GameScreen is opened therefore leaks a large native model.
+  // Keep exactly one process-wide model load and create lightweight recognizers
+  // per controller instead.
+  static Model? _sharedModel;
+  static String? _sharedModelPath;
+  static Future<Model>? _sharedModelFuture;
+
+  // The Android plugin owns exactly one SpeechService. Destruction is async, so
+  // a quick back -> Play sequence must not initialize the next service while
+  // the previous controller is still tearing the native service down.
+  static Future<void> _globalServiceRelease = Future<void>.value();
+
   final VoskFlutterPlugin _vosk = VoskFlutterPlugin.instance();
 
   Model? _model;
@@ -80,11 +94,12 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
 
     try {
       await _ensureRecognizer();
-      if (_disposed) return;
+      if (_disposed || _recognizer == null) return;
 
       if (_enabled && !_lifecyclePaused) {
         await _ensureSpeechService();
       }
+      if (_disposed) return;
 
       _available = true;
       _errorMessage = null;
@@ -118,29 +133,84 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     return path;
   }
 
+  Future<Model> _obtainSharedModel(String modelPath) async {
+    final cached = _sharedModel;
+    if (cached != null && _sharedModelPath == modelPath) return cached;
+
+    final inFlight = _sharedModelFuture;
+    if (inFlight != null) return inFlight;
+
+    final load = _vosk.createModel(modelPath);
+    _sharedModelFuture = load;
+    try {
+      final model = await load;
+      _sharedModel = model;
+      _sharedModelPath = modelPath;
+      return model;
+    } finally {
+      if (identical(_sharedModelFuture, load)) {
+        _sharedModelFuture = null;
+      }
+    }
+  }
+
   Future<void> _ensureRecognizer() async {
     if (_model == null) {
-      // Do NOT use vosk_flutter_service ModelLoader here. Its asset loader
-      // reads and decodes the whole ZIP in Dart memory. Android streams the ZIP
-      // directly to disk instead, which avoids a large first-play RAM spike.
-      final modelPath = await _prepareModelPath();
-      if (_disposed) return;
-      _model = await _vosk.createModel(modelPath);
+      final cached = _sharedModel;
+      if (cached != null) {
+        _model = cached;
+      } else {
+        // Do NOT use vosk_flutter_service ModelLoader here. Its asset loader
+        // reads and decodes the whole ZIP in Dart memory. Android streams the
+        // ZIP directly to disk instead, which avoids a large first-play spike.
+        final modelPath = await _prepareModelPath();
+        if (_disposed) return;
+        final model = await _obtainSharedModel(modelPath);
+        if (_disposed) {
+          // The process-wide model intentionally remains cached. On Android the
+          // plugin itself owns that native Model until engine detach, so trying
+          // to create/dispose another copy here would only increase leak risk.
+          return;
+        }
+        _model = model;
+      }
     }
     if (_disposed || _model == null) return;
 
     if (_recognizer == null) {
-      _recognizer = await _vosk.createRecognizer(
+      final recognizer = await _vosk.createRecognizer(
         model: _model!,
         sampleRate: sampleRate,
         grammar: commandGrammar,
       );
-      await _recognizer!.setMaxAlternatives(1);
+      if (_disposed) {
+        try {
+          await recognizer.dispose();
+        } catch (_) {}
+        return;
+      }
+
+      await recognizer.setMaxAlternatives(1);
+      if (_disposed) {
+        try {
+          await recognizer.dispose();
+        } catch (_) {}
+        return;
+      }
+      _recognizer = recognizer;
     }
   }
 
   Future<void> _ensureSpeechService() async {
     if (_disposed || _speechService != null) return;
+
+    // Wait for the previous GameScreen's native SpeechService destruction. The
+    // upstream plugin rejects a second service while the first still exists.
+    try {
+      await _globalServiceRelease;
+    } catch (_) {}
+    if (_disposed || _speechService != null) return;
+
     final recognizer = _recognizer;
     if (recognizer == null) return;
 
@@ -492,17 +562,19 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     required DateTime? candidateAt,
     required DateTime now,
   }) {
-    if (candidateValue == null || candidateAt == null) {
-      return pendingValue;
-    }
-    if (candidateAt.isAfter(now)) return pendingValue;
-    if (now.difference(candidateAt) > candidateFreshness) return pendingValue;
+    final pendingFresh = pendingValue != null &&
+        pendingAt != null &&
+        !pendingAt.isAfter(now) &&
+        now.difference(pendingAt) <= candidateFreshness;
+    final candidateFresh = candidateValue != null &&
+        candidateAt != null &&
+        !candidateAt.isAfter(now) &&
+        now.difference(candidateAt) <= candidateFreshness;
 
-    if (pendingValue == null || pendingAt == null) {
-      return candidateValue;
-    }
+    if (!candidateFresh) return pendingFresh ? pendingValue : null;
+    if (!pendingFresh) return candidateValue;
 
-    return candidateAt.isBefore(pendingAt) ? pendingValue : candidateValue;
+    return candidateAt!.isBefore(pendingAt!) ? pendingValue : candidateValue;
   }
 
   static ({String text, double? confidence}) parseRecognitionPayload(String raw) {
@@ -587,15 +659,23 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
 
   String _friendlyInitError(Object error) {
     final lower = error.toString().toLowerCase();
+    if (lower.contains('ram') || lower.contains('memory')) {
+      return 'Not enough free memory for offline voice. Random dice still works.';
+    }
+    if (lower.contains('storage') || lower.contains('space')) {
+      return 'Not enough free storage for offline voice. Random dice still works.';
+    }
     if (lower.contains('asset') ||
         lower.contains('model') ||
-        lower.contains('prepare')) {
+        lower.contains('prepare') ||
+        lower.contains('corrupt') ||
+        lower.contains('incomplete')) {
       return 'Offline Hindi voice model could not be prepared. Random dice still works.';
     }
     return 'Offline voice setup failed. You can still use random dice.';
   }
 
-  Future<void> _releaseSpeechService() async {
+  Future<void> _releaseSpeechServiceNow() async {
     final service = _speechService;
     _speechService = null;
     _serviceStarted = false;
@@ -616,18 +696,31 @@ class VoiceDiceController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _releaseSpeechService() {
+    final release = _releaseSpeechServiceNow();
+    _globalServiceRelease = release.catchError((_) {});
+    return release;
+  }
+
   void _safeNotify() {
     if (!_disposed) notifyListeners();
   }
 
   Future<void> _shutdown() async {
     await _releaseSpeechService();
-    try {
-      await _recognizer?.dispose();
-    } catch (_) {}
-    try {
-      _model?.dispose();
-    } catch (_) {}
+
+    final recognizer = _recognizer;
+    _recognizer = null;
+    _model = null;
+    if (recognizer != null) {
+      try {
+        await recognizer.dispose();
+      } catch (_) {}
+    }
+    // Do not dispose _sharedModel here. On Android the upstream plugin owns the
+    // native Model for the FlutterEngine lifetime, and its Dart Model.dispose()
+    // does not release that Android object. Reusing one process-wide model is
+    // the leak-safe lifecycle for repeated GameScreen entries.
   }
 
   @override
