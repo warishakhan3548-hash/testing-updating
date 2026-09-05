@@ -5,14 +5,21 @@ workflows:
     environment:
       flutter: 3.47.1
     scripts:
-      - name: Verify Android project
+      - name: Verify Android project and native voice bridge
         script: |
           set -euo pipefail
           test -d android
           test -f android/settings.gradle.kts
+          test -f android/build.gradle.kts
+          test -f android/gradle.properties
           test -f android/app/build.gradle.kts
           test -f android/app/src/main/AndroidManifest.xml
-          echo "Permanent Android project: OK"
+          test -f android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt
+          grep -Fq 'android.builtInKotlin=false' android/gradle.properties
+          grep -Fq 'id("org.jetbrains.kotlin.android")' android/app/build.gradle.kts
+          grep -Fq 'voice_ludo/native_model' android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt
+          grep -Fq 'prepareOfflineVoskModel' android/app/src/main/kotlin/com/aaris/voiceludomasti/MainActivity.kt
+          echo "Permanent Android + Kotlin native voice bridge: OK"
 
       - name: Bundle offline Hindi voice model
         script: |
@@ -46,7 +53,7 @@ workflows:
       - name: Install Flutter dependencies
         script: flutter pub get
 
-      - name: Run logic tests
+      - name: Run logic and Android contract tests
         script: flutter test
 
       - name: Analyze source
