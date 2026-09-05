@@ -151,7 +151,8 @@ class LudoBoard extends StatelessWidget {
     } else {
       final laneIndex = token.progress - 52;
       final lane = _homeLanes[color]!;
-      boardCell = lane[laneIndex.clamp(0, lane.length - 1)];
+      final safeLaneIndex = laneIndex.clamp(0, lane.length - 1).toInt();
+      boardCell = lane[safeLaneIndex];
     }
 
     var center = Offset(
